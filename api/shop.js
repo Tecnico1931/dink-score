@@ -7,8 +7,10 @@
 //   given    {pin|ownerToken, purchaseId}            -> organizer: mark a club reward as handed over
 //   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp } from './_db.js';
 import { computeDinks, CATALOG, SLOTS, shopSettings } from './_dinks.js';
+
+const MAX_CLAIMS_PER_DAY = 3; // names one network can link to phones per club per day without an organizer
 
 async function requirePlayer(sql, code, name, token) {
   const k = cleanName(name).toLowerCase();
@@ -37,12 +39,19 @@ export default handler(async (req, res) => {
     const [existing] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
     if (!existing && players >= 300) throw fail(400, 'This club already has 300 saved players.');
     if (existing && existing.claim_hash) throw fail(409, `${name} is already linked to another phone. Ask an organizer to release it.`);
-    // A name that has already earned Dinks (from games played as a guest) could be claimed by anyone with the club
-    // code and spent. So taking one of those needs an organizer: the PIN, or the club creator's phone.
-    const earned = existing ? (computeDinks(await clubGames(sql, code)).get(k) || { earned: 0 }).earned : 0;
-    const [{ bought }] = existing ? await sql`SELECT count(*)::int AS bought FROM purchases WHERE club = ${code} AND name_key = ${k}` : [{ bought: 0 }];
-    if (earned > 0 || bought > 0) {
-      if (!body.pin && !body.ownerToken) throw fail(403, `${name} already has ${earned} Dinks, so an organizer needs to confirm it's you. Ask them to enter the organizer PIN on this phone.`);
+    // Two cases need an organizer (the PIN, or the club creator's phone) to confirm a claim:
+    // - The name already has Dinks or purchases (from games played as a guest), so a stranger can't take and spend
+    //   them. Checked from the games and purchases themselves, so removing the saved name first doesn't get around it.
+    // - This network has already linked 3 names to phones today, so one person can't set up a crowd of names to
+    //   vouch for made-up games.
+    const earned = (computeDinks(await clubGames(sql, code)).get(k) || { earned: 0 }).earned;
+    const [{ bought }] = await sql`SELECT count(*)::int AS bought FROM purchases WHERE club = ${code} AND name_key = ${k}`;
+    const claimKey = 'claim:' + code + ':' + clientIp(req);
+    const [{ recent }] = await sql`SELECT count(*)::int AS recent FROM lookup_fails WHERE ip = ${claimKey} AND at > now() - interval '1 day'`;
+    const reason = earned > 0 || bought > 0 ? `${name} already has ${earned} Dinks, so an organizer needs to confirm it's you.`
+      : recent >= MAX_CLAIMS_PER_DAY ? `This network has already linked ${MAX_CLAIMS_PER_DAY} names today, so an organizer needs to confirm this one.` : null;
+    if (reason) {
+      if (!body.pin && !body.ownerToken) throw fail(403, reason + ' Ask them to enter the organizer PIN on this phone.');
       await requireOrganizer(club, body.pin, req, body.ownerToken);
     }
     const token = newOwnerToken();
@@ -50,6 +59,7 @@ export default handler(async (req, res) => {
     // Atomic: only one phone can claim a name, even if two try at once.
     const rows = await sql`UPDATE roster SET claim_hash = ${hashToken(token)} WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NULL RETURNING name`;
     if (!rows.length) throw fail(409, `${name} was just claimed by another phone.`);
+    await sql`INSERT INTO lookup_fails (ip) VALUES (${claimKey})`;
     return send(res, 200, { ok: true, name: rows[0].name, playerToken: token });
   }
 

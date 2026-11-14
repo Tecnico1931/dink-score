@@ -117,7 +117,7 @@ export function cleanCode(raw) {
 }
 // The caller's address as Vercel's edge reports it. Vercel sets x-vercel-forwarded-for and x-real-ip itself and
 // overwrites any value a client sends, so callers can't pick a fresh address to dodge the limits.
-function clientIp(req) {
+export function clientIp(req) {
   const h = req.headers || {};
   const raw = h['x-vercel-forwarded-for'] || h['x-real-ip'] || String(h['x-forwarded-for'] || '').split(',').pop() || 'unknown';
   return String(raw).split(',')[0].trim().slice(0, 64);

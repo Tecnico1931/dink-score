@@ -46,11 +46,19 @@ export default handler(async (req, res) => {
     const g = Object.assign(cleanGame(body.edit), { editedAt: Date.now() });
     const [old] = await sql`SELECT data FROM games WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
     if (!old) throw fail(404, 'That game no longer exists, so it could not be changed.');
-    // Keep the server's own record of when the game arrived and who sent it. An edit can't add verification:
-    // if the sender is no longer one of the players, the game stops counting as verified.
+    // Keep the server's own record of when the game arrived. Whether it still counts as verified (full Dinks):
+    // - An edit that changes who played, the score, or whether it was scored live keeps verification only when an
+    //   organizer has proved it: the club creator's phone, or the PIN in a club that has one. (In a club without a
+    //   PIN anyone can edit, so their changes can't keep a game's full-Dinks status.)
+    // - Any other edit (just the date or format) keeps it, as long as the original sender is still one of the players.
+    // An edit never adds verification to a game that didn't have it.
     g.receivedAt = old.data.receivedAt || old.data.endedAt;
-    const sender = old.data.scoredBy;
-    if (sender === 'organizer' || (sender && g.teams.flat().some(n => n.toLowerCase() === sender))) g.scoredBy = sender;
+    const o = old.data;
+    const sameResult = JSON.stringify(o.teams) === JSON.stringify(g.teams) && JSON.stringify(o.score) === JSON.stringify(g.score) && !!o.logged === !!g.logged;
+    const organizerProved = (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken ?? ownerFrom(req))) || !!club.pin_hash;
+    const sender = o.scoredBy;
+    const senderStillPlays = sender === 'organizer' || (sender && g.teams.flat().some(n => n.toLowerCase() === sender));
+    if (sender && senderStillPlays && (sameResult || organizerProved)) g.scoredBy = sender;
     const rows = await sql`UPDATE games SET data = ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}
       WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That game no longer exists, so it could not be changed.');
