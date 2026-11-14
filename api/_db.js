@@ -140,22 +140,28 @@ function pinMatches(stored, pin) {
   const got = scryptSync(String(pin), Buffer.from(salt, 'hex'), want.length);
   return want.length === got.length && timingSafeEqual(want, got);
 }
-const MAX_PIN_FAILS = 10;       // wrong PINs allowed per network address per 15 minutes
-const MAX_CLUB_PIN_FAILS = 30;  // wrong PINs allowed per club per 15 minutes, from all addresses together
+const MAX_PIN_FAILS = 10;       // wrong PINs allowed per network address per 15 minutes (the hard limit)
+const MAX_CLUB_PIN_FAILS = 30;  // wrong PINs per club per 15 minutes, from all addresses, before wrong guesses get "try later"
 // Throws unless `pin` is right for a club that has a PIN. Clubs without a PIN let anyone through.
-// Each attempt is recorded before counting (so simultaneous guesses see each other) and removed again if the PIN is right.
+// - Per network address: the attempt is recorded before counting, so simultaneous guesses see each other, and is
+//   removed again if the PIN is right. Over the limit, the request is refused before the PIN is even checked.
+// - Per club: a flood of wrong guesses from many addresses can't lock out an organizer, because the right PIN
+//   always goes through. Once a club has had many wrong guesses, further wrong ones are refused as "try later".
 export async function requirePin(club, pin, req) {
   if (!club.pin_hash) return;
   const sql = db();
   const ipKey = 'pin:' + clientIp(req), clubKey = 'pinclub:' + club.code;
-  const ids = await sql`INSERT INTO lookup_fails (ip) VALUES (${ipKey}), (${clubKey}) RETURNING id`;
-  const [{ byIp, byClub }] = await sql`SELECT
-      count(*) FILTER (WHERE ip = ${ipKey})::int AS "byIp",
-      count(*) FILTER (WHERE ip = ${clubKey})::int AS "byClub"
-    FROM lookup_fails WHERE ip IN (${ipKey}, ${clubKey}) AND at > now() - interval '15 minutes'`;
-  if (byIp > MAX_PIN_FAILS || byClub > MAX_CLUB_PIN_FAILS) throw fail(429, 'Too many wrong PINs. Wait 15 minutes and try again.');
-  if (!/^\d{4,8}$/.test(String(pin ?? '')) || !pinMatches(club.pin_hash, pin)) throw fail(403, 'That organizer PIN is wrong.');
-  await sql`DELETE FROM lookup_fails WHERE id = ANY(${ids.map(r => r.id)})`;
+  const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ipKey}) RETURNING id`;
+  const [{ byIp }] = await sql`SELECT count(*)::int AS "byIp" FROM lookup_fails WHERE ip = ${ipKey} AND at > now() - interval '15 minutes'`;
+  if (byIp > MAX_PIN_FAILS) throw fail(429, 'Too many wrong PINs. Wait 15 minutes and try again.');
+  if (/^\d{4,8}$/.test(String(pin ?? '')) && pinMatches(club.pin_hash, pin)) {
+    await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
+    return;
+  }
+  const [{ byClub }] = await sql`WITH ins AS (INSERT INTO lookup_fails (ip) VALUES (${clubKey}) RETURNING 1)
+    SELECT count(*)::int + 1 AS "byClub" FROM lookup_fails WHERE ip = ${clubKey} AND at > now() - interval '15 minutes'`;
+  if (byClub > MAX_CLUB_PIN_FAILS) throw fail(429, 'Too many wrong PINs for this club. Wait 15 minutes and try again.');
+  throw fail(403, 'That organizer PIN is wrong.');
 }
 
 // Proof of ownership for setting a club's first PIN: a random token handed only to the phone that created the club.
