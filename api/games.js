@@ -1,14 +1,16 @@
 // POST   /api/games {code, games:[...]}      -> saves one or more games (uploads use up to 500 at once)
 // POST   /api/games {code, restore: id}      -> brings back a deleted game (kept for 30 days)
 // DELETE /api/games?code=ABC123&id=g123      -> moves a game to recently deleted
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames } from './_db.js';
+// Deleting and restoring need the organizer PIN (X-Club-PIN header, or "pin" in the body) when the club has one.
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames, requirePin, pinFrom } from './_db.js';
 
 export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'DELETE') {
     const url = new URL(req.url, 'http://x');
     const code = cleanCode(url.searchParams.get('code'));
-    await requireClub(code, req);
+    const club = await requireClub(code, req);
+    await requirePin(club, pinFrom(req), req);
     const id = String(url.searchParams.get('id') || '');
     const rows = await sql`UPDATE games SET deleted_at = now() WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That game was already deleted.');
@@ -17,9 +19,10 @@ export default handler(async (req, res) => {
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
   const code = cleanCode(body.code);
-  await requireClub(code, req);
+  const club = await requireClub(code, req);
 
   if (body.restore) {
+    await requirePin(club, body.pin ?? pinFrom(req), req);
     const rows = await sql`UPDATE games SET deleted_at = NULL WHERE club = ${code} AND id = ${String(body.restore)} RETURNING id`;
     if (!rows.length) throw fail(404, 'That game can no longer be restored.');
     return send(res, 200, { ok: true });

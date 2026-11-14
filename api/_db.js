@@ -1,5 +1,6 @@
 // Shared helpers for the club API. Files starting with "_" are not routes.
 import { neon } from '@neondatabase/serverless';
+import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 
 let sql = null;
 let ready = null;
@@ -49,6 +50,7 @@ export function ensureSchema() {
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_start timestamptz NOT NULL DEFAULT now()`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_count int NOT NULL DEFAULT 0`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`;
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS pin_hash text`; // organizer PIN, salted scrypt hash
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -109,14 +111,47 @@ export async function requireClub(code, req) {
   const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ip}) RETURNING id`;
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`;
   if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
-  const rows = await sql`SELECT code, name FROM clubs WHERE code = ${code}`;
+  const rows = await sql`SELECT code, name, pin_hash FROM clubs WHERE code = ${code}`;
   if (!rows.length) {
     if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
     throw fail(404, 'No club has that code. Check it and try again.');
   }
   await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
-  return rows[0];
+  return rows[0]; // includes pin_hash: use publicClub() before sending a club to the app
 }
+export const publicClub = c => ({ code: c.code, name: c.name, hasPin: !!c.pin_hash });
+
+// Organizer PIN: 4 to 8 digits. Only its salted scrypt hash is stored.
+export function cleanPin(raw) {
+  const pin = String(raw ?? '').trim();
+  if (!/^\d{4,8}$/.test(pin)) throw fail(400, 'Organizer PINs are 4 to 8 digits.');
+  return pin;
+}
+export function hashPin(pin) {
+  const salt = randomBytes(16);
+  return salt.toString('hex') + ':' + scryptSync(pin, salt, 32).toString('hex');
+}
+function pinMatches(stored, pin) {
+  const [salt, hash] = String(stored).split(':');
+  if (!salt || !hash) return false;
+  const want = Buffer.from(hash, 'hex');
+  const got = scryptSync(String(pin), Buffer.from(salt, 'hex'), want.length);
+  return want.length === got.length && timingSafeEqual(want, got);
+}
+const MAX_PIN_FAILS = 10; // wrong PINs allowed per network address per 15 minutes
+// Throws unless `pin` is right for a club that has a PIN. Clubs without a PIN let anyone through.
+export async function requirePin(club, pin, req) {
+  if (!club.pin_hash) return;
+  const sql = db();
+  const key = 'pin:' + clientIp(req);
+  const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${key} AND at > now() - interval '15 minutes'`;
+  if (n >= MAX_PIN_FAILS) throw fail(429, 'Too many wrong PINs. Wait 15 minutes and try again.');
+  if (!/^\d{4,8}$/.test(String(pin ?? '')) || !pinMatches(club.pin_hash, pin)) {
+    await sql`INSERT INTO lookup_fails (ip) VALUES (${key})`;
+    throw fail(403, 'That organizer PIN is wrong.');
+  }
+}
+export const pinFrom = req => (req.headers || {})['x-club-pin'];
 
 // Reserves room for `count` new games in one atomic update: at most 1,200 per club per 10-minute window
 // (enough for a phone's whole history of up to 1,000 games) and 20,000 per club in total.

@@ -176,7 +176,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 
 /* Leaders */
 .podium { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 8px; align-items: end; }
-.step { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.step { border: 0; background: transparent; font: inherit; color: inherit; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
 .step .avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--c); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 17px; margin-bottom: 6px; }
 .step.s1 .avatar { width: 58px; height: 58px; font-size: 21px; box-shadow: 0 0 0 4px var(--ball); }
 .step .pl-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; line-height: 1.2; }
@@ -187,7 +187,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .step.s2 .block { height: 70px; }
 .step.s3 .block { height: 52px; }
 .rows { display: flex; flex-direction: column; gap: 6px; }
-.prow { background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 2.2ch 1fr auto; gap: 12px; align-items: center; }
+.prow { border: 0; font: inherit; color: inherit; text-align: left; width: 100%; cursor: pointer; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 2.2ch 1fr auto; gap: 12px; align-items: center; }
 .prow .rank { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 20px; color: var(--muted); text-align: center; }
 .prow:first-child .rank { color: var(--ink); }
 .prow .pinfo { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -206,7 +206,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .delta.down { color: var(--down); }
 .delta.flat { color: var(--muted); font-weight: 500; }
 .awards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.awards div { background: var(--surface); border-radius: 18px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.awards > button { border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border-radius: 18px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .awards .aw-k { font-size: 13px; color: var(--muted); }
 .awards .aw-name { font-weight: 700; font-size: 17px; overflow-wrap: anywhere; line-height: 1.2; }
 .awards .aw-v { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 26px; line-height: 1; margin-top: auto; padding-top: 6px; }
@@ -396,6 +396,15 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
 .deleted { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .deleted li { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
 .deleted li span { min-width: 0; overflow-wrap: anywhere; }
+.field-input { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; }
+.org-card { background: var(--surface-2); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.org-head { display: flex; justify-content: space-between; align-items: center; }
+.org-card p { font-size: 14px; }
+.org-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.org-btns .btn { padding: 10px 14px; border-radius: 12px; font-size: 14px; }
+.org-btns .btn-soft { background: var(--surface); }
+.badge.on { background: color-mix(in srgb, var(--up) 18%, transparent); color: var(--up); }
+.badge.off { background: var(--surface); color: var(--muted); }
 .btn-line-danger { background: transparent; color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
 .btn:disabled { opacity: .5; }
 .art-code { display: flex; flex-direction: column; align-items: center; gap: 10px; }
@@ -403,6 +412,42 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
 .art-code .phones { display: flex; gap: 10px; }
 .art-code .phones i { width: 34px; height: 56px; border-radius: 9px; border: 2px solid rgb(255 255 255 / .5); position: relative; }
 .art-code .phones i::after { content: ""; position: absolute; inset: 14px 7px; border-radius: 4px; background: var(--ball); }
+
+/* Player profile */
+.pf-head { display: flex; align-items: center; gap: 12px; }
+.pf-head .av { width: 52px; height: 52px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 18px; flex: none; }
+.pf-head h2 { font-size: 26px; overflow-wrap: anywhere; min-width: 0; flex: 1; }
+.pf-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pf-hero .rt { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 64px; line-height: .85; font-variant-numeric: tabular-nums; }
+.pf-hero .meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 13px; color: var(--muted); }
+.pf-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pf-stats div { background: var(--surface-2); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; min-width: 0; }
+.pf-stats b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 24px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.pf-stats small { font-size: 12px; color: var(--muted); }
+.chart-card { background: var(--surface-2); border-radius: 18px; padding: 12px 12px 6px; position: relative; }
+.chart-card h3 { font-size: 16px; margin: 0 0 4px 2px; }
+.chart-card svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
+.chart-card .axis { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-card .grid { stroke: var(--line); stroke-width: 1; }
+.chart-card .base { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; opacity: .7; }
+.chart-card .area { fill: var(--blue); opacity: .12; }
+.chart-card .line { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-card .end { fill: var(--blue); stroke: var(--surface-2); stroke-width: 2; }
+.chart-card .cross { stroke: var(--muted); stroke-width: 1; }
+.chart-card .hover-dot { fill: var(--surface); stroke: var(--blue); stroke-width: 2; }
+.chart-tip { position: absolute; top: 34px; transform: translateX(-50%); background: var(--ink); color: var(--bg); border-radius: 10px; padding: 6px 9px; font-size: 12px; line-height: 1.3; pointer-events: none; max-width: min(240px, calc(100% - 12px)); box-shadow: var(--shadow); z-index: 2; }
+.chart-tip b { font-variant-numeric: tabular-nums; }
+.pf-list { display: flex; flex-direction: column; gap: 6px; }
+.pf-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; background: var(--surface-2); border-radius: 12px; padding: 9px 12px; font-size: 14px; }
+.pf-row .who { min-width: 0; overflow-wrap: anywhere; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pf-row .who button { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.pf-row .n { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-row .pct { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 3.2ch; text-align: right; }
+.wl { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-size: 12px; font-weight: 800; flex: none; }
+.wl.w { background: color-mix(in srgb, var(--up) 20%, transparent); color: var(--up); }
+.wl.l { background: color-mix(in srgb, var(--down) 18%, transparent); color: var(--down); }
+.badge.best { background: var(--ball); color: var(--ball-ink); }
+@media (max-width: 380px) { .pf-stats { grid-template-columns: repeat(2, 1fr); } }
 
 /* First-visit tutorial */
 .tour-bg { position: fixed; inset: 0; z-index: 100; background: rgb(5 9 15 / .6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
@@ -484,6 +529,7 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
 <div id="overlay"></div>
 <div id="sheet2"></div>
 <div id="sheet3"></div>
+<div id="sheet4"></div>
 <div id="tour"></div>
 
 <script id="engine">
@@ -823,7 +869,7 @@ async function saveGame(rec) {
   if (gamesCol) { try { const { id, ...rest } = rec; await gamesCol.doc(id).set(rest); } catch {} }
 }
 async function deleteGame(id) {
-  if (club) { queueOp({ type: 'delete', id }); render(); return; }
+  if (club) { withPin({ type: 'delete', id }); return; }
   localGames = localGames.filter(g => g.id !== id);
   store.set('pb.games', localGames);
   if (cloudGames) cloudGames = cloudGames.filter(g => g.id !== id);
@@ -888,13 +934,18 @@ function flush() {
       const code = club.code;
       try {
         if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify({ code, games: [op.game] }) });
-        else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE' });
-        else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id }) });
+        else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '' } });
+        else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '' }) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE' });
       } catch (err) {
-        if (err.offline || err.status >= 500 || err.status === 429) { clubState = 'offline'; updateSyncPill(); break; }
+        const pinOp = op.type === 'delete' || op.type === 'restore';
+        if (err.offline || err.status >= 500 || (err.status === 429 && !pinOp)) { clubState = 'offline'; updateSyncPill(); break; }
         if (op.type === 'game') showToast(`A game couldn't be saved to the club: ${err.message}`, false);
+        if (pinOp && (err.status === 403 || err.status === 429)) {
+          if (err.status === 403) forgetPin();
+          showToast(`${err.message} The game was not ${op.type === 'delete' ? 'deleted' : 'restored'}.`, false);
+        }
       }
       outbox.shift(); store.set('pb.outbox', outbox); sent = true;
     }
@@ -910,7 +961,7 @@ async function refreshClub() {
   try {
     const data = await api('club?code=' + club.code);
     if (!club || data.club.code !== club.code) return;
-    club.name = data.club.name; store.set('pb.club', club);
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; store.set('pb.club', club);
     clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, at: Date.now() };
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
@@ -969,6 +1020,47 @@ async function uploadLocalGames() {
   uploading = false; renderClub();
 }
 
+/* Organizer PIN: a phone that has entered the right PIN remembers it, per club, until it's locked again. */
+let pins = store.get('pb.pins', {});
+function rememberPin(code, pin) { pins[code] = pin; store.set('pb.pins', pins); }
+function forgetPin() { if (club) { delete pins[club.code]; store.set('pb.pins', pins); } }
+const hasOrganizer = () => !!club && (!club.hasPin || !!pins[club.code]);
+// Runs a delete or restore, asking for the PIN first when the club has one and this phone isn't unlocked.
+function withPin(op) {
+  if (!club) return;
+  if (club.hasPin && !pins[club.code]) { clubSheet = { view: 'unlock', pending: op, back: clubSheet ? clubSheet.view : null }; renderClub(); return; }
+  queueOp(Object.assign({}, op, club.hasPin ? { pin: pins[club.code] } : {}));
+  if (op.type === 'restore' && clubSheet) clubSheet.msg = 'Game restored.';
+  render();
+}
+async function pinUnlock(raw) {
+  const pin = String(raw || '').trim();
+  if (!/^\d{4,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits.'; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'verify-pin', pin }) });
+    rememberPin(club.code, pin);
+    const { pending, back } = clubSheet;
+    clubSheet = back === 'club' ? { view: 'club' } : null;
+    if (pending) withPin(pending); else render();
+    if (clubSheet && !pending) clubSheet.msg = 'This phone is unlocked for organizer actions.';
+    renderClub();
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
+}
+async function pinSet(oldPin, pin, again) {
+  pin = String(pin || '').trim();
+  if (!/^\d{4,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits.'; renderClub(); return; }
+  if (pin !== String(again || '').trim()) { clubSheet.error = "The two PINs don't match."; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'set-pin', pin, oldPin: String(oldPin || '').trim() }) });
+    club.hasPin = true; store.set('pb.club', club);
+    rememberPin(club.code, pin);
+    clubSheet = { view: 'club', msg: 'Organizer PIN saved. Share it only with organizers.' };
+    render();
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
+}
+
 function renderClub() {
   const root = $('#sheet3');
   if (!root) return;
@@ -989,7 +1081,25 @@ function renderClub() {
         <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
       <div class="or"><span>or</span></div>
       <form class="club-form" data-form="club-create"><label class="lab" for="club-name">Start a new club</label>
-        <div class="add-player"><input id="club-name" placeholder="Club name, like Tuesday Dinkers" autocomplete="off" maxlength="40"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div></form>${err}`;
+        <input id="club-name" class="field-input" placeholder="Club name, like Tuesday Dinkers" autocomplete="off" maxlength="40">
+        <label class="lab" for="club-new-pin">Organizer PIN (optional)</label>
+        <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
+        <p class="note">With a PIN, only people who know it can delete or restore games. You can add one later.</p></form>${err}`;
+  } else if (c.view === 'unlock') {
+    body = `<h2 id="club-h">Organizer PIN</h2>
+      <p>${c.pending ? `${c.pending.type === 'delete' ? 'Deleting' : 'Restoring'} games in ${esc(club.name)} needs the organizer PIN.` : `Unlock this phone to delete and restore games in ${esc(club.name)}.`} This phone remembers it until you lock it again.</p>
+      <form class="club-form" data-form="pin-unlock"><label class="lab" for="pin-input">PIN</label>
+        <div class="add-player"><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${c.pending ? (c.pending.type === 'delete' ? 'Delete game' : 'Restore game') : 'Unlock'}</button></div></form>${err}
+      <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
+  } else if (c.view === 'setpin') {
+    body = `<h2 id="club-h">${club.hasPin ? 'Change organizer PIN' : 'Set an organizer PIN'}</h2>
+      <p>${club.hasPin ? 'Enter the current PIN, then the new one.' : `Once set, deleting or restoring games in ${esc(club.name)} needs this PIN. Share it only with organizers.`}</p>
+      <form class="club-form" data-form="pin-set">
+        ${club.hasPin ? `<label class="lab" for="pin-old">Current PIN</label><input id="pin-old" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password">` : ''}
+        <label class="lab" for="pin-new">New PIN</label><input id="pin-new" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="4 to 8 digits">
+        <label class="lab" for="pin-new2">Type it again</label><input id="pin-new2" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password">
+        ${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Save PIN</button></form>
+      <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
   } else {
     const local = store.get('pb.games', []).length;
     const deleted = clubData ? (clubData.deleted || []).filter(g => !outbox.some(o => o.type === 'restore' && o.id === g.id)) : [];
@@ -999,6 +1109,11 @@ function renderClub() {
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div></div>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
+      <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
+        <p>${!club.hasPin ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
+        <div class="org-btns">${!club.hasPin ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>'
+          : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
+          : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
         <button class="btn btn-line-danger" data-act="club-leave">Leave club on this phone</button></div>`;
@@ -1024,12 +1139,15 @@ function afterJoin() {
   if (club && startAfterJoin) { startAfterJoin = false; clubSheet = null; beginGame(); return; }
   render(); renderClub();
 }
-async function clubCreate(name) {
+async function clubCreate(name, pin) {
   name = String(name || '').trim();
+  pin = String(pin || '').trim();
   if (!name) { clubSheet.error = 'Give your club a name.'; renderClub(); return; }
+  if (pin && !/^\d{4,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits. Leave it blank to skip.'; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
-    const data = await api('club', { method: 'POST', body: JSON.stringify({ name }) });
+    const data = await api('club', { method: 'POST', body: JSON.stringify(pin ? { name, pin } : { name }) });
+    if (pin) rememberPin(data.club.code, pin);
     await joinClub(data.club.code, data.club.name);
     clubSheet = { view: 'club' };
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
@@ -1063,6 +1181,7 @@ function render() {
   renderCourt();
   renderLog();
   renderClub();
+  renderProfile();
   renderTour();
 }
 
@@ -1183,14 +1302,14 @@ function leadersView() {
   const podium = rows.slice(0, 3);
   const order = podium.length === 3 ? [1, 0, 2] : podium.map((_, i) => i);
   const avatarColor = ['var(--ink)', 'var(--blue)', 'var(--green)'];
-  const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<div class="step s${i + 1}" style="--c:${avatarColor[i]}">
+  const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<button class="step s${i + 1}" style="--c:${avatarColor[i]}" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile">
       <span class="avatar">${esc(initials(p.name))}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
-      <div class="block">${i + 1}</div></div>`; }).join('')}</section>`;
-  const list = `<section class="rows">${rows.map((p, i) => `<div class="prow"><span class="rank">${i + 1}</span>
-      <div class="pinfo"><span class="pname">${esc(p.name)}${p.rel < 60 ? '<span class="badge prov">Provisional</span>' : ''}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
-        <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span><span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></div>
-      <div class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</div></div>`).join('')}</section>`;
-  const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<div><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></div>` : ''; };
+      <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
+  const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span>
+      <span class="pinfo"><span class="pname">${esc(p.name)}${p.rel < 60 ? '<span class="badge prov">Provisional</span>' : ''}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
+        <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span><span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
+      <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
+  const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
   const awards = [by(p => p.wins, 'Most wins', p => p.wins), by(p => p.best, 'Longest win streak', p => p.best), by(p => p.diff, 'Best point difference', p => '+' + p.diff), by(p => p.games, 'Most games', p => p.games)].join('');
   return head + podiumHTML + list + (awards ? `<section><h2>Club honors</h2><div class="awards" style="margin-top:10px">${awards}</div></section>` : '');
 }
@@ -1421,6 +1540,115 @@ function submitLog() {
   showToast(`Saved: ${teamLabel(teams[winner])} won ${score[winner]}–${score[1 - winner]}`, false);
 }
 
+/* ---------- player profiles ---------- */
+let profile = null; // { name, mode } when a profile is open
+function playerProfile(name, mode, games) {
+  const key = name.trim().toLowerCase();
+  const isMe = n => n.trim().toLowerCase() === key;
+  const { tables, changes } = DR.compute(games);
+  const asc = [...games].sort((a, b) => a.endedAt - b.endedAt)
+    .filter(g => (g.mode === 'singles' ? 'singles' : 'doubles') === mode && g.teams.some(t => t.some(isMe)));
+  const series = [{ r: DR.START }];
+  const partners = new Map(), opps = new Map();
+  let w = 0, l = 0, pf = 0, pa = 0;
+  const tally = (map, n, won) => { const k = n.trim().toLowerCase(); const e = map.get(k) || { name: n.trim(), g: 0, w: 0 }; e.g++; if (won) e.w++; map.set(k, e); };
+  for (const g of asc) {
+    const t = g.teams[0].some(isMe) ? 0 : 1;
+    const won = g.winner === t;
+    if (won) w++; else l++;
+    pf += Number(g.score[t]); pa += Number(g.score[1 - t]);
+    const ch = changes[g.id] && changes[g.id].list.find(x => isMe(x.name));
+    series.push({ r: ch ? ch.after : series[series.length - 1].r, g, t, won });
+    for (const n of g.teams[t]) if (!isMe(n)) tally(partners, n, won);
+    for (const n of g.teams[1 - t]) tally(opps, n, won);
+  }
+  const p = DR.lookup(tables, mode, name);
+  const byGames = m => [...m.values()].filter(e => !isDefaultName(e.name)).sort((a, b) => b.g - a.g || b.w / b.g - a.w / a.g);
+  const partnerList = byGames(partners);
+  const best = partnerList.filter(e => e.g >= 2).sort((a, b) => b.w / b.g - a.w / a.g || b.g - a.g)[0];
+  return { name: p ? p.name : name, p, rel: p ? Math.round(DR.reliability(p, Date.now()) * 100) : 0, series, w, l, pf, pa, partners: partnerList, best, opps: byGames(opps), recent: asc.slice(-5).reverse() };
+}
+// Rating over time: one series, so no legend; the heading names it. Hover or drag to read each game.
+function ratingChart(series) {
+  const W = 320, H = 140, L = 34, R = 12, T = 12, B = 20;
+  const rs = series.map(s => s.r);
+  let lo = Math.min(...rs, DR.START), hi = Math.max(...rs, DR.START);
+  if (hi - lo < 0.2) { const m = (hi + lo) / 2; lo = m - 0.1; hi = m + 0.1; }
+  lo -= (hi - lo) * 0.1; hi += (hi - lo) * 0.1;
+  const x = i => L + (series.length === 1 ? 0 : (i / (series.length - 1)) * (W - L - R));
+  const y = r => T + (1 - (r - lo) / (hi - lo)) * (H - T - B);
+  const step = (hi - lo) > 1 ? 0.5 : (hi - lo) > 0.4 ? 0.2 : 0.1;
+  const ticks = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(+v.toFixed(2));
+  const pts = series.map((s, i) => `${x(i).toFixed(1)},${y(s.r).toFixed(1)}`);
+  const last = series.length - 1;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Rating over ${last} games, from ${r2(DR.START)} to ${r2(series[last].r)}" data-chart>
+    ${ticks.map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="axis" x="${L - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${v.toFixed(step < 0.2 ? 1 : 1)}</text>`).join('')}
+    <line class="base" x1="${L}" x2="${W - R}" y1="${y(DR.START).toFixed(1)}" y2="${y(DR.START).toFixed(1)}"/>
+    <path class="area" d="M${pts[0]} L${pts.join(' L')} L${x(last).toFixed(1)},${H - B} L${L},${H - B} Z"/>
+    <polyline class="line" points="${pts.join(' ')}"/>
+    <circle class="end" cx="${x(last).toFixed(1)}" cy="${y(series[last].r).toFixed(1)}" r="4.5"/>
+    <text class="axis" x="${L}" y="${H - 4}">Start</text><text class="axis" x="${W - R}" y="${H - 4}" text-anchor="end">Game ${last}</text>
+    <line class="cross" x1="0" x2="0" y1="${T}" y2="${H - B}" visibility="hidden"/><circle class="hover-dot" r="4" visibility="hidden"/>
+  </svg>`;
+  return { svg, geo: { W, L, R, n: series.length, x, y } };
+}
+let chartGeo = null, chartSeries = null;
+function wireChart() {
+  const card = document.querySelector('#sheet4 .chart-card');
+  const svgEl = card && card.querySelector('svg');
+  if (!svgEl || !chartGeo) return;
+  const tip = card.querySelector('.chart-tip'), cross = svgEl.querySelector('.cross'), dot = svgEl.querySelector('.hover-dot');
+  const show = clientX => {
+    const box = svgEl.getBoundingClientRect();
+    const vx = (clientX - box.left) / box.width * chartGeo.W;
+    const i = Math.max(0, Math.min(chartGeo.n - 1, Math.round((vx - chartGeo.L) / ((chartGeo.W - chartGeo.L - chartGeo.R) / Math.max(1, chartGeo.n - 1)))));
+    const s = chartSeries[i];
+    const cx = chartGeo.x(i), cy = chartGeo.y(s.r);
+    cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('visibility', 'visible');
+    dot.setAttribute('cx', cx); dot.setAttribute('cy', cy); dot.setAttribute('visibility', 'visible');
+    const prev = i > 0 ? chartSeries[i - 1].r : s.r;
+    const d = Math.round((s.r - prev) * 100) / 100;
+    tip.innerHTML = i === 0 ? `<b>${r2(s.r)}</b> starting rating`
+      : `<b>${r2(s.r)}</b> ${d === 0 ? '±0.00' : (d > 0 ? '+' : '−') + Math.abs(d).toFixed(2)}<br>${s.won ? 'Won' : 'Lost'} ${Number(s.g.score[s.t])}–${Number(s.g.score[1 - s.t])} vs ${esc(teamLabel(s.g.teams[1 - s.t]))}`;
+    tip.hidden = false;
+    // Keep the readout inside the card: centre it on the point, then nudge it in from either edge.
+    const px = (cx / chartGeo.W) * box.width + (box.left - card.getBoundingClientRect().left);
+    const half = tip.offsetWidth / 2, cw = card.clientWidth;
+    tip.style.left = Math.max(half + 6, Math.min(cw - half - 6, px)) + 'px';
+  };
+  const hide = () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); };
+  svgEl.addEventListener('pointermove', e => show(e.clientX));
+  svgEl.addEventListener('pointerdown', e => show(e.clientX));
+  svgEl.addEventListener('pointerleave', hide);
+}
+function renderProfile() {
+  const root = $('#sheet4');
+  if (!profile) { root.innerHTML = ''; return; }
+  const pr = playerProfile(profile.name, profile.mode, allGames());
+  const games = pr.w + pr.l;
+  const diff = pr.pf - pr.pa;
+  const row = (e, extra = '') => `<div class="pf-row"><span class="who"><button data-player="${esc(e.name)}">${esc(e.name)}</button>${extra}</span><span class="n">${e.w}–${e.g - e.w}</span><span class="pct">${Math.round(100 * e.w / e.g)}%</span></div>`;
+  let body;
+  if (!games) {
+    body = `<div class="empty" style="box-shadow:none;background:var(--surface-2)"><p>No ${profile.mode} games yet for ${esc(pr.name)}.</p></div>`;
+    chartGeo = null;
+  } else {
+    const chart = ratingChart(pr.series);
+    chartGeo = chart.geo; chartSeries = pr.series;
+    body = `<div class="pf-hero"><span class="rt">${r2(pr.p.rating)}</span><span class="meta">${deltaHTML(pr.p.delta)}<span>${pr.rel < 60 ? 'Provisional, ' : ''}${pr.rel}% reliable</span></span></div>
+      <div class="pf-stats"><div><b>${games}</b><small>Games</small></div><div><b>${pr.w}–${pr.l}</b><small>Won–lost</small></div><div><b>${Math.round(100 * pr.w / games)}%</b><small>Win rate</small></div><div><b>${diff > 0 ? '+' : ''}${diff}</b><small>Points +/−</small></div></div>
+      <div class="chart-card"><h3>Rating over time</h3>${chart.svg}<div class="chart-tip" hidden></div></div>
+      ${profile.mode === 'doubles' && pr.partners.length ? `<div class="field" style="margin:0"><span class="lab">Partners</span><div class="pf-list">${pr.partners.slice(0, 8).map(e => row(e, pr.best && e.name === pr.best.name ? '<span class="badge best">Best partner</span>' : '')).join('')}</div></div>` : ''}
+      ${pr.opps.length ? `<div class="field" style="margin:0"><span class="lab">Head to head</span><div class="pf-list">${pr.opps.slice(0, 8).map(e => row(e)).join('')}</div></div>` : ''}
+      <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
+  }
+  root.innerHTML = `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
+    <div class="pf-head"><span class="av">${esc(initials(pr.name))}</span><h2 id="pf-h">${esc(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
+    ${body}</div></div>`;
+  wireChart();
+}
+
 /* ---------- first-visit tutorial ---------- */
 let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
 const isStandalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
@@ -1479,6 +1707,7 @@ document.addEventListener('touchend', e => {
 document.addEventListener('click', e => {
   const el = e.target.closest('button');
   if (!el) {
+    if (profile && e.target.closest && e.target.closest('#sheet4') && e.target.classList.contains('sheet-bg')) { profile = null; renderProfile(); return; }
     if (logForm && e.target.classList && e.target.classList.contains('sheet-bg') && e.target.classList.contains('top')) { logForm = null; render(); }
     return;
   }
@@ -1490,7 +1719,18 @@ document.addEventListener('click', e => {
     if (ds.tour === 'done') closeTour(); else renderTour();
     return;
   }
-  if (ds.restore) { queueOp({ type: 'restore', id: ds.restore }); if (clubSheet) clubSheet.msg = 'Game restored.'; render(); return; }
+  if (ds.player) { profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
+  if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
+  if (ds.act === 'profile-close') { profile = null; renderProfile(); return; }
+  if (ds.restore) { withPin({ type: 'restore', id: ds.restore }); return; }
+  if (ds.act && ds.act.startsWith('pin-')) {
+    const a = ds.act;
+    if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && clubSheet.view === 'setpin') ? { view: 'club' } : null;
+    if (a === 'pin-set-open') clubSheet = { view: 'setpin' };
+    if (a === 'pin-unlock-open') clubSheet = { view: 'unlock', back: 'club' };
+    if (a === 'pin-lock') { forgetPin(); clubSheet = { view: 'club', msg: 'This phone is locked. Deleting games needs the PIN again.' }; }
+    renderClub(); if (!clubSheet) render(); return;
+  }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
     if (a === 'club-open') { logAfterJoin = false; startAfterJoin = false; clubSheet = { view: 'club' }; }
@@ -1584,7 +1824,9 @@ document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
-  if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value); return; }
+  if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
+  if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
+  if (form.matches('[data-form="pin-set"]')) { e.preventDefault(); pinSet($('#pin-old') ? $('#pin-old').value : '', $('#pin-new').value, $('#pin-new2').value); return; }
   if (!form.matches('[data-form="add-player"]')) return;
   e.preventDefault();
   const name = $('#new-player').value.trim();
@@ -1599,9 +1841,10 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'ArrowLeft' && tourStep > 0) { tourStep--; renderTour(); }
     return;
   }
+  if (e.key === 'Escape' && profile) { profile = null; renderProfile(); return; }
   if (e.key === 'Escape' && clubSheet) { clubSheet = null; renderClub(); if (renderPending) safeRender(); return; }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
-  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet) return;
+  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet || profile) return;
   if (e.target.matches && e.target.matches('input')) return;
   if (e.key === '1' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); document.querySelector('[data-rally="0"]').click(); }
   if (e.key === '2' || e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); document.querySelector('[data-rally="1"]').click(); }
