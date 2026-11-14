@@ -44,6 +44,11 @@ export function ensureSchema() {
         at timestamptz NOT NULL DEFAULT now()
       )`;
       await q`CREATE INDEX IF NOT EXISTS lookup_fails_ip_at ON lookup_fails (ip, at)`;
+      await q`ALTER TABLE lookup_fails ADD COLUMN IF NOT EXISTS id bigserial`;
+      // Per-club counters for the game limits, updated atomically in reserveGames().
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_start timestamptz NOT NULL DEFAULT now()`;
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_count int NOT NULL DEFAULT 0`;
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -99,15 +104,37 @@ const MAX_FAILS = 20; // wrong codes allowed per network address per 15 minutes
 export async function requireClub(code, req) {
   const sql = db();
   const ip = clientIp(req);
+  // Record the attempt first, then count, so simultaneous guesses all see each other.
+  // A correct code removes its own record, so only wrong codes count toward the limit.
+  const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ip}) RETURNING id`;
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`;
-  if (n >= MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
+  if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
   const rows = await sql`SELECT code, name FROM clubs WHERE code = ${code}`;
   if (!rows.length) {
-    await sql`INSERT INTO lookup_fails (ip) VALUES (${ip})`;
     if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
     throw fail(404, 'No club has that code. Check it and try again.');
   }
+  await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
   return rows[0];
+}
+
+// Reserves room for `count` new games in one atomic update: at most 1,200 per club per 10-minute window
+// (enough for a phone's whole history of up to 1,000 games) and 20,000 per club in total.
+// The row lock on the club makes simultaneous requests take turns, so they can't overshoot together.
+export async function reserveGames(code, count) {
+  const sql = db();
+  const rows = await sql`UPDATE clubs SET
+      window_count = CASE WHEN window_start < now() - interval '10 minutes' THEN ${count} ELSE window_count + ${count} END,
+      window_start = CASE WHEN window_start < now() - interval '10 minutes' THEN now() ELSE window_start END,
+      total_count = total_count + ${count}
+    WHERE code = ${code}
+      AND (CASE WHEN window_start < now() - interval '10 minutes' THEN 0 ELSE window_count END) + ${count} <= 1200
+      AND total_count + ${count} <= 20000
+    RETURNING code`;
+  if (rows.length) return;
+  const [club] = await sql`SELECT total_count FROM clubs WHERE code = ${code}`;
+  if (club && club.total_count + count > 20000) throw fail(400, 'This club has reached its limit of 20,000 games.');
+  throw fail(429, 'Too many games were added just now. Wait a few minutes and try again.');
 }
 
 const cleanName = n => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 40);

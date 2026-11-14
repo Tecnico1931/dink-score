@@ -1,7 +1,7 @@
 // POST   /api/games {code, games:[...]}      -> saves one or more games (uploads use up to 500 at once)
 // POST   /api/games {code, restore: id}      -> brings back a deleted game (kept for 30 days)
 // DELETE /api/games?code=ABC123&id=g123      -> moves a game to recently deleted
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames } from './_db.js';
 
 export default handler(async (req, res) => {
   const sql = db();
@@ -29,17 +29,9 @@ export default handler(async (req, res) => {
   if (!list.length) throw fail(400, 'No games to save.');
   if (list.length > 500) throw fail(400, 'Upload at most 500 games at a time.');
 
-  // Flood protection, checked on every request (bulk uploads included):
-  // at most 1,200 new games per club per 10 minutes, which still fits a phone's full history (up to 1,000 games),
-  // and at most 20,000 games stored per club in total.
-  const [{ recent, total }] = await sql`SELECT
-      count(*) FILTER (WHERE created_at > now() - interval '10 minutes')::int AS recent,
-      count(*)::int AS total
-    FROM games WHERE club = ${code}`;
-  if (recent + list.length > 1200) throw fail(429, 'Too many games were added just now. Wait a few minutes and try again.');
-  if (total + list.length > 20000) throw fail(400, 'This club has reached its limit of 20,000 games.');
-
-  const games = list.map(cleanGame);
+  const games = list.map(cleanGame); // validate everything before using up any of the club's allowance
+  // Flood protection on every request, bulk uploads included (see reserveGames in _db.js).
+  await reserveGames(code, games.length);
   const names = new Map();
   for (const g of games) {
     await sql`INSERT INTO games (club, id, data, ended_at) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt})
