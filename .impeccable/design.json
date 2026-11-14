@@ -1,0 +1,597 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-14T23:51:21.616Z",
+  "title": "Design System: Dink Score",
+  "extensions": {
+    "colorMeta": {
+      "court-blue": {
+        "role": "primary",
+        "displayName": "Court Blue",
+        "canonical": "#2B49E6",
+        "tonalRamp": [
+          "#111A44",
+          "#18266F",
+          "#1F339A",
+          "#2640C6",
+          "#2B49E6",
+          "#6B80EE",
+          "#A0ADF4",
+          "#D5DBFA"
+        ]
+      },
+      "court-green": {
+        "role": "primary",
+        "displayName": "Court Green",
+        "canonical": "#0B8562",
+        "tonalRamp": [
+          "#092923",
+          "#094134",
+          "#0A5A45",
+          "#0B7355",
+          "#0B8562",
+          "#54AA91",
+          "#91C8B8",
+          "#CEE7E0"
+        ]
+      },
+      "ball-yellow": {
+        "role": "secondary",
+        "displayName": "Ball Yellow",
+        "canonical": "#DDF247",
+        "tonalRamp": [
+          "#3D441C",
+          "#687228",
+          "#92A133",
+          "#BDCF3E",
+          "#DDF247",
+          "#E7F67E",
+          "#F0F9AC",
+          "#F8FCDA"
+        ]
+      },
+      "ball-ink": {
+        "role": "secondary",
+        "displayName": "Ball Ink",
+        "canonical": "#1B2104",
+        "tonalRamp": [
+          "#0D100C",
+          "#11140A",
+          "#141908",
+          "#181E06",
+          "#1B2104",
+          "#5F644F",
+          "#989B8E",
+          "#D1D3CD"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#0E1726",
+        "tonalRamp": [
+          "#0A0D14",
+          "#0B1019",
+          "#0C121E",
+          "#0D1522",
+          "#0E1726",
+          "#565D67",
+          "#93979D",
+          "#CFD1D4"
+        ]
+      },
+      "muted-slate": {
+        "role": "neutral",
+        "displayName": "Muted Slate",
+        "canonical": "#5D6A7B",
+        "tonalRamp": [
+          "#1D2229",
+          "#2E353F",
+          "#3F4855",
+          "#505C6B",
+          "#5D6A7B",
+          "#8E97A3",
+          "#B6BCC4",
+          "#DFE1E5"
+        ]
+      },
+      "daylight-grey": {
+        "role": "neutral",
+        "displayName": "Daylight Grey",
+        "canonical": "#F2F4F7",
+        "tonalRamp": [
+          "#434548",
+          "#717377",
+          "#A0A2A5",
+          "#CFD1D4",
+          "#F2F4F7",
+          "#F6F7F9",
+          "#F9FAFB",
+          "#FCFDFD"
+        ]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#FFFFFF",
+        "tonalRamp": [
+          "#46474A",
+          "#77787A",
+          "#A9A9AB",
+          "#DADADB",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF",
+          "#FFFFFF"
+        ]
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Surface 2",
+        "canonical": "#E9EDF2",
+        "tonalRamp": [
+          "#404347",
+          "#6D7075",
+          "#9A9EA2",
+          "#C7CBD0",
+          "#E9EDF2",
+          "#F0F2F6",
+          "#F5F7F9",
+          "#FBFBFC"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Line",
+        "canonical": "#DEE4EA",
+        "tonalRamp": [
+          "#3E4145",
+          "#686C71",
+          "#93989D",
+          "#BEC3C9",
+          "#DEE4EA",
+          "#E8ECF0",
+          "#F0F3F6",
+          "#F8FAFB"
+        ]
+      },
+      "up-green": {
+        "role": "neutral",
+        "displayName": "Up Green",
+        "canonical": "#0B8562",
+        "tonalRamp": [
+          "#092923",
+          "#094134",
+          "#0A5A45",
+          "#0B7355",
+          "#0B8562",
+          "#54AA91",
+          "#91C8B8",
+          "#CEE7E0"
+        ]
+      },
+      "down-red": {
+        "role": "neutral",
+        "displayName": "Down Red",
+        "canonical": "#C2372B",
+        "tonalRamp": [
+          "#371515",
+          "#5C1E1B",
+          "#812721",
+          "#A63027",
+          "#C2372B",
+          "#D4736B",
+          "#E4A5A0",
+          "#F3D7D5"
+        ]
+      },
+      "night-bg": {
+        "role": "neutral",
+        "displayName": "Night Bg",
+        "canonical": "#0A0F17",
+        "tonalRamp": [
+          "#090B10",
+          "#090C12",
+          "#090D14",
+          "#0A0E16",
+          "#0A0F17",
+          "#54575D",
+          "#919397",
+          "#CECFD1"
+        ]
+      },
+      "night-surface": {
+        "role": "neutral",
+        "displayName": "Night Surface",
+        "canonical": "#131B26",
+        "tonalRamp": [
+          "#0B0E14",
+          "#0D1219",
+          "#0F151E",
+          "#111822",
+          "#131B26",
+          "#5A5F67",
+          "#95989D",
+          "#D0D1D4"
+        ]
+      },
+      "night-surface-2": {
+        "role": "neutral",
+        "displayName": "Night Surface 2",
+        "canonical": "#1B2532",
+        "tonalRamp": [
+          "#0D1117",
+          "#11161E",
+          "#141C25",
+          "#18212D",
+          "#1B2532",
+          "#5F6670",
+          "#989DA3",
+          "#D1D3D6"
+        ]
+      },
+      "night-ink": {
+        "role": "neutral",
+        "displayName": "Night Ink",
+        "canonical": "#EEF2F7",
+        "tonalRamp": [
+          "#424448",
+          "#6F7277",
+          "#9EA1A5",
+          "#CCCFD4",
+          "#EEF2F7",
+          "#F3F6F9",
+          "#F7F9FB",
+          "#FCFCFD"
+        ]
+      },
+      "night-muted": {
+        "role": "neutral",
+        "displayName": "Night Muted",
+        "canonical": "#8E9BAD",
+        "tonalRamp": [
+          "#2A2E36",
+          "#444B56",
+          "#5F6875",
+          "#7A8595",
+          "#8E9BAD",
+          "#B0B9C6",
+          "#CCD2DA",
+          "#E8EBEF"
+        ]
+      },
+      "night-line": {
+        "role": "neutral",
+        "displayName": "Night Line",
+        "canonical": "#243142",
+        "tonalRamp": [
+          "#0F141B",
+          "#151C25",
+          "#1A2330",
+          "#202B3A",
+          "#243142",
+          "#666F7B",
+          "#9CA2AA",
+          "#D3D6D9"
+        ]
+      },
+      "night-court-blue": {
+        "role": "neutral",
+        "displayName": "Night Court Blue",
+        "canonical": "#3D5BFF",
+        "tonalRamp": [
+          "#151E4A",
+          "#202E7A",
+          "#2A3FAB",
+          "#354FDB",
+          "#3D5BFF",
+          "#778CFF",
+          "#A8B5FF",
+          "#D8DEFF"
+        ]
+      },
+      "night-court-green": {
+        "role": "neutral",
+        "displayName": "Night Court Green",
+        "canonical": "#12A578",
+        "tonalRamp": [
+          "#0B3129",
+          "#0D503E",
+          "#0F6F53",
+          "#118E68",
+          "#12A578",
+          "#59C0A1",
+          "#94D7C2",
+          "#D0EDE4"
+        ]
+      },
+      "night-up": {
+        "role": "neutral",
+        "displayName": "Night Up",
+        "canonical": "#3DD69E",
+        "tonalRamp": [
+          "#153D32",
+          "#20664F",
+          "#2A8F6C",
+          "#35B788",
+          "#3DD69E",
+          "#77E2BB",
+          "#A8EDD3",
+          "#D8F7EC"
+        ]
+      },
+      "night-down": {
+        "role": "neutral",
+        "displayName": "Night Down",
+        "canonical": "#FF7A6B",
+        "tonalRamp": [
+          "#462625",
+          "#773C38",
+          "#A9534A",
+          "#DA695D",
+          "#FF7A6B",
+          "#FFA297",
+          "#FFC3BC",
+          "#FFE4E1"
+        ]
+      },
+      "night-focus": {
+        "role": "neutral",
+        "displayName": "Night Focus",
+        "canonical": "#9DB0FF",
+        "tonalRamp": [
+          "#2D344A",
+          "#4B557A",
+          "#6976AB",
+          "#8797DB",
+          "#9DB0FF",
+          "#BAC8FF",
+          "#D3DBFF",
+          "#EBEFFF"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "score": {
+        "displayName": "Score",
+        "purpose": "Live score on the court panels only."
+      },
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Every number that matters: ratings, ranks, totals, forecasts."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "\"Dink Score\" in the top bar."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section and sheet headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Sub-section headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All reading text and inputs (16px prevents iOS zoom)."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Field labels, tile keys, meta lines."
+      }
+    },
+    "shadows": [
+      {
+        "name": "ambient-card",
+        "value": "0 1px 2px rgb(14 23 38 / .06), 0 8px 24px -12px rgb(14 23 38 / .18)",
+        "purpose": "Every daylight card, tile and row (light theme)."
+      },
+      {
+        "name": "ambient-card-dark",
+        "value": "0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7)",
+        "purpose": "Ambient card shadow in dark theme."
+      },
+      {
+        "name": "floating-chrome",
+        "value": "0 12px 34px -12px rgb(0 0 0 / .35)",
+        "purpose": "Tab bar, with an 18px backdrop blur."
+      },
+      {
+        "name": "court-panel-glow",
+        "value": "0 24px 48px -28px var(--c1), inset 0 1px 0 rgb(255 255 255 / .2)",
+        "purpose": "Colored glow under each team court panel."
+      },
+      {
+        "name": "score-call-glass",
+        "value": "inset 0 0 0 1px rgb(255 255 255 / .12), 0 14px 34px -12px rgb(0 0 0 / .9)",
+        "purpose": "Glass score-call capsule on the net."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-sheet",
+        "value": "cubic-bezier(.2, .8, .2, 1)",
+        "purpose": "Bottom sheets rising (0.32s)."
+      },
+      {
+        "name": "ease-score-bump",
+        "value": "cubic-bezier(.2, .9, .3, 1.25)",
+        "purpose": "Score number springing in after a point (0.36s)."
+      },
+      {
+        "name": "press",
+        "value": "scale(.985), 0.12s ease",
+        "purpose": "Press feedback on buttons and court panels."
+      },
+      {
+        "name": "state-fade",
+        "value": "0.15s",
+        "purpose": "Background and color changes on tabs and segments."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "none",
+        "purpose": "All animation and transition removed under prefers-reduced-motion: reduce."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "tiny",
+        "value": "max-width: 360px"
+      },
+      {
+        "name": "narrow",
+        "value": "max-width: 380px"
+      },
+      {
+        "name": "wide-tile",
+        "value": "min-width: 520px"
+      },
+      {
+        "name": "court-landscape",
+        "value": "orientation: landscape and min-width: 640px"
+      },
+      {
+        "name": "short",
+        "value": "max-height: 640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Ink Button",
+      "kind": "button",
+      "refersTo": "button-ink",
+      "description": "Default strong action.",
+      "html": "<button class=\"ds-btn ds-btn-ink\">Start game</button>",
+      "css": ".ds-btn{border:0;border-radius:16px;padding:16px 20px;font-weight:700;font-size:16px;font-family:var(--ui);display:inline-flex;justify-content:center;align-items:center;gap:10px;cursor:pointer;transition:transform .12s ease}.ds-btn:active{transform:scale(.985)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-btn-ink{background:var(--ink);color:var(--bg)}"
+    },
+    {
+      "name": "Ball Button",
+      "kind": "button",
+      "refersTo": "button-ball",
+      "description": "The single most important go action on a screen.",
+      "html": "<button class=\"ds-btn ds-btn-ball\">Resume</button>",
+      "css": ".ds-btn{border:0;border-radius:16px;padding:16px 20px;font-weight:700;font-size:16px;font-family:var(--ui);display:inline-flex;justify-content:center;align-items:center;gap:10px;cursor:pointer;transition:transform .12s ease}.ds-btn:active{transform:scale(.985)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-btn-ball{background:var(--ball);color:var(--ball-ink)}"
+    },
+    {
+      "name": "Soft Button",
+      "kind": "button",
+      "refersTo": "button-soft",
+      "description": "Secondary action.",
+      "html": "<button class=\"ds-btn ds-btn-soft\">Cancel</button>",
+      "css": ".ds-btn{border:0;border-radius:16px;padding:16px 20px;font-weight:700;font-size:16px;font-family:var(--ui);display:inline-flex;justify-content:center;align-items:center;gap:10px;cursor:pointer;transition:transform .12s ease}.ds-btn:active{transform:scale(.985)}.ds-btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}.ds-btn-soft{background:var(--surface-2);color:var(--ink)}"
+    },
+    {
+      "name": "Player Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Saved player pick, with rating numeral.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\">Sam <span class=\"ds-r\">4.12</span></button><button class=\"ds-chip\" aria-pressed=\"true\">Alex <span class=\"ds-r\">3.80</span></button></div>",
+      "css": ".ds-chips{display:flex;gap:6px;flex-wrap:wrap}.ds-chip{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:7px 12px;font:500 14px var(--ui);display:inline-flex;align-items:center;gap:7px;cursor:pointer}.ds-chip .ds-r{font-family:var(--display);font-stretch:75%;font-weight:700;color:var(--muted)}.ds-chip[aria-pressed=\"true\"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}.ds-chip[aria-pressed=\"true\"] .ds-r{color:inherit;opacity:.65}.ds-chip:focus-visible{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "Segmented Control",
+      "kind": "custom",
+      "refersTo": "segmented",
+      "description": "Scoring type, format, points to win.",
+      "html": "<div class=\"ds-seg\"><button aria-pressed=\"true\">Side-out</button><button>Rally</button></div>",
+      "css": ".ds-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface-2);border-radius:14px;padding:4px;gap:4px}.ds-seg button{border:0;background:transparent;border-radius:10px;padding:10px 6px;font:600 15px var(--ui);color:var(--muted);cursor:pointer;transition:background .15s,color .15s}.ds-seg button[aria-pressed=\"true\"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgb(14 23 38 / .14)}.ds-seg button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Add player and name fields.",
+      "html": "<input class=\"ds-input\" placeholder=\"Add a player\">",
+      "css": ".ds-input{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:12px 14px;font:16px var(--ui);min-width:0}.ds-input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "Home Tile",
+      "kind": "card",
+      "refersTo": "tile",
+      "description": "Home grid tile with a squeezed numeral.",
+      "html": "<div class=\"ds-tile\"><span class=\"ds-k\">Top player</span><span class=\"ds-big\">4.62</span><span class=\"ds-name\">Jordan</span><span class=\"ds-foot\">12 games</span></div>",
+      "css": ".ds-tile{background:var(--surface);color:var(--ink);border-radius:22px;padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px;min-height:132px;width:170px;font-family:var(--ui)}.ds-k{font-size:13px;color:var(--muted);font-weight:500}.ds-big{font-family:var(--display);font-weight:800;font-stretch:75%;font-size:40px;line-height:.95;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.ds-name{font-weight:600;font-size:16px}.ds-foot{margin-top:auto;font-size:13px;color:var(--muted)}"
+    },
+    {
+      "name": "Tab Bar",
+      "kind": "nav",
+      "refersTo": "tab-active",
+      "description": "Floating glass pill tab bar.",
+      "html": "<nav class=\"ds-tabs\"><button aria-current=\"page\"><svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M3 11l9-7 9 7v9H3z\"/></svg>Home</button><button><svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 20V10M10 20V4M16 20v-7M22 20H2\"/></svg>Leaders</button><button><svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>Recent</button></nav>",
+      "css": ".ds-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:6px;max-width:300px;background:color-mix(in srgb,var(--surface) 82%,transparent);backdrop-filter:blur(18px) saturate(1.4);border:1px solid var(--line);border-radius:26px;box-shadow:0 12px 34px -12px rgb(0 0 0 / .35)}.ds-tabs button{border:0;background:transparent;padding:8px 4px;border-radius:20px;display:flex;flex-direction:column;align-items:center;gap:2px;font:600 11px var(--ui);color:var(--muted);cursor:pointer;transition:background .15s,color .15s}.ds-tabs button[aria-current=\"page\"]{background:var(--ink);color:var(--bg)}.ds-tabs button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}"
+    },
+    {
+      "name": "Court Panel",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Signature scoring tap target with the giant squeezed score.",
+      "html": "<button class=\"ds-half\"><span class=\"ds-pill\">Serving</span><span class=\"ds-score\">7</span></button>",
+      "css": ".ds-half{--c1:#4361FF;--c2:#1A2BA6;border:0;color:#fff;width:260px;height:220px;border-radius:30px;background:linear-gradient(155deg,var(--c1),var(--c2));box-shadow:0 24px 48px -28px var(--c1),inset 0 1px 0 rgb(255 255 255 / .2);display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;padding:18px 20px 22px;cursor:pointer;transition:transform .12s ease}.ds-half:active{transform:scale(.985)}.ds-half:focus-visible{outline:2px solid #9DB0FF;outline-offset:2px}.ds-pill{background:var(--ball);color:var(--ball-ink);font:700 12px var(--ui);border-radius:999px;padding:5px 10px}.ds-score{font-family:var(--display);font-weight:800;font-stretch:75%;font-size:140px;line-height:.78;letter-spacing:-.045em;font-variant-numeric:tabular-nums}"
+    },
+    {
+      "name": "Score Call",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Glass capsule on the net showing the call.",
+      "html": "<div class=\"ds-call\"><div><b>7</b><small>Server</small></div><div><b>4</b><small>Receiver</small></div><div><b>2</b><small>Server #</small></div></div>",
+      "css": ".ds-call{display:inline-flex;gap:4px;padding:5px;border-radius:22px;background:rgb(15 22 34 / .86);backdrop-filter:blur(14px);box-shadow:inset 0 0 0 1px rgb(255 255 255 / .12),0 14px 34px -12px rgb(0 0 0 / .9);color:#fff;font-family:var(--ui)}.ds-call div{width:60px;display:flex;flex-direction:column;align-items:center;padding:7px 0 6px;border-radius:17px}.ds-call b{font-family:var(--display);font-weight:800;font-stretch:75%;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}.ds-call small{font-size:10px;font-weight:600;color:rgb(255 255 255 / .55);margin-top:3px}.ds-call div:first-child{background:var(--ball);color:var(--ball-ink)}.ds-call div:first-child small{color:rgb(27 33 4 / .7)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Floodlit Court",
+    "overview": "Dink Score has two lighting conditions. By day, the app is a calm, cool-grey phone UI: white soft-cornered cards on a pale slate ground, ink-dark type, nothing shouting. When a game starts, the scoring screen switches to a floodlit night court. It's a near-black radial field with two big rounded team panels, blue and green, lit from within. The numerals are so large and so squeezed that you can read them from the baseline. Tennis-ball yellow is the floodlight. It marks who is serving, what's live, and who's on top.\n\nThe surfaces are calm and tidy. Cards, tiles, chips and rows are restrained, and the numbers do the shouting. The one bold typographic idea runs through everything: the variable grotesque Bricolage Grotesque, squeezed to 75% width and set heavy, for every number that matters. That covers scores, ratings, ranks, totals and forecasts. Geist carries everything else at a comfortable reading size.\n\nIt must never read as a corporate fitness app (gradients everywhere, stock athletes, goal-crushing energy). The Shop and Dinks must never read as a casino or gacha game. Text never gets small or dense enough to need squinting outdoors.",
+    "keyCharacteristics": [
+      "Two worlds: a calm daylight app and a floodlit night court for scoring.",
+      "Squeezed, heavy, tabular numerals for every number that matters.",
+      "Ball yellow is a light source, used sparingly to mark serve, live and first place.",
+      "Team identity is color: blue for team one, green for team two, carried from setup to scoring to history.",
+      "Generous radii and big tap targets, so everything works one-handed and mid-game.",
+      "Full light and dark themes, plus a forced theme via `data-theme`."
+    ],
+    "rules": [
+      {
+        "name": "The Floodlight Rule",
+        "body": "Ball yellow means \"this one, now\": the server, the live game, the leader. It never becomes a general accent, a background wash or decoration. If two things on screen are yellow, one of them is wrong.",
+        "section": "colors"
+      },
+      {
+        "name": "The Team Color Rule",
+        "body": "Blue is always team one and green is always team two, everywhere a team appears. Never swap them, and never use either one as plain decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The Squeezed Numeral Rule",
+        "body": "Any number a player cares about is set in the display face at 75% width, weight 800, with tabular figures. Numbers never appear in Geist at display size.",
+        "section": "typography"
+      },
+      {
+        "name": "The Outdoor Floor Rule",
+        "body": "Running text is never below 13px, and labels are never below 11px. No text smaller than the existing tab labels.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Shadow Rule",
+        "body": "Daylight surfaces use only the ambient card shadow. If you need another level, recess it with surface-2 rather than adding a deeper shadow.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do set every score, rating, rank and total in Bricolage Grotesque at 800 weight, 75% width, with tabular figures.",
+      "Do keep ball yellow for the server, the live state and first place only.",
+      "Do carry team blue and team green consistently from setup to court to history.",
+      "Do keep daylight surfaces calm: white cards, one ambient shadow and surface-2 recesses.",
+      "Do keep tap targets at 44px or larger and inputs at 16px.",
+      "Do honor `prefers-reduced-motion`. The app already strips every animation and transition under it.",
+      "Do define every new color for both the light and dark themes through the `:root` tokens."
+    ],
+    "donts": [
+      "Don't let it look like a corporate fitness app: no gradients on daylight surfaces, no stock athletes, no hype copy. Gradients belong only to the court panels.",
+      "Don't make the Shop, Dinks or rewards look like a casino or gacha game: no slot-machine flashing, confetti storms or loot-box theatrics.",
+      "Don't set text below 13px for reading or below 11px for labels, and don't pack dense small type that needs squinting outdoors.",
+      "Don't add a second accent color, or use ball yellow as a background wash.",
+      "Don't add hover-only affordances. Every state must work on touch."
+    ]
+  }
+}
