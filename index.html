@@ -443,6 +443,14 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .org-card { background: var(--surface-2); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .org-head { display: flex; justify-content: space-between; align-items: center; }
 .org-card p { font-size: 14px; }
+.mem-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mem-row { background: var(--surface-2); border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mem-who { display: flex; align-items: center; gap: 10px; min-width: 0; text-align: left; background: none; border: 0; padding: 0; color: var(--ink); font: inherit; cursor: pointer; }
+.mem-who .avatar-mini { width: 34px; height: 34px; font-size: 12px; --r: 23px; }
+.mem-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.mem-name { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; min-width: 0; }
+.mem-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.mem-acts { display: flex; flex-wrap: wrap; gap: 4px 14px; padding-left: 44px; font-size: 13px; }
 .org-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 .org-btns .btn { padding: 10px 14px; border-radius: 12px; font-size: 14px; }
 .org-btns .btn-soft { background: var(--surface); }
@@ -1398,6 +1406,8 @@ function renderClub() {
     body = whoamiHTML(c);
   } else if (c.view === 'shopadmin' && club) {
     body = shopAdminHTML(c);
+  } else if (c.view === 'members' && club) {
+    body = membersHTML(c);
   } else if (c.view === 'invite') {
     body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
@@ -1446,6 +1456,7 @@ function renderClub() {
           : isCreator() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button>'
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
+      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
         <button class="btn btn-line-danger" data-act="club-leave">Leave club on this phone</button></div>`;
@@ -2340,6 +2351,33 @@ function shopAdminHTML(c) {
     ${clubPlayers().some(p => p.claimed) ? `<div class="field" style="margin:0"><span class="lab">Names linked to phones</span><ul class="deleted">${clubPlayers().filter(p => p.claimed).map(p => `<li><span>${esc(p.name)}</span><button class="link" data-release="${esc(p.name)}">Release</button></li>`).join('')}</ul><p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p></div>` : ''}`}
     <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
+function membersHTML(c) {
+  const games = allGames();
+  const now = Date.now(), DAY30 = 30 * 86400000;
+  const rows = clubPlayers().map(p => {
+    let n = 0, last = 0;
+    for (const g of games) {
+      if ((g.teams || []).some(t => (t || []).some(x => sameName(x, p.name)))) { n++; if ((g.endedAt || 0) > last) last = g.endedAt || 0; }
+    }
+    return { p, n, last };
+  });
+  rows.sort((a, b) => (b.p.claimed ? 1 : 0) - (a.p.claimed ? 1 : 0) || b.last - a.last || a.p.name.localeCompare(b.p.name));
+  const linked = rows.filter(r => r.p.claimed).length;
+  const active = rows.filter(r => r.last && now - r.last <= DAY30).length;
+  const list = rows.map(({ p, n, last }) => {
+    const bal = Math.round((wallet(p.name) || {}).balance || 0);
+    const when = last ? new Date(last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+    return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
+      <span class="mem-text"><span class="mem-name">${styledName(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span></span>
+      <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'} · ${bal} Dinks</span></span></button>
+      ${p.claimed || p.avatar ? `<span class="mem-acts">${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span>` : ''}</li>`;
+  }).join('');
+  return `<h2 id="club-h">Members</h2>
+    ${rows.length ? `<p>${rows.length} player${rows.length === 1 ? '' : 's'}, ${linked} linked to phones, ${active} played in the last 30 days.</p>
+    <ul class="mem-list">${list}</ul>
+    <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones.</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
+    <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
 async function adminSave() {
   const c = clubSheet, d = c.draft;
   c.busy = true; c.error = ''; renderClub();
@@ -2600,7 +2638,7 @@ document.addEventListener('click', e => {
     if (ds.tour === 'done') closeTour(); else renderTour();
     return;
   }
-  if (ds.player) { profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
+  if (ds.player) { if (clubSheet && el.closest && el.closest('#sheet3')) { clubSheet = null; renderClub(); } profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
   if (ds.act === 'profile-close') { profile = null; renderProfile(); return; }
   if (ds.act === 'me-open') {
@@ -2630,6 +2668,8 @@ document.addEventListener('click', e => {
     el.disabled = true; el.textContent = 'Buying…'; buyItem(ds.buy); return;
   }
   if (ds.equip) { equipItem(ds.slot, ds.off ? null : ds.equip); return; }
+  if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); return; }
+  if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.act === 'shop-admin-open') { clubSheet = { view: 'shopadmin' }; renderClub(); return; }
   if (ds.act === 'adm-save') { adminSave(); return; }
   if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 20 }); renderClub(); return; }
