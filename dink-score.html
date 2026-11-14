@@ -946,7 +946,8 @@ function renderClub() {
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
       <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
   } else if (!club) {
-    body = `<h2 id="club-h">Play as a club</h2>
+    body = `<h2 id="club-h">${c.reason === 'log' ? 'Join a club to log results' : 'Play as a club'}</h2>
+      ${c.reason === 'log' ? `<p class="need-club">Logged results go into a club's shared record. Join your club with its code, or start one, and the log form opens next.</p>` : ''}
       <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
       <form class="club-form" data-form="club-join"><label class="lab" for="club-code">Join with a code</label>
         <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
@@ -979,6 +980,11 @@ async function clubJoinByCode(raw) {
     clubSheet = { view: 'club' };
     showToast(`Joined ${data.club.name}`, false);
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  afterJoin();
+}
+// If they came here by trying to log a result, take them straight to the log form once they're in a club.
+function afterJoin() {
+  if (club && logAfterJoin) { logAfterJoin = false; clubSheet = null; render(); openLog(); return; }
   render(); renderClub();
 }
 async function clubCreate(name) {
@@ -990,7 +996,7 @@ async function clubCreate(name) {
     await joinClub(data.club.code, data.club.name);
     clubSheet = { view: 'club' };
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
-  render(); renderClub();
+  afterJoin();
 }
 // Invite links look like /?club=ABC123
 async function checkInvite() {
@@ -1035,7 +1041,7 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
-  tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
+  tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">${needsClubToLog() ? 'Join a club to log results' : 'For games on other courts'}</span></button>`);
   const top = leaderStats(games, setup.mode)[0];
   tiles.push(`<button class="tile" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
     ${top ? `<span class="t-name">${esc(top.name)}</span><span class="t-big">${r2(top.rating)}</span>` : `<span class="t-name">No ratings yet</span><span class="t-foot">Save a game with named players</span>`}</button>`);
@@ -1270,7 +1276,12 @@ function localDateTimeValue(t) {
   const d = new Date(t); const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+// On the website, logged results go to a club's shared record, so logging needs a club.
+// (The Claude artifact has no clubs, so it keeps logging to this device.)
+const needsClubToLog = () => API_OK && !club;
+let logAfterJoin = false;
 function openLog() {
+  if (needsClubToLog()) { logAfterJoin = true; clubSheet = { view: 'club', reason: 'log' }; renderClub(); return; }
   logForm = { mode: setup.mode, target: +setup.target, names: [['', ''], ['', '']], score: ['', ''], when: localDateTimeValue(Date.now()), error: '' };
   renderLog();
 }
@@ -1297,6 +1308,7 @@ function renderLog() {
     <button type="submit" class="btn btn-blue block">Save result</button></form></div>`;
 }
 function submitLog() {
+  if (needsClubToLog()) { logForm = null; openLog(); return; }
   const f = logForm;
   const n = f.mode === 'doubles' ? 2 : 1;
   const teams = [0, 1].map(t => Array.from({ length: n }, (_, i) => (f.names[t][i] || '').trim()));
@@ -1331,7 +1343,7 @@ function tourSteps() {
     { title: 'Tap the side that won', art: `<div class="mini-court"><div class="mh a"><span class="srv">Serving</span>4</div><div class="mcall"><span>4</span><span>2</span><span>1</span></div><div class="mh b">2</div><span class="tap"></span></div>`,
       body: `<ul><li>After each rally, tap the half of the screen for the side that <b>won the rally</b>. The app applies the serving rules for you.</li><li>The white pill is the <b>score call</b> to say out loud. The yellow tag shows who serves, and from which side.</li><li>Mis-tap? Hit <b>Undo</b>. <b>Leave</b> lets you pause the game and come back later.</li></ul>` },
     { title: 'Log games from other courts', art: `<div class="mini-log"><span class="badge-live">Your game keeps going</span><div class="row" style="--c:var(--blue)"><i></i><b>11</b></div><div class="row" style="--c:var(--green)"><i></i><b>7</b></div><div class="save">Save result</div></div>`,
-      body: `<p>Running more than one court? Tap <b>+ Log</b> while scoring, or <b>Log a result</b> on the home screen. Enter the players and final score. Your live game isn't affected, and logged games count toward the record and ratings.</p>` },
+      body: `<p>Running more than one court? Tap <b>+ Log</b> while scoring, or <b>Log a result</b> on the home screen. Enter the players and final score. Your live game isn't affected, and logged games count toward the record and ratings.${API_OK ? ' Logging results needs a club, so everyone sees them.' : ''}</p>` },
     { title: 'Climb the leaderboard', art: `<div class="mini-podium"><div class="p2"><b>3.82</b><small>2nd</small></div><div class="p1"><b>4.10</b><small>1st</small></div><div class="p3"><b>3.64</b><small>3rd</small></div></div>`,
       body: `<p>Every saved game updates each player's <b>Dink Rating</b>, from 2.00 to 8.00. Beat the forecast score and your rating rises, even in a loss. See the rankings, streaks and honors on <b>Leaders</b>.</p>` }
   ];
@@ -1388,8 +1400,8 @@ document.addEventListener('click', e => {
   if (ds.restore) { queueOp({ type: 'restore', id: ds.restore }); if (clubSheet) clubSheet.msg = 'Game restored.'; render(); return; }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
-    if (a === 'club-open') clubSheet = { view: 'club' };
-    if (a === 'club-close') { clubSheet = null; if (renderPending) safeRender(); }
+    if (a === 'club-open') { logAfterJoin = false; clubSheet = { view: 'club' }; }
+    if (a === 'club-close') { logAfterJoin = false; clubSheet = null; if (renderPending) safeRender(); }
     if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
     if (a === 'club-upload') { uploadLocalGames(); return; }
     if (a === 'club-leave') {
