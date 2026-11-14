@@ -923,9 +923,10 @@ const DK = (() => {
             if (share > expected) n += EARN.beatForecast;
             if (won && s >= EARN.streakFrom) n += EARN.streak;
           }
-          const dk = k + '|' + day, used = daily.get(dk) || 0;
+          if (!daily.has(k)) daily.set(k, new Map());
+          const used = daily.get(k).get(day) || 0;
           n = Math.max(0, Math.min(n, EARN.dailyCap - used));
-          daily.set(dk, used + n);
+          daily.get(k).set(day, used + n);
           const e = people.get(k) || { name, earned: 0, games: {} };
           e.earned += n; e.games[g.id] = n;
           people.set(k, e);

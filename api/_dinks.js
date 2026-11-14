@@ -46,7 +46,7 @@ export const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 
 export function computeDinks(games) {
   const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
   const pA = forecasts(sorted);
-  const people = new Map(), streaks = new Map(), daily = new Map();
+  const people = new Map(), streaks = new Map(), daily = new Map(); // daily: player key -> Map(day -> Dinks)
   for (const g of sorted) {
     const day = new Date(g.receivedAt || g.endedAt).toISOString().slice(0, 10); // server receive time, not the claimed finish time
     for (const t of [0, 1]) {
@@ -65,10 +65,10 @@ export function computeDinks(games) {
           if (share > expected) n += EARN.beatForecast;
           if (won && s >= EARN.streakFrom) n += EARN.streak;
         }
-        const dk = k + '|' + day;
-        const used = daily.get(dk) || 0;
+        if (!daily.has(k)) daily.set(k, new Map());
+        const used = daily.get(k).get(day) || 0;
         n = Math.max(0, Math.min(n, EARN.dailyCap - used));
-        daily.set(dk, used + n);
+        daily.get(k).set(day, used + n);
         const e = people.get(k) || { name, earned: 0, games: {} };
         e.earned += n; e.games[g.id] = n;
         people.set(k, e);
@@ -211,7 +211,9 @@ export function seasonStandings(games, season, mode) {
 export function computeProgress(games, now = Date.now()) {
   const base = computeDinks(games);
   const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
-  const { pA, after } = replay(sorted);
+  // Forecasts and ratings used to judge achievements and challenges (Giant killer, upsets, Four point oh) come from
+  // verified games only, so logged results can't be used to set them up.
+  const { pA, after } = replay(sorted.filter(verified));
   const people = new Map();
   const get = (k, name) => {
     if (!people.has(k)) people.set(k, { name, base: (base.get(k) || { earned: 0 }).earned, bonus: 0, achievements: [], weeks: {}, trophies: [],
@@ -223,7 +225,7 @@ export function computeProgress(games, now = Date.now()) {
     if (p._s.achieved.has(id)) return;
     p._s.achieved.add(id); p.achievements.push({ id, at }); p.bonus += ACHIEVEMENTS.find(x => x.id === id).dinks;
   };
-  const weekState = new Map(); // "key|week" -> tallies
+  const weekState = new Map(); // player key -> Map(week id -> tallies). Nested, never a joined string, so names can't collide.
   for (const g of sorted) {
     if (!verified(g)) continue;
     const ts = when(g), wk = weekOf(ts).id;
@@ -250,8 +252,9 @@ export function computeProgress(games, now = Date.now()) {
         const r = after[g.id] && after[g.id][k];
         if (r >= 4) award(p, 'rating-4', ts);
         if (r >= 4.5) award(p, 'rating-45', ts);
-        const wkKey = k + '|' + wk;
-        const w = weekState.get(wkKey) || { wins: 0, games: 0, bigWin: 0, upset: 0, newPartner: 0, partners: new Set(), run: 0, bestRun: 0, singles: 0 };
+        if (!weekState.has(k)) weekState.set(k, new Map());
+        const weeks = weekState.get(k);
+        const w = weeks.get(wk) || { wins: 0, games: 0, bigWin: 0, upset: 0, newPartner: 0, partners: new Set(), run: 0, bestRun: 0, singles: 0 };
         w.games++; if (won) w.wins++;
         if (won && my - their >= 6) w.bigWin = 1;
         if (won && expected < 0.5) w.upset = 1;
@@ -259,14 +262,13 @@ export function computeProgress(games, now = Date.now()) {
         partners.forEach(x => w.partners.add(x));
         w.run = won ? w.run + 1 : 0; w.bestRun = Math.max(w.bestRun, w.run);
         if (g.mode === 'singles') w.singles = 1;
-        weekState.set(wkKey, w);
+        weeks.set(wk, w);
       }
     }
   }
   const measure = (id, w) => ({ 'win-3': w.wins, 'play-5': w.games, 'win-by-6': w.bigWin, 'upset': w.upset, 'new-partner': w.newPartner,
     'partners-3': w.partners.size, 'streak-3': w.bestRun, 'singles': w.singles }[id] || 0);
-  for (const [wkKey, w] of weekState) {
-    const [k, wk] = wkKey.split('|');
+  for (const [k, weeks] of weekState) for (const [wk, w] of weeks) {
     const p = people.get(k);
     const items = challengesFor(wk).map(c => { const progress = Math.min(c.goal, measure(c.id, w)); return { id: c.id, progress, done: progress >= c.goal }; });
     for (const it of items) if (it.done) p.bonus += CHALLENGES.find(c => c.id === it.id).dinks;
