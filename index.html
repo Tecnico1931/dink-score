@@ -260,63 +260,98 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .tabs button svg { width: 22px; height: 22px; }
 .tabs button[aria-current="page"] { background: var(--ink); color: var(--bg); }
 
-/* Scoring screen */
+/* Scoring screen: a floodlit night court. Two rounded team panels with glowing gradients and condensed numerals,
+   a glass score-call capsule sitting on the net tape between them, and the serving side lit while the other dims. */
 .court {
-  position: fixed; inset: 0; z-index: 40; background: #070B11; color: #fff;
-  display: grid; grid-template-rows: auto 1fr auto 1fr; gap: 0;
+  position: fixed; inset: 0; z-index: 40; color: #fff;
+  background: radial-gradient(120% 55% at 50% 50%, #132033 0%, #070B11 72%);
+  display: grid; grid-template-rows: auto 1fr auto 1fr;
   padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px));
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px));
+  -webkit-user-select: none; user-select: none;
 }
-.court-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 2px; }
-.court-top .info { font-size: 12px; color: rgb(255 255 255 / .55); text-align: center; min-width: 0; }
-.court-top .cbtns { display: flex; gap: 6px; }
-.court-top button { border: 0; background: rgb(255 255 255 / .1); color: #fff; border-radius: 999px; padding: 8px 14px; font-weight: 600; font-size: 14px; }
-.court-top button:disabled { opacity: .3; }
-.half { border: 0; padding: 0; color: #fff; background: var(--c); border-radius: 28px; position: relative; overflow: hidden; display: block; text-align: left; transition: transform .08s, filter .1s; }
-.half:active { transform: scale(.992); filter: brightness(1.06); }
-.half[data-k="a"] { --c: var(--blue); }
-.half[data-k="b"] { --c: var(--green); }
-.half::after { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 80% at 20% 0%, rgb(255 255 255 / .16), transparent 55%); pointer-events: none; }
-.half .paint { position: absolute; inset: 18px 18px 0 18px; border: 2px solid rgb(255 255 255 / .28); border-bottom: 0; border-radius: 12px 12px 0 0; pointer-events: none; }
-.half[data-k="b"] .paint { inset: 0 18px 18px 18px; border-top: 0; border-bottom: 2px solid rgb(255 255 255 / .28); border-radius: 0 0 12px 12px; }
-.half .paint::before { content: ""; position: absolute; left: 0; right: 0; height: 2px; background: rgb(255 255 255 / .28); bottom: 30%; }
-.half .paint::after { content: ""; position: absolute; width: 2px; left: calc(50% - 1px); background: rgb(255 255 255 / .28); top: 0; bottom: 30%; }
-.half[data-k="b"] .paint::before { bottom: auto; top: 30%; }
-.half[data-k="b"] .paint::after { top: 30%; bottom: 0; }
-.half .content { position: absolute; inset: 0; padding: 30px 32px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
-.half[data-k="a"] .content { padding-bottom: calc(30% + 12px); }
-.half[data-k="b"] .content { padding-top: calc(30% + 12px); align-items: start; }
-.players { display: flex; flex-direction: column; gap: 6px; align-self: start; min-width: 0; }
-.half[data-k="b"] .players { align-self: end; }
-.player { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 500; color: rgb(255 255 255 / .75); min-width: 0; overflow-wrap: anywhere; }
-.player .ball { display: none; }
-.player.serving { color: var(--ball-ink); background: var(--ball); border-radius: 999px; padding: 4px 12px 4px 6px; font-weight: 700; align-self: flex-start; }
-.player.serving .ball { display: inline-block; width: 14px; height: 14px; background: radial-gradient(circle at 35% 35%, #FFFFFF 0 16%, #C7DB2C 17%); }
-.half .score { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: clamp(120px, 30vh, 260px); line-height: .78; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-.half[data-k="a"] .score { align-self: end; }
-.half[data-k="b"] .score { align-self: start; }
-.score.bump { animation: bump .34s cubic-bezier(.2, .9, .3, 1.25); }
-@keyframes bump { 0% { transform: translateY(16px) scale(.92); opacity: .3; } 100% { transform: none; opacity: 1; } }
-.half .hint { position: absolute; right: 30px; font-size: 12px; color: rgb(255 255 255 / .5); }
-.half[data-k="a"] .hint { top: 28px; }
-.half[data-k="b"] .hint { bottom: 28px; }
-.net { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 0; }
-.call { display: flex; gap: 6px; background: #fff; color: #0E1726; border-radius: 999px; padding: 6px 8px; box-shadow: 0 10px 30px -10px rgb(0 0 0 / .6); }
-.call span { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 34px; line-height: 1; min-width: 46px; height: 46px; border-radius: 999px; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
-.call span:first-child { background: var(--ball); color: var(--ball-ink); }
-.net .who { font-size: 13px; color: rgb(255 255 255 / .65); }
+.court-top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 10px 0 12px; }
+.icon-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; color: #fff; background: rgb(255 255 255 / .08); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1); display: inline-grid; place-items: center; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn:disabled { opacity: .3; }
+.icon-btn.wide { width: auto; padding: 0 14px; border-radius: 999px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.match { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.match b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 24px; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.match span { font-size: 12px; color: rgb(255 255 255 / .55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cright { display: flex; gap: 8px; }
+
+.half {
+  --c1: #4361FF; --c2: #1A2BA6;
+  border: 0; padding: 0; color: #fff; text-align: left; display: block; position: relative; overflow: hidden; border-radius: 30px;
+  background: linear-gradient(155deg, var(--c1) 0%, var(--c2) 100%);
+  box-shadow: 0 24px 48px -28px var(--c1), inset 0 1px 0 rgb(255 255 255 / .2);
+  transition: transform .12s ease, filter .3s ease;
+}
+.half[data-k="b"] { --c1: #17B988; --c2: #07634A; }
+.half::before { content: ""; position: absolute; inset: 0; background: rgb(6 10 16 / 0); transition: background .3s ease; pointer-events: none; }
+.half.idle::before { background: rgb(6 10 16 / .3); }
+.half.idle .big { color: rgb(255 255 255 / .82); }
+.half:active { transform: scale(.985); }
+.half .glow { position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; right: -20%; background: radial-gradient(closest-side, rgb(255 255 255 / .18), transparent); pointer-events: none; }
+.half[data-k="a"] .glow { top: -30%; }
+.half[data-k="b"] .glow { bottom: -30%; }
+.half .inner { position: absolute; inset: 0; padding: 18px 20px 22px; display: flex; flex-direction: column; justify-content: space-between; gap: 10px; }
+.half[data-k="b"] .inner { flex-direction: column-reverse; padding: 22px 20px 18px; }
+.team-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.avs { display: flex; flex: none; }
+.avs i { width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / .2); display: grid; place-items: center; font-style: normal; font-weight: 700; font-size: 13px; box-shadow: 0 0 0 2px var(--c2); }
+.avs i + i { margin-left: -5px; }
+.avs i.srv { background: var(--ball); color: var(--ball-ink); position: relative; z-index: 1; box-shadow: 0 0 0 2px var(--c2), 0 0 0 6px rgb(221 242 71 / .3); }
+.names { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.names span { font-size: 15px; font-weight: 600; color: rgb(255 255 255 / .72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.names span.srv { color: #fff; }
+.badges { margin-left: auto; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex: none; }
+.pill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 5px 10px; background: rgb(255 255 255 / .16); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.pill.serve { background: var(--ball); color: var(--ball-ink); }
+.pill.serve .ball { width: 10px; height: 10px; background: radial-gradient(circle at 35% 35%, #fff 0 18%, #B9CC22 19%); }
+.pill.gp { background: #fff; color: #0E1726; animation: gp 1.6s ease-in-out infinite; }
+@keyframes gp { 50% { box-shadow: 0 0 0 7px rgb(255 255 255 / .16); } }
+.score-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.half[data-k="b"] .score-row { align-items: flex-start; }
+.big { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: clamp(112px, 25vh, 240px); line-height: .78; letter-spacing: -.045em; font-variant-numeric: tabular-nums; text-shadow: 0 8px 30px rgb(0 0 0 / .2); }
+.big.bump { animation: bump .36s cubic-bezier(.2, .9, .3, 1.25); }
+@keyframes bump { 0% { transform: translateY(18px) scale(.9); opacity: .3; } 100% { transform: none; opacity: 1; } }
+.side-mini { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-size: 12px; font-weight: 500; color: rgb(255 255 255 / .78); padding-bottom: 4px; }
+.half[data-k="b"] .side-mini { padding: 4px 0 0; }
+.side-mini .boxes { display: grid; grid-template-columns: 1fr 1fr; width: 54px; height: 32px; border: 2px solid rgb(255 255 255 / .55); border-radius: 7px; overflow: hidden; }
+.side-mini .boxes i + i { border-left: 2px solid rgb(255 255 255 / .55); }
+.side-mini .boxes i.on { background: var(--ball); }
+.progress { height: 4px; border-radius: 2px; background: rgb(255 255 255 / .16); overflow: hidden; }
+.progress b { display: block; height: 100%; background: #fff; border-radius: 2px; transition: width .35s ease; }
+.ripple { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; background: rgb(255 255 255 / .5); pointer-events: none; animation: ripple .65s ease-out forwards; }
+@keyframes ripple { to { transform: scale(20); opacity: 0; } }
+
+.net { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; }
+.net::before { content: ""; position: absolute; left: -12px; right: -12px; top: 42px; height: 3px; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .6) 18%, rgb(255 255 255 / .6) 82%, transparent); }
+.call { position: relative; display: flex; gap: 4px; padding: 5px; border-radius: 22px; background: rgb(15 22 34 / .86); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 14px 34px -12px rgb(0 0 0 / .9); }
+.call div { width: 60px; display: flex; flex-direction: column; align-items: center; padding: 7px 0 6px; border-radius: 17px; }
+.call b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+.call small { font-size: 10px; font-weight: 600; color: rgb(255 255 255 / .55); margin-top: 3px; }
+.call div:first-child { background: var(--ball); color: var(--ball-ink); }
+.call div:first-child small { color: rgb(27 33 4 / .7); }
+.net .who { font-size: 13px; color: rgb(255 255 255 / .72); text-align: center; }
+.net .who b { color: #fff; font-weight: 600; }
+.net .first-hint { font-size: 12px; font-weight: 600; color: var(--ball); text-align: center; }
 @media (orientation: landscape) and (min-width: 640px) {
-  .court { grid-template-columns: 1fr auto 1fr; grid-template-rows: auto 1fr; column-gap: 0; }
+  .court { grid-template-columns: 1fr auto 1fr; grid-template-rows: auto 1fr; column-gap: 12px; }
   .court-top { grid-column: 1 / -1; }
   .court > .half[data-k="a"] { grid-column: 1; grid-row: 2; }
-  .court > .net { grid-column: 2; grid-row: 2; justify-content: center; padding: 0 12px; }
+  .court > .net { grid-column: 2; grid-row: 2; justify-content: center; }
   .court > .half[data-k="b"] { grid-column: 3; grid-row: 2; }
-  .half .paint { display: none; }
-  .half .content, .half[data-k="a"] .content, .half[data-k="b"] .content { padding: 28px; align-items: end; }
-  .half[data-k="b"] .score, .half[data-k="b"] .players { align-self: end; }
+  .net::before { left: 50%; right: auto; top: -10px; bottom: -10px; width: 3px; height: auto; transform: translateX(-50%); background: linear-gradient(transparent, rgb(255 255 255 / .6) 15%, rgb(255 255 255 / .6) 85%, transparent); }
   .call { flex-direction: column; }
+  .half[data-k="b"] .inner { flex-direction: column; padding: 18px 20px 22px; }
+  .half[data-k="b"] .score-row { align-items: flex-end; }
+  .net .who, .net .first-hint { max-width: 150px; text-align: center; position: relative; background: #0A111B; border-radius: 10px; padding: 4px 8px; }
+  .court .big { font-size: min(44vh, 17vw); }
 }
+@media (max-height: 640px) { .big { font-size: clamp(84px, 22vh, 200px); } .avs i { width: 28px; height: 28px; font-size: 11px; } }
 
 .toast { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 95; background: var(--ball); color: var(--ball-ink); font-weight: 700; font-size: 15px; padding: 11px 18px; border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / .35); max-width: calc(100% - 32px); text-align: center; animation: drop .3s ease-out; }
 @keyframes drop { from { transform: translate(-50%, -10px); opacity: 0; } }
@@ -1219,19 +1254,49 @@ function resultBlock(teams, score, winner) {
   return `<div class="result">${side(0)}<span class="vs">to</span>${side(1)}</div>`;
 }
 
+// Would winning the next rally end the game for team t?
+function isGamePoint(s, t) {
+  if (s.winner !== null) return false;
+  if (s.cfg.scoring !== 'rally' && s.serving !== t) return false; // side-out: only the serving side can score
+  const next = s.score[t] + 1;
+  return next >= s.cfg.target && next - s.score[1 - t] >= s.cfg.winBy;
+}
+const clock = ms => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+const ICON = {
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+};
+let lastTap = null; // where the last rally tap landed, for the ripple
+
 function renderCourt() {
   const root = $('#overlay');
   if (!live || !live.open) { root.innerHTML = ''; document.body.style.overflow = logForm ? 'hidden' : ''; return; }
   document.body.style.overflow = 'hidden';
   const s = live.state, cfg = s.cfg;
   const callParts = PB.call(s);
+  const callLabels = callParts.length === 3 ? ['Serving', 'Receiving', 'Server'] : ['Serving', 'Receiving'];
   const serverName = cfg.teams[s.serving][s.server];
+  const side = PB.serverSide(s);
   const half = t => {
     const k = t ? 'b' : 'a';
-    const players = cfg.teams[t].map((p, i) => `<span class="player ${s.serving === t && s.server === i ? 'serving' : ''}"><span class="ball"></span>${esc(p)}</span>`).join('');
-    return `<button class="half" data-k="${k}" data-rally="${t}" aria-label="${esc(teamLabel(cfg.teams[t]))} won the rally. Their score is ${s.score[t]}">
-      <span class="paint"></span><span class="hint">Tap when this side wins the rally</span>
-      <span class="content"><span class="players">${players}</span><span class="score ${bumpTeam === t ? 'bump' : ''}">${s.score[t]}</span></span></button>`;
+    const serving = s.serving === t;
+    const avs = cfg.teams[t].map((p, i) => `<i class="${serving && s.server === i ? 'srv' : ''}">${esc(initials(p))}</i>`).join('');
+    const names = cfg.teams[t].map((p, i) => `<span class="${serving && s.server === i ? 'srv' : ''}">${esc(p)}</span>`).join('');
+    const serverTag = cfg.mode === 'doubles' && cfg.scoring === 'sideout' ? ` ${s.serverNum === 1 ? '1st' : '2nd'}` : '';
+    const badges = [
+      serving ? `<span class="pill serve"><span class="ball"></span>Serving${serverTag}</span>` : '',
+      isGamePoint(s, t) ? '<span class="pill gp">Game point</span>' : ''
+    ].join('');
+    const sideMini = serving ? `<div class="side-mini"><span>From the ${side}</span><div class="boxes" aria-hidden="true">${t === 0 ? `<i class="${side === 'left' ? 'on' : ''}"></i><i class="${side === 'right' ? 'on' : ''}"></i>` : `<i class="${side === 'right' ? 'on' : ''}"></i><i class="${side === 'left' ? 'on' : ''}"></i>`}</div></div>` : '<span></span>';
+    const pct = Math.min(100, Math.round(100 * s.score[t] / cfg.target));
+    return `<button class="half ${serving ? '' : 'idle'}" data-k="${k}" data-rally="${t}" aria-label="${esc(teamLabel(cfg.teams[t]))} won the rally. Their score is ${s.score[t]}${serving ? ', serving' : ''}">
+      <span class="glow"></span>
+      <span class="inner">
+        <span class="team-row"><span class="avs">${avs}</span><span class="names">${names}</span><span class="badges">${badges}</span></span>
+        <span class="score-row"><span class="big ${bumpTeam === t ? 'bump' : ''}">${s.score[t]}</span>${sideMini}</span>
+        <span class="progress" aria-hidden="true"><b style="width:${pct}%"></b></span>
+      </span></button>`;
   };
   let sheet = '';
   if (s.winner !== null) {
@@ -1252,17 +1317,35 @@ function renderCourt() {
         <button class="btn btn-soft" data-act="keep">Keep playing</button>
         <button class="btn btn-danger" data-act="discard">End without saving</button></div></div></div>`;
   }
+  const fresh = s.rallies === 0;
   root.innerHTML = `<div class="court">
-    <div class="court-top"><button data-act="end">Leave</button>
-      <div class="info">${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally' : 'side-out'} to ${cfg.target}</div>
-      <div class="cbtns"><button data-act="log-open" aria-label="Log a result from another court">+ Log</button><button data-act="undo" ${live.stack.length ? '' : 'disabled'}>Undo</button></div></div>
+    <div class="court-top">
+      <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
+      <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
+      <div class="cright"><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
+    </div>
     ${half(0)}
-    <div class="net" aria-live="polite"><div class="call" aria-label="Score call ${callParts.join(' ')}">${callParts.map(n => `<span>${n}</span>`).join('')}</div>
-      <div class="who">${esc(serverName)} serves from the ${PB.serverSide(s)}</div></div>
+    <div class="net" aria-live="polite">
+      <div class="call" aria-label="Score call ${callParts.join(' ')}">${callParts.map((n, i) => `<div><b>${n}</b><small>${callLabels[i]}</small></div>`).join('')}</div>
+      ${fresh ? '<div class="first-hint">Tap the side that wins each rally</div>' : `<div class="who"><b>${esc(serverName)}</b> serves from the ${side}</div>`}
+    </div>
     ${half(1)}
   </div>${live.toast ? `<div class="toast" role="status">${esc(live.toast)}</div>` : ''}${sheet}`;
   bumpTeam = null;
+  if (lastTap) {
+    const el = root.querySelector(`.half[data-rally="${lastTap.t}"]`);
+    if (el) { const r = document.createElement('span'); r.className = 'ripple'; r.style.left = lastTap.x + 'px'; r.style.top = lastTap.y + 'px'; el.appendChild(r); }
+    lastTap = null;
+  }
 }
+// The game clock ticks without redrawing the court.
+setInterval(() => { const el = document.getElementById('court-clock'); if (el && live && live.open && live.state.winner === null) el.textContent = clock(Date.now() - live.state.startedAt); }, 1000);
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest && e.target.closest('.half[data-rally]');
+  if (!h) return;
+  const r = h.getBoundingClientRect();
+  lastTap = { t: h.dataset.rally, x: e.clientX - r.left, y: e.clientY - r.top };
+});
 
 function ratingPreview(s) {
   const rec = Object.assign(record(s), { id: '__pending' });
