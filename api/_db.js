@@ -130,18 +130,20 @@ export async function reserveGames(code, count) {
     WHERE code = ${code}
       AND (CASE WHEN window_start < now() - interval '10 minutes' THEN 0 ELSE window_count END) + ${count} <= 1200
       AND total_count + ${count} <= 20000
-    RETURNING code`;
-  if (rows.length) return;
+    RETURNING window_start::text AS window_key`;
+  // The window this reservation was charged to, as exact text (a JS Date would drop the microseconds).
+  if (rows.length) return rows[0].window_key;
   const [club] = await sql`SELECT total_count FROM clubs WHERE code = ${code}`;
   if (club && club.total_count + count > 20000) throw fail(400, 'This club has reached its limit of 20,000 games.');
   throw fail(429, 'Too many games were added just now. Wait a few minutes and try again.');
 }
 // Returns unused allowance, so the counters only ever reflect games actually stored.
-export async function releaseGames(code, count) {
+// The window refund only applies if the same 10-minute window is still open; a newer window keeps its own count.
+export async function releaseGames(code, count, windowStart) {
   if (count <= 0) return;
   await db()`UPDATE clubs SET
       total_count = GREATEST(0, total_count - ${count}),
-      window_count = GREATEST(0, window_count - ${count})
+      window_count = CASE WHEN window_start::text = ${String(windowStart)} THEN GREATEST(0, window_count - ${count}) ELSE window_count END
     WHERE code = ${code}`;
 }
 

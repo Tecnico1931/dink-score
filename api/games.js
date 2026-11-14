@@ -31,7 +31,7 @@ export default handler(async (req, res) => {
 
   const games = list.map(cleanGame); // validate everything before using up any of the club's allowance
   // Flood protection on every request, bulk uploads included (see reserveGames in _db.js).
-  await reserveGames(code, games.length);
+  const windowStart = await reserveGames(code, games.length);
   const names = new Map();
   let inserted = 0;
   try {
@@ -43,7 +43,7 @@ export default handler(async (req, res) => {
     }
   } finally {
     // Give back the allowance for games that were already stored (re-sent after a dropped connection) or not saved.
-    await releaseGames(code, games.length - inserted);
+    await releaseGames(code, games.length - inserted, windowStart);
   }
   // Saved players share the 300-per-club cap with /api/roster. Games still save once the list is full.
   let [{ players }] = await sql`SELECT count(*)::int AS players FROM roster WHERE club = ${code}`;
