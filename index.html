@@ -916,7 +916,7 @@ const DR = (() => {
    forecast, +5 per win from the 3rd in a row. The server records who sent each game (scoredBy) and when (receivedAt).
    Logged results: +2 play only. At most 60 per player per UTC day. */
 const DK = (() => {
-  const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 60 };
+  const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 120 };
   function compute(games) {
     const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
     const { changes } = DR.compute(sorted);
@@ -1732,7 +1732,7 @@ function rulesView() {
         <li>Logged results count the same as games scored live.</li></ul></div>
     <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer, each paying bonus Dinks. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 3.50. The top 3 with 5 or more games win a permanent trophy and 100, 60 or 40 Dinks.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games scored live on a player's own phone count toward these.</li></ul></div>
     <div class="rule"><h3>Earning Dinks</h3><p>In a club, every game earns each named player Dinks to spend in the shop.</p>
-      <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the +2 for playing, so only games scored live earn the rest. Each player can earn up to 60 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li></ul></div>
+      <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the +2 for playing, so only games scored live earn the rest. Each player can earn up to 120 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li></ul></div>
     <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
   </div>`;
 }

@@ -37,7 +37,7 @@ function replay(sorted) {
 const forecasts = sorted => replay(sorted).pA;
 
 // --- Earning ---
-export const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 60 };
+export const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 120 };
 // Returns Map(nameKey -> { name, earned, games: { gameId: dinks } }).
 // Win, forecast and streak Dinks need a game scored live AND sent from the phone linked to one of its players (or the
 // club creator), which the server records as scoredBy. Everything else earns only the play bonus, so made-up results
@@ -101,7 +101,7 @@ export const CATALOG = [
   { id: 'theme-neon', slot: 'theme', name: 'Neon court', price: 70 },
   { id: 'celebrate-confetti', slot: 'celebrate', name: 'Confetti', price: 40 },
   { id: 'celebrate-balls', slot: 'celebrate', name: 'Ball burst', price: 40 },
-  // Legendary: animated showpieces, priced for one to three weeks of steady winning (60 Dinks a day at most).
+  // Legendary: animated showpieces, priced for one to three weeks of steady winning (120 Dinks a day at most).
   { id: 'title-legend-erne', slot: 'title', name: 'Erne Overlord', price: 500, rarity: 'legendary' },
   { id: 'title-legend-kitchen', slot: 'title', name: 'Ruler of the Kitchen', price: 600, rarity: 'legendary' },
   { id: 'style-holo', slot: 'style', name: 'Holographic name', price: 650, rarity: 'legendary' },
