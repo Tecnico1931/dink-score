@@ -961,7 +961,7 @@ async function refreshClub() {
   try {
     const data = await api('club?code=' + club.code);
     if (!club || data.club.code !== club.code) return;
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; store.set('pb.club', club);
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; store.set('pb.club', club);
     clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, at: Date.now() };
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
@@ -1022,6 +1022,10 @@ async function uploadLocalGames() {
 
 /* Organizer PIN: a phone that has entered the right PIN remembers it, per club, until it's locked again. */
 let pins = store.get('pb.pins', {});
+// The phone that creates a club gets a private creator token; only it can set the club's first PIN.
+let owners = store.get('pb.owners', {});
+function rememberOwner(code, token) { if (token) { owners[code] = token; store.set('pb.owners', owners); } }
+const canSetFirstPin = () => !!club && !club.hasPin && (!!owners[club.code] || !!club.openClaim);
 function rememberPin(code, pin) { pins[code] = pin; store.set('pb.pins', pins); }
 function forgetPin() { if (club) { delete pins[club.code]; store.set('pb.pins', pins); } }
 const hasOrganizer = () => !!club && (!club.hasPin || !!pins[club.code]);
@@ -1053,8 +1057,9 @@ async function pinSet(oldPin, pin, again) {
   if (pin !== String(again || '').trim()) { clubSheet.error = "The two PINs don't match."; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
-    await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'set-pin', pin, oldPin: String(oldPin || '').trim() }) });
-    club.hasPin = true; store.set('pb.club', club);
+    const data = await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'set-pin', pin, oldPin: String(oldPin || '').trim(), ownerToken: owners[club.code] || '' }) });
+    rememberOwner(club.code, data.ownerToken);
+    club.hasPin = true; club.openClaim = false; store.set('pb.club', club);
     rememberPin(club.code, pin);
     clubSheet = { view: 'club', msg: 'Organizer PIN saved. Share it only with organizers.' };
     render();
@@ -1110,8 +1115,8 @@ function renderClub() {
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
-        <p>${!club.hasPin ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
-        <div class="org-btns">${!club.hasPin ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>'
+        <p>${!club.hasPin ? (canSetFirstPin() ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : `Anyone with the club code can delete games. Only the phone that created ${esc(club.name)} can set a PIN.`) : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
+        <div class="org-btns">${!club.hasPin ? (canSetFirstPin() ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>' : '')
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
@@ -1147,6 +1152,7 @@ async function clubCreate(name, pin) {
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
     const data = await api('club', { method: 'POST', body: JSON.stringify(pin ? { name, pin } : { name }) });
+    rememberOwner(data.club.code, data.ownerToken);
     if (pin) rememberPin(data.club.code, pin);
     await joinClub(data.club.code, data.club.name);
     clubSheet = { view: 'club' };

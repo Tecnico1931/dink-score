@@ -51,6 +51,7 @@ export function ensureSchema() {
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_count int NOT NULL DEFAULT 0`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS pin_hash text`; // organizer PIN, salted scrypt hash
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS owner_hash text`; // hash of the creating phone's token
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -111,7 +112,7 @@ export async function requireClub(code, req) {
   const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ip}) RETURNING id`;
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`;
   if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
-  const rows = await sql`SELECT code, name, pin_hash FROM clubs WHERE code = ${code}`;
+  const rows = await sql`SELECT code, name, pin_hash, owner_hash FROM clubs WHERE code = ${code}`;
   if (!rows.length) {
     if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
     throw fail(404, 'No club has that code. Check it and try again.');
@@ -119,7 +120,8 @@ export async function requireClub(code, req) {
   await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
   return rows[0]; // includes pin_hash: use publicClub() before sending a club to the app
 }
-export const publicClub = c => ({ code: c.code, name: c.name, hasPin: !!c.pin_hash });
+// openClaim: an older club with no creator on record and no PIN yet, where any member may set the first PIN.
+export const publicClub = c => ({ code: c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash });
 
 // Organizer PIN: 4 to 8 digits. Only its salted scrypt hash is stored.
 export function cleanPin(raw) {
@@ -138,18 +140,31 @@ function pinMatches(stored, pin) {
   const got = scryptSync(String(pin), Buffer.from(salt, 'hex'), want.length);
   return want.length === got.length && timingSafeEqual(want, got);
 }
-const MAX_PIN_FAILS = 10; // wrong PINs allowed per network address per 15 minutes
+const MAX_PIN_FAILS = 10;       // wrong PINs allowed per network address per 15 minutes
+const MAX_CLUB_PIN_FAILS = 30;  // wrong PINs allowed per club per 15 minutes, from all addresses together
 // Throws unless `pin` is right for a club that has a PIN. Clubs without a PIN let anyone through.
+// Each attempt is recorded before counting (so simultaneous guesses see each other) and removed again if the PIN is right.
 export async function requirePin(club, pin, req) {
   if (!club.pin_hash) return;
   const sql = db();
-  const key = 'pin:' + clientIp(req);
-  const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${key} AND at > now() - interval '15 minutes'`;
-  if (n >= MAX_PIN_FAILS) throw fail(429, 'Too many wrong PINs. Wait 15 minutes and try again.');
-  if (!/^\d{4,8}$/.test(String(pin ?? '')) || !pinMatches(club.pin_hash, pin)) {
-    await sql`INSERT INTO lookup_fails (ip) VALUES (${key})`;
-    throw fail(403, 'That organizer PIN is wrong.');
-  }
+  const ipKey = 'pin:' + clientIp(req), clubKey = 'pinclub:' + club.code;
+  const ids = await sql`INSERT INTO lookup_fails (ip) VALUES (${ipKey}), (${clubKey}) RETURNING id`;
+  const [{ byIp, byClub }] = await sql`SELECT
+      count(*) FILTER (WHERE ip = ${ipKey})::int AS "byIp",
+      count(*) FILTER (WHERE ip = ${clubKey})::int AS "byClub"
+    FROM lookup_fails WHERE ip IN (${ipKey}, ${clubKey}) AND at > now() - interval '15 minutes'`;
+  if (byIp > MAX_PIN_FAILS || byClub > MAX_CLUB_PIN_FAILS) throw fail(429, 'Too many wrong PINs. Wait 15 minutes and try again.');
+  if (!/^\d{4,8}$/.test(String(pin ?? '')) || !pinMatches(club.pin_hash, pin)) throw fail(403, 'That organizer PIN is wrong.');
+  await sql`DELETE FROM lookup_fails WHERE id = ANY(${ids.map(r => r.id)})`;
+}
+
+// Proof of ownership for setting a club's first PIN: a random token handed only to the phone that created the club.
+export const newOwnerToken = () => randomBytes(24).toString('hex');
+export const hashToken = t => scryptSync(String(t), 'dink-score-owner', 32).toString('hex');
+export function tokenMatches(stored, token) {
+  if (!stored || !/^[0-9a-f]{48}$/.test(String(token ?? ''))) return false;
+  const a = Buffer.from(stored, 'hex'), b = Buffer.from(hashToken(token), 'hex');
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 export const pinFrom = req => (req.headers || {})['x-club-pin'];
 
