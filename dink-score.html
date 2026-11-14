@@ -58,9 +58,17 @@ button { cursor: pointer; }
   display: flex; flex-direction: column; gap: 22px;
 }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.wordmark { display: flex; align-items: center; gap: 10px; }
+.wordmark { display: flex; align-items: center; gap: 10px; flex: none; }
 .wordmark svg { width: 34px; height: 34px; flex: none; }
-.wordmark h1 { font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: 28px; letter-spacing: -.02em; line-height: 1; margin: 0; }
+.wordmark h1 { font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: 28px; letter-spacing: -.02em; line-height: 1; margin: 0; white-space: nowrap; }
+.top-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; flex: 1; }
+.top-right .sync { min-width: 0; }
+.me-btn { position: relative; --r: 26px; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; padding: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 2px var(--surface), 0 4px 12px -4px rgb(0 0 0 / .35); }
+.me-btn svg { width: 22px; height: 22px; }
+.me-btn .av-emoji { font-size: 22px; }
+.me-btn .av-icon { width: 60%; height: 60%; }
+.me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
+@media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 .sync { font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sync::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .sync.on::before { background: var(--up); }
@@ -392,7 +400,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .err { color: var(--danger); font-size: 14px; font-weight: 600; margin: 0; }
 
 /* Club */
-button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: block; }
 .sync.warn::before { background: var(--down); }
 .code-card { background: var(--surface-2); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .code-card .code { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 52px; letter-spacing: .08em; line-height: 1; user-select: all; }
@@ -1267,6 +1275,13 @@ function syncPillHTML() {
   const note = clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
   return `<button class="sync club-btn ${clubState === 'idle' && !pending ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}">${esc(note)}</button>`;
 }
+// Round button in the top right: your picture, opening your profile (or asking who you are first).
+function profileButtonHTML() {
+  const name = club ? myName() : null;
+  const label = name ? `Your profile, ${esc(name)}` : club ? 'Choose your name' : 'Join a club to get a profile';
+  const inner = name ? avatarInner(name) : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.3-3.3 4-5 7-5s5.7 1.7 7 5"/></svg>`;
+  return `<button class="me-btn${name ? frameClass(name) : ''}" data-act="me-open" aria-label="${label}">${inner}</button>`;
+}
 function updateSyncPill() { const el = document.querySelector('header.top .sync'); if (el) el.outerHTML = syncPillHTML(); }
 function inviteLink() { return location.origin + '/?club=' + (club ? club.code : ''); }
 async function joinClub(code, name) {
@@ -1473,7 +1488,7 @@ const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" heigh
 
 function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
-  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div>${syncPillHTML()}</header>`;
+  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'shop' ? shopView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
@@ -2566,6 +2581,13 @@ document.addEventListener('click', e => {
   if (ds.player) { profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
   if (ds.act === 'profile-close') { profile = null; renderProfile(); return; }
+  if (ds.act === 'me-open') {
+    if (club && myName()) { profile = { name: myName(), mode: ratingMode }; renderProfile(); }
+    else if (club) { clubSheet = { view: 'whoami' }; renderClub(); }
+    else if (API_OK) { clubSheet = { view: 'club' }; renderClub(); }
+    else showToast('Profiles come with clubs on the Dink Score website.', false);
+    return;
+  }
   // Avatars
   if (ds.act === 'av-open') { if (!myName()) { clubSheet = { view: 'whoami' }; renderClub(); return; } profile = null; renderProfile(); clubSheet = { view: 'avatar', atab: (avatarOf(myName()) || {}).type || 'emoji' }; if (clubSheet.atab === 'initials') clubSheet.atab = 'emoji'; renderClub(); return; }
   if (ds.avTab) { clubSheet.atab = ds.avTab; clubSheet.error = ''; renderClub(); return; }
