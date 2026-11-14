@@ -968,8 +968,9 @@ function renderClub() {
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
       <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
   } else if (!club) {
-    body = `<h2 id="club-h">${c.reason === 'log' ? 'Join a club to log results' : 'Play as a club'}</h2>
+    body = `<h2 id="club-h">${c.reason === 'log' ? 'Join a club to log results' : c.reason === 'start' ? 'Join a club to start a game' : 'Play as a club'}</h2>
       ${c.reason === 'log' ? `<p class="need-club">Logged results go into a club's shared record. Join your club with its code, or start one, and the log form opens next.</p>` : ''}
+      ${c.reason === 'start' ? `<p class="need-club">Games are saved to a club's shared record. Join your club with its code, or start one, and your game starts right after with the players you picked.</p>` : ''}
       <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
       <form class="club-form" data-form="club-join"><label class="lab" for="club-code">Join with a code</label>
         <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
@@ -1007,6 +1008,7 @@ async function clubJoinByCode(raw) {
 // If they came here by trying to log a result, take them straight to the log form once they're in a club.
 function afterJoin() {
   if (club && logAfterJoin) { logAfterJoin = false; clubSheet = null; render(); openLog(); return; }
+  if (club && startAfterJoin) { startAfterJoin = false; clubSheet = null; beginGame(); return; }
   render(); renderClub();
 }
 async function clubCreate(name) {
@@ -1116,6 +1118,7 @@ function playView() {
     <div id="forecast">${forecastHTML()}</div>
     <datalist id="roster-list">${roster.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
     <button class="btn btn-ink block start" data-act="start"><span class="ball"></span>Start game</button>
+    ${needsClubToLog() ? `<p class="note" style="margin-top:8px;text-align:center">You'll join or start a club first, so the game is shared.</p>` : ''}
   </section>
   ${games.length ? `<section><div class="sec-head"><h2>Recent</h2><button class="link" data-tab-go="history">See all</button></div><ul class="games" style="margin-top:10px">${games.slice(0, 3).map(gameItem).join('')}</ul></section>` : ''}`;
 }
@@ -1302,6 +1305,13 @@ function localDateTimeValue(t) {
 // (The Claude artifact has no clubs, so it keeps logging to this device.)
 const needsClubToLog = () => API_OK && !club;
 let logAfterJoin = false;
+// Starting a game on the website needs a club too, so every finished game lands in the shared record.
+let startAfterJoin = false;
+function beginGame() {
+  if (needsClubToLog()) { startAfterJoin = true; clubSheet = { view: 'club', reason: 'start' }; renderClub(); return; }
+  addToRoster([...teamPlayers(0), ...teamPlayers(1)]);
+  startGame();
+}
 function openLog() {
   if (needsClubToLog()) { logAfterJoin = true; clubSheet = { view: 'club', reason: 'log' }; renderClub(); return; }
   logForm = { mode: setup.mode, target: +setup.target, names: [['', ''], ['', '']], score: ['', ''], when: localDateTimeValue(Date.now()), error: '' };
@@ -1422,8 +1432,8 @@ document.addEventListener('click', e => {
   if (ds.restore) { queueOp({ type: 'restore', id: ds.restore }); if (clubSheet) clubSheet.msg = 'Game restored.'; render(); return; }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
-    if (a === 'club-open') { logAfterJoin = false; clubSheet = { view: 'club' }; }
-    if (a === 'club-close') { logAfterJoin = false; clubSheet = null; if (renderPending) safeRender(); }
+    if (a === 'club-open') { logAfterJoin = false; startAfterJoin = false; clubSheet = { view: 'club' }; }
+    if (a === 'club-close') { logAfterJoin = false; startAfterJoin = false; clubSheet = null; if (renderPending) safeRender(); }
     if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
     if (a === 'club-upload') { uploadLocalGames(); return; }
     if (a === 'club-leave') {
@@ -1479,7 +1489,7 @@ document.addEventListener('click', e => {
   if (act === 'log-close') { logForm = null; render(); return; }
   if (act === 'swap') { setup.names = [setup.names[1], setup.names[0]]; setup.first = 1 - setup.first; store.set('pb.setup', setup); render(); }
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
-  if (act === 'start') { addToRoster([...teamPlayers(0), ...teamPlayers(1)]); startGame(); }
+  if (act === 'start') beginGame();
   if (act === 'resume') { live.open = true; persistLive(); keepAwake(true); render(); }
   if (act === 'undo' && live && live.stack.length) { live.state = live.stack.pop(); live.toast = null; persistLive(); renderCourt(); }
   if (act === 'end') { live.confirmEnd = true; renderCourt(); }
