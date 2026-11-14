@@ -151,20 +151,27 @@ const MAX_CLUB_PIN_FAILS = 30;  // wrong PINs allowed per club per 15 minutes, f
 // - Otherwise the PIN is checked under two hard limits, per network address and per club. Both are checked before
 //   the PIN is, and a locked club refuses every PIN, right or wrong, so guessing gets no signal while it's locked.
 //   Attempts are recorded before counting (so simultaneous guesses see each other) and removed if the PIN is right.
+//   Only guesses that pass the per-address limit count toward the club's lock, and a request the club lock refuses
+//   takes its own mark back off, so one blocked address can't keep a club locked by spamming it.
 export async function requirePin(club, pin, req, ownerToken) {
   if (!club.pin_hash) return;
   if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return;
   const sql = db();
   const ipKey = 'pin:' + clientIp(req), clubKey = 'pinclub:' + club.code;
-  const ids = await sql`INSERT INTO lookup_fails (ip) VALUES (${ipKey}), (${clubKey}) RETURNING id`;
-  const [{ byIp, byClub }] = await sql`SELECT
-      count(*) FILTER (WHERE ip = ${ipKey})::int AS "byIp",
-      count(*) FILTER (WHERE ip = ${clubKey})::int AS "byClub"
-    FROM lookup_fails WHERE ip IN (${ipKey}, ${clubKey}) AND at > now() - interval '15 minutes'`;
-  if (byClub > MAX_CLUB_PIN_FAILS) throw fail(429, 'Too many wrong PINs have been tried for this club. Organizer actions are paused for 15 minutes, except on the phone that created the club.');
+  // 1. Per address first.
+  const [{ id: ipId }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ipKey}) RETURNING id`;
+  const [{ byIp }] = await sql`SELECT count(*)::int AS "byIp" FROM lookup_fails WHERE ip = ${ipKey} AND at > now() - interval '15 minutes'`;
   if (byIp > MAX_PIN_FAILS) throw fail(429, 'Too many wrong PINs. Wait 15 minutes and try again.');
+  // 2. Then the club, counting only guesses that got this far.
+  const [{ id: clubId }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${clubKey}) RETURNING id`;
+  const [{ byClub }] = await sql`SELECT count(*)::int AS "byClub" FROM lookup_fails WHERE ip = ${clubKey} AND at > now() - interval '15 minutes'`;
+  if (byClub > MAX_CLUB_PIN_FAILS) {
+    await sql`DELETE FROM lookup_fails WHERE id = ${clubId}`; // refused, so it doesn't extend the lock
+    throw fail(429, 'Too many wrong PINs have been tried for this club. Organizer actions are paused for 15 minutes, except on the phone that created the club.');
+  }
+  // 3. Only now check the PIN. A right PIN clears this attempt's marks; a wrong one keeps them.
   if (!/^\d{4,8}$/.test(String(pin ?? '')) || !pinMatches(club.pin_hash, pin)) throw fail(403, 'That organizer PIN is wrong.');
-  await sql`DELETE FROM lookup_fails WHERE id = ANY(${ids.map(r => r.id)})`;
+  await sql`DELETE FROM lookup_fails WHERE id IN (${ipId}, ${clubId})`;
 }
 export const ownerFrom = req => (req.headers || {})['x-club-owner'];
 
