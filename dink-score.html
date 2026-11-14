@@ -242,7 +242,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
   padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 .tabs nav {
-  pointer-events: auto; max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px;
+  pointer-events: auto; max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 6px;
   background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
   border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 12px 34px -12px rgb(0 0 0 / .35);
 }
@@ -425,6 +425,86 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
 .art-code .phones i { width: 34px; height: 56px; border-radius: 9px; border: 2px solid rgb(255 255 255 / .5); position: relative; }
 .art-code .phones i::after { content: ""; position: absolute; inset: 14px 7px; border-radius: 4px; background: var(--ball); }
 
+/* Shop, wallet and cosmetics */
+.badge.you { background: var(--ink); color: var(--bg); margin-left: 6px; }
+.p-title { display: block; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .01em; margin-top: 1px; }
+.p-name.style-gold { background: linear-gradient(180deg, #F7D774, #C9971C); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+.p-name.style-glow { color: var(--ink); text-shadow: 0 0 10px color-mix(in srgb, var(--ball) 80%, transparent), 0 0 2px var(--ball); font-weight: 800; }
+.p-name.style-flame { background: linear-gradient(90deg, #FF4D2E, #FF9F1C 60%, #FFD23F); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+.frame-ball { box-shadow: 0 0 0 3px var(--ball) !important; }
+.frame-cobalt { box-shadow: 0 0 0 3px #4361FF !important; }
+.frame-forest { box-shadow: 0 0 0 3px #17B988 !important; }
+.frame-sunset { box-shadow: 0 0 0 3px #FF7A45, 0 0 0 6px #C2185B !important; }
+.frame-prism { box-shadow: 0 0 0 3px #FF2BD6, 0 0 0 6px #00E5FF, 0 0 14px 4px rgb(0 229 255 / .35) !important; }
+.avatar-mini { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--bg); display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+.pf-dinks { display: inline-block; margin-left: 8px; font-family: var(--ui); font-size: 13px; font-weight: 700; color: var(--ball-ink); background: var(--ball); border-radius: 999px; padding: 2px 9px; vertical-align: middle; }
+.tile.dinks { background: var(--ball); color: var(--ball-ink); }
+.tile.dinks .t-k, .tile.dinks .t-foot { color: rgb(27 33 4 / .72); }
+.me-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.me-row b { color: var(--ink); }
+.wallet { background: var(--surface); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+.w-top { display: flex; align-items: center; gap: 10px; }
+.w-who { min-width: 0; flex: 1; font-weight: 600; overflow-wrap: anywhere; }
+.w-bal { display: flex; align-items: baseline; gap: 8px; }
+.w-bal b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 64px; line-height: .9; font-variant-numeric: tabular-nums; }
+.w-bal span { font-weight: 700; color: var(--muted); }
+.w-sub { font-size: 13px; color: var(--muted); margin-top: -6px; }
+.earn { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.earn li { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; font-size: 13px; color: var(--muted); }
+.earn b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.shop-sec { display: flex; flex-direction: column; gap: 10px; }
+.shop-sec .sec-head .note { font-size: 13px; }
+.items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.item { background: var(--surface); border-radius: 18px; padding: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.item .pv { height: 58px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; overflow: hidden; padding: 0 8px; text-align: center; }
+.item .iname { font-weight: 700; font-size: 14px; line-height: 1.2; }
+.iprice { font-size: 12px; color: var(--muted); font-weight: 600; }
+.ibtn { margin-top: auto; border: 0; border-radius: 12px; padding: 9px 10px; font-weight: 700; font-size: 14px; background: var(--surface-2); color: var(--ink); }
+.ibtn.buy { background: var(--ink); color: var(--bg); }
+.ibtn.buy.armed { background: var(--ball); color: var(--ball-ink); }
+.ibtn.on { background: color-mix(in srgb, var(--up) 18%, transparent); color: var(--up); }
+.ibtn:disabled { opacity: .45; }
+.item.owned { outline: 2px solid color-mix(in srgb, var(--up) 35%, transparent); outline-offset: -2px; }
+.pv-title { font-weight: 800; font-size: 14px; color: var(--muted); }
+.pv-theme { display: grid; grid-template-rows: 1fr 1fr; gap: 3px; width: 56px; height: 46px; }
+.pv-theme i { border-radius: 7px; }
+.pv-cele { position: relative; width: 70px; height: 46px; }
+.pv-cele i { position: absolute; width: 8px; height: 8px; border-radius: 2px; }
+.pv-cele i:nth-child(1) { left: 6px; top: 8px; } .pv-cele i:nth-child(2) { left: 24px; top: 26px; } .pv-cele i:nth-child(3) { left: 40px; top: 4px; } .pv-cele i:nth-child(4) { left: 56px; top: 22px; } .pv-cele i:nth-child(5) { left: 32px; top: 36px; }
+.pv-cele.celebrate-confetti i:nth-child(odd) { background: #4361FF; transform: rotate(25deg); } .pv-cele.celebrate-confetti i:nth-child(even) { background: #FF8A5B; transform: rotate(-20deg); } .pv-cele.celebrate-confetti i:nth-child(3) { background: #17B988; }
+.pv-cele.celebrate-balls i { border-radius: 50%; width: 11px; height: 11px; background: radial-gradient(circle at 35% 35%, #F4FAB8 0 18%, var(--ball) 19%); }
+.rewards { display: flex; flex-direction: column; gap: 8px; }
+.reward { background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
+.reward .rname { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.reward .ibtn { margin: 0; }
+.toggle { display: flex; align-items: center; gap: 10px; font-weight: 600; background: var(--surface-2); border-radius: 14px; padding: 12px 14px; cursor: pointer; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--blue); }
+.adm-rows { display: flex; flex-direction: column; gap: 6px; }
+.adm-row { display: grid; grid-template-columns: 1fr 86px auto; gap: 8px; align-items: center; }
+.adm-row:has(.adm-item) { grid-template-columns: 1fr 86px; }
+.adm-row .price { text-align: right; font-variant-numeric: tabular-nums; }
+.adm-item { font-weight: 600; font-size: 14px; display: flex; flex-direction: column; }
+.adm-item small { font-weight: 500; color: var(--muted); font-size: 12px; }
+.dinks-row { display: flex; flex-direction: column; gap: 8px; }
+.dk-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border-left: 4px solid var(--c); border-radius: 10px; padding: 5px 10px; font-size: 14px; font-weight: 600; }
+.dk-chip b { color: var(--up); font-variant-numeric: tabular-nums; }
+/* Court themes, applied to the scoring screen on the phone that owns them */
+.court[data-theme="theme-sunset"] .half[data-k="a"], .pv-theme.theme-sunset i:first-child { --c1: #FF7A45; --c2: #C2185B; background: linear-gradient(155deg, #FF7A45, #C2185B); }
+.court[data-theme="theme-sunset"] .half[data-k="b"], .pv-theme.theme-sunset i:last-child { --c1: #7E57C2; --c2: #3A1F7A; background: linear-gradient(155deg, #7E57C2, #3A1F7A); }
+.court[data-theme="theme-clay"] .half[data-k="a"], .pv-theme.theme-clay i:first-child { --c1: #D9774B; --c2: #8A3A1E; background: linear-gradient(155deg, #D9774B, #8A3A1E); }
+.court[data-theme="theme-clay"] .half[data-k="b"], .pv-theme.theme-clay i:last-child { --c1: #3F7CAC; --c2: #1F4466; background: linear-gradient(155deg, #3F7CAC, #1F4466); }
+.court[data-theme="theme-grass"] .half[data-k="a"], .pv-theme.theme-grass i:first-child { --c1: #4CAF50; --c2: #1B5E20; background: linear-gradient(155deg, #4CAF50, #1B5E20); }
+.court[data-theme="theme-grass"] .half[data-k="b"], .pv-theme.theme-grass i:last-child { --c1: #8BC34A; --c2: #3E6B12; background: linear-gradient(155deg, #8BC34A, #3E6B12); }
+.court[data-theme="theme-neon"] .half[data-k="a"], .pv-theme.theme-neon i:first-child { --c1: #FF2BD6; --c2: #7A0A8C; background: linear-gradient(155deg, #FF2BD6, #7A0A8C); }
+.court[data-theme="theme-neon"] .half[data-k="b"], .pv-theme.theme-neon i:last-child { --c1: #00C8E6; --c2: #005B79; background: linear-gradient(155deg, #00C8E6, #005B79); }
+/* Win celebrations */
+.celebrate { position: fixed; inset: 0; z-index: 120; pointer-events: none; overflow: hidden; }
+.celebrate i { position: absolute; top: -20px; width: 10px; height: 14px; border-radius: 2px; animation: fall 2.2s cubic-bezier(.25, .6, .4, 1) forwards; }
+.celebrate.celebrate-balls i { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #F4FAB8 0 16%, #DDF247 17%); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15); }
+@keyframes fall { 0% { transform: translate(0, 0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), 105vh) rotate(540deg); opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .celebrate { display: none; } }
+@media (max-width: 360px) { .earn { grid-template-columns: 1fr; } }
+
 /* Player profile */
 .pf-head { display: flex; align-items: center; gap: 12px; }
 .pf-head .av { width: 52px; height: 52px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 18px; flex: none; }
@@ -533,6 +613,7 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
   <nav aria-label="Sections">
     <button data-tab="play" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="9" r=".9" fill="currentColor"/><circle cx="14.5" cy="8.7" r=".9" fill="currentColor"/><circle cx="12" cy="12.6" r=".9" fill="currentColor"/><circle cx="8.7" cy="14.6" r=".9" fill="currentColor"/><circle cx="15.4" cy="14.2" r=".9" fill="currentColor"/></svg>Play</button>
     <button data-tab="leaders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 20.5h17M5 20.5v-6h4.5v6M9.5 20.5V10h5v10.5M14.5 20.5v-8H19v8"/><path d="M12 3l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2L8.8 5.3 11 5z" fill="currentColor" stroke="none"/></svg>Leaders</button>
+    <button data-tab="shop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6.5a3 3 0 016 0V8" stroke-linecap="round"/></svg>Shop</button>
     <button data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6.5h12M8 12h12M8 17.5h12"/><circle cx="4" cy="6.5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="17.5" r="1" fill="currentColor"/></svg>Record</button>
     <button data-tab="rules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M5 9.5h14M5 14.5h14M12 14.5V21M12 3v6.5"/></svg>Rules</button>
   </nav>
@@ -673,6 +754,48 @@ const DR = (() => {
   }
   return { compute, forecast, lookup, reliability, expShare, START };
 })();
+
+/* Dinks: earned per player per game. Must match computeDinks() in api/_dinks.js, which is what counts when buying.
+   Live-scored games: +2 play, +10 win, +3 beat the forecast, +5 per win from the 3rd in a row.
+   Logged results: +2 play only. At most 60 per player per UTC day. */
+const DK = (() => {
+  const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 60 };
+  function compute(games) {
+    const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
+    const { changes } = DR.compute(sorted);
+    const people = new Map(), streaks = new Map(), daily = new Map();
+    for (const g of sorted) {
+      const day = new Date(g.endedAt).toISOString().slice(0, 10);
+      for (const t of [0, 1]) {
+        const won = g.winner === t;
+        const tot = g.score[0] + g.score[1];
+        const share = tot ? g.score[t] / tot : 0;
+        const expected = changes[g.id] ? (t === 0 ? changes[g.id].expected : 1 - changes[g.id].expected) : 0.5;
+        for (const raw of g.teams[t]) {
+          const name = String(raw).trim();
+          if (!name || /^Player \d+$/.test(name)) continue;
+          const k = name.toLowerCase();
+          let n = EARN.play;
+          if (!g.logged) {
+            const s = won ? (streaks.get(k) || 0) + 1 : 0;
+            streaks.set(k, s);
+            if (won) n += EARN.win;
+            if (share > expected) n += EARN.beatForecast;
+            if (won && s >= EARN.streakFrom) n += EARN.streak;
+          }
+          const dk = k + '|' + day, used = daily.get(dk) || 0;
+          n = Math.max(0, Math.min(n, EARN.dailyCap - used));
+          daily.set(dk, used + n);
+          const e = people.get(k) || { name, earned: 0, games: {} };
+          e.earned += n; e.games[g.id] = n;
+          people.set(k, e);
+        }
+      }
+    }
+    return people;
+  }
+  return { compute, EARN };
+})();
 /*ENGINE-END*/
 </script>
 
@@ -757,7 +880,7 @@ if (location.hash.startsWith('#import=')) {
 const defaults = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, names: [['', ''], ['', '']] };
 let setup = Object.assign({}, defaults, store.get('pb.setup', {}));
 let tab = store.get('pb.tab', 'play');
-if (!['play', 'leaders', 'history', 'rules'].includes(tab)) tab = 'play';
+if (!['play', 'leaders', 'shop', 'history', 'rules'].includes(tab)) tab = 'play';
 let live = store.get('pb.live', null); // { state, stack, open }
 if (live) live.stack = live.stack || [];
 let localGames = store.get('pb.games', []);
@@ -923,9 +1046,14 @@ function rosterFromClub() {
 }
 async function api(path, opts = {}) {
   let res;
+  // A request that hangs (weak signal at the courts) gives up after 15 seconds and counts as offline, so syncing retries
+  // instead of waiting on it forever.
+  const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), 15000) : null;
   try {
-    res = await fetch('/api/' + path, Object.assign({ headers: { 'Content-Type': 'application/json' }, cache: 'no-store' }, opts));
+    res = await fetch('/api/' + path, Object.assign({ headers: { 'Content-Type': 'application/json' }, cache: 'no-store' }, ctrl ? { signal: ctrl.signal } : {}, opts));
   } catch { throw Object.assign(new Error("Can't reach the server. Check your connection."), { offline: true }); }
+  finally { if (timer) clearTimeout(timer); }
   let body = {};
   try { body = await res.json(); } catch {}
   if (!res.ok) throw Object.assign(new Error(body.error || 'Something went wrong. Try again.'), { status: res.status });
@@ -936,6 +1064,20 @@ function queueOp(op) {
   outbox.push(Object.assign({ at: Date.now() }, op));
   store.set('pb.outbox', outbox);
   flush();
+}
+// Once a change has reached the server, fold it into the cached club data before it leaves the outbox.
+// Otherwise a just-saved game would briefly be in neither place, and anything worked out in that moment would miss it.
+function applyToCache(op) {
+  if (!clubData) return;
+  const games = clubData.games || (clubData.games = []);
+  const at = id => games.findIndex(g => g.id === id);
+  if (op.type === 'game' && at(op.game.id) < 0) games.unshift(op.game);
+  if (op.type === 'edit' && at(op.id) >= 0) games[at(op.id)] = op.game;
+  if (op.type === 'delete' && at(op.id) >= 0) { const [g] = games.splice(at(op.id), 1); (clubData.deleted = clubData.deleted || []).unshift(Object.assign({}, g, { deletedAt: Date.now() })); }
+  if (op.type === 'restore') { const d = clubData.deleted || []; const i = d.findIndex(g => g.id === op.id); if (i >= 0) { const [g] = d.splice(i, 1); if (at(g.id) < 0) games.unshift(g); } }
+  if (op.type === 'roster-add' && !clubData.roster.some(r => sameName(r, op.name))) clubData.roster.push(op.name);
+  if (op.type === 'roster-del') clubData.roster = clubData.roster.filter(r => !sameName(r, op.name));
+  store.set('pb.clubCache', clubData);
 }
 let flushing = null;
 function flush() {
@@ -952,6 +1094,7 @@ function flush() {
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE' });
+        applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
       } catch (err) {
         const pinOp = op.type === 'delete' || op.type === 'restore' || op.type === 'edit';
         if (err.offline || err.status >= 500 || (err.status === 429 && !pinOp)) { clubState = 'offline'; updateSyncPill(); break; }
@@ -976,11 +1119,13 @@ async function refreshClub() {
     const data = await api('club?code=' + club.code);
     if (!club || data.club.code !== club.code) return;
     club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; store.set('pb.club', club);
-    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, at: Date.now() };
+    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], purchases: data.purchases || [], shop: data.shop || null, at: Date.now() };
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
+    if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
     clubState = 'idle';
     safeRender();
+    if (!myName() && !whoamiSkipped() && !askedWhoami && !clubSheet && !logForm && !profile && tourStep === null && !(live && live.open)) { askedWhoami = true; clubSheet = { view: 'whoami' }; renderClub(); }
   } catch (err) {
     clubState = err.offline ? 'offline' : 'error';
     if (err.status === 404) { showToast('That club no longer exists. You are back to games on this phone.', false); leaveClub(); }
@@ -1090,7 +1235,11 @@ function renderClub() {
   const c = clubSheet;
   const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
   let body;
-  if (c.view === 'invite') {
+  if (c.view === 'whoami' && club) {
+    body = whoamiHTML(c);
+  } else if (c.view === 'shopadmin' && club) {
+    body = shopAdminHTML(c);
+  } else if (c.view === 'invite') {
     body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
       <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
@@ -1126,6 +1275,7 @@ function renderClub() {
     const local = store.get('pb.games', []).length;
     const deleted = clubData ? (clubData.deleted || []).filter(g => !outbox.some(o => o.type === 'restore' && o.id === g.id)) : [];
     body = `<h2 id="club-h">${esc(club.name)}</h2>
+      <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div></div>
@@ -1156,8 +1306,9 @@ async function clubJoinByCode(raw) {
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
   afterJoin();
 }
-// If they came here by trying to log a result, take them straight to the log form once they're in a club.
+// After joining: first "Who are you?", then on to whatever brought them here (logging a result, starting a game).
 function afterJoin() {
+  if (club && !myName() && !whoamiSkipped()) { clubSheet = { view: 'whoami', afterJoin: true }; render(); renderClub(); return; }
   if (club && logAfterJoin) { logAfterJoin = false; clubSheet = null; render(); openLog(); return; }
   if (club && startAfterJoin) { startAfterJoin = false; clubSheet = null; beginGame(); return; }
   render(); renderClub();
@@ -1201,7 +1352,7 @@ const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" heigh
 function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
   const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div>${syncPillHTML()}</header>`;
-  $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'history' ? historyView() : rulesView());
+  $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'shop' ? shopView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
   renderClub();
@@ -1221,6 +1372,7 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
+  if (club && myName() && shopInfo()) tiles.push(`<button class="tile dinks" data-tab-go="shop"><span class="t-k">Your Dinks</span><span class="t-big">${wallet(myName()).balance}</span><span class="t-foot">Spend them in the shop</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">${needsClubToLog() ? 'Join a club to log results' : 'For games on other courts'}</span></button>`);
   const top = leaderStats(games, setup.mode)[0];
   tiles.push(`<button class="tile" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
@@ -1366,10 +1518,10 @@ function leadersView() {
   const order = podium.length === 3 ? [1, 0, 2] : podium.map((_, i) => i);
   const avatarColor = ['var(--ink)', 'var(--blue)', 'var(--green)'];
   const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<button class="step s${i + 1}" style="--c:${avatarColor[i]}" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile">
-      <span class="avatar">${esc(initials(p.name))}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
+      <span class="avatar${frameClass(p.name)}">${esc(initials(p.name))}</span><span class="pl-name">${styledName(p.name, false)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
   const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span>
-      <span class="pinfo"><span class="pname">${esc(p.name)}${p.rel < 60 ? '<span class="badge prov">Provisional</span>' : ''}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
+      <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${p.rel < 60 ? '<span class="badge prov">Provisional</span>' : ''}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span><span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
@@ -1395,6 +1547,8 @@ function rulesView() {
         <li>After the game, your rating moves by how far you beat or missed that forecast. Losing 9–11 to a much stronger team can raise your rating. Winning 11–9 when you were expected to win 11–4 can lower it.</li>
         <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Below 60% your rating is provisional and moves faster.</li>
         <li>Logged results count the same as games scored live.</li></ul></div>
+    <div class="rule"><h3>Earning Dinks</h3><p>In a club, every game earns each named player Dinks to spend in the shop.</p>
+      <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the +2 for playing, so only games scored live earn the rest. Each player can earn up to 60 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li></ul></div>
     <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
   </div>`;
 }
@@ -1466,6 +1620,7 @@ function renderCourt() {
       ${resultBlock(cfg.teams, s.score, w)}
       <div class="facts"><div><b>${s.rallies}</b><small>Rallies</small></div><div><b>${minutes(s)} min</b><small>Duration</small></div><div><b>${cfg.scoring === 'rally' ? 'Rally' : 'Side-out'}</b><small>To ${cfg.target}</small></div></div>
       ${ratingPreview(s)}
+      ${dinksPreview(s)}
       <div class="btns"><button class="btn btn-ball" data-act="rematch">Save and rematch</button>
         <button class="btn btn-ink" data-act="finish">Save and finish</button>
         <button class="btn btn-soft" data-act="undo">Undo last rally</button></div></div></div>`;
@@ -1478,7 +1633,8 @@ function renderCourt() {
         <button class="btn btn-danger" data-act="discard">End without saving</button></div></div></div>`;
   }
   const fresh = s.rallies === 0;
-  root.innerHTML = `<div class="court">
+  const myTheme = club && myName() ? equippedFor(myName()).theme : null;
+  root.innerHTML = `<div class="court"${myTheme ? ` data-theme="${esc(myTheme)}"` : ''}>
     <div class="court-top">
       <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
       <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
@@ -1507,6 +1663,22 @@ document.addEventListener('pointerdown', e => {
   lastTap = { t: h.dataset.rally, x: e.clientX - r.left, y: e.clientY - r.top };
 });
 
+let askedWhoami = false;
+// Dinks each named player gets from this game once it's saved (the same rules the server uses).
+function dinksPreview(s) {
+  if (!club || !shopInfo()) return '';
+  const rec = Object.assign(record(s), { id: '__pending' });
+  const after = DK.compute([...allGames(), rec]);
+  const named = [0, 1].flatMap(t => s.cfg.teams[t].map(n => ({ n, t }))).filter(x => !isDefaultName(x.n));
+  if (!named.length) return '';
+  const got = named.map(x => ({ ...x, d: ((after.get(x.n.trim().toLowerCase()) || { games: {} }).games.__pending) || 0 }));
+  if (!live.celebrated && s.winner !== null) {
+    live.celebrated = true;
+    const fx = s.cfg.teams[s.winner].map(n => equippedFor(n).celebrate).find(Boolean);
+    if (fx) setTimeout(() => celebrate(fx), 250);
+  }
+  return `<div class="dinks-row"><span class="lab">Dinks earned</span><div class="chips">${got.map(x => `<span class="dk-chip" style="--c:${TEAM_COLOR[x.t]}">${esc(x.n)} <b>+${x.d}</b></span>`).join('')}</div></div>`;
+}
 function ratingPreview(s) {
   const rec = Object.assign(record(s), { id: '__pending' });
   const { changes } = DR.compute([...allGames(), rec]);
@@ -1630,6 +1802,190 @@ function editGame(g) {
   showToast('Result updated', false);
 }
 
+/* ---------- who you are, Dinks and the shop ---------- */
+// Each phone can be linked to one player name per club. The server keeps the link; the phone keeps a private key.
+let me = store.get('pb.me', {}); // { [clubCode]: { name, token } }
+const myName = () => (club && me[club.code] ? me[club.code].name : null);
+const myToken = () => (club && me[club.code] ? me[club.code].token : null);
+const isMe = n => !!myName() && sameName(n, myName());
+const whoamiSkipped = () => !!(club && store.get('pb.whoamiSkip', {})[club.code]);
+function skipWhoami() { const s = store.get('pb.whoamiSkip', {}); s[club.code] = Date.now(); store.set('pb.whoamiSkip', s); }
+const clubPlayers = () => (clubData && clubData.players) || [];
+const shopInfo = () => (clubData && clubData.shop) || null;
+const youTag = n => (isMe(n) ? '<span class="badge you">You</span>' : '');
+function equippedFor(name) {
+  const p = clubPlayers().find(x => sameName(x.name, name));
+  return (p && p.equipped) || {};
+}
+const itemName = id => { const s = shopInfo(); const it = s && s.catalog.find(i => i.id === id); return it ? it.name : ''; };
+// A player's name with their title and name style, for leaderboards and profiles.
+function styledName(name, withTitle = true) {
+  const eq = club ? equippedFor(name) : {};
+  const style = eq.style ? ' ' + eq.style : '';
+  const title = withTitle && eq.title ? `<span class="p-title">${esc(itemName(eq.title))}</span>` : '';
+  return `<span class="p-name${style}">${esc(name)}</span>${title}`;
+}
+const frameClass = name => { const eq = club ? equippedFor(name) : {}; return eq.frame ? ' ' + eq.frame : ''; };
+function wallet(name) {
+  const key = String(name || '').trim().toLowerCase();
+  const earned = (DK.compute(allGames()).get(key) || { earned: 0 }).earned;
+  const mine = ((clubData && clubData.purchases) || []).filter(p => p.player === key);
+  const spent = mine.reduce((s, p) => s + p.price, 0);
+  return { earned, spent, balance: earned - spent, owned: new Set(mine.filter(p => !p.reward).map(p => p.itemId)), rewards: mine.filter(p => p.reward) };
+}
+async function shopCall(body) {
+  return api('shop', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
+}
+async function claimName(raw) {
+  const name = String(raw || '').trim();
+  if (!name) { clubSheet.error = 'Enter your name, or tap it above.'; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const data = await shopCall({ action: 'claim', name });
+    me[club.code] = { name: data.name, token: data.playerToken }; store.set('pb.me', me);
+    if (!setup.names[0][0] && !setup.names[0][1] && !setup.names[1][0] && !setup.names[1][1]) { setup.names[0][0] = data.name; store.set('pb.setup', setup); }
+    const after = clubSheet.afterJoin;
+    clubSheet = after ? null : { view: 'club', msg: `This phone is now ${data.name}.` };
+    showToast(`Welcome, ${data.name}`, false);
+    await refreshClub();
+    if (after) afterJoin(); else { render(); renderClub(); }
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
+}
+function whoamiHTML(c) {
+  const players = clubPlayers().length ? clubPlayers() : roster.map(n => ({ name: n, claimed: false }));
+  const free = players.filter(p => !p.claimed), taken = players.filter(p => p.claimed);
+  return `<h2 id="club-h">Who are you?</h2>
+    <p>Pick your name so your wins earn you Dinks to spend in the shop. Only this phone can spend them.</p>
+    ${free.length ? `<div class="field" style="margin:0"><span class="lab">Tap your name</span><div class="chips">${free.map(p => `<button type="button" class="chip-btn" data-claim="${esc(p.name)}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
+    ${taken.length ? `<p class="note">Already linked to a phone: ${taken.map(p => esc(p.name)).join(', ')}. Ask an organizer if one of these is you.</p>` : ''}
+    <form class="club-form" data-form="whoami"><label class="lab" for="whoami-name">${free.length ? 'Not listed? Add your name' : 'Your name'}</label>
+      <div class="add-player"><input id="whoami-name" autocomplete="off" maxlength="40" placeholder="Your name"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>That's me</button></div></form>
+    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+    <div class="btns"><button class="btn btn-soft" data-act="whoami-skip">Skip for now</button></div>`;
+}
+
+const SLOT_LABEL = { title: 'Titles', frame: 'Avatar rings', style: 'Name styles', theme: 'Court themes', celebrate: 'Win celebrations' };
+const SLOT_NOTE = { title: 'Shown under your name.', frame: 'A ring around your initials.', style: 'How your name looks on the leaderboard.', theme: 'Your scoring screen on this phone.', celebrate: 'Plays when your team wins.' };
+function itemPreview(it, name) {
+  if (it.slot === 'title') return `<span class="pv-title">${esc(it.name)}</span>`;
+  if (it.slot === 'frame') return `<span class="avatar-mini ${it.id}">${esc(initials(name || 'You'))}</span>`;
+  if (it.slot === 'style') return `<span class="p-name ${it.id}">${esc(name || 'Your name')}</span>`;
+  if (it.slot === 'theme') return `<span class="pv-theme ${it.id}"><i></i><i></i></span>`;
+  return `<span class="pv-cele ${it.id}"><i></i><i></i><i></i><i></i><i></i></span>`;
+}
+let armedBuy = null;
+function shopView() {
+  const head = `<section><div class="sec-head"><h2>Shop</h2></div><p class="sub">Spend Dinks from your wins on looks for your name and court.</p></section>`;
+  if (!API_OK) return head + `<div class="empty"><p>The shop works on the Dink Score website, inside a club.</p></div>`;
+  if (!club) return head + `<div class="empty"><p>Join a club to earn Dinks from games and spend them here.</p><button class="btn btn-ink" data-act="club-open">Join a club</button></div>`;
+  const s = shopInfo();
+  if (!s) return head + `<div class="empty"><p>Loading the shop…</p></div>`;
+  const name = myName();
+  const w = name ? wallet(name) : null;
+  const earnRules = `<ul class="earn"><li><b>+${s.earn.win}</b> for a win</li><li><b>+${s.earn.play}</b> for playing</li><li><b>+${s.earn.beatForecast}</b> for beating the forecast</li><li><b>+${s.earn.streak}</b> per win in a ${s.earn.streakFrom}+ win streak</li></ul>
+    <p class="note">Full Dinks come from games scored live. Logged results earn the +${s.earn.play} for playing. Up to ${s.earn.dailyCap} a day.</p>`;
+  const walletCard = name
+    ? `<section class="wallet"><div class="w-top"><span class="avatar-mini${frameClass(name)}">${esc(initials(name))}</span><div class="w-who">${styledName(name)}</div><span class="badge you">You</span></div>
+        <div class="w-bal"><b>${w.balance}</b><span>Dinks</span></div><div class="w-sub">${w.earned} earned, ${w.spent} spent</div>${earnRules}</section>`
+    : `<section class="wallet"><h3>Who are you?</h3><p class="note">Link this phone to your name to see your Dinks and buy things.</p><button class="btn btn-ink" data-act="whoami-open">Choose my name</button>${earnRules}</section>`;
+  const byslot = ['title', 'frame', 'style', 'theme', 'celebrate'].map(slot => {
+    const items = s.catalog.filter(i => i.slot === slot);
+    const eq = name ? equippedFor(name)[slot] : null;
+    return `<section class="shop-sec"><div class="sec-head"><h3>${SLOT_LABEL[slot]}</h3><span class="note">${SLOT_NOTE[slot]}</span></div>
+      <div class="items">${items.map(it => {
+        const price = s.prices[it.id];
+        const owned = w && w.owned.has(it.id);
+        const worn = eq === it.id;
+        const afford = w && w.balance >= price;
+        const armed = armedBuy === it.id;
+        const action = !name ? '' : owned
+          ? (worn ? `<button class="ibtn on" data-equip="${it.id}" data-slot="${slot}" data-off="1">Wearing</button>` : `<button class="ibtn" data-equip="${it.id}" data-slot="${slot}">Wear</button>`)
+          : `<button class="ibtn buy ${armed ? 'armed' : ''}" data-buy="${it.id}" ${afford ? '' : 'disabled'}>${armed ? `Buy for ${price}?` : afford ? `${price} Dinks` : `${price - w.balance} more`}</button>`;
+        return `<div class="item ${owned ? 'owned' : ''}"><div class="pv">${itemPreview(it, name)}</div><span class="iname">${esc(it.name)}</span>${!owned ? `<span class="iprice">${price} Dinks</span>` : '<span class="iprice">Owned</span>'}${action}</div>`;
+      }).join('')}</div></section>`;
+  }).join('');
+  const rewards = s.rewardsEnabled && s.rewards.length ? `<section class="shop-sec"><div class="sec-head"><h3>Club rewards</h3><span class="note">Real perks, handed over by an organizer.</span></div>
+    <div class="rewards">${s.rewards.map(r => {
+      const armed = armedBuy === r.id, afford = w && w.balance >= r.price;
+      return `<div class="reward"><span class="rname">${esc(r.name)}</span><span class="iprice">${Number(r.price)} Dinks</span>${name ? `<button class="ibtn buy ${armed ? 'armed' : ''}" data-buy="${esc(r.id)}" ${afford ? '' : 'disabled'}>${armed ? `Buy for ${Number(r.price)}?` : afford ? 'Get it' : `${Number(r.price) - w.balance} more`}</button>` : ''}</div>`;
+    }).join('')}</div>
+    ${w && w.rewards.length ? `<p class="note">Your rewards: ${w.rewards.slice(-5).reverse().map(p => `${esc(p.itemName)} (${p.givenAt ? 'given' : 'waiting for an organizer'})`).join(', ')}</p>` : ''}</section>` : '';
+  const admin = club.hasPin || isCreator() ? `<section><button class="btn btn-soft block" data-act="shop-admin-open">Manage shop${pendingRewards().length ? ` (${pendingRewards().length} to hand out)` : ''}</button></section>` : '';
+  return head + walletCard + byslot + rewards + admin;
+}
+const pendingRewards = () => ((clubData && clubData.purchases) || []).filter(p => p.reward && !p.givenAt);
+async function buyItem(id) {
+  try {
+    await shopCall({ action: 'buy', name: myName(), playerToken: myToken(), itemId: id });
+    armedBuy = null;
+    const it = shopInfo().catalog.find(i => i.id === id);
+    showToast(it ? `Bought ${it.name}` : 'Reward requested. An organizer will hand it over.', false);
+    await refreshClub();
+    if (it) await equipItem(it.slot, id, true);
+  } catch (err) { armedBuy = null; showToast(err.message, false); render(); }
+}
+async function equipItem(slot, id, quiet) {
+  try {
+    await shopCall({ action: 'equip', name: myName(), playerToken: myToken(), slot, itemId: id });
+    if (!quiet) showToast(id ? `Wearing ${itemName(id)}` : 'Taken off', false);
+    await refreshClub();
+  } catch (err) { showToast(err.message, false); }
+}
+
+// Organizer: prices, rewards on/off, the rewards list, handing rewards over, and releasing linked names.
+function adminCreds() { return { pin: pins[club.code] || '', ownerToken: owners[club.code] || '' }; }
+function shopAdminHTML(c) {
+  const s = shopInfo();
+  if (!c.draft) c.draft = { rewardsEnabled: s.rewardsEnabled, prices: Object.assign({}, s.prices), rewards: s.rewards.map(r => Object.assign({}, r)) };
+  const d = c.draft;
+  const locked = club.hasPin && !hasOrganizer();
+  const pend = pendingRewards();
+  const playerName = key => { const p = clubPlayers().find(x => x.name.toLowerCase() === key); return p ? p.name : key; };
+  return `<h2 id="club-h">Manage shop</h2>
+    ${locked ? `<p>Changing the shop needs the organizer PIN.</p><div class="btns"><button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div>` : `
+    ${pend.length ? `<div class="field" style="margin:0"><span class="lab">Rewards to hand out</span><ul class="deleted">${pend.map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}</span><button class="link" data-given="${p.id}">Mark given</button></li>`).join('')}</ul></div>` : ''}
+    <label class="toggle"><input type="checkbox" id="adm-rewards" ${d.rewardsEnabled ? 'checked' : ''}><span>Club rewards in the shop</span></label>
+    ${d.rewardsEnabled ? `<div class="field" style="margin:0"><span class="lab">Rewards</span><div class="adm-rows">${d.rewards.map((r, i) => `<div class="adm-row"><input class="field-input" data-rw-name="${i}" value="${esc(r.name)}" maxlength="60" aria-label="Reward ${i + 1} name"><input class="field-input price" type="number" inputmode="numeric" min="0" max="9999" data-rw-price="${i}" value="${Number(r.price)}" aria-label="Reward ${i + 1} price"><button class="x" data-rw-del="${i}" aria-label="Remove reward">✕</button></div>`).join('')}</div>
+      <button class="link" data-act="adm-add-reward" style="align-self:flex-start">+ Add a reward</button></div>` : ''}
+    <div class="field" style="margin:0"><span class="lab">Item prices (Dinks)</span><div class="adm-rows">${s.catalog.map(it => `<div class="adm-row"><span class="adm-item">${esc(it.name)}<small>${SLOT_LABEL[it.slot]}</small></span><input class="field-input price" type="number" inputmode="numeric" min="0" max="9999" data-price="${it.id}" value="${Number(d.prices[it.id])}" aria-label="${esc(it.name)} price"></div>`).join('')}</div></div>
+    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+    <button class="btn btn-ink" data-act="adm-save" ${c.busy ? 'disabled' : ''}>Save shop</button>
+    ${clubPlayers().some(p => p.claimed) ? `<div class="field" style="margin:0"><span class="lab">Names linked to phones</span><ul class="deleted">${clubPlayers().filter(p => p.claimed).map(p => `<li><span>${esc(p.name)}</span><button class="link" data-release="${esc(p.name)}">Release</button></li>`).join('')}</ul><p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p></div>` : ''}`}
+    <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
+async function adminSave() {
+  const c = clubSheet, d = c.draft;
+  c.busy = true; c.error = ''; renderClub();
+  try {
+    const data = await shopCall(Object.assign({ action: 'settings', rewardsEnabled: d.rewardsEnabled, prices: d.prices, rewards: d.rewards }, adminCreds()));
+    if (clubData) clubData.shop = Object.assign({}, clubData.shop, data.settings);
+    clubSheet = null; showToast('Shop saved', false); render();
+    refreshClub();
+  } catch (err) { c.busy = false; c.error = err.message; renderClub(); }
+}
+async function adminAction(body, okMsg) {
+  try { await shopCall(Object.assign(body, adminCreds())); showToast(okMsg, false); await refreshClub(); renderClub(); }
+  catch (err) { showToast(err.message, false); }
+}
+
+// Win celebrations: a short burst over the game-over screen when a winner has one equipped.
+function celebrate(kind) {
+  const layer = document.createElement('div');
+  layer.className = 'celebrate ' + kind;
+  layer.setAttribute('aria-hidden', 'true');
+  const colors = ['var(--ball)', '#4361FF', '#17B988', '#FF8A5B', '#FFFFFF'];
+  for (let i = 0; i < 36; i++) {
+    const b = document.createElement('i');
+    b.style.left = (Math.random() * 100) + '%';
+    b.style.animationDelay = (Math.random() * 0.5) + 's';
+    b.style.setProperty('--dx', ((Math.random() - 0.5) * 160) + 'px');
+    if (kind === 'celebrate-confetti') b.style.background = colors[i % colors.length];
+    layer.appendChild(b);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 2600);
+}
+
 /* ---------- player profiles ---------- */
 let profile = null; // { name, mode } when a profile is open
 function playerProfile(name, mode, games) {
@@ -1733,7 +2089,7 @@ function renderProfile() {
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
   }
   root.innerHTML = `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
-    <div class="pf-head"><span class="av">${esc(initials(pr.name))}</span><h2 id="pf-h">${esc(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    <div class="pf-head"><span class="av${frameClass(pr.name)}">${esc(initials(pr.name))}</span><h2 id="pf-h">${styledName(pr.name)}${youTag(pr.name)}${club && clubData ? `<span class="pf-dinks">${wallet(pr.name).balance} Dinks</span>` : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}</div></div>`;
   wireChart();
@@ -1760,6 +2116,8 @@ function tourSteps() {
   ];
   if (API_OK) steps.push({ title: 'Share one record with your club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
     body: `<p>Tap <b>Join a club</b> at the top to start a club or join one with its code. Everyone in the club sees the same games, saved players and leaderboard on their own phone. No accounts needed.</p>` });
+  if (API_OK) steps.push({ title: 'Earn Dinks, spend them in the shop', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>+10 a win</span><span>Titles</span><span>Courts</span></div>`,
+    body: `<p>When you join a club, pick your name. Every win earns you <b>Dinks</b> to spend in the <b>Shop</b> on titles, name styles, avatar rings, court themes and win celebrations. Your organizer can also add real club rewards.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
     body: isIOS
       ? `<p>In Safari, tap the <b>Share</b> button, then <b>Add to Home Screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>`
@@ -1812,6 +2170,24 @@ document.addEventListener('click', e => {
   if (ds.player) { profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
   if (ds.act === 'profile-close') { profile = null; renderProfile(); return; }
+  // Who are you, and the shop
+  if (ds.claim) { claimName(ds.claim); return; }
+  if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
+  if (ds.act === 'whoami-skip') { const after = clubSheet && clubSheet.afterJoin; skipWhoami(); clubSheet = null; if (after) afterJoin(); else { renderClub(); render(); } return; }
+  if (ds.buy) {
+    if (armedBuy !== ds.buy) { armedBuy = ds.buy; render(); setTimeout(() => { if (armedBuy === ds.buy) { armedBuy = null; if (tab === 'shop') safeRender(); } }, 4000); return; }
+    el.disabled = true; el.textContent = 'Buying…'; buyItem(ds.buy); return;
+  }
+  if (ds.equip) { equipItem(ds.slot, ds.off ? null : ds.equip); return; }
+  if (ds.act === 'shop-admin-open') { clubSheet = { view: 'shopadmin' }; renderClub(); return; }
+  if (ds.act === 'adm-save') { adminSave(); return; }
+  if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 20 }); renderClub(); return; }
+  if (ds.rwDel !== undefined) { clubSheet.draft.rewards.splice(+ds.rwDel, 1); renderClub(); return; }
+  if (ds.given) { adminAction({ action: 'given', purchaseId: +ds.given }, 'Marked as given'); return; }
+  if (ds.release) {
+    if (clubSheet.confirmRelease !== ds.release) { clubSheet.confirmRelease = ds.release; el.textContent = 'Tap again to release'; return; }
+    adminAction({ action: 'release', name: ds.release }, `${ds.release} can now be picked on another phone`); return;
+  }
   if (ds.edit) { openEdit(ds.edit); return; }
   if (ds.restore) { withPin({ type: 'restore', id: ds.restore }); return; }
   if (ds.act && ds.act.startsWith('pin-')) {
@@ -1896,6 +2272,18 @@ document.addEventListener('click', e => {
   }
 });
 let fcTimer;
+// Shop settings draft: keep what the organizer types without redrawing (which would lose their place).
+document.addEventListener('input', e => {
+  const d = clubSheet && clubSheet.view === 'shopadmin' && clubSheet.draft;
+  if (!d) return;
+  const t = e.target, ds = t.dataset || {};
+  if (ds.price) d.prices[ds.price] = Math.trunc(Number(t.value));
+  if (ds.rwName !== undefined) d.rewards[+ds.rwName].name = t.value;
+  if (ds.rwPrice !== undefined) d.rewards[+ds.rwPrice].price = Math.trunc(Number(t.value));
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'adm-rewards' && clubSheet && clubSheet.draft) { clubSheet.draft.rewardsEnabled = e.target.checked; renderClub(); }
+});
 document.addEventListener('input', e => {
   const d = e.target.dataset || {};
   if (d.name) {
@@ -1917,6 +2305,7 @@ document.addEventListener('submit', e => {
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
+  if (form.matches('[data-form="whoami"]')) { e.preventDefault(); claimName($('#whoami-name').value); return; }
   if (form.matches('[data-form="pin-set"]')) { e.preventDefault(); pinSet($('#pin-old') ? $('#pin-old').value : '', $('#pin-new').value, $('#pin-new2').value); return; }
   if (!form.matches('[data-form="add-player"]')) return;
   e.preventDefault();

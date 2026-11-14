@@ -8,6 +8,13 @@ const port = Number(process.argv[2]) || 4173;
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname.startsWith('/api/') && process.env.DATABASE_URL && /^\/api\/[a-z]+$/.test(url.pathname)) {
+    // With the database settings loaded (node --env-file=.env.local tools/serve.cjs), run the real API functions.
+    const file = path.join(__dirname, '..', 'api', url.pathname.slice(5) + '.js');
+    if (!fs.existsSync(file)) { res.writeHead(404); return res.end('{"error":"Not found"}'); }
+    import('file://' + file.replace(/\\/g, '/')).then(m => m.default(req, res)).catch(err => { console.error(err); res.writeHead(500); res.end('{"error":"Server error"}'); });
+    return;
+  }
   if (url.pathname.startsWith('/api/')) {
     // Stand-in club so the app can be previewed without the real server.
     const code = (url.searchParams.get('code') || 'K7P2QX').toUpperCase();

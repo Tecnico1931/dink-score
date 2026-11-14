@@ -52,6 +52,22 @@ export function ensureSchema() {
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS pin_hash text`; // organizer PIN, salted scrypt hash
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS owner_hash text`; // hash of the creating phone's token
+      // Shop: organizer settings on the club, claimed names and equipped items on saved players, purchases.
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS shop jsonb`;
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS claim_hash text`; // hash of the token on the phone that claimed this name
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS equipped jsonb NOT NULL DEFAULT '{}'::jsonb`;
+      await q`CREATE TABLE IF NOT EXISTS purchases (
+        id bigserial PRIMARY KEY,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        name_key text NOT NULL,
+        item_id text NOT NULL,
+        item_name text NOT NULL,
+        price int NOT NULL,
+        is_reward boolean NOT NULL DEFAULT false,
+        given_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS purchases_club_name ON purchases (club, name_key)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -174,6 +190,14 @@ export async function requirePin(club, pin, req, ownerToken) {
   await sql`DELETE FROM lookup_fails WHERE id IN (${ipId}, ${clubId})`;
 }
 export const ownerFrom = req => (req.headers || {})['x-club-owner'];
+
+// Organizer-only settings (shop prices, rewards, releasing names) need the creating phone or, once set, the PIN.
+// A club without a PIN can't hand these to anyone with the code, so it needs the creating phone.
+export async function requireOrganizer(club, pin, req, ownerToken) {
+  if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return;
+  if (!club.pin_hash) throw fail(403, 'Only organizers can do that. Set an organizer PIN from the phone that created the club.');
+  await requirePin(club, pin, req, ownerToken);
+}
 
 // Proof of ownership for setting a club's first PIN: a random token handed only to the phone that created the club.
 export const newOwnerToken = () => randomBytes(24).toString('hex');
