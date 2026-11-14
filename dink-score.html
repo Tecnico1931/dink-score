@@ -343,6 +343,67 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .when input { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 9px 12px; font-size: 15px; }
 .err { color: var(--danger); font-size: 14px; font-weight: 600; margin: 0; }
 
+/* First-visit tutorial */
+.tour-bg { position: fixed; inset: 0; z-index: 100; background: rgb(5 9 15 / .6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.tour { background: var(--surface); color: var(--ink); width: 100%; max-width: 420px; max-height: 100%; overflow-y: auto; border-radius: 30px; box-shadow: 0 30px 80px -20px rgb(0 0 0 / .6); display: flex; flex-direction: column; animation: rise .32s cubic-bezier(.2, .8, .2, 1); }
+.tour-art { height: 210px; flex: none; border-radius: 30px 30px 0 0; background: var(--ink); position: relative; overflow: hidden; display: grid; place-items: center; }
+.tour-art::before { content: ""; position: absolute; inset: 0; background: radial-gradient(90% 70% at 50% 0%, rgb(255 255 255 / .12), transparent 60%); }
+.tour-body { padding: 20px 22px 18px; display: flex; flex-direction: column; gap: 10px; }
+.tour-body .count { font-size: 13px; color: var(--muted); font-weight: 500; }
+.tour-body h2 { font-size: 28px; }
+.tour-body p { margin: 0; color: var(--muted); }
+.tour-body ul { margin: 0; padding-left: 18px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.tour-body b { color: var(--ink); }
+.tour-foot { display: flex; align-items: center; gap: 10px; padding: 0 22px 20px; }
+.dots { display: flex; gap: 6px; margin-right: auto; }
+.dots i { width: 7px; height: 7px; border-radius: 4px; background: var(--line); transition: width .2s, background .2s; }
+.dots i.on { width: 22px; background: var(--ink); }
+.tour-foot .btn { padding: 13px 18px; border-radius: 14px; font-size: 15px; }
+.tour-skip { position: absolute; top: 14px; right: 14px; z-index: 2; border: 0; background: rgb(255 255 255 / .14); color: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+/* tutorial illustrations, drawn with the app's own pieces */
+.art-mark { width: 96px; height: 96px; border-radius: 28px; background: var(--ball); display: grid; place-items: center; position: relative; box-shadow: 0 20px 40px -10px rgb(221 242 71 / .35); }
+.art-mark svg { width: 64px; height: 64px; }
+.art-words { position: absolute; bottom: 22px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; }
+.art-words span { background: rgb(255 255 255 / .12); color: #fff; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
+.mini-court { width: 150px; height: 178px; display: grid; grid-template-rows: 1fr auto 1fr; gap: 6px; position: relative; }
+.mini-court .mh { border-radius: 14px; display: flex; align-items: center; justify-content: flex-end; padding: 0 14px; color: #fff; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 40px; line-height: 1; position: relative; }
+.mini-court .mh.a { background: var(--blue); }
+.mini-court .mh.b { background: var(--green); }
+.mini-court .mh .srv { position: absolute; left: 10px; top: 10px; background: var(--ball); color: var(--ball-ink); font-family: var(--ui); font-stretch: 100%; font-size: 10px; font-weight: 700; border-radius: 999px; padding: 2px 7px; }
+.mini-court .mcall { justify-self: center; background: #fff; color: #0E1726; border-radius: 999px; padding: 3px; display: flex; gap: 3px; }
+.mini-court .mcall span { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 16px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; }
+.mini-court .mcall span:first-child { background: var(--ball); }
+.tap { position: absolute; width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / .9); left: 38%; top: 22%; box-shadow: 0 0 0 0 rgb(255 255 255 / .6); animation: tap 1.6s ease-out infinite; }
+@keyframes tap { 0% { transform: scale(.7); box-shadow: 0 0 0 0 rgb(255 255 255 / .55); } 60% { transform: scale(1); box-shadow: 0 0 0 18px rgb(255 255 255 / 0); } 100% { transform: scale(.7); box-shadow: 0 0 0 0 rgb(255 255 255 / 0); } }
+.mini-setup { width: 220px; display: flex; flex-direction: column; gap: 7px; }
+.mini-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; background: rgb(255 255 255 / .1); border-radius: 10px; padding: 3px; }
+.mini-seg span { border-radius: 7px; padding: 5px; text-align: center; font-size: 11px; font-weight: 600; color: rgb(255 255 255 / .6); }
+.mini-seg span:first-child { background: #fff; color: #0E1726; }
+.mini-team { border-radius: 10px; padding: 7px 9px; background: rgb(255 255 255 / .08); border-left: 4px solid var(--c); display: flex; flex-direction: column; gap: 4px; }
+.mini-team i { display: block; height: 8px; border-radius: 4px; background: rgb(255 255 255 / .3); width: 70%; }
+.mini-team i + i { width: 55%; }
+.mini-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.mini-chips span { background: rgb(255 255 255 / .12); color: #fff; border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 600; }
+.mini-chips span.on { background: #fff; color: #0E1726; }
+.mini-log { width: 200px; display: flex; flex-direction: column; gap: 8px; }
+.mini-log .row { display: grid; grid-template-columns: 1fr 46px; gap: 8px; align-items: center; background: rgb(255 255 255 / .08); border-left: 4px solid var(--c); border-radius: 10px; padding: 7px 8px; }
+.mini-log .row i { display: block; height: 8px; border-radius: 4px; background: rgb(255 255 255 / .3); }
+.mini-log .row b { background: #fff; color: #0E1726; border-radius: 8px; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 22px; line-height: 1.2; }
+.mini-log .save { background: var(--blue); color: #fff; border-radius: 10px; text-align: center; font-size: 11px; font-weight: 700; padding: 7px; }
+.mini-log .badge-live { align-self: flex-start; background: var(--ball); color: var(--ball-ink); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+.mini-podium { display: flex; gap: 6px; align-items: flex-end; }
+.mini-podium div { width: 58px; border-radius: 12px 12px 4px 4px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 8px; gap: 2px; background: rgb(255 255 255 / .12); color: #fff; }
+.mini-podium div b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 22px; line-height: 1; }
+.mini-podium div small { font-size: 10px; opacity: .7; }
+.mini-podium .p1 { height: 110px; background: var(--ball); color: var(--ball-ink); }
+.mini-podium .p2 { height: 82px; }
+.mini-podium .p3 { height: 64px; }
+.mini-phone { width: 104px; height: 176px; border-radius: 22px; border: 3px solid rgb(255 255 255 / .55); position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 26px 14px; align-content: start; }
+.mini-phone i { aspect-ratio: 1; border-radius: 7px; background: rgb(255 255 255 / .14); }
+.mini-phone i.app { background: var(--ball); box-shadow: 0 0 0 3px rgb(221 242 71 / .3); }
+.replay { align-self: flex-start; }
+
 @media (min-width: 520px) { .tile.live .t-big { font-size: 64px; } }
 @media (max-width: 360px) { .seg-row { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
@@ -361,6 +422,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 
 <div id="overlay"></div>
 <div id="sheet2"></div>
+<div id="tour"></div>
 
 <script id="engine">
 /*ENGINE-START*/
@@ -645,6 +707,7 @@ function render() {
   $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
+  renderTour();
 }
 
 function seg(attr, options, value, cls = '') {
@@ -777,6 +840,7 @@ function leadersView() {
 
 function rulesView() {
   return `<section><h2>Rules</h2><p class="sub">The essentials, for settling it at the kitchen line.</p></section>
+  <div class="rule"><h3>New to Dink Score?</h3><p>Take the quick tour of how to set up games, keep score, log results and read the leaderboard.</p><button class="btn btn-ink replay" data-tour="open" style="padding:11px 16px;border-radius:12px;font-size:15px">Show the tour</button></div>
   <div class="rules">
     <div class="rule"><h3>Calling the score</h3><p>In doubles, say three numbers before each serve.</p>
       <div class="call-demo"><div><strong>4</strong><small>Serving team</small></div><div><strong>2</strong><small>Receiving team</small></div><div><strong>1</strong><small>Server</small></div></div>
@@ -939,6 +1003,58 @@ function submitLog() {
   showToast(`Saved: ${teamLabel(teams[winner])} won ${score[winner]}–${score[1 - winner]}`, false);
 }
 
+/* ---------- first-visit tutorial ---------- */
+let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
+const isStandalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
+const canInstall = !isStandalone && (/github\.io$/.test(location.hostname) || /^(localhost|127\.0\.0\.1)$/.test(location.hostname));
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const MARK_BALL = `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="#0E1726" opacity=".85"><circle cx="22" cy="22" r="4"/><circle cx="38" cy="18" r="4"/><circle cx="31" cy="32" r="4"/><circle cx="19" cy="40" r="4"/><circle cx="44" cy="36" r="4"/><circle cx="33" cy="47" r="4"/></g></svg>`;
+function tourSteps() {
+  const steps = [
+    { title: 'Welcome to Dink Score', art: `<div class="art-mark">${MARK_BALL}</div><div class="art-words"><span>Score</span><span>Log</span><span>Rank</span></div>`,
+      body: `<p>Keep score on court, track every result, and see who's on top. Here's a quick tour. It takes about 30 seconds.</p>` },
+    { title: 'Set up a game', art: `<div class="mini-setup"><div class="mini-seg"><span>Doubles</span><span>Singles</span></div><div class="mini-team" style="--c:var(--blue)"><i></i><i></i></div><div class="mini-team" style="--c:var(--green)"><i></i><i></i></div><div class="mini-chips"><span class="on">Ana</span><span class="on">Ben</span><span>Cal</span><span>Dee</span></div></div>`,
+      body: `<ul><li>On <b>Play</b>, pick doubles or singles, the scoring style, and the target score.</li><li>Type player names, or tap a <b>saved player</b> to drop them into the next open spot. Names are saved for next time.</li><li>Choose who <b>serves first</b>, then tap <b>Start game</b>.</li></ul>` },
+    { title: 'Tap the side that won', art: `<div class="mini-court"><div class="mh a"><span class="srv">Serving</span>4</div><div class="mcall"><span>4</span><span>2</span><span>1</span></div><div class="mh b">2</div><span class="tap"></span></div>`,
+      body: `<ul><li>After each rally, tap the half of the screen for the side that <b>won the rally</b>. The app applies the serving rules for you.</li><li>The white pill is the <b>score call</b> to say out loud. The yellow tag shows who serves, and from which side.</li><li>Mis-tap? Hit <b>Undo</b>. <b>Leave</b> lets you pause the game and come back later.</li></ul>` },
+    { title: 'Log games from other courts', art: `<div class="mini-log"><span class="badge-live">Your game keeps going</span><div class="row" style="--c:var(--blue)"><i></i><b>11</b></div><div class="row" style="--c:var(--green)"><i></i><b>7</b></div><div class="save">Save result</div></div>`,
+      body: `<p>Running more than one court? Tap <b>+ Log</b> while scoring, or <b>Log a result</b> on the home screen. Enter the players and final score. Your live game isn't affected, and logged games count toward the record and ratings.</p>` },
+    { title: 'Climb the leaderboard', art: `<div class="mini-podium"><div class="p2"><b>3.82</b><small>2nd</small></div><div class="p1"><b>4.10</b><small>1st</small></div><div class="p3"><b>3.64</b><small>3rd</small></div></div>`,
+      body: `<p>Every saved game updates each player's <b>Dink Rating</b>, from 2.00 to 8.00. Beat the forecast score and your rating rises, even in a loss. See the rankings, streaks and honors on <b>Leaders</b>.</p>` }
+  ];
+  if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
+    body: isIOS
+      ? `<p>In Safari, tap the <b>Share</b> button, then <b>Add to Home Screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>`
+      : `<p>In Chrome, tap the <b>⋮</b> menu, then <b>Install app</b> or <b>Add to Home screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>` });
+  return steps;
+}
+function renderTour() {
+  const root = $('#tour');
+  if (tourStep === null) { root.innerHTML = ''; return; }
+  const steps = tourSteps();
+  tourStep = Math.max(0, Math.min(tourStep, steps.length - 1));
+  const s = steps[tourStep];
+  const last = tourStep === steps.length - 1;
+  root.innerHTML = `<div class="tour-bg"><div class="tour" role="dialog" aria-modal="true" aria-labelledby="tour-h">
+    <div class="tour-art">${last ? '' : '<button class="tour-skip" data-tour="done">Skip</button>'}${s.art}</div>
+    <div class="tour-body"><span class="count">Step ${tourStep + 1} of ${steps.length}</span><h2 id="tour-h">${s.title}</h2>${s.body}</div>
+    <div class="tour-foot"><div class="dots" aria-hidden="true">${steps.map((_, i) => `<i class="${i === tourStep ? 'on' : ''}"></i>`).join('')}</div>
+      ${tourStep > 0 ? '<button class="btn btn-soft" data-tour="back">Back</button>' : ''}
+      <button class="btn ${last ? 'btn-ball' : 'btn-ink'}" data-tour="${last ? 'done' : 'next'}" id="tour-next">${last ? 'Start playing' : 'Next'}</button></div>
+  </div></div>`;
+  const btn = $('#tour-next'); if (btn) { try { btn.focus({ preventScroll: true }); } catch {} }
+}
+function closeTour() { tourStep = null; store.set('pb.tutorialSeen', true); renderTour(); }
+let tourTouchX = null;
+document.addEventListener('touchstart', e => { if (tourStep !== null && e.target.closest && e.target.closest('.tour')) tourTouchX = e.touches[0].clientX; }, { passive: true });
+document.addEventListener('touchend', e => {
+  if (tourStep === null || tourTouchX === null) return;
+  const dx = e.changedTouches[0].clientX - tourTouchX; tourTouchX = null;
+  if (Math.abs(dx) < 50) return;
+  if (dx < 0 && tourStep < tourSteps().length - 1) tourStep++; else if (dx > 0 && tourStep > 0) tourStep--;
+  renderTour();
+}, { passive: true });
+
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
   const el = e.target.closest('button');
@@ -947,6 +1063,13 @@ document.addEventListener('click', e => {
     return;
   }
   const ds = el.dataset;
+  if (ds.tour) {
+    if (ds.tour === 'next') tourStep++;
+    else if (ds.tour === 'back') tourStep--;
+    else if (ds.tour === 'open') tourStep = 0;
+    if (ds.tour === 'done') closeTour(); else renderTour();
+    return;
+  }
   if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; render(); try { window.scrollTo(0, 0); } catch {} return; }
   if (ds.tabGo) { tab = ds.tabGo; store.set('pb.tab', tab); render(); try { window.scrollTo(0, 0); } catch {} return; }
   for (const k of ['mode', 'scoring', 'target', 'winBy']) {
@@ -1029,6 +1152,12 @@ document.addEventListener('submit', e => {
   const again = $('#new-player'); if (again) again.focus();
 });
 document.addEventListener('keydown', e => {
+  if (tourStep !== null) {
+    if (e.key === 'Escape') closeTour();
+    else if (e.key === 'ArrowRight' && tourStep < tourSteps().length - 1) { tourStep++; renderTour(); }
+    else if (e.key === 'ArrowLeft' && tourStep > 0) { tourStep--; renderTour(); }
+    return;
+  }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
   if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm) return;
   if (e.target.matches && e.target.matches('input')) return;
