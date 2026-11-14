@@ -497,6 +497,55 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
 .court[data-theme="theme-grass"] .half[data-k="b"], .pv-theme.theme-grass i:last-child { --c1: #8BC34A; --c2: #3E6B12; background: linear-gradient(155deg, #8BC34A, #3E6B12); }
 .court[data-theme="theme-neon"] .half[data-k="a"], .pv-theme.theme-neon i:first-child { --c1: #FF2BD6; --c2: #7A0A8C; background: linear-gradient(155deg, #FF2BD6, #7A0A8C); }
 .court[data-theme="theme-neon"] .half[data-k="b"], .pv-theme.theme-neon i:last-child { --c1: #00C8E6; --c2: #005B79; background: linear-gradient(155deg, #00C8E6, #005B79); }
+/* Legendary cosmetics: animated, so owning one is obvious at a glance */
+.p-title.legendary { background: linear-gradient(100deg, #B8860B 0%, #FFE58A 35%, #FFF6D0 50%, #FFE58A 65%, #B8860B 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; animation: sheen 3.2s linear infinite; }
+@keyframes sheen { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+.p-name.style-holo { background: linear-gradient(90deg, #6EE7FF, #B388FF, #FF8AD8, #FFE27A, #7CFFB2, #6EE7FF); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; animation: holo 4s linear infinite; filter: drop-shadow(0 0 6px rgb(179 136 255 / .35)); }
+@keyframes holo { from { background-position: 0 0; } to { background-position: 300% 0; } }
+.p-name.style-molten { background: linear-gradient(100deg, #7A4A00 0%, #E09A1F 25%, #FFF1B8 45%, #FFB31A 55%, #A85F00 80%, #7A4A00 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; animation: sheen 2.4s linear infinite; filter: drop-shadow(0 0 8px rgb(255 170 30 / .45)); }
+.avatar, .av, .avatar-mini { position: relative; --r: 29px; }
+.step.s1 .avatar { --r: 35px; } .av { --r: 32px; } .avatar-mini { --r: 24px; }
+.frame-orbit { box-shadow: 0 0 0 2px rgb(221 242 71 / .55) !important; }
+.frame-orbit::after { content: ""; position: absolute; left: 50%; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #FFFFFF 0 18%, #DDF247 19%); box-shadow: 0 0 8px rgb(221 242 71 / .9); animation: orbit 2.2s linear infinite; }
+@keyframes orbit { from { transform: rotate(0deg) translateX(var(--r)) rotate(0deg); } to { transform: rotate(360deg) translateX(var(--r)) rotate(-360deg); } }
+.frame-crown { box-shadow: 0 0 0 3px #F2C94C, 0 0 16px 2px rgb(242 201 76 / .55) !important; }
+.frame-crown::before { content: ""; position: absolute; left: 50%; top: -15px; width: 26px; height: 16px; transform: translateX(-50%) rotate(-8deg); background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 16'%3E%3Cpath d='M1 15 L3 4 L9 9 L13 1 L17 9 L23 4 L25 15 Z' fill='%23F2C94C' stroke='%239A6B00' stroke-width='1.2' stroke-linejoin='round'/%3E%3Ccircle cx='13' cy='1.6' r='1.6' fill='%23FF5A5A'/%3E%3Ccircle cx='3' cy='4' r='1.3' fill='%234DA3FF'/%3E%3Ccircle cx='23' cy='4' r='1.3' fill='%234DA3FF'/%3E%3C/svg%3E"); filter: drop-shadow(0 1px 2px rgb(0 0 0 / .4)); animation: crown 3s ease-in-out infinite; }
+@keyframes crown { 50% { transform: translateX(-50%) rotate(8deg) translateY(-1px); } }
+.court[data-theme="theme-aurora"] .half[data-k="a"], .pv-theme.theme-aurora i:first-child { --c1: #00D2A8; --c2: #3A47D5; background: linear-gradient(125deg, #00D2A8, #3A7BD5, #8E44AD, #00D2A8); background-size: 300% 300%; animation: aurora 9s ease-in-out infinite; }
+.court[data-theme="theme-aurora"] .half[data-k="b"], .pv-theme.theme-aurora i:last-child { --c1: #FF6A88; --c2: #6A5ACD; background: linear-gradient(125deg, #FF6A88, #FFB36A, #6A5ACD, #FF6A88); background-size: 300% 300%; animation: aurora 11s ease-in-out infinite reverse; }
+@keyframes aurora { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+.court[data-theme="theme-galaxy"] .half, .pv-theme.theme-galaxy i { --c1: #6A4BFF; --c2: #120A3A;
+  background: radial-gradient(1.5px 1.5px at 12% 22%, #fff, transparent), radial-gradient(1px 1px at 30% 70%, #fff, transparent), radial-gradient(1.5px 1.5px at 55% 35%, #fff, transparent), radial-gradient(1px 1px at 72% 80%, #fff, transparent), radial-gradient(2px 2px at 85% 15%, #FFE9A8, transparent), radial-gradient(1px 1px at 45% 88%, #fff, transparent), radial-gradient(1px 1px at 92% 55%, #fff, transparent), radial-gradient(120% 90% at 20% 0%, #5B3CFF 0%, transparent 55%), linear-gradient(160deg, #2A1670, #0A0626); }
+.court[data-theme="theme-galaxy"] .half[data-k="b"], .pv-theme.theme-galaxy i:last-child { background: radial-gradient(1px 1px at 18% 30%, #fff, transparent), radial-gradient(1.5px 1.5px at 40% 75%, #fff, transparent), radial-gradient(1px 1px at 62% 20%, #fff, transparent), radial-gradient(2px 2px at 80% 65%, #A8F0FF, transparent), radial-gradient(1px 1px at 8% 85%, #fff, transparent), radial-gradient(1px 1px at 52% 50%, #fff, transparent), radial-gradient(120% 90% at 80% 100%, #0FB5C8 0%, transparent 55%), linear-gradient(200deg, #0D2B5A, #04101F); --c1: #0FB5C8; }
+.court[data-theme="theme-galaxy"] .half::after { background: radial-gradient(1px 1px at 25% 45%, rgb(255 255 255 / .9), transparent), radial-gradient(1px 1px at 65% 60%, rgb(255 255 255 / .9), transparent); animation: twinkle 2.6s ease-in-out infinite; }
+@keyframes twinkle { 50% { opacity: .2; } }
+/* Fireworks and trophy shower */
+.celebrate.celebrate-fireworks .burst { position: absolute; width: 0; height: 0; }
+.celebrate.celebrate-fireworks .burst i { position: absolute; top: 0; left: 0; width: 6px; height: 6px; border-radius: 50%; animation: spark 1.3s cubic-bezier(.15, .7, .3, 1) forwards; box-shadow: 0 0 6px currentColor; }
+@keyframes spark { 0% { transform: translate(0, 0) scale(1.2); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(var(--sx), var(--sy)) scale(.4); opacity: 0; } }
+.celebrate .trophy { position: absolute; left: 50%; top: 18%; width: 140px; height: 140px; margin-left: -70px; animation: trophy 2.6s cubic-bezier(.2, .9, .3, 1.2) forwards; filter: drop-shadow(0 10px 30px rgb(255 190 40 / .6)); }
+@keyframes trophy { 0% { transform: translateY(-60vh) scale(.6) rotate(-12deg); } 35% { transform: translateY(0) scale(1.05) rotate(4deg); } 50% { transform: scale(1) rotate(0); } 85% { opacity: 1; } 100% { transform: scale(1.1); opacity: 0; } }
+.legend-sec { display: flex; flex-direction: column; gap: 10px; }
+.legend-sec .sec-head h3 { display: flex; align-items: center; gap: 8px; }
+.legend-sec .sec-head h3::before { content: ""; width: 14px; height: 14px; border-radius: 4px; background: conic-gradient(from 0deg, #FFD54F, #FF8AD8, #6EE7FF, #7CFFB2, #FFD54F); animation: spin 4s linear infinite; }
+.item.legendary { position: relative; isolation: isolate; background: var(--surface); box-shadow: 0 10px 30px -14px rgb(255 190 40 / .45); }
+.item.legendary::before { content: ""; position: absolute; inset: -1.5px; border-radius: 19.5px; z-index: -1; background: conic-gradient(from var(--a, 0deg), #FFD54F, #FF8AD8, #6EE7FF, #7CFFB2, #FFD54F); animation: spin-border 5s linear infinite; }
+.item.legendary::after { content: ""; position: absolute; inset: 0; border-radius: 18px; z-index: -1; background: var(--surface); }
+@property --a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+@keyframes spin-border { to { --a: 360deg; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.item .rarity { align-self: flex-start; font-size: 10px; font-weight: 800; letter-spacing: .02em; border-radius: 6px; padding: 2px 6px; }
+.rarity.rare { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue); }
+.rarity.legendary { background: linear-gradient(90deg, #FFD54F, #FF8AD8); color: #2A1600; }
+.item.legendary .pv { height: 74px; background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, #FFD54F 18%, var(--surface-2)), var(--surface-2)); }
+.goal { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.goal b { display: block; height: 100%; background: linear-gradient(90deg, #FFD54F, #FF8AD8); border-radius: 3px; }
+.goal-txt { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pv-trophy { width: 42px; height: 42px; }
+.pv-fw { position: relative; width: 60px; height: 50px; }
+.pv-fw i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; margin: -2.5px; }
+@media (prefers-reduced-motion: reduce) { .p-title.legendary, .p-name.style-holo, .p-name.style-molten, .frame-orbit::after, .frame-crown::before, .item.legendary::before, .legend-sec .sec-head h3::before, .court[data-theme] .half { animation: none !important; } }
+
 /* Win celebrations */
 .celebrate { position: fixed; inset: 0; z-index: 120; pointer-events: none; overflow: hidden; }
 .celebrate i { position: absolute; top: -20px; width: 10px; height: 14px; border-radius: 2px; animation: fall 2.2s cubic-bezier(.25, .6, .4, 1) forwards; }
@@ -1819,12 +1868,13 @@ function equippedFor(name) {
   const p = clubPlayers().find(x => sameName(x.name, name));
   return (p && p.equipped) || {};
 }
+const isLegendary = id => { const s = shopInfo(); const it = s && s.catalog.find(i => i.id === id); return !!(it && it.rarity === 'legendary'); };
 const itemName = id => { const s = shopInfo(); const it = s && s.catalog.find(i => i.id === id); return it ? it.name : ''; };
 // A player's name with their title and name style, for leaderboards and profiles.
 function styledName(name, withTitle = true) {
   const eq = club ? equippedFor(name) : {};
   const style = eq.style ? ' ' + eq.style : '';
-  const title = withTitle && eq.title ? `<span class="p-title">${esc(itemName(eq.title))}</span>` : '';
+  const title = withTitle && eq.title ? `<span class="p-title${isLegendary(eq.title) ? ' legendary' : ''}">${esc(itemName(eq.title))}</span>` : '';
   return `<span class="p-name${style}">${esc(name)}</span>${title}`;
 }
 const frameClass = name => { const eq = club ? equippedFor(name) : {}; return eq.frame ? ' ' + eq.frame : ''; };
@@ -1888,8 +1938,11 @@ function whoamiHTML(c) {
 
 const SLOT_LABEL = { title: 'Titles', frame: 'Avatar rings', style: 'Name styles', theme: 'Court themes', celebrate: 'Win celebrations' };
 const SLOT_NOTE = { title: 'Shown under your name.', frame: 'A ring around your initials.', style: 'How your name looks on the leaderboard.', theme: 'Your scoring screen on this phone.', celebrate: 'Plays when your team wins.' };
+const TROPHY_SVG = `<svg class="pv-trophy" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 8h28v14a14 14 0 01-28 0z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><path d="M18 12H9a9 9 0 009 12M46 12h9a9 9 0 01-9 12" fill="none" stroke="#F2C94C" stroke-width="4" stroke-linecap="round"/><path d="M28 35h8v10h-8z" fill="#E0A82E"/><path d="M20 46h24v8H20z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><circle cx="32" cy="20" r="5" fill="#DDF247" stroke="#9A6B00" stroke-width="1.5"/></svg>`;
 function itemPreview(it, name) {
-  if (it.slot === 'title') return `<span class="pv-title">${esc(it.name)}</span>`;
+  if (it.slot === 'title') return `<span class="pv-title${it.rarity === 'legendary' ? ' p-title legendary' : ''}" style="${it.rarity === 'legendary' ? 'font-size:15px' : ''}">${esc(it.name)}</span>`;
+  if (it.id === 'celebrate-trophy') return TROPHY_SVG;
+  if (it.id === 'celebrate-fireworks') return `<span class="pv-fw">${Array.from({ length: 10 }, (_, i) => { const a = i / 10 * Math.PI * 2; return `<i style="transform:translate(${Math.round(Math.cos(a) * 20)}px,${Math.round(Math.sin(a) * 18)}px);background:${['#FFD54F', '#FF8AD8', '#6EE7FF'][i % 3]}"></i>`; }).join('')}</span>`;
   if (it.slot === 'frame') return `<span class="avatar-mini ${it.id}">${esc(initials(name || 'You'))}</span>`;
   if (it.slot === 'style') return `<span class="p-name ${it.id}">${esc(name || 'Your name')}</span>`;
   if (it.slot === 'theme') return `<span class="pv-theme ${it.id}"><i></i><i></i></span>`;
@@ -1910,21 +1963,29 @@ function shopView() {
     ? `<section class="wallet"><div class="w-top"><span class="avatar-mini${frameClass(name)}">${esc(initials(name))}</span><div class="w-who">${styledName(name)}</div><span class="badge you">You</span></div>
         <div class="w-bal"><b>${w.balance}</b><span>Dinks</span></div><div class="w-sub">${w.earned} earned, ${w.spent} spent</div>${earnRules}</section>`
     : `<section class="wallet"><h3>Who are you?</h3><p class="note">Link this phone to your name to see your Dinks and buy things.</p><button class="btn btn-ink" data-act="whoami-open">Choose my name</button>${earnRules}</section>`;
-  const byslot = ['title', 'frame', 'style', 'theme', 'celebrate'].map(slot => {
-    const items = s.catalog.filter(i => i.slot === slot);
+  const card = it => {
+    const slot = it.slot;
     const eq = name ? equippedFor(name)[slot] : null;
+    const price = s.prices[it.id];
+    const owned = w && w.owned.has(it.id);
+    const worn = eq === it.id;
+    const afford = w && w.balance >= price;
+    const armed = armedBuy === it.id;
+    const legend = it.rarity === 'legendary';
+    const action = !name ? '' : owned
+      ? (worn ? `<button class="ibtn on" data-equip="${it.id}" data-slot="${slot}" data-off="1">Wearing</button>` : `<button class="ibtn" data-equip="${it.id}" data-slot="${slot}">Wear</button>`)
+      : `<button class="ibtn buy ${armed ? 'armed' : ''}" data-buy="${it.id}" ${afford ? '' : 'disabled'}>${armed ? `Buy for ${price}?` : afford ? `${price} Dinks` : `${price - w.balance} more`}</button>`;
+    // Legendary items show how close you are, since they take a while to save for.
+    const goal = legend && w && !owned && price > 0 ? `<div class="goal" aria-hidden="true"><b style="width:${Math.min(100, Math.round(100 * Math.max(0, w.balance) / price))}%"></b></div><span class="goal-txt">${Math.max(0, w.balance)} of ${price}</span>` : '';
+    const badge = it.rarity === 'rare' ? '<span class="rarity rare">Rare</span>' : legend ? '<span class="rarity legendary">Legendary</span>' : '';
+    return `<div class="item ${owned ? 'owned' : ''} ${legend ? 'legendary' : ''}"><div class="pv">${itemPreview(it, name)}</div>${badge}<span class="iname">${esc(it.name)}</span>${!owned ? `<span class="iprice">${price} Dinks</span>` : '<span class="iprice">Owned</span>'}${goal}${action}</div>`;
+  };
+  const legends = s.catalog.filter(i => i.rarity === 'legendary');
+  const legendSec = legends.length ? `<section class="legend-sec"><div class="sec-head"><h3>Legendary</h3><span class="note">Animated, rare, and worth the grind.</span></div><div class="items">${legends.map(card).join('')}</div></section>` : '';
+  const byslot = ['title', 'frame', 'style', 'theme', 'celebrate'].map(slot => {
+    const items = s.catalog.filter(i => i.slot === slot && i.rarity !== 'legendary');
     return `<section class="shop-sec"><div class="sec-head"><h3>${SLOT_LABEL[slot]}</h3><span class="note">${SLOT_NOTE[slot]}</span></div>
-      <div class="items">${items.map(it => {
-        const price = s.prices[it.id];
-        const owned = w && w.owned.has(it.id);
-        const worn = eq === it.id;
-        const afford = w && w.balance >= price;
-        const armed = armedBuy === it.id;
-        const action = !name ? '' : owned
-          ? (worn ? `<button class="ibtn on" data-equip="${it.id}" data-slot="${slot}" data-off="1">Wearing</button>` : `<button class="ibtn" data-equip="${it.id}" data-slot="${slot}">Wear</button>`)
-          : `<button class="ibtn buy ${armed ? 'armed' : ''}" data-buy="${it.id}" ${afford ? '' : 'disabled'}>${armed ? `Buy for ${price}?` : afford ? `${price} Dinks` : `${price - w.balance} more`}</button>`;
-        return `<div class="item ${owned ? 'owned' : ''}"><div class="pv">${itemPreview(it, name)}</div><span class="iname">${esc(it.name)}</span>${!owned ? `<span class="iprice">${price} Dinks</span>` : '<span class="iprice">Owned</span>'}${action}</div>`;
-      }).join('')}</div></section>`;
+      <div class="items">${items.map(card).join('')}</div></section>`;
   }).join('');
   const rewards = s.rewardsEnabled && s.rewards.length ? `<section class="shop-sec"><div class="sec-head"><h3>Club rewards</h3><span class="note">Real perks, handed over by an organizer.</span></div>
     <div class="rewards">${s.rewards.map(r => {
@@ -1933,7 +1994,7 @@ function shopView() {
     }).join('')}</div>
     ${w && w.rewards.length ? `<p class="note">Your rewards: ${w.rewards.slice(-5).reverse().map(p => `${esc(p.itemName)} (${p.givenAt ? 'given' : 'waiting for an organizer'})`).join(', ')}</p>` : ''}</section>` : '';
   const admin = club.hasPin || isCreator() ? `<section><button class="btn btn-soft block" data-act="shop-admin-open">Manage shop${pendingRewards().length ? ` (${pendingRewards().length} to hand out)` : ''}</button></section>` : '';
-  return head + walletCard + byslot + rewards + admin;
+  return head + walletCard + legendSec + byslot + rewards + admin;
 }
 const pendingRewards = () => ((clubData && clubData.purchases) || []).filter(p => p.reward && !p.givenAt);
 async function buyItem(id) {
@@ -1997,6 +2058,47 @@ function celebrate(kind) {
   layer.className = 'celebrate ' + kind;
   layer.setAttribute('aria-hidden', 'true');
   const colors = ['var(--ball)', '#4361FF', '#17B988', '#FF8A5B', '#FFFFFF'];
+  if (kind === 'celebrate-fireworks') {
+    // Five bursts across the screen, one after another.
+    const hues = ['#FFD54F', '#FF8AD8', '#6EE7FF', '#7CFFB2', '#FF7A45'];
+    for (let b = 0; b < 5; b++) {
+      const burst = document.createElement('div');
+      burst.className = 'burst';
+      burst.style.left = (15 + Math.random() * 70) + '%';
+      burst.style.top = (12 + Math.random() * 45) + '%';
+      for (let i = 0; i < 22; i++) {
+        const p = document.createElement('i');
+        const a = (i / 22) * Math.PI * 2, d = 70 + Math.random() * 60;
+        p.style.setProperty('--sx', Math.cos(a) * d + 'px');
+        p.style.setProperty('--sy', Math.sin(a) * d + 'px');
+        p.style.color = p.style.background = hues[(b + i) % hues.length];
+        p.style.animationDelay = (b * 0.35) + 's';
+        burst.appendChild(p);
+      }
+      layer.appendChild(burst);
+    }
+    document.body.appendChild(layer);
+    setTimeout(() => layer.remove(), 3400);
+    return;
+  }
+  if (kind === 'celebrate-trophy') {
+    // A trophy drops in over a shower of gold.
+    const t = document.createElement('div');
+    t.className = 'trophy';
+    t.innerHTML = TROPHY_SVG.replace('class="pv-trophy"', 'width="140" height="140"');
+    layer.appendChild(t);
+    for (let i = 0; i < 40; i++) {
+      const g = document.createElement('i');
+      g.style.left = (Math.random() * 100) + '%';
+      g.style.animationDelay = (0.3 + Math.random() * 0.6) + 's';
+      g.style.setProperty('--dx', ((Math.random() - 0.5) * 120) + 'px');
+      g.style.background = ['#F2C94C', '#FFE58A', '#E0A82E', '#FFF6D0'][i % 4];
+      layer.appendChild(g);
+    }
+    document.body.appendChild(layer);
+    setTimeout(() => layer.remove(), 3000);
+    return;
+  }
   for (let i = 0; i < 36; i++) {
     const b = document.createElement('i');
     b.style.left = (Math.random() * 100) + '%';
