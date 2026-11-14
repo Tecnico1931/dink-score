@@ -10,7 +10,7 @@
 //   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp } from './_db.js';
-import { computeDinks, CATALOG, SLOTS, shopSettings } from './_dinks.js';
+import { computeDinks, computeProgress, CATALOG, SLOTS, shopSettings } from './_dinks.js';
 
 const MAX_CLAIMS_PER_DAY = 3; // names one network can link to phones per club per day without an organizer
 
@@ -98,7 +98,7 @@ export default handler(async (req, res) => {
     if (!catalogItem && !reward) throw fail(404, settings.rewardsEnabled ? 'That item isn\'t in the shop.' : 'That item isn\'t in the shop, or club rewards are turned off.');
     const price = catalogItem ? settings.prices[itemId] : Math.max(0, Math.trunc(Number(reward.price)) || 0);
     const itemName = catalogItem ? catalogItem.name : String(reward.name).slice(0, 60);
-    const earned = (computeDinks(await clubGames(sql, code)).get(player.name_key) || { earned: 0 }).earned;
+    const earned = (computeProgress(await clubGames(sql, code)).get(player.name_key) || { earned: 0 }).earned;
     // One transaction, locked per player, so two purchases at once can't overspend.
     const lockKey = code + ':' + player.name_key;
     const [, inserted] = await sql.transaction([

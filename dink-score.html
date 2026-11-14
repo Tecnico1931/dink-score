@@ -498,6 +498,47 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
 .court[data-theme="theme-grass"] .half[data-k="b"], .pv-theme.theme-grass i:last-child { --c1: #8BC34A; --c2: #3E6B12; background: linear-gradient(155deg, #8BC34A, #3E6B12); }
 .court[data-theme="theme-neon"] .half[data-k="a"], .pv-theme.theme-neon i:first-child { --c1: #FF2BD6; --c2: #7A0A8C; background: linear-gradient(155deg, #FF2BD6, #7A0A8C); }
 .court[data-theme="theme-neon"] .half[data-k="b"], .pv-theme.theme-neon i:last-child { --c1: #00C8E6; --c2: #005B79; background: linear-gradient(155deg, #00C8E6, #005B79); }
+/* Challenges, achievements, trophies, rivalries, seasons */
+.challenges { display: flex; flex-direction: column; gap: 10px; }
+.challenges ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.challenges li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
+.ch-check { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+.challenges li.done .ch-check { background: var(--up); border-color: var(--up); color: #fff; }
+.ch-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ch-text b { font-size: 14px; font-weight: 600; line-height: 1.25; }
+.ch-bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.ch-bar i { display: block; height: 100%; background: var(--ball); border-radius: 3px; }
+.challenges li.done .ch-bar i { background: var(--up); }
+.ch-dinks { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 18px; color: var(--up); }
+.challenges li.done .ch-dinks { font-family: var(--ui); font-stretch: 100%; font-size: 12px; }
+.ach-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ach { position: relative; background: var(--surface-2); border-radius: 14px; padding: 10px 8px 9px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; min-width: 0; }
+.ach .ach-ic { font-size: 26px; line-height: 1.1; filter: grayscale(1); opacity: .35; }
+.ach b { font-size: 12px; line-height: 1.2; color: var(--muted); }
+.ach small { font-size: 10px; color: var(--muted); line-height: 1.25; }
+.ach .ach-d { position: absolute; top: 5px; right: 6px; font-size: 10px; font-weight: 800; color: var(--muted); }
+.ach.got { background: color-mix(in srgb, var(--ball) 16%, var(--surface-2)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ball) 60%, transparent); }
+.ach.got .ach-ic { filter: none; opacity: 1; }
+.ach.got b { color: var(--ink); }
+.ach.got .ach-d { color: var(--up); }
+.trophies { display: flex; flex-direction: column; gap: 6px; }
+.trophy-chip { display: flex; align-items: center; gap: 10px; border-radius: 14px; padding: 10px 12px; background: var(--surface-2); }
+.trophy-chip > span { font-size: 26px; }
+.trophy-chip b { display: block; font-size: 14px; }
+.trophy-chip small { font-size: 12px; color: var(--muted); }
+.trophy-chip.p1 { background: linear-gradient(90deg, color-mix(in srgb, #F2C94C 28%, var(--surface-2)), var(--surface-2)); box-shadow: inset 0 0 0 1.5px rgb(242 201 76 / .55); }
+.rivals { display: flex; flex-direction: column; gap: 6px; }
+.rival { border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: var(--surface-2); border-radius: 14px; padding: 9px 12px; }
+.rival .avatar-mini { width: 34px; height: 34px; font-size: 12px; --r: 23px; }
+.rv-text { display: flex; flex-direction: column; min-width: 0; }
+.rv-text b { font-size: 14px; overflow-wrap: anywhere; }
+.rv-text small { font-size: 12px; color: var(--muted); }
+.rv-score { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 22px; font-variant-numeric: tabular-nums; }
+.rival.leads .rv-score { color: var(--up); } .rival.trails .rv-score { color: var(--down); }
+.champs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-top: 10px; }
+.champ { flex: none; min-width: 150px; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 3px; font-size: 13px; }
+.champ b { font-size: 14px; margin-bottom: 2px; }
+
 /* Avatars */
 .av-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
 .av-emoji { font-size: 1.35em; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
@@ -1196,12 +1237,13 @@ async function refreshClub() {
     const data = await api('club?code=' + club.code);
     if (!club || data.club.code !== club.code) return;
     club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; store.set('pb.club', club);
-    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], purchases: data.purchases || [], shop: data.shop || null, at: Date.now() };
+    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], purchases: data.purchases || [], shop: data.shop || null, progress: data.progress || null, at: Date.now() };
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
     if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
     clubState = 'idle';
     safeRender();
+    announceUnlocks();
     if (!myName() && !whoamiSkipped() && !askedWhoami && !clubSheet && !logForm && !profile && tourStep === null && !(live && live.open)) { askedWhoami = true; clubSheet = { view: 'whoami' }; renderClub(); }
   } catch (err) {
     clubState = err.offline ? 'offline' : 'error';
@@ -1463,7 +1505,7 @@ function homeTiles(games) {
   const total = counts.reduce((a, b) => a + b, 0);
   tiles.push(`<div class="tile wide" style="min-height:0"><div class="sec-head"><span class="t-k">This week</span><span class="t-k">${total} game${total === 1 ? '' : 's'}</span></div>
     <div class="week">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></div>`);
-  return `<section class="tiles">${tiles.join('')}</section>${monthCard(games)}`;
+  return `<section class="tiles">${tiles.join('')}</section>${challengesCard()}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
@@ -1590,8 +1632,14 @@ function leaderStats(games, mode) {
   }).sort((a, b) => b.rating - a.rating);
 }
 function leadersView() {
-  const rows = leaderStats(allGames(), ratingMode);
-  const head = `<section><div class="sec-head"><h2>Leaderboard</h2>${seg('data-rmode', [['doubles', 'Doubles'], ['singles', 'Singles']], ratingMode, 'sm')}</div><p class="sub">Ranked by Dink Rating from every saved ${ratingMode} game.</p></section>`;
+  const info = club ? progressInfo() : null;
+  const season = info && lbScope === 'season' ? info.season : null;
+  const games = season ? allGames().filter(g => !g.logged && g.scoredBy && (g.receivedAt || g.endedAt) >= season.start && (g.receivedAt || g.endedAt) < season.end) : allGames();
+  const rows = leaderStats(games, ratingMode);
+  const scope = info ? seg('data-lbscope', [['season', esc(info.season.name)], ['all', 'All time']], lbScope, 'sm') : '';
+  const sub = season ? `${esc(season.name)} ends in ${daysLeft(season.end)} day${daysLeft(season.end) === 1 ? '' : 's'}. Everyone starts at 3.50 and only games scored live count. The top 3 with ${season.minGames}+ games win a trophy and ${season.prizes.join('/')} Dinks.` : `Ranked by Dink Rating from every saved ${ratingMode} game.`;
+  const head = `<section><div class="sec-head"><h2>Leaderboard</h2>${seg('data-rmode', [['doubles', 'Doubles'], ['singles', 'Singles']], ratingMode, 'sm')}</div>${scope ? `<div style="margin-top:10px">${scope}</div>` : ''}<p class="sub">${sub}</p></section>`;
+  if (!rows.length) return head + `<div class="empty"><p>${season ? `No live-scored ${ratingMode} games yet this season.` : `No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.`}</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>` + (info ? pastChampionsHTML(ratingMode) : '');
   if (!rows.length) return head + `<div class="empty"><p>No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>`;
   const podium = rows.slice(0, 3);
   const order = podium.length === 3 ? [1, 0, 2] : podium.map((_, i) => i);
@@ -1600,13 +1648,14 @@ function leadersView() {
       <span class="avatar${frameClass(p.name)}">${avatarInner(p.name)}</span><span class="pl-name">${styledName(p.name, false)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
   const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
-      <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${p.rel < 60 ? '<span class="badge prov">Provisional</span>' : ''}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
+      <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span><span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
   const awards = [by(p => p.wins, 'Most wins', p => p.wins), by(p => p.best, 'Longest win streak', p => p.best), by(p => p.diff, 'Best point difference', p => '+' + p.diff), by(p => p.games, 'Most games', p => p.games)].join('');
-  return head + podiumHTML + list + (awards ? `<section><h2>Club honors</h2><div class="awards" style="margin-top:10px">${awards}</div></section>` : '');
+  return head + podiumHTML + list + (awards ? `<section><h2>Club honors</h2><div class="awards" style="margin-top:10px">${awards}</div></section>` : '') + (info ? pastChampionsHTML(ratingMode) : '');
 }
+let lbScope = store.get('pb.lbScope', 'all');
 
 function rulesView() {
   return `<section><h2>Rules</h2><p class="sub">The essentials, for settling it at the kitchen line.</p></section>
@@ -1626,6 +1675,7 @@ function rulesView() {
         <li>After the game, your rating moves by how far you beat or missed that forecast. Losing 9–11 to a much stronger team can raise your rating. Winning 11–9 when you were expected to win 11–4 can lower it.</li>
         <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Below 60% your rating is provisional and moves faster.</li>
         <li>Logged results count the same as games scored live.</li></ul></div>
+    <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer, each paying bonus Dinks. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 3.50. The top 3 with 5 or more games win a permanent trophy and 100, 60 or 40 Dinks.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games scored live on a player's own phone count toward these.</li></ul></div>
     <div class="rule"><h3>Earning Dinks</h3><p>In a club, every game earns each named player Dinks to spend in the shop.</p>
       <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the +2 for playing, so only games scored live earn the rest. Each player can earn up to 60 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li></ul></div>
     <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
@@ -1909,7 +1959,10 @@ function styledName(name, withTitle = true) {
 const frameClass = name => { const eq = club ? equippedFor(name) : {}; return eq.frame ? ' ' + eq.frame : ''; };
 function wallet(name) {
   const key = String(name || '').trim().toLowerCase();
-  const earned = (DK.compute(allGames()).get(key) || { earned: 0 }).earned;
+  const prog = progressOf(name);
+  const pendingGames = outbox.filter(o => o.type === 'game').length;
+  const pendingEstimate = pendingGames ? (DK.compute(allGames()).get(key) || { earned: 0 }).earned - (DK.compute((clubData && clubData.games) || []).get(key) || { earned: 0 }).earned : 0;
+  const earned = prog ? prog.earned + Math.max(0, pendingEstimate) : (DK.compute(allGames()).get(key) || { earned: 0 }).earned;
   const mine = ((clubData && clubData.purchases) || []).filter(p => p.player === key);
   const spent = mine.reduce((s, p) => s + p.price, 0);
   return { earned, spent, balance: earned - spent, owned: new Set(mine.filter(p => !p.reward).map(p => p.itemId)), rewards: mine.filter(p => p.reward) };
@@ -1963,6 +2016,113 @@ function whoamiHTML(c) {
     ${c.needPinFor ? `<form class="club-form" data-form="whoami-pin"><label class="lab" for="whoami-pin">Organizer PIN to confirm ${esc(c.needPinFor)}</label>
       <div class="add-player"><input id="whoami-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="Organizer enters it"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Confirm</button></div></form>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="whoami-skip">Skip for now</button></div>`;
+}
+
+/* ---------- achievements, weekly challenges, seasons, rivalries ---------- */
+// The server works these out (so bonus Dinks can't be faked); the app shows what it sends.
+const progressInfo = () => (clubData && clubData.progress) || null;
+function progressOf(name) {
+  const p = progressInfo();
+  return p && name ? p.players[String(name).trim().toLowerCase()] || null : null;
+}
+const ACH_ICON = { 'first-win': '🎉', 'games-10': '🏓', 'games-50': '🐀', 'games-100': '💯', 'streak-5': '🔥', 'streak-10': '☄️', 'shutout': '🧱',
+  'marathon': '⏱️', 'giant-killer': '🗡️', 'partners-5': '🦋', 'rating-4': '📈', 'rating-45': '👑' };
+const PLACE = ['Champion', 'Runner-up', 'Third place'];
+const MEDAL = ['🥇', '🥈', '🥉'];
+const daysLeft = end => Math.max(0, Math.ceil((end - Date.now()) / DAY));
+
+// Weekly challenges card on the home screen.
+function challengesCard() {
+  const info = progressInfo();
+  if (!club || !info || !myName()) return '';
+  const mine = (progressOf(myName()) || {}).week || [];
+  const items = info.week.challenges.map(c => {
+    const st = mine.find(x => x.id === c.id) || { progress: 0, done: false };
+    return `<li class="${st.done ? 'done' : ''}"><span class="ch-check" aria-hidden="true">${st.done ? '✓' : ''}</span>
+      <span class="ch-text"><b>${esc(c.name)}</b><span class="ch-bar"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></span>
+      <span class="ch-dinks">${st.done ? 'Done' : `+${c.dinks}`}</span></li>`;
+  }).join('');
+  const d = daysLeft(info.week.end);
+  return `<section class="card challenges"><div class="sec-head"><h3>This week's challenges</h3><span class="note">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></div>
+    <ul>${items}</ul><p class="note">Games scored live on a player's phone count. Rewards land in your Dinks.</p></section>`;
+}
+
+// Tell the player when something new unlocks (checked after each refresh from the server).
+function announceUnlocks() {
+  if (!club || !myName()) return;
+  const p = progressOf(myName()), info = progressInfo();
+  if (!p || !info) return;
+  const seenAll = store.get('pb.seenProgress', {});
+  const seenKey = club.code + '|' + myName().toLowerCase();
+  const seen = seenAll[seenKey];
+  const now = { ach: p.achievements.map(a => a.id), ch: (p.week || []).filter(x => x.done).map(x => info.week.id + ':' + x.id), tr: p.trophies.map(t => t.season + t.mode) };
+  seenAll[seenKey] = now; store.set('pb.seenProgress', seenAll);
+  if (!seen) return; // first time on this phone: don't replay old unlocks
+  const msgs = [];
+  for (const id of now.ach) if (!seen.ach.includes(id)) { const a = info.achievements.find(x => x.id === id); if (a) msgs.push(`${ACH_ICON[id] || '🏅'} Achievement: ${a.name}! +${a.dinks} Dinks`); }
+  for (const k of now.ch) if (!(seen.ch || []).includes(k)) { const c = info.week.challenges.find(x => k.endsWith(':' + x.id)); if (c) msgs.push(`✓ Challenge done: ${c.name}. +${c.dinks} Dinks`); }
+  for (const k of now.tr) if (!(seen.tr || []).includes(k)) { const t = p.trophies.find(x => x.season + x.mode === k); if (t) msgs.push(`${MEDAL[t.place - 1]} ${t.name} ${t.mode} ${PLACE[t.place - 1]}! +${info.season.prizes[t.place - 1]} Dinks`); }
+  msgs.slice(0, 3).forEach((m, i) => setTimeout(() => showToast(m, false), i * 3200));
+}
+
+// Profile: achievements, trophies and rivalries.
+function achievementsHTML(name) {
+  const info = progressInfo(), p = progressOf(name);
+  if (!info) return '';
+  const got = new Map(((p && p.achievements) || []).map(a => [a.id, a.at]));
+  return `<div class="field" style="margin:0"><span class="lab">Achievements ${got.size}/${info.achievements.length}</span>
+    <div class="ach-grid">${info.achievements.map(a => { const at = got.get(a.id); return `<div class="ach ${at ? 'got' : ''}" title="${esc(a.desc)}"><span class="ach-ic">${ACH_ICON[a.id] || '🏅'}</span><b>${esc(a.name)}</b><small>${at ? new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : esc(a.desc)}</small><span class="ach-d">+${a.dinks}</span></div>`; }).join('')}</div></div>`;
+}
+function trophiesHTML(name) {
+  const p = progressOf(name);
+  if (!p || !p.trophies.length) return '';
+  return `<div class="field" style="margin:0"><span class="lab">Trophies</span><div class="trophies">${p.trophies.slice().reverse().map(t => `<div class="trophy-chip p${t.place}"><span>${MEDAL[t.place - 1]}</span><div><b>${esc(t.name)}</b><small>${t.mode === 'singles' ? 'Singles' : 'Doubles'} ${PLACE[t.place - 1].toLowerCase()}, ${Number(t.rating).toFixed(2)}</small></div></div>`).join('')}</div></div>`;
+}
+function rivalriesHTML(name, mode) {
+  const k = name.trim().toLowerCase();
+  const opp = new Map();
+  for (const g of allGames()) {
+    if ((g.mode === 'singles' ? 'singles' : 'doubles') !== mode) continue;
+    const t = g.teams[0].some(n => n.trim().toLowerCase() === k) ? 0 : g.teams[1].some(n => n.trim().toLowerCase() === k) ? 1 : -1;
+    if (t < 0) continue;
+    for (const n of g.teams[1 - t]) {
+      if (isDefaultName(n)) continue;
+      const ok = n.trim().toLowerCase();
+      const e = opp.get(ok) || { name: n.trim(), w: 0, l: 0, last: 0 };
+      if (g.winner === t) e.w++; else e.l++;
+      e.last = Math.max(e.last, g.endedAt);
+      opp.set(ok, e);
+    }
+  }
+  const rivals = [...opp.values()].filter(e => e.w + e.l >= 3).sort((a, b) => (b.w + b.l) - (a.w + a.l) || b.last - a.last).slice(0, 3);
+  if (!rivals.length) return '';
+  return `<div class="field" style="margin:0"><span class="lab">Rivalries</span><div class="rivals">${rivals.map((e, i) => {
+    const lead = e.w > e.l ? 'leads' : e.w < e.l ? 'trails' : 'tied';
+    return `<button class="rival ${lead}" data-player="${esc(e.name)}"><span class="avatar-mini${frameClass(e.name)}">${avatarInner(e.name)}</span>
+      <span class="rv-text"><b>${i === 0 ? 'Top rival: ' : ''}${esc(e.name)}</b><small>${lead === 'tied' ? `All square at ${e.w}–${e.l}` : `${esc(name.split(' ')[0])} ${lead} ${Math.max(e.w, e.l)}–${Math.min(e.w, e.l)}`}</small></span>
+      <span class="rv-score">${e.w}–${e.l}</span></button>`;
+  }).join('')}</div></div>`;
+}
+
+// Season leaderboard: the current quarter's verified games only, everyone starting at 3.50 (same as the server).
+function seasonRows(mode) {
+  const info = progressInfo();
+  if (!info) return [];
+  const s = info.season;
+  const games = allGames().filter(g => !g.logged && g.scoredBy && (g.receivedAt || g.endedAt) >= s.start && (g.receivedAt || g.endedAt) < s.end && (g.mode === 'singles' ? 'singles' : 'doubles') === mode);
+  const { tables } = DR.compute(games);
+  return [...tables[mode].values()].filter(p => !isDefaultName(p.name)).sort((a, b) => b.rating - a.rating || b.games - a.games);
+}
+function pastChampionsHTML(mode) {
+  const info = progressInfo();
+  if (!info) return '';
+  const bySeason = new Map();
+  for (const p of Object.values(info.players)) for (const t of p.trophies) if (t.mode === mode) {
+    const e = bySeason.get(t.season) || { name: t.name, places: [] };
+    e.places[t.place - 1] = p.name; bySeason.set(t.season, e);
+  }
+  if (!bySeason.size) return '';
+  return `<section><h2 style="font-size:22px">Past champions</h2><div class="champs">${[...bySeason.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([, e]) => `<div class="champ"><b>${esc(e.name)}</b>${e.places.map((n, i) => n ? `<span>${MEDAL[i]} ${esc(n)}</span>` : '').join('')}</div>`).join('')}</div></section>`;
 }
 
 /* ---------- avatars: initials, an emoji, a pickleball icon, or a photo ---------- */
@@ -2313,7 +2473,9 @@ function renderProfile() {
     chartGeo = chart.geo; chartSeries = pr.series;
     body = `<div class="pf-hero"><span class="rt">${r2(pr.p.rating)}</span><span class="meta">${deltaHTML(pr.p.delta)}<span>${pr.rel < 60 ? 'Provisional, ' : ''}${pr.rel}% reliable</span></span></div>
       <div class="pf-stats"><div><b>${games}</b><small>Games</small></div><div><b>${pr.w}–${pr.l}</b><small>Won–lost</small></div><div><b>${Math.round(100 * pr.w / games)}%</b><small>Win rate</small></div><div><b>${diff > 0 ? '+' : ''}${diff}</b><small>Points +/−</small></div></div>
+      ${club ? trophiesHTML(pr.name) : ''}
       <div class="chart-card"><h3>Rating over time</h3>${chart.svg}<div class="chart-tip" hidden></div></div>
+      ${rivalriesHTML(pr.name, profile.mode)}
       ${profile.mode === 'doubles' && pr.partners.length ? `<div class="field" style="margin:0"><span class="lab">Partners</span><div class="pf-list">${pr.partners.slice(0, 8).map(e => row(e, pr.best && e.name === pr.best.name ? '<span class="badge best">Best partner</span>' : '')).join('')}</div></div>` : ''}
       ${pr.opps.length ? `<div class="field" style="margin:0"><span class="lab">Head to head</span><div class="pf-list">${pr.opps.slice(0, 8).map(e => row(e)).join('')}</div></div>` : ''}
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
@@ -2323,7 +2485,8 @@ function renderProfile() {
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
-    ${body}</div></div>`;
+    ${body}
+    ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`;
   wireChart();
 }
 
@@ -2483,6 +2646,7 @@ document.addEventListener('click', e => {
     else { pickInto(setup.names, setup.mode, ds.pick); store.set('pb.setup', setup); }
     render(); return;
   }
+  if (ds.lbscope) { lbScope = ds.lbscope; store.set('pb.lbScope', lbScope); render(); return; }
   if (ds.rmode) { ratingMode = ds.rmode; store.set('pb.rmode', ratingMode); render(); return; }
   if (ds.first) { setup.first = +ds.first; store.set('pb.setup', setup); render(); return; }
   if (ds.del) {
