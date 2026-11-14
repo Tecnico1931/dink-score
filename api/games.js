@@ -1,7 +1,8 @@
 // POST   /api/games {code, games:[...]}      -> saves one or more games (uploads use up to 500 at once)
 // POST   /api/games {code, restore: id}      -> brings back a deleted game (kept for 30 days)
+// POST   /api/games {code, edit: game}       -> replaces a saved game with corrected details (same id)
 // DELETE /api/games?code=ABC123&id=g123      -> moves a game to recently deleted
-// Deleting and restoring need the organizer PIN (X-Club-PIN header, or "pin" in the body) when the club has one,
+// Deleting, restoring and editing need the organizer PIN (X-Club-PIN header, or "pin" in the body) when the club has one,
 // or the creating phone's token (X-Club-Owner header, or "ownerToken" in the body).
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom } from './_db.js';
 
@@ -27,6 +28,22 @@ export default handler(async (req, res) => {
     const rows = await sql`UPDATE games SET deleted_at = NULL WHERE club = ${code} AND id = ${String(body.restore)} RETURNING id`;
     if (!rows.length) throw fail(404, 'That game can no longer be restored.');
     return send(res, 200, { ok: true });
+  }
+
+  if (body.edit) {
+    // Fix a saved result: same rules as deleting (organizer PIN or the creating phone), same checks as a new game.
+    await requirePin(club, body.pin ?? pinFrom(req), req, body.ownerToken ?? ownerFrom(req));
+    const g = Object.assign(cleanGame(body.edit), { editedAt: Date.now() });
+    const rows = await sql`UPDATE games SET data = ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}
+      WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL RETURNING id`;
+    if (!rows.length) throw fail(404, 'That game no longer exists, so it could not be changed.');
+    let [{ players }] = await sql`SELECT count(*)::int AS players FROM roster WHERE club = ${code}`;
+    for (const p of g.teams.flat()) {
+      if (players >= 300 || /^Player \d+$/.test(p)) continue;
+      const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${p.toLowerCase()}, ${cleanName(p)}) ON CONFLICT DO NOTHING RETURNING name_key`;
+      players += added.length;
+    }
+    return send(res, 200, { ok: true, game: g });
   }
 
   const list = Array.isArray(body.games) ? body.games : [];

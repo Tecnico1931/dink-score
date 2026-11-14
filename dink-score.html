@@ -164,6 +164,18 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .game .win .pts { color: var(--ink); }
 .game .meta { grid-column: 1 / -1; font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-left: 18px; }
 .tag { background: var(--surface-2); border-radius: 6px; padding: 1px 7px; font-size: 12px; font-weight: 500; }
+.month { display: flex; flex-direction: column; gap: 12px; }
+.month-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.month-stats div { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; }
+.month-stats b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+.month-stats span { font-size: 12px; color: var(--muted); }
+.month-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.month-facts li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.month-facts .mk { color: var(--muted); flex: none; }
+.month-facts .mv { text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.pl-link { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.g-actions { display: flex; gap: 12px; align-self: start; }
+.g-actions .link { font-size: 13px; padding: 2px 0; }
 .tag.logged { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); }
 
 .empty { background: var(--surface); border-radius: 22px; padding: 24px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
@@ -896,6 +908,7 @@ function clubGames() {
   for (const op of outbox) {
     if (op.type === 'game') map.set(op.game.id, op.game);
     if (op.type === 'delete') map.delete(op.id);
+    if (op.type === 'edit' && map.has(op.id)) map.set(op.id, op.game);
     if (op.type === 'restore' && clubData) { const g = (clubData.deleted || []).find(x => x.id === op.id); if (g) map.set(g.id, g); }
   }
   return [...map.values()].sort((a, b) => b.endedAt - a.endedAt);
@@ -935,16 +948,17 @@ function flush() {
       try {
         if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify({ code, games: [op.game] }) });
         else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
+        else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE' });
       } catch (err) {
-        const pinOp = op.type === 'delete' || op.type === 'restore';
+        const pinOp = op.type === 'delete' || op.type === 'restore' || op.type === 'edit';
         if (err.offline || err.status >= 500 || (err.status === 429 && !pinOp)) { clubState = 'offline'; updateSyncPill(); break; }
         if (op.type === 'game') showToast(`A game couldn't be saved to the club: ${err.message}`, false);
         if (pinOp && (err.status === 403 || err.status === 429)) {
           if (err.status === 403) forgetPin();
-          showToast(`${err.message} The game was not ${op.type === 'delete' ? 'deleted' : 'restored'}.`, false);
+          showToast(`${err.message} The game was not ${op.type === 'delete' ? 'deleted' : op.type === 'edit' ? 'changed' : 'restored'}.`, false);
         }
       }
       outbox.shift(); store.set('pb.outbox', outbox); sent = true;
@@ -1037,6 +1051,7 @@ function withPin(op) {
   if (club.hasPin && !hasOrganizer()) { clubSheet = { view: 'unlock', pending: op, back: clubSheet ? clubSheet.view : null }; renderClub(); return; }
   queueOp(Object.assign({}, op, club.hasPin ? { pin: pins[club.code] || '', ownerToken: owners[club.code] || '' } : {}));
   if (op.type === 'restore' && clubSheet) clubSheet.msg = 'Game restored.';
+  if (op.type === 'edit') showToast('Result updated', false);
   render();
 }
 async function pinUnlock(raw) {
@@ -1094,9 +1109,9 @@ function renderClub() {
         <p class="note">With a PIN, only people who know it can delete or restore games. You can add one later.</p></form>${err}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
-      <p>${c.pending ? `${c.pending.type === 'delete' ? 'Deleting' : 'Restoring'} games in ${esc(club.name)} needs the organizer PIN.` : `Unlock this phone to delete and restore games in ${esc(club.name)}.`} This phone remembers it until you lock it again.</p>
+      <p>${c.pending ? `${{ delete: 'Deleting', restore: 'Restoring', edit: 'Editing' }[c.pending.type]} games in ${esc(club.name)} needs the organizer PIN.` : `Unlock this phone to edit, delete and restore games in ${esc(club.name)}.`} This phone remembers it until you lock it again.</p>
       <form class="club-form" data-form="pin-unlock"><label class="lab" for="pin-input">PIN</label>
-        <div class="add-player"><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${c.pending ? (c.pending.type === 'delete' ? 'Delete game' : 'Restore game') : 'Unlock'}</button></div></form>${err}
+        <div class="add-player"><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${c.pending ? ({ delete: 'Delete game', restore: 'Restore game', edit: 'Save changes' }[c.pending.type]) : 'Unlock'}</button></div></form>${err}
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
   } else if (c.view === 'setpin') {
     body = `<h2 id="club-h">${club.hasPin ? 'Change organizer PIN' : 'Set an organizer PIN'}</h2>
@@ -1217,7 +1232,46 @@ function homeTiles(games) {
   const total = counts.reduce((a, b) => a + b, 0);
   tiles.push(`<div class="tile wide" style="min-height:0"><div class="sec-head"><span class="t-k">This week</span><span class="t-k">${total} game${total === 1 ? '' : 's'}</span></div>
     <div class="week">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></div>`);
-  return `<section class="tiles">${tiles.join('')}</section>`;
+  return `<section class="tiles">${tiles.join('')}</section>${monthCard(games)}`;
+}
+
+// "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
+function monthCard(games) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const month = now.toLocaleDateString(undefined, { month: 'long' });
+  const mine = games.filter(g => g.endedAt >= start);
+  const title = club ? `${esc(club.name)} in ${esc(month)}` : `This month`;
+  if (!mine.length) return `<section class="card month"><div class="sec-head"><h3>${title}</h3></div><p class="note">No games yet in ${esc(month)}. Finished and logged games will show up here.</p></section>`;
+  const players = new Map();
+  let points = 0;
+  for (const g of mine) {
+    points += Number(g.score[0]) + Number(g.score[1]);
+    for (const t of [0, 1]) for (const n of g.teams[t]) {
+      if (isDefaultName(n)) continue;
+      const k = n.trim().toLowerCase();
+      const e = players.get(k) || { name: n.trim(), g: 0, w: 0 };
+      e.g++; if (g.winner === t) e.w++;
+      players.set(k, e);
+    }
+  }
+  const list = [...players.values()];
+  const active = [...list].sort((a, b) => b.g - a.g || b.w - a.w)[0];
+  const winner = [...list].sort((a, b) => b.w - a.w || a.g - b.g)[0];
+  const margin = g => Math.abs(Number(g.score[0]) - Number(g.score[1]));
+  const biggest = [...mine].sort((a, b) => margin(b) - margin(a) || b.endedAt - a.endedAt)[0];
+  const closest = [...mine].sort((a, b) => margin(a) - margin(b) || Math.max(...b.score) - Math.max(...a.score))[0];
+  const who = n => `<button class="pl-link" data-player="${esc(n)}">${esc(n)}</button>`;
+  const res = g => { const w = g.winner, l = 1 - w; return `${esc(teamLabel(g.teams[w]))} ${Number(g.score[w])}–${Number(g.score[l])}`; };
+  const facts = [
+    active ? `<li><span class="mk">Most active</span><span class="mv">${who(active.name)}, ${active.g} game${active.g === 1 ? '' : 's'}</span></li>` : '',
+    winner && winner.w ? `<li><span class="mk">Most wins</span><span class="mv">${who(winner.name)}, ${winner.w} win${winner.w === 1 ? '' : 's'}</span></li>` : '',
+    `<li><span class="mk">Biggest win</span><span class="mv">${res(biggest)}</span></li>`,
+    mine.length > 1 ? `<li><span class="mk">Closest game</span><span class="mv">${res(closest)}</span></li>` : ''
+  ].join('');
+  return `<section class="card month"><div class="sec-head"><h3>${title}</h3>${club ? '' : '<span class="note">On this phone</span>'}</div>
+    <div class="month-stats"><div><b>${mine.length}</b><span>Games</span></div><div><b>${list.length}</b><span>Players</span></div><div><b>${points}</b><span>Points</span></div></div>
+    <ul class="month-facts">${facts}</ul></section>`;
 }
 
 function forecastHTML() {
@@ -1270,8 +1324,8 @@ function gameItem(g) {
   const line = t => `<div class="line ${g.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(g.teams[t]))}</span><span class="pts">${Number(g.score[t])}</span></div>`;
   const armed = armedDelete === g.id;
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
-    <button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}" style="align-self:start;font-size:13px">${armed ? 'Confirm' : 'Delete'}</button>
-    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
+    <span class="g-actions"><button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
+    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.editedAt ? '<span class="tag">Edited</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
 }
 
 function historyView() {
@@ -1517,8 +1571,8 @@ function renderLog() {
       <div class="stepper"><input type="number" inputmode="numeric" min="0" max="99" id="log-score-${t}" data-log-score="${t}" value="${esc(f.score[t])}" placeholder="0" aria-label="${TEAM_NAME[t]} team score">
         <div class="sb"><button type="button" data-step="${t}" data-d="-1" aria-label="Lower ${TEAM_NAME[t]} score">−</button><button type="button" data-step="${t}" data-d="1" aria-label="Raise ${TEAM_NAME[t]} score">+</button></div></div></div>`;
   root.innerHTML = `<div class="sheet-bg top"><form class="sheet" data-form="log" role="dialog" aria-modal="true" aria-labelledby="log-h" novalidate><span class="grip"></span>
-    <div class="sheet-head"><h2 id="log-h">Log a result</h2><button type="button" class="x" data-act="log-close" aria-label="Close">✕</button></div>
-    <p>Add a finished game from another court. It counts toward the record and Dink Ratings${live && live.open ? ', and your live game keeps its score' : ''}.</p>
+    <div class="sheet-head"><h2 id="log-h">${f.editId ? 'Edit result' : 'Log a result'}</h2><button type="button" class="x" data-act="log-close" aria-label="Close">✕</button></div>
+    <p>${f.editId ? `Fix the score, players, format or date. Ratings are recalculated from the corrected game.${club && club.hasPin && !hasOrganizer() ? ' Saving needs the organizer PIN.' : ''}` : `Add a finished game from another court. It counts toward the record and Dink Ratings${live && live.open ? ', and your live game keeps its score' : ''}.`}</p>
     <div class="seg-row" style="margin:0"><div class="field" style="margin:0"><span class="lab">Format</span>${seg('data-log-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], f.mode, 'sm')}</div>
       <div class="field" style="margin:0"><span class="lab">Played to</span>${seg('data-log-target', [[11, '11'], [15, '15'], [21, '21']], f.target, 'sm')}</div></div>
     <div class="log-teams">${team(0)}${team(1)}</div>
@@ -1526,10 +1580,19 @@ function renderLog() {
     <datalist id="roster-list-log">${roster.map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
     <div class="field" style="margin:0"><label class="lab" for="log-when">Finished at</label><div class="when"><input type="datetime-local" id="log-when" data-log-when value="${esc(f.when)}"></div></div>
     ${f.error ? `<p class="err" role="alert">${esc(f.error)}</p>` : ''}
-    <button type="submit" class="btn btn-blue block">Save result</button></form></div>`;
+    <button type="submit" class="btn btn-blue block">${f.editId ? 'Save changes' : 'Save result'}</button></form></div>`;
+}
+// Opens the log form filled in with a saved game, so its score, players, format or date can be corrected.
+function openEdit(id) {
+  const g = allGames().find(x => x.id === id);
+  if (!g) return;
+  const names = g.teams.map(t => [t[0] || '', t[1] || '']);
+  logForm = { editId: id, original: g, mode: g.mode === 'singles' ? 'singles' : 'doubles', target: [11, 15, 21].includes(+g.target) ? +g.target : 11,
+    names, score: [String(g.score[0]), String(g.score[1])], when: localDateTimeValue(g.endedAt), error: '' };
+  renderLog();
 }
 function submitLog() {
-  if (needsClubToLog()) { logForm = null; openLog(); return; }
+  if (needsClubToLog() && !(logForm && logForm.editId)) { logForm = null; openLog(); return; }
   const f = logForm;
   const n = f.mode === 'doubles' ? 2 : 1;
   const teams = [0, 1].map(t => Array.from({ length: n }, (_, i) => (f.names[t][i] || '').trim()));
@@ -1543,10 +1606,28 @@ function submitLog() {
   const endedAt = f.when ? new Date(f.when).getTime() : Date.now();
   if (!Number.isFinite(endedAt)) return err('Pick when the game finished.');
   const winner = score[0] > score[1] ? 0 : 1;
+  if (f.editId) {
+    // Keep how long the game took: if the finish time moved, move the start with it.
+    const o = f.original;
+    const updated = Object.assign({}, o, { mode: f.mode, target: f.target, teams, score, winner, endedAt, startedAt: endedAt - Math.max(0, o.endedAt - o.startedAt), editedAt: Date.now() });
+    logForm = null;
+    editGame(updated);
+    return;
+  }
   saveGame({ id: newId(endedAt), startedAt: endedAt, endedAt, mode: f.mode, scoring: 'sideout', target: f.target, winBy: 2, teams, score, winner, rallies: 0, logged: true });
   logForm = null;
   render();
   showToast(`Saved: ${teamLabel(teams[winner])} won ${score[winner]}–${score[1 - winner]}`, false);
+}
+// Saves a corrected game. Clubs go through the organizer PIN like deleting; games on this device just update.
+function editGame(g) {
+  if (club) { withPin({ type: 'edit', id: g.id, game: g }); return; }
+  localGames = localGames.map(x => x.id === g.id ? g : x);
+  store.set('pb.games', localGames);
+  if (cloudGames) cloudGames = cloudGames.map(x => x.id === g.id ? g : x);
+  if (gamesCol) { const { id, ...rest } = g; gamesCol.doc(id).set(rest).catch(() => {}); }
+  render();
+  showToast('Result updated', false);
 }
 
 /* ---------- player profiles ---------- */
@@ -1731,6 +1812,7 @@ document.addEventListener('click', e => {
   if (ds.player) { profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
   if (ds.act === 'profile-close') { profile = null; renderProfile(); return; }
+  if (ds.edit) { openEdit(ds.edit); return; }
   if (ds.restore) { withPin({ type: 'restore', id: ds.restore }); return; }
   if (ds.act && ds.act.startsWith('pin-')) {
     const a = ds.act;
