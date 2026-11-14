@@ -18,11 +18,11 @@ export default handler(async (req, res) => {
   if (req.method !== 'GET') throw fail(405, 'Method not allowed.');
   const url = new URL(req.url, 'http://x');
   const code = cleanCode(url.searchParams.get('code'));
-  const club = await requireClub(code);
+  const club = await requireClub(code, req);
   const [games, deleted, roster] = await Promise.all([
     sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
-    sql`SELECT name FROM roster WHERE club = ${code} ORDER BY lower(name)`
+    sql`SELECT name FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`
   ]);
   send(res, 200, {
     club,

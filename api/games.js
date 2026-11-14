@@ -8,7 +8,7 @@ export default handler(async (req, res) => {
   if (req.method === 'DELETE') {
     const url = new URL(req.url, 'http://x');
     const code = cleanCode(url.searchParams.get('code'));
-    await requireClub(code);
+    await requireClub(code, req);
     const id = String(url.searchParams.get('id') || '');
     const rows = await sql`UPDATE games SET deleted_at = now() WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That game was already deleted.');
@@ -17,7 +17,7 @@ export default handler(async (req, res) => {
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
   const code = cleanCode(body.code);
-  await requireClub(code);
+  await requireClub(code, req);
 
   if (body.restore) {
     const rows = await sql`UPDATE games SET deleted_at = NULL WHERE club = ${code} AND id = ${String(body.restore)} RETURNING id`;
@@ -29,12 +29,15 @@ export default handler(async (req, res) => {
   if (!list.length) throw fail(400, 'No games to save.');
   if (list.length > 500) throw fail(400, 'Upload at most 500 games at a time.');
 
-  // Basic flood protection: one-at-a-time saves are capped at 300 per club per 10 minutes.
-  // (A single bulk upload of up to 500 is allowed, so moving an existing record over always works.)
-  if (list.length === 1) {
-    const [{ n }] = await sql`SELECT count(*)::int AS n FROM games WHERE club = ${code} AND created_at > now() - interval '10 minutes'`;
-    if (n >= 300) throw fail(429, 'Too many games were added just now. Wait a few minutes and try again.');
-  }
+  // Flood protection, checked on every request (bulk uploads included):
+  // at most 1,200 new games per club per 10 minutes, which still fits a phone's full history (up to 1,000 games),
+  // and at most 20,000 games stored per club in total.
+  const [{ recent, total }] = await sql`SELECT
+      count(*) FILTER (WHERE created_at > now() - interval '10 minutes')::int AS recent,
+      count(*)::int AS total
+    FROM games WHERE club = ${code}`;
+  if (recent + list.length > 1200) throw fail(429, 'Too many games were added just now. Wait a few minutes and try again.');
+  if (total + list.length > 20000) throw fail(400, 'This club has reached its limit of 20,000 games.');
 
   const games = list.map(cleanGame);
   const names = new Map();
@@ -43,8 +46,12 @@ export default handler(async (req, res) => {
               ON CONFLICT (club, id) DO NOTHING`;
     for (const p of g.teams.flat()) if (!/^Player \d+$/.test(p)) names.set(p.toLowerCase(), p);
   }
+  // Saved players share the 300-per-club cap with /api/roster. Games still save once the list is full.
+  let [{ players }] = await sql`SELECT count(*)::int AS players FROM roster WHERE club = ${code}`;
   for (const [key, name] of names) {
-    await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${key}, ${cleanName(name)}) ON CONFLICT DO NOTHING`;
+    if (players >= 300) break;
+    const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${key}, ${cleanName(name)}) ON CONFLICT DO NOTHING RETURNING name_key`;
+    players += added.length;
   }
   send(res, 200, { ok: true, saved: games.length });
 });

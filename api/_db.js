@@ -39,6 +39,11 @@ export function ensureSchema() {
         PRIMARY KEY (club, name_key)
       )`;
       await q`CREATE INDEX IF NOT EXISTS games_club_ended ON games (club, ended_at DESC)`;
+      await q`CREATE TABLE IF NOT EXISTS lookup_fails (
+        ip text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now()
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS lookup_fails_ip_at ON lookup_fails (ip, at)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -69,20 +74,39 @@ export async function readBody(req) {
   try { return JSON.parse(text); } catch { throw fail(400, 'The request was not valid JSON.'); }
 }
 
-// Club codes: 6 characters from an alphabet without look-alikes (no 0/O, 1/I/L).
+// Club codes: 6 characters from a 31-letter alphabet without look-alikes (no 0/O, 1/I/L): about 887 million codes.
+// Guessing is throttled per network address (see requireClub), which makes enumerating codes impractical.
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function newCode() {
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-  return Array.from(bytes, b => ALPHA[b % ALPHA.length]).join('');
+  let out = '';
+  while (out.length < 6) {
+    for (const b of crypto.getRandomValues(new Uint8Array(12))) {
+      if (b < 248 && out.length < 6) out += ALPHA[b % 31]; // 248 = 8 x 31, so every letter is equally likely
+    }
+  }
+  return out;
 }
 export function cleanCode(raw) {
   const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (!/^[A-Z0-9]{6}$/.test(code)) throw fail(400, 'Club codes are 6 letters and numbers.');
   return code;
 }
-export async function requireClub(code) {
-  const rows = await db()`SELECT code, name FROM clubs WHERE code = ${code}`;
-  if (!rows.length) throw fail(404, 'No club has that code. Check it and try again.');
+function clientIp(req) {
+  const h = req.headers || {};
+  return String(h['x-real-ip'] || String(h['x-forwarded-for'] || '').split(',')[0] || 'unknown').trim().slice(0, 64);
+}
+const MAX_FAILS = 20; // wrong codes allowed per network address per 15 minutes
+export async function requireClub(code, req) {
+  const sql = db();
+  const ip = clientIp(req);
+  const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`;
+  if (n >= MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
+  const rows = await sql`SELECT code, name FROM clubs WHERE code = ${code}`;
+  if (!rows.length) {
+    await sql`INSERT INTO lookup_fails (ip) VALUES (${ip})`;
+    if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
+    throw fail(404, 'No club has that code. Check it and try again.');
+  }
   return rows[0];
 }
 
