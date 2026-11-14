@@ -136,6 +136,14 @@ export async function reserveGames(code, count) {
   if (club && club.total_count + count > 20000) throw fail(400, 'This club has reached its limit of 20,000 games.');
   throw fail(429, 'Too many games were added just now. Wait a few minutes and try again.');
 }
+// Returns unused allowance, so the counters only ever reflect games actually stored.
+export async function releaseGames(code, count) {
+  if (count <= 0) return;
+  await db()`UPDATE clubs SET
+      total_count = GREATEST(0, total_count - ${count}),
+      window_count = GREATEST(0, window_count - ${count})
+    WHERE code = ${code}`;
+}
 
 const cleanName = n => String(n || '').trim().replace(/\s+/g, ' ').slice(0, 40);
 

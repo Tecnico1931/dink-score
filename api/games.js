@@ -1,7 +1,7 @@
 // POST   /api/games {code, games:[...]}      -> saves one or more games (uploads use up to 500 at once)
 // POST   /api/games {code, restore: id}      -> brings back a deleted game (kept for 30 days)
 // DELETE /api/games?code=ABC123&id=g123      -> moves a game to recently deleted
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames } from './_db.js';
 
 export default handler(async (req, res) => {
   const sql = db();
@@ -33,10 +33,17 @@ export default handler(async (req, res) => {
   // Flood protection on every request, bulk uploads included (see reserveGames in _db.js).
   await reserveGames(code, games.length);
   const names = new Map();
-  for (const g of games) {
-    await sql`INSERT INTO games (club, id, data, ended_at) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt})
-              ON CONFLICT (club, id) DO NOTHING`;
-    for (const p of g.teams.flat()) if (!/^Player \d+$/.test(p)) names.set(p.toLowerCase(), p);
+  let inserted = 0;
+  try {
+    for (const g of games) {
+      const rows = await sql`INSERT INTO games (club, id, data, ended_at) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt})
+                ON CONFLICT (club, id) DO NOTHING RETURNING id`;
+      inserted += rows.length;
+      for (const p of g.teams.flat()) if (!/^Player \d+$/.test(p)) names.set(p.toLowerCase(), p);
+    }
+  } finally {
+    // Give back the allowance for games that were already stored (re-sent after a dropped connection) or not saved.
+    await releaseGames(code, games.length - inserted);
   }
   // Saved players share the 300-per-club cap with /api/roster. Games still save once the list is full.
   let [{ players }] = await sql`SELECT count(*)::int AS players FROM roster WHERE club = ${code}`;
@@ -45,5 +52,5 @@ export default handler(async (req, res) => {
     const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${key}, ${cleanName(name)}) ON CONFLICT DO NOTHING RETURNING name_key`;
     players += added.length;
   }
-  send(res, 200, { ok: true, saved: games.length });
+  send(res, 200, { ok: true, saved: inserted, alreadySaved: games.length - inserted });
 });
