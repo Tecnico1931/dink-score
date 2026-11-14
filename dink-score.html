@@ -756,7 +756,8 @@ const DR = (() => {
 })();
 
 /* Dinks: earned per player per game. Must match computeDinks() in api/_dinks.js, which is what counts when buying.
-   Live-scored games: +2 play, +10 win, +3 beat the forecast, +5 per win from the 3rd in a row.
+   Live-scored games sent from a player's own linked phone (or the club creator's): +2 play, +10 win, +3 beat the
+   forecast, +5 per win from the 3rd in a row. The server records who sent each game (scoredBy) and when (receivedAt).
    Logged results: +2 play only. At most 60 per player per UTC day. */
 const DK = (() => {
   const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 60 };
@@ -765,7 +766,7 @@ const DK = (() => {
     const { changes } = DR.compute(sorted);
     const people = new Map(), streaks = new Map(), daily = new Map();
     for (const g of sorted) {
-      const day = new Date(g.endedAt).toISOString().slice(0, 10);
+      const day = new Date(g.receivedAt || g.endedAt).toISOString().slice(0, 10); // server receive time, not the claimed finish time
       for (const t of [0, 1]) {
         const won = g.winner === t;
         const tot = g.score[0] + g.score[1];
@@ -776,7 +777,7 @@ const DK = (() => {
           if (!name || /^Player \d+$/.test(name)) continue;
           const k = name.toLowerCase();
           let n = EARN.play;
-          if (!g.logged) {
+          if (!g.logged && g.scoredBy) { // scored live and sent by one of its players (or the club creator), as the server recorded
             const s = won ? (streaks.get(k) || 0) + 1 : 0;
             streaks.set(k, s);
             if (won) n += EARN.win;
@@ -997,7 +998,7 @@ async function uploadLocalOnly() {
   }
 }
 async function saveGame(rec) {
-  if (club) { queueOp({ type: 'game', game: rec }); addToRoster([...rec.teams[0], ...rec.teams[1]]); return; }
+  if (club) { queueOp({ type: 'game', game: Object.assign({}, rec, senderGuess(rec)) }); addToRoster([...rec.teams[0], ...rec.teams[1]]); return; }
   localGames = [rec, ...localGames.filter(g => g.id !== rec.id)].slice(0, 1000);
   store.set('pb.games', localGames);
   addToRoster([...rec.teams[0], ...rec.teams[1]]);
@@ -1088,7 +1089,7 @@ function flush() {
       const op = outbox[0];
       const code = club.code;
       try {
-        if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify({ code, games: [op.game] }) });
+        if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code, games: [op.game] }, senderCreds())) });
         else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
@@ -1170,7 +1171,7 @@ async function uploadLocalGames() {
   const names = store.get('pb.roster', []);
   uploading = true; clubSheet && (clubSheet.msg = 'Uploading…'); renderClub();
   try {
-    for (let i = 0; i < games.length; i += 400) await api('games', { method: 'POST', body: JSON.stringify({ code: club.code, games: games.slice(i, i + 400) }) });
+    for (let i = 0; i < games.length; i += 400) await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, games: games.slice(i, i + 400) }, senderCreds())) });
     for (const n of names) { try { await api('roster', { method: 'POST', body: JSON.stringify({ code: club.code, name: n }) }); } catch {} }
     const up = store.get('pb.uploaded', {}); up[club.code] = Date.now(); store.set('pb.uploaded', up);
     if (clubSheet) clubSheet.msg = `Uploaded ${games.length} game${games.length === 1 ? '' : 's'} to ${club.name}.`;
@@ -1667,7 +1668,8 @@ let askedWhoami = false;
 // Dinks each named player gets from this game once it's saved (the same rules the server uses).
 function dinksPreview(s) {
   if (!club || !shopInfo()) return '';
-  const rec = Object.assign(record(s), { id: '__pending' });
+  const base = Object.assign(record(s), { id: '__pending' });
+  const rec = Object.assign(base, senderGuess(base));
   const after = DK.compute([...allGames(), rec]);
   const named = [0, 1].flatMap(t => s.cfg.teams[t].map(n => ({ n, t }))).filter(x => !isDefaultName(x.n));
   if (!named.length) return '';
@@ -1836,12 +1838,26 @@ function wallet(name) {
 async function shopCall(body) {
   return api('shop', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
 }
+// What this phone tells the server about who is sending a game, so live wins can earn full Dinks.
+function senderCreds() {
+  if (!club) return {};
+  return { playerName: myName() || '', playerToken: myToken() || '', ownerToken: owners[club.code] || '' };
+}
+// This phone's best guess of how the server will mark a game it sends (the server decides; this only keeps
+// previews and totals right until the next refresh).
+function senderGuess(g) {
+  if (!club) return {};
+  const guess = { receivedAt: Date.now() };
+  if (owners[club.code]) guess.scoredBy = 'organizer';
+  else if (myName() && g.teams.flat().some(n => sameName(n, myName()))) guess.scoredBy = myName().trim().toLowerCase();
+  return guess;
+}
 async function claimName(raw) {
   const name = String(raw || '').trim();
   if (!name) { clubSheet.error = 'Enter your name, or tap it above.'; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
-    const data = await shopCall({ action: 'claim', name });
+    const data = await shopCall({ action: 'claim', name, pin: clubSheet.claimPin || pins[club.code] || '', ownerToken: owners[club.code] || '' });
     me[club.code] = { name: data.name, token: data.playerToken }; store.set('pb.me', me);
     if (!setup.names[0][0] && !setup.names[0][1] && !setup.names[1][0] && !setup.names[1][1]) { setup.names[0][0] = data.name; store.set('pb.setup', setup); }
     const after = clubSheet.afterJoin;
@@ -1849,7 +1865,11 @@ async function claimName(raw) {
     showToast(`Welcome, ${data.name}`, false);
     await refreshClub();
     if (after) afterJoin(); else { render(); renderClub(); }
-  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
+  } catch (err) {
+    clubSheet.busy = false; clubSheet.error = err.message;
+    if (err.status === 403 && /organizer/i.test(err.message)) { clubSheet.needPinFor = name; clubSheet.claimPin = ''; }
+    renderClub();
+  }
 }
 function whoamiHTML(c) {
   const players = clubPlayers().length ? clubPlayers() : roster.map(n => ({ name: n, claimed: false }));
@@ -1861,6 +1881,8 @@ function whoamiHTML(c) {
     <form class="club-form" data-form="whoami"><label class="lab" for="whoami-name">${free.length ? 'Not listed? Add your name' : 'Your name'}</label>
       <div class="add-player"><input id="whoami-name" autocomplete="off" maxlength="40" placeholder="Your name"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>That's me</button></div></form>
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+    ${c.needPinFor ? `<form class="club-form" data-form="whoami-pin"><label class="lab" for="whoami-pin">Organizer PIN to confirm ${esc(c.needPinFor)}</label>
+      <div class="add-player"><input id="whoami-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="Organizer enters it"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Confirm</button></div></form>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="whoami-skip">Skip for now</button></div>`;
 }
 
@@ -1883,7 +1905,7 @@ function shopView() {
   const name = myName();
   const w = name ? wallet(name) : null;
   const earnRules = `<ul class="earn"><li><b>+${s.earn.win}</b> for a win</li><li><b>+${s.earn.play}</b> for playing</li><li><b>+${s.earn.beatForecast}</b> for beating the forecast</li><li><b>+${s.earn.streak}</b> per win in a ${s.earn.streakFrom}+ win streak</li></ul>
-    <p class="note">Full Dinks come from games scored live. Logged results earn the +${s.earn.play} for playing. Up to ${s.earn.dailyCap} a day.</p>`;
+    <p class="note">Full Dinks come from games scored live and sent from a player's own phone. Other games earn the +${s.earn.play} for playing. Up to ${s.earn.dailyCap} a day.</p>`;
   const walletCard = name
     ? `<section class="wallet"><div class="w-top"><span class="avatar-mini${frameClass(name)}">${esc(initials(name))}</span><div class="w-who">${styledName(name)}</div><span class="badge you">You</span></div>
         <div class="w-bal"><b>${w.balance}</b><span>Dinks</span></div><div class="w-sub">${w.earned} earned, ${w.spent} spent</div>${earnRules}</section>`
@@ -1950,6 +1972,7 @@ function shopAdminHTML(c) {
     <div class="field" style="margin:0"><span class="lab">Item prices (Dinks)</span><div class="adm-rows">${s.catalog.map(it => `<div class="adm-row"><span class="adm-item">${esc(it.name)}<small>${SLOT_LABEL[it.slot]}</small></span><input class="field-input price" type="number" inputmode="numeric" min="0" max="9999" data-price="${it.id}" value="${Number(d.prices[it.id])}" aria-label="${esc(it.name)} price"></div>`).join('')}</div></div>
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     <button class="btn btn-ink" data-act="adm-save" ${c.busy ? 'disabled' : ''}>Save shop</button>
+    ${((clubData && clubData.purchases) || []).length ? `<div class="field" style="margin:0"><span class="lab">Recent purchases</span><ul class="deleted">${clubData.purchases.slice(-15).reverse().map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}, ${Number(p.price)} Dinks</span><button class="link" data-refund="${p.id}">Refund</button></li>`).join('')}</ul><p class="note">Refunding gives the Dinks back and takes the item off.</p></div>` : ''}
     ${clubPlayers().some(p => p.claimed) ? `<div class="field" style="margin:0"><span class="lab">Names linked to phones</span><ul class="deleted">${clubPlayers().filter(p => p.claimed).map(p => `<li><span>${esc(p.name)}</span><button class="link" data-release="${esc(p.name)}">Release</button></li>`).join('')}</ul><p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p></div>` : ''}`}
     <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
@@ -2184,6 +2207,10 @@ document.addEventListener('click', e => {
   if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 20 }); renderClub(); return; }
   if (ds.rwDel !== undefined) { clubSheet.draft.rewards.splice(+ds.rwDel, 1); renderClub(); return; }
   if (ds.given) { adminAction({ action: 'given', purchaseId: +ds.given }, 'Marked as given'); return; }
+  if (ds.refund) {
+    if (clubSheet.confirmRefund !== ds.refund) { clubSheet.confirmRefund = ds.refund; el.textContent = 'Tap again to refund'; return; }
+    adminAction({ action: 'refund', purchaseId: +ds.refund }, 'Refunded'); return;
+  }
   if (ds.release) {
     if (clubSheet.confirmRelease !== ds.release) { clubSheet.confirmRelease = ds.release; el.textContent = 'Tap again to release'; return; }
     adminAction({ action: 'release', name: ds.release }, `${ds.release} can now be picked on another phone`); return;
@@ -2306,6 +2333,7 @@ document.addEventListener('submit', e => {
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
   if (form.matches('[data-form="whoami"]')) { e.preventDefault(); claimName($('#whoami-name').value); return; }
+  if (form.matches('[data-form="whoami-pin"]')) { e.preventDefault(); clubSheet.claimPin = $('#whoami-pin').value.trim(); claimName(clubSheet.needPinFor); return; }
   if (form.matches('[data-form="pin-set"]')) { e.preventDefault(); pinSet($('#pin-old') ? $('#pin-old').value : '', $('#pin-new').value, $('#pin-new2').value); return; }
   if (!form.matches('[data-form="add-player"]')) return;
   e.preventDefault();

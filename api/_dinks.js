@@ -36,14 +36,16 @@ function forecasts(sorted) {
 // --- Earning ---
 export const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 60 };
 // Returns Map(nameKey -> { name, earned, games: { gameId: dinks } }).
-// Live-scored games earn everything; logged results earn only the play bonus, so fake results can't farm Dinks.
+// Win, forecast and streak Dinks need a game scored live AND sent from the phone linked to one of its players (or the
+// club creator), which the server records as scoredBy. Everything else earns only the play bonus, so made-up results
+// can't farm Dinks. The daily cap counts by the server's receivedAt, so backdating games doesn't get around it.
 // Each player earns at most EARN.dailyCap per UTC day.
 export function computeDinks(games) {
   const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
   const pA = forecasts(sorted);
   const people = new Map(), streaks = new Map(), daily = new Map();
   for (const g of sorted) {
-    const day = new Date(g.endedAt).toISOString().slice(0, 10);
+    const day = new Date(g.receivedAt || g.endedAt).toISOString().slice(0, 10); // server receive time, not the claimed finish time
     for (const t of [0, 1]) {
       const won = g.winner === t;
       const share = (g.score[0] + g.score[1]) ? g.score[t] / (g.score[0] + g.score[1]) : 0;
@@ -53,7 +55,7 @@ export function computeDinks(games) {
         if (!name || /^Player \d+$/.test(name)) continue;
         const k = key(name);
         let n = EARN.play;
-        if (!g.logged) {
+        if (!g.logged && g.scoredBy) { // scored live and sent by one of its players (or the club creator), as the server recorded
           const s = won ? (streaks.get(k) || 0) + 1 : 0;
           streaks.set(k, s);
           if (won) n += EARN.win;

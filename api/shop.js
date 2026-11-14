@@ -1,9 +1,11 @@
 // POST /api/shop — everything about players' names and the Dinks shop. Body: {code, action, ...}
-//   claim    {name}                                  -> links a player name to this phone, returns {playerToken}
+//   claim    {name, pin?|ownerToken?}                 -> links a player name to this phone, returns {playerToken}
+//                                                       (a name that already has Dinks needs an organizer to confirm)
 //   buy      {name, playerToken, itemId}             -> spends Dinks on a catalog item or a club reward
 //   equip    {name, playerToken, slot, itemId|null}  -> wears an owned item (or takes it off)
 //   settings {pin|ownerToken, rewardsEnabled?, prices?, rewards?} -> organizer: change prices, toggle and edit rewards
 //   given    {pin|ownerToken, purchaseId}            -> organizer: mark a club reward as handed over
+//   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches } from './_db.js';
 import { computeDinks, CATALOG, SLOTS, shopSettings } from './_dinks.js';
@@ -35,6 +37,14 @@ export default handler(async (req, res) => {
     const [existing] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
     if (!existing && players >= 300) throw fail(400, 'This club already has 300 saved players.');
     if (existing && existing.claim_hash) throw fail(409, `${name} is already linked to another phone. Ask an organizer to release it.`);
+    // A name that has already earned Dinks (from games played as a guest) could be claimed by anyone with the club
+    // code and spent. So taking one of those needs an organizer: the PIN, or the club creator's phone.
+    const earned = existing ? (computeDinks(await clubGames(sql, code)).get(k) || { earned: 0 }).earned : 0;
+    const [{ bought }] = existing ? await sql`SELECT count(*)::int AS bought FROM purchases WHERE club = ${code} AND name_key = ${k}` : [{ bought: 0 }];
+    if (earned > 0 || bought > 0) {
+      if (!body.pin && !body.ownerToken) throw fail(403, `${name} already has ${earned} Dinks, so an organizer needs to confirm it's you. Ask them to enter the organizer PIN on this phone.`);
+      await requireOrganizer(club, body.pin, req, body.ownerToken);
+    }
     const token = newOwnerToken();
     await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${k}, ${name}) ON CONFLICT DO NOTHING`;
     // Atomic: only one phone can claim a name, even if two try at once.
@@ -116,6 +126,17 @@ export default handler(async (req, res) => {
   if (body.action === 'given') {
     const rows = await sql`UPDATE purchases SET given_at = now() WHERE club = ${code} AND id = ${Math.trunc(Number(body.purchaseId)) || 0} AND is_reward AND given_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That reward was already marked as given.');
+    return send(res, 200, { ok: true });
+  }
+
+  if (body.action === 'refund') {
+    // Undo a purchase (for example one made after someone claimed a name that wasn't theirs). The Dinks go back.
+    const [p] = await sql`DELETE FROM purchases WHERE club = ${code} AND id = ${Math.trunc(Number(body.purchaseId)) || 0} RETURNING name_key, item_id`;
+    if (!p) throw fail(404, 'That purchase was already refunded.');
+    // Take it off if it was being worn.
+    for (const slot of SLOTS) {
+      await sql`UPDATE roster SET equipped = equipped - ${slot} WHERE club = ${code} AND name_key = ${p.name_key} AND equipped ->> ${slot} = ${p.item_id}`;
+    }
     return send(res, 200, { ok: true });
   }
 

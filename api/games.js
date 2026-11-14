@@ -4,7 +4,17 @@
 // DELETE /api/games?code=ABC123&id=g123      -> moves a game to recently deleted
 // Deleting, restoring and editing need the organizer PIN (X-Club-PIN header, or "pin" in the body) when the club has one,
 // or the creating phone's token (X-Club-Owner header, or "ownerToken" in the body).
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches } from './_db.js';
+
+// Who is sending these games: a player's name key (their phone's player token checks out), 'organizer' (the club
+// creator's phone), or null. Never trusted from the game data itself.
+async function verifiedSender(sql, club, code, body) {
+  if (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)) return 'organizer';
+  if (!body.playerName || !body.playerToken) return null;
+  const k = cleanName(body.playerName).toLowerCase();
+  const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
+  return row && row.claim_hash && tokenMatches(row.claim_hash, body.playerToken) ? k : null;
+}
 
 export default handler(async (req, res) => {
   const sql = db();
@@ -34,6 +44,13 @@ export default handler(async (req, res) => {
     // Fix a saved result: same rules as deleting (organizer PIN or the creating phone), same checks as a new game.
     await requirePin(club, body.pin ?? pinFrom(req), req, body.ownerToken ?? ownerFrom(req));
     const g = Object.assign(cleanGame(body.edit), { editedAt: Date.now() });
+    const [old] = await sql`SELECT data FROM games WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
+    if (!old) throw fail(404, 'That game no longer exists, so it could not be changed.');
+    // Keep the server's own record of when the game arrived and who sent it. An edit can't add verification:
+    // if the sender is no longer one of the players, the game stops counting as verified.
+    g.receivedAt = old.data.receivedAt || old.data.endedAt;
+    const sender = old.data.scoredBy;
+    if (sender === 'organizer' || (sender && g.teams.flat().some(n => n.toLowerCase() === sender))) g.scoredBy = sender;
     const rows = await sql`UPDATE games SET data = ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}
       WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That game no longer exists, so it could not be changed.');
@@ -51,6 +68,16 @@ export default handler(async (req, res) => {
   if (list.length > 500) throw fail(400, 'Upload at most 500 games at a time.');
 
   const games = list.map(cleanGame); // validate everything before using up any of the club's allowance
+  // Server-side facts for Dinks (the app can't set these; cleanGame drops them):
+  // - receivedAt: when the server got the game. The daily earning cap counts by this, so backdating doesn't help.
+  // - scoredBy: who sent it. Win, forecast and streak Dinks need a game sent from the phone linked to one of
+  //   its players, or from the club creator's phone. Anything else earns the play bonus only.
+  const sender = await verifiedSender(sql, club, code, body);
+  const now = Date.now();
+  for (const g of games) {
+    g.receivedAt = now;
+    if (sender === 'organizer' || (sender && g.teams.flat().some(n => n.toLowerCase() === sender))) g.scoredBy = sender;
+  }
   // Flood protection on every request, bulk uploads included (see reserveGames in _db.js).
   const windowStart = await reserveGames(code, games.length);
   const names = new Map();
