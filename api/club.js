@@ -19,7 +19,7 @@ export default handler(async (req, res) => {
       const pin = cleanPin(body.pin);
       if (club.pin_hash) {
         // Changing a PIN needs the current one.
-        await requirePin(club, body.oldPin, req);
+        await requirePin(club, body.oldPin, req, body.ownerToken); // the creating phone can reset a forgotten PIN
         await sql`UPDATE clubs SET pin_hash = ${hashPin(pin)} WHERE code = ${code}`;
         return send(res, 200, { ok: true, club: { code, name: club.name, hasPin: true, openClaim: false } });
       }

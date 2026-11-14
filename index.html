@@ -956,8 +956,8 @@ function flush() {
       const code = club.code;
       try {
         if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify({ code, games: [op.game] }) });
-        else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '' } });
-        else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '' }) });
+        else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
+        else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE' });
       } catch (err) {
@@ -1050,12 +1050,14 @@ function rememberOwner(code, token) { if (token) { owners[code] = token; store.s
 const canSetFirstPin = () => !!club && !club.hasPin && (!!owners[club.code] || !!club.openClaim);
 function rememberPin(code, pin) { pins[code] = pin; store.set('pb.pins', pins); }
 function forgetPin() { if (club) { delete pins[club.code]; store.set('pb.pins', pins); } }
-const hasOrganizer = () => !!club && (!club.hasPin || !!pins[club.code]);
+const isCreator = () => !!club && !!owners[club.code];
+const hasOrganizer = () => !!club && (!club.hasPin || !!pins[club.code] || isCreator());
 // Runs a delete or restore, asking for the PIN first when the club has one and this phone isn't unlocked.
+// The phone that created the club sends its creator key instead, so it's never asked and never locked out.
 function withPin(op) {
   if (!club) return;
-  if (club.hasPin && !pins[club.code]) { clubSheet = { view: 'unlock', pending: op, back: clubSheet ? clubSheet.view : null }; renderClub(); return; }
-  queueOp(Object.assign({}, op, club.hasPin ? { pin: pins[club.code] } : {}));
+  if (club.hasPin && !hasOrganizer()) { clubSheet = { view: 'unlock', pending: op, back: clubSheet ? clubSheet.view : null }; renderClub(); return; }
+  queueOp(Object.assign({}, op, club.hasPin ? { pin: pins[club.code] || '', ownerToken: owners[club.code] || '' } : {}));
   if (op.type === 'restore' && clubSheet) clubSheet.msg = 'Game restored.';
   render();
 }
@@ -1120,9 +1122,9 @@ function renderClub() {
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
   } else if (c.view === 'setpin') {
     body = `<h2 id="club-h">${club.hasPin ? 'Change organizer PIN' : 'Set an organizer PIN'}</h2>
-      <p>${club.hasPin ? 'Enter the current PIN, then the new one.' : `Once set, deleting or restoring games in ${esc(club.name)} needs this PIN. Share it only with organizers.`}</p>
+      <p>${club.hasPin ? (isCreator() ? "This phone created the club, so you don't need the current PIN. Use this if the PIN was forgotten or shared too widely." : 'Enter the current PIN, then the new one.') : `Once set, deleting or restoring games in ${esc(club.name)} needs this PIN. Share it only with organizers.`}</p>
       <form class="club-form" data-form="pin-set">
-        ${club.hasPin ? `<label class="lab" for="pin-old">Current PIN</label><input id="pin-old" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password">` : ''}
+        ${club.hasPin && !isCreator() ? `<label class="lab" for="pin-old">Current PIN</label><input id="pin-old" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password">` : ''}
         <label class="lab" for="pin-new">New PIN</label><input id="pin-new" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="4 to 8 digits">
         <label class="lab" for="pin-new2">Type it again</label><input id="pin-new2" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password">
         ${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Save PIN</button></form>
@@ -1137,8 +1139,9 @@ function renderClub() {
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
-        <p>${!club.hasPin ? (canSetFirstPin() ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : `Anyone with the club code can delete games. Only the phone that created ${esc(club.name)} can set a PIN.`) : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
+        <p>${!club.hasPin ? (canSetFirstPin() ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : `Anyone with the club code can delete games. Only the phone that created ${esc(club.name)} can set a PIN.`) : isCreator() ? 'This phone created the club, so it can always delete and restore games and reset the PIN, even if the PIN is forgotten.' : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
         <div class="org-btns">${!club.hasPin ? (canSetFirstPin() ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>' : '')
+          : isCreator() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button>'
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
