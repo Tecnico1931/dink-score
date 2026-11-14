@@ -365,6 +365,32 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .when input { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 9px 12px; font-size: 15px; }
 .err { color: var(--danger); font-size: 14px; font-weight: 600; margin: 0; }
 
+/* Club */
+button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+.sync.warn::before { background: var(--down); }
+.code-card { background: var(--surface-2); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.code-card .code { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 52px; letter-spacing: .08em; line-height: 1; user-select: all; }
+.code-card p { font-size: 14px; }
+.invite { display: flex; gap: 8px; }
+.invite input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
+.upload-card { border: 2px dashed color-mix(in srgb, var(--blue) 45%, transparent); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.upload-card .btn { padding: 11px 16px; border-radius: 12px; font-size: 15px; margin-top: 4px; }
+.club-form { display: flex; flex-direction: column; gap: 8px; }
+.club-form input { font-size: 16px; }
+#club-code { text-transform: uppercase; letter-spacing: .12em; font-weight: 700; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.deleted { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.deleted li { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
+.deleted li span { min-width: 0; overflow-wrap: anywhere; }
+.btn-line-danger { background: transparent; color: var(--danger); border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); }
+.btn:disabled { opacity: .5; }
+.art-code { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.art-code b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 46px; letter-spacing: .1em; color: #fff; background: rgb(255 255 255 / .1); border-radius: 16px; padding: 6px 16px; }
+.art-code .phones { display: flex; gap: 10px; }
+.art-code .phones i { width: 34px; height: 56px; border-radius: 9px; border: 2px solid rgb(255 255 255 / .5); position: relative; }
+.art-code .phones i::after { content: ""; position: absolute; inset: 14px 7px; border-radius: 4px; background: var(--ball); }
+
 /* First-visit tutorial */
 .tour-bg { position: fixed; inset: 0; z-index: 100; background: rgb(5 9 15 / .6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center;
   padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
@@ -444,6 +470,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 
 <div id="overlay"></div>
 <div id="sheet2"></div>
+<div id="sheet3"></div>
 <div id="tour"></div>
 
 <script id="engine">
@@ -589,6 +616,71 @@ const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch {
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];
 const TEAM_NAME = ['Blue', 'Green'];
 const DAY = 864e5;
+const SITE_URL = 'https://dink-score.vercel.app';
+const FRAMED = (() => { try { return window.self !== window.top; } catch { return true; } })();
+// Club sync needs this site's own /api, so it is off inside the Claude artifact and on the old GitHub Pages address.
+const API_OK = !FRAMED && /^https?:$/.test(location.protocol) && !/github\.io$/.test(location.hostname);
+
+/* ---------- moving from the old GitHub Pages address ---------- */
+// The old site redirects here, carrying this device's games in the link so they aren't left behind.
+if (/github\.io$/.test(location.hostname)) {
+  let hash = '';
+  try {
+    const games = JSON.parse(localStorage.getItem('pb.games') || '[]');
+    const savedPlayers = JSON.parse(localStorage.getItem('pb.roster') || '[]');
+    if (!localStorage.getItem('pb.movedToNewSite') && (games.length || savedPlayers.length)) {
+      const json = JSON.stringify({ v: 1, games, roster: savedPlayers, setup: JSON.parse(localStorage.getItem('pb.setup') || 'null'), tutorialSeen: !!localStorage.getItem('pb.tutorialSeen') });
+      hash = '#import=' + btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      localStorage.setItem('pb.movedToNewSite', '1');
+    }
+  } catch {}
+  location.replace(SITE_URL + '/' + location.search + hash);
+  throw new Error('Dink Score has moved to ' + SITE_URL);
+}
+// Imported data arrives in a link, so treat it as untrusted: rebuild every record from checked values only.
+const cleanPlayer = n => typeof n === 'string' ? n.trim().replace(/\s+/g, ' ').slice(0, 40) : '';
+function cleanImportedGame(g) {
+  if (!g || typeof g !== 'object' || !/^[A-Za-z0-9_-]{4,40}$/.test(String(g.id))) return null;
+  const mode = g.mode === 'singles' ? 'singles' : 'doubles';
+  const n = mode === 'doubles' ? 2 : 1;
+  if (!Array.isArray(g.teams) || g.teams.length !== 2) return null;
+  const teams = g.teams.map(t => Array.isArray(t) && t.length === n ? t.map(cleanPlayer) : null);
+  if (teams.some(t => !t || t.some(x => !x))) return null;
+  const score = Array.isArray(g.score) ? g.score.slice(0, 2).map(v => Math.trunc(Number(v))) : [];
+  if (score.length !== 2 || score.some(v => !Number.isFinite(v) || v < 0 || v > 99) || score[0] === score[1]) return null;
+  const endedAt = Math.trunc(Number(g.endedAt));
+  if (!Number.isFinite(endedAt) || endedAt <= 0) return null;
+  const startedAt = Math.trunc(Number(g.startedAt));
+  return {
+    id: String(g.id), mode, teams, score, winner: score[0] > score[1] ? 0 : 1,
+    scoring: g.scoring === 'rally' ? 'rally' : 'sideout',
+    target: [11, 15, 21].includes(Number(g.target)) ? Number(g.target) : 11,
+    winBy: Number(g.winBy) === 1 ? 1 : 2,
+    rallies: Math.max(0, Math.min(999, Math.trunc(Number(g.rallies)) || 0)),
+    startedAt: Number.isFinite(startedAt) && startedAt > 0 ? Math.min(startedAt, endedAt) : endedAt, endedAt,
+    logged: !!g.logged
+  };
+}
+let importedCount = 0;
+if (location.hash.startsWith('#import=')) {
+  try {
+    const b64 = location.hash.slice(8).replace(/-/g, '+').replace(/_/g, '/');
+    const data = JSON.parse(decodeURIComponent(escape(atob(b64 + '==='.slice((b64.length + 3) % 4)))));
+    const have = store.get('pb.games', []);
+    const ids = new Set(have.map(g => g.id));
+    const incoming = (Array.isArray(data.games) ? data.games : []).slice(0, 2000).map(cleanImportedGame).filter(g => g && !ids.has(g.id));
+    importedCount = incoming.length;
+    store.set('pb.games', [...incoming, ...have].sort((a, b) => b.endedAt - a.endedAt));
+    const names = store.get('pb.roster', []);
+    for (const raw of (Array.isArray(data.roster) ? data.roster.slice(0, 300) : [])) {
+      const n = cleanPlayer(raw);
+      if (n && !names.some(r => r.toLowerCase() === n.toLowerCase())) names.push(n);
+    }
+    store.set('pb.roster', names);
+    if (data.tutorialSeen === true) store.set('pb.tutorialSeen', true);
+  } catch {}
+  try { history.replaceState(null, '', location.pathname + location.search); } catch {}
+}
 
 /* ---------- state ---------- */
 const defaults = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, names: [['', ''], ['', '']] };
@@ -623,6 +715,7 @@ function namesFor(names, mode, t) {
 const teamPlayers = t => namesFor(setup.names, setup.mode, t);
 const teamLabel = players => players.join(' & ');
 function allGames() {
+  if (club) return clubGames();
   const map = new Map();
   for (const g of localGames) map.set(g.id, g);
   if (cloudGames) for (const g of cloudGames) map.set(g.id, g);
@@ -646,10 +739,14 @@ function addToRoster(names) {
     const n = String(raw || '').trim().slice(0, 40);
     if (!n || isDefaultName(n) || roster.some(r => sameName(r, n))) continue;
     roster.push(n); changed = true;
+    if (club) queueOp({ type: 'roster-add', name: n });
   }
-  if (changed) persistRoster();
+  if (changed) { if (club) roster.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); else persistRoster(); }
 }
-function removeFromRoster(name) { roster = roster.filter(r => !sameName(r, name)); persistRoster(); }
+function removeFromRoster(name) {
+  roster = roster.filter(r => !sameName(r, name));
+  if (club) queueOp({ type: 'roster-del', name }); else persistRoster();
+}
 // Toggle a saved player into the first open slot of a names grid, or out of it if already there.
 function pickInto(names, mode, name) {
   const n = mode === 'doubles' ? 2 : 1;
@@ -706,12 +803,14 @@ async function uploadLocalOnly() {
   }
 }
 async function saveGame(rec) {
+  if (club) { queueOp({ type: 'game', game: rec }); addToRoster([...rec.teams[0], ...rec.teams[1]]); return; }
   localGames = [rec, ...localGames.filter(g => g.id !== rec.id)].slice(0, 1000);
   store.set('pb.games', localGames);
   addToRoster([...rec.teams[0], ...rec.teams[1]]);
   if (gamesCol) { try { const { id, ...rest } = rec; await gamesCol.doc(id).set(rest); } catch {} }
 }
 async function deleteGame(id) {
+  if (club) { queueOp({ type: 'delete', id }); render(); return; }
   localGames = localGames.filter(g => g.id !== id);
   store.set('pb.games', localGames);
   if (cloudGames) cloudGames = cloudGames.filter(g => g.id !== id);
@@ -720,15 +819,229 @@ async function deleteGame(id) {
 }
 const newId = t => 'g' + t.toString(36) + Math.random().toString(36).slice(2, 6);
 
+/* ---------- club sync (the website's shared record; no accounts) ---------- */
+// club: { code, name } when this device has joined a club. The shared games and saved players live on the server;
+// changes made here wait in an outbox until they reach it, so scoring keeps working without signal.
+let club = API_OK ? store.get('pb.club', null) : null;
+let clubData = store.get('pb.clubCache', null); // { code, games, roster, deleted, at }
+let outbox = store.get('pb.outbox', []);
+let clubState = 'idle'; // idle | syncing | offline | error
+let clubSheet = null;   // the club sheet when open: { view, error, joinCode, joinName, busy, msg }
+let uploading = false;
+if (clubData && (!club || clubData.code !== club.code)) clubData = null;
+if (club) roster = (clubData && clubData.roster) ? clubData.roster.slice() : roster;
+
+function clubGames() {
+  const map = new Map();
+  for (const g of (clubData ? clubData.games : [])) map.set(g.id, g);
+  for (const op of outbox) {
+    if (op.type === 'game') map.set(op.game.id, op.game);
+    if (op.type === 'delete') map.delete(op.id);
+    if (op.type === 'restore' && clubData) { const g = (clubData.deleted || []).find(x => x.id === op.id); if (g) map.set(g.id, g); }
+  }
+  return [...map.values()].sort((a, b) => b.endedAt - a.endedAt);
+}
+function rosterFromClub() {
+  const list = clubData ? clubData.roster.slice() : [];
+  for (const op of outbox) {
+    if (op.type === 'roster-add' && !list.some(r => sameName(r, op.name))) list.push(op.name);
+    if (op.type === 'roster-del') { const i = list.findIndex(r => sameName(r, op.name)); if (i >= 0) list.splice(i, 1); }
+  }
+  return list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+async function api(path, opts = {}) {
+  let res;
+  try {
+    res = await fetch('/api/' + path, Object.assign({ headers: { 'Content-Type': 'application/json' }, cache: 'no-store' }, opts));
+  } catch { throw Object.assign(new Error("Can't reach the server. Check your connection."), { offline: true }); }
+  let body = {};
+  try { body = await res.json(); } catch {}
+  if (!res.ok) throw Object.assign(new Error(body.error || 'Something went wrong. Try again.'), { status: res.status });
+  return body;
+}
+function queueOp(op) {
+  if (!club) return;
+  outbox.push(Object.assign({ at: Date.now() }, op));
+  store.set('pb.outbox', outbox);
+  flush();
+}
+let flushing = null;
+function flush() {
+  if (flushing || !club) return flushing;
+  flushing = (async () => {
+    let sent = false;
+    while (outbox.length && club) {
+      const op = outbox[0];
+      const code = club.code;
+      try {
+        if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify({ code, games: [op.game] }) });
+        else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE' });
+        else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id }) });
+        else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
+        else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE' });
+      } catch (err) {
+        if (err.offline || err.status >= 500 || err.status === 429) { clubState = 'offline'; updateSyncPill(); break; }
+        if (op.type === 'game') showToast(`A game couldn't be saved to the club: ${err.message}`, false);
+      }
+      outbox.shift(); store.set('pb.outbox', outbox); sent = true;
+    }
+    flushing = null;
+    if (sent && !outbox.length) await refreshClub();
+  })();
+  return flushing;
+}
+let refreshing = false;
+async function refreshClub() {
+  if (!club || refreshing) return;
+  refreshing = true; clubState = 'syncing'; updateSyncPill();
+  try {
+    const data = await api('club?code=' + club.code);
+    if (!club || data.club.code !== club.code) return;
+    club.name = data.club.name; store.set('pb.club', club);
+    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, at: Date.now() };
+    store.set('pb.clubCache', clubData);
+    roster = rosterFromClub();
+    clubState = 'idle';
+    safeRender();
+  } catch (err) {
+    clubState = err.offline ? 'offline' : 'error';
+    if (err.status === 404) { showToast('That club no longer exists. You are back to games on this phone.', false); leaveClub(); }
+    updateSyncPill();
+  } finally { refreshing = false; }
+}
+// Re-render with fresh club data, unless someone is typing or a form is open (that would wipe what they typed).
+let renderPending = false;
+function safeRender() {
+  const a = document.activeElement;
+  if (logForm || (clubSheet && clubSheet.busy) || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) { renderPending = true; updateSyncPill(); return; }
+  renderPending = false; render();
+}
+document.addEventListener('focusout', () => { if (renderPending) setTimeout(() => { if (renderPending) safeRender(); }, 50); });
+function syncPillHTML() {
+  if (!API_OK) return `<span class="sync ${syncOn ? 'on' : ''}">${esc(syncNote)}</span>`;
+  if (!club) return `<button class="sync club-btn" data-act="club-open">Join a club</button>`;
+  const pending = outbox.length;
+  const note = clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
+  return `<button class="sync club-btn ${clubState === 'idle' && !pending ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}">${esc(note)}</button>`;
+}
+function updateSyncPill() { const el = document.querySelector('header.top .sync'); if (el) el.outerHTML = syncPillHTML(); }
+function inviteLink() { return location.origin + '/?club=' + (club ? club.code : ''); }
+async function joinClub(code, name) {
+  club = { code, name };
+  store.set('pb.club', club);
+  clubData = null; store.set('pb.clubCache', null);
+  outbox = []; store.set('pb.outbox', outbox);
+  roster = [];
+  await refreshClub();
+}
+function leaveClub() {
+  club = null; clubData = null; outbox = [];
+  store.set('pb.club', null); store.set('pb.clubCache', null); store.set('pb.outbox', []);
+  roster = store.get('pb.roster', []);
+  render();
+}
+function uploadedHere() { return club && store.get('pb.uploaded', {})[club.code]; }
+async function uploadLocalGames() {
+  if (!club || uploading) return;
+  const games = store.get('pb.games', []);
+  const names = store.get('pb.roster', []);
+  uploading = true; clubSheet && (clubSheet.msg = 'Uploading…'); renderClub();
+  try {
+    for (let i = 0; i < games.length; i += 400) await api('games', { method: 'POST', body: JSON.stringify({ code: club.code, games: games.slice(i, i + 400) }) });
+    for (const n of names) { try { await api('roster', { method: 'POST', body: JSON.stringify({ code: club.code, name: n }) }); } catch {} }
+    const up = store.get('pb.uploaded', {}); up[club.code] = Date.now(); store.set('pb.uploaded', up);
+    if (clubSheet) clubSheet.msg = `Uploaded ${games.length} game${games.length === 1 ? '' : 's'} to ${club.name}.`;
+    await refreshClub();
+  } catch (err) { if (clubSheet) clubSheet.msg = err.message; }
+  uploading = false; renderClub();
+}
+
+function renderClub() {
+  const root = $('#sheet3');
+  if (!root) return;
+  if (!clubSheet) { root.innerHTML = ''; return; }
+  const c = clubSheet;
+  const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
+  let body;
+  if (c.view === 'invite') {
+    body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
+      <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
+      <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
+  } else if (!club) {
+    body = `<h2 id="club-h">Play as a club</h2>
+      <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
+      <form class="club-form" data-form="club-join"><label class="lab" for="club-code">Join with a code</label>
+        <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
+      <div class="or"><span>or</span></div>
+      <form class="club-form" data-form="club-create"><label class="lab" for="club-name">Start a new club</label>
+        <div class="add-player"><input id="club-name" placeholder="Club name, like Tuesday Dinkers" autocomplete="off" maxlength="40"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div></form>${err}`;
+  } else {
+    const local = store.get('pb.games', []).length;
+    const deleted = clubData ? (clubData.deleted || []).filter(g => !outbox.some(o => o.type === 'restore' && o.id === g.id)) : [];
+    body = `<h2 id="club-h">${esc(club.name)}</h2>
+      <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
+        <p>Share the code or the invite link. Anyone with either can see and add games.</p>
+        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div></div>
+      ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
+      ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
+      ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
+      <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
+        <button class="btn btn-line-danger" data-act="club-leave">Leave club on this phone</button></div>`;
+  }
+  root.innerHTML = `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
+    <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`;
+}
+async function clubJoinByCode(raw) {
+  const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (code.length !== 6) { clubSheet.error = 'Club codes are 6 letters and numbers.'; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const data = await api('club?code=' + code);
+    await joinClub(data.club.code, data.club.name);
+    clubSheet = { view: 'club' };
+    showToast(`Joined ${data.club.name}`, false);
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  render(); renderClub();
+}
+async function clubCreate(name) {
+  name = String(name || '').trim();
+  if (!name) { clubSheet.error = 'Give your club a name.'; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const data = await api('club', { method: 'POST', body: JSON.stringify({ name }) });
+    await joinClub(data.club.code, data.club.name);
+    clubSheet = { view: 'club' };
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  render(); renderClub();
+}
+// Invite links look like /?club=ABC123
+async function checkInvite() {
+  if (!API_OK) return;
+  const params = new URLSearchParams(location.search);
+  const code = (params.get('club') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!code) return;
+  try { history.replaceState(null, '', location.pathname); } catch {}
+  if (club && club.code === code) return;
+  try {
+    const data = await api('club?code=' + code);
+    clubSheet = { view: 'invite', joinCode: code, joinName: data.club.name };
+  } catch (err) { clubSheet = { view: 'club', joinCode: code, error: err.message }; }
+  renderClub();
+}
+if (API_OK) setInterval(() => { if (club && document.visibilityState === 'visible') { if (outbox.length) flush(); else refreshClub(); } }, 15000);
+document.addEventListener('visibilitychange', () => { if (club && document.visibilityState === 'visible') { flush(); refreshClub(); } });
+window.addEventListener('online', () => { if (club) flush(); });
+
 /* ---------- views ---------- */
 const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="var(--ink)"/><circle cx="17" cy="17" r="10.5" fill="var(--ball)"/><g fill="var(--ink)" opacity=".85"><circle cx="13.2" cy="13.2" r="1.3"/><circle cx="19.2" cy="12.1" r="1.3"/><circle cx="16.6" cy="17" r="1.3"/><circle cx="12.5" cy="19.6" r="1.3"/><circle cx="21.1" cy="18" r="1.3"/><circle cx="17.4" cy="22.3" r="1.3"/></g></svg>`;
 
 function render() {
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
-  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><span class="sync ${syncOn ? 'on' : ''}">${esc(syncNote)}</span></header>`;
+  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div>${syncPillHTML()}</header>`;
   $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
+  renderClub();
   renderTour();
 }
 
@@ -804,11 +1117,11 @@ function playView() {
 function gameItem(g) {
   const d = new Date(g.endedAt);
   const date = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const line = t => `<div class="line ${g.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(g.teams[t]))}</span><span class="pts">${g.score[t]}</span></div>`;
+  const line = t => `<div class="line ${g.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(g.teams[t]))}</span><span class="pts">${Number(g.score[t])}</span></div>`;
   const armed = armedDelete === g.id;
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
     <button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}" style="align-self:start;font-size:13px">${armed ? 'Confirm' : 'Delete'}</button>
-    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${g.target}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
+    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
 }
 
 function historyView() {
@@ -1028,7 +1341,7 @@ function submitLog() {
 /* ---------- first-visit tutorial ---------- */
 let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
 const isStandalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
-const canInstall = !isStandalone && (/github\.io$/.test(location.hostname) || /^(localhost|127\.0\.0\.1)$/.test(location.hostname));
+const canInstall = !isStandalone && API_OK;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const MARK_BALL = `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="#0E1726" opacity=".85"><circle cx="22" cy="22" r="4"/><circle cx="38" cy="18" r="4"/><circle cx="31" cy="32" r="4"/><circle cx="19" cy="40" r="4"/><circle cx="44" cy="36" r="4"/><circle cx="33" cy="47" r="4"/></g></svg>`;
 function tourSteps() {
@@ -1044,6 +1357,8 @@ function tourSteps() {
     { title: 'Climb the leaderboard', art: `<div class="mini-podium"><div class="p2"><b>3.82</b><small>2nd</small></div><div class="p1"><b>4.10</b><small>1st</small></div><div class="p3"><b>3.64</b><small>3rd</small></div></div>`,
       body: `<p>Every saved game updates each player's <b>Dink Rating</b>, from 2.00 to 8.00. Beat the forecast score and your rating rises, even in a loss. See the rankings, streaks and honors on <b>Leaders</b>.</p>` }
   ];
+  if (API_OK) steps.push({ title: 'Share one record with your club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
+    body: `<p>Tap <b>Join a club</b> at the top to start a club or join one with its code. Everyone in the club sees the same games, saved players and leaderboard on their own phone. No accounts needed.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
     body: isIOS
       ? `<p>In Safari, tap the <b>Share</b> button, then <b>Add to Home Screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>`
@@ -1091,6 +1406,25 @@ document.addEventListener('click', e => {
     else if (ds.tour === 'open') tourStep = 0;
     if (ds.tour === 'done') closeTour(); else renderTour();
     return;
+  }
+  if (ds.restore) { queueOp({ type: 'restore', id: ds.restore }); if (clubSheet) clubSheet.msg = 'Game restored.'; render(); return; }
+  if (ds.act && ds.act.startsWith('club-')) {
+    const a = ds.act;
+    if (a === 'club-open') clubSheet = { view: 'club' };
+    if (a === 'club-close') { clubSheet = null; if (renderPending) safeRender(); }
+    if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
+    if (a === 'club-upload') { uploadLocalGames(); return; }
+    if (a === 'club-leave') {
+      if (!clubSheet.confirmLeave) { clubSheet.confirmLeave = true; clubSheet.msg = `Tap again to leave. ${club.name}'s games stay in the club. This phone goes back to its own games.`; renderClub(); return; }
+      leaveClub(); clubSheet = null;
+    }
+    if (a === 'club-copy') {
+      const link = inviteLink();
+      const done = () => { clubSheet.copied = true; renderClub(); setTimeout(() => { if (clubSheet) { clubSheet.copied = false; renderClub(); } }, 2000); };
+      try { navigator.clipboard.writeText(link).then(done, () => { const i = $('#invite-link'); if (i) i.select(); }); } catch { const i = $('#invite-link'); if (i) i.select(); }
+      return;
+    }
+    renderClub(); return;
   }
   if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; render(); try { window.scrollTo(0, 0); } catch {} return; }
   if (ds.tabGo) { tab = ds.tabGo; store.set('pb.tab', tab); render(); try { window.scrollTo(0, 0); } catch {} return; }
@@ -1166,6 +1500,8 @@ document.addEventListener('input', e => {
 document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
+  if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
+  if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value); return; }
   if (!form.matches('[data-form="add-player"]')) return;
   e.preventDefault();
   const name = $('#new-player').value.trim();
@@ -1180,8 +1516,9 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'ArrowLeft' && tourStep > 0) { tourStep--; renderTour(); }
     return;
   }
+  if (e.key === 'Escape' && clubSheet) { clubSheet = null; renderClub(); if (renderPending) safeRender(); return; }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
-  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm) return;
+  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet) return;
   if (e.target.matches && e.target.matches('input')) return;
   if (e.key === '1' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); document.querySelector('[data-rally="0"]').click(); }
   if (e.key === '2' || e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); document.querySelector('[data-rally="1"]').click(); }
@@ -1190,6 +1527,9 @@ document.addEventListener('keydown', e => {
 
 if (live && live.state.winner === null && live.open) keepAwake(true);
 render();
+if (importedCount) showToast(`Moved ${importedCount} game${importedCount === 1 ? '' : 's'} from the old site`, false);
+if (club) { flush(); refreshClub(); }
+checkInvite();
 </script>
 
 <script>

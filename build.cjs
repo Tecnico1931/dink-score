@@ -1,7 +1,7 @@
 // Builds the GitHub Pages site (index.html) from the app source (dink-score.html).
 // dink-score.html is written as an artifact page body: it has no <!doctype>, <head> or <body> of its own.
 // This wraps it in a full document and adds what an installable web app needs.
-// Usage: node build.js [path/to/dink-score.html]
+// Usage: node build.cjs [path/to/dink-score.html]
 const fs = require('fs');
 const path = require('path');
 
@@ -44,3 +44,11 @@ if ('serviceWorker' in navigator) {
 
 fs.writeFileSync(path.join(__dirname, 'index.html'), head + body + tail);
 console.log('Wrote index.html from', path.basename(src));
+
+// Vercel serves the static site from public/ (the /api folder is deployed as server functions).
+const out = path.join(__dirname, 'public');
+fs.rmSync(out, { recursive: true, force: true });
+fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
+for (const f of ['index.html', 'manifest.webmanifest', 'sw.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
+console.log('Copied the site into public/');
