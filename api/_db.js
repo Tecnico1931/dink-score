@@ -56,6 +56,7 @@ export function ensureSchema() {
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS shop jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS claim_hash text`; // hash of the token on the phone that claimed this name
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS equipped jsonb NOT NULL DEFAULT '{}'::jsonb`;
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS avatar jsonb`; // {type: emoji|icon|photo, value}; none means initials
       await q`CREATE TABLE IF NOT EXISTS purchases (
         id bigserial PRIMARY KEY,
         club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,

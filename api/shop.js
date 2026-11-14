@@ -3,6 +3,8 @@
 //                                                       (a name that already has Dinks needs an organizer to confirm)
 //   buy      {name, playerToken, itemId}             -> spends Dinks on a catalog item or a club reward
 //   equip    {name, playerToken, slot, itemId|null}  -> wears an owned item (or takes it off)
+//   avatar   {name, playerToken, avatar}              -> sets your picture: {type: emoji|icon|photo, value} or {type: initials}
+//   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
 //   settings {pin|ownerToken, rewardsEnabled?, prices?, rewards?} -> organizer: change prices, toggle and edit rewards
 //   given    {pin|ownerToken, purchaseId}            -> organizer: mark a club reward as handed over
 //   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
@@ -17,6 +19,31 @@ async function requirePlayer(sql, code, name, token) {
   const [row] = await sql`SELECT name, name_key, claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
   if (!row || !row.claim_hash || !tokenMatches(row.claim_hash, token)) throw fail(403, 'This phone isn\'t linked to that player. Pick your name in the club first.');
   return row;
+}
+// Avatars: only these shapes are stored, so nothing else can reach other people's screens.
+export const AVATAR_ICONS = ['paddle', 'ball', 'paddles', 'net', 'court', 'trophy', 'pickle', 'lightning', 'flame', 'target'];
+const MAX_PHOTO = 60000; // characters of base64: a 160px JPEG is usually 6-15 KB
+function cleanAvatar(a) {
+  if (!a || typeof a !== 'object' || a.type === 'initials') return null;
+  const value = String(a.value || '');
+  if (a.type === 'icon') {
+    if (!AVATAR_ICONS.includes(value)) throw fail(400, 'Pick one of the icons.');
+    return { type: 'icon', value };
+  }
+  if (a.type === 'emoji') {
+    // One emoji (it may be several code points, like a flag or skin tone), and nothing else.
+    const ok = value.length > 0 && value.length <= 16 && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(value)
+      && !/[\p{L}\p{N}\s<>&"'`]/u.test(value.replace(/[\u{1F3FB}-\u{1F3FF}\u{FE0F}\u{200D}\u{20E3}]/gu, ''));
+    const graphemes = typeof Intl.Segmenter === 'function' ? [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(value)].length : 1;
+    if (!ok || graphemes !== 1) throw fail(400, 'Pick a single emoji.');
+    return { type: 'emoji', value };
+  }
+  if (a.type === 'photo') {
+    if (!/^data:image\/(jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(value)) throw fail(400, 'That photo could not be used. Try a different picture.');
+    if (value.length > MAX_PHOTO) throw fail(400, 'That photo is too large. Try a different picture.');
+    return { type: 'photo', value };
+  }
+  throw fail(400, 'Unknown avatar type.');
 }
 async function clubGames(sql, code) {
   return (await sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL`).map(r => r.data);
@@ -91,6 +118,14 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true, purchaseId: inserted[0].id });
   }
 
+  if (body.action === 'avatar') {
+    // A player sets their own picture: an emoji, one of the app's pickleball icons, a small photo, or back to initials.
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    const avatar = cleanAvatar(body.avatar);
+    await sql`UPDATE roster SET avatar = ${avatar ? JSON.stringify(avatar) : null}::jsonb WHERE club = ${code} AND name_key = ${player.name_key}`;
+    return send(res, 200, { ok: true, avatar });
+  }
+
   if (body.action === 'equip') {
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     const slot = String(body.slot || '');
@@ -136,6 +171,13 @@ export default handler(async (req, res) => {
   if (body.action === 'given') {
     const rows = await sql`UPDATE purchases SET given_at = now() WHERE club = ${code} AND id = ${Math.trunc(Number(body.purchaseId)) || 0} AND is_reward AND given_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That reward was already marked as given.');
+    return send(res, 200, { ok: true });
+  }
+
+  if (body.action === 'clear-avatar') {
+    // Organizer: put someone back to initials (for example a photo that shouldn't be there).
+    const rows = await sql`UPDATE roster SET avatar = NULL WHERE club = ${code} AND name_key = ${cleanName(body.name).toLowerCase()} RETURNING name`;
+    if (!rows.length) throw fail(404, 'No saved player has that name.');
     return send(res, 200, { ok: true });
   }
 

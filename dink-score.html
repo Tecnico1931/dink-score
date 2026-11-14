@@ -199,7 +199,8 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .step.s2 .block { height: 70px; }
 .step.s3 .block { height: 52px; }
 .rows { display: flex; flex-direction: column; gap: 6px; }
-.prow { border: 0; font: inherit; color: inherit; text-align: left; width: 100%; cursor: pointer; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 2.2ch 1fr auto; gap: 12px; align-items: center; }
+.prow .avatar-mini { width: 34px; height: 34px; font-size: 12px; --r: 23px; }
+.prow { border: 0; font: inherit; color: inherit; text-align: left; width: 100%; cursor: pointer; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 2.2ch auto 1fr auto; gap: 10px; align-items: center; }
 .prow .rank { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 20px; color: var(--muted); text-align: center; }
 .prow:first-child .rank { color: var(--ink); }
 .prow .pinfo { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -497,6 +498,32 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 4
 .court[data-theme="theme-grass"] .half[data-k="b"], .pv-theme.theme-grass i:last-child { --c1: #8BC34A; --c2: #3E6B12; background: linear-gradient(155deg, #8BC34A, #3E6B12); }
 .court[data-theme="theme-neon"] .half[data-k="a"], .pv-theme.theme-neon i:first-child { --c1: #FF2BD6; --c2: #7A0A8C; background: linear-gradient(155deg, #FF2BD6, #7A0A8C); }
 .court[data-theme="theme-neon"] .half[data-k="b"], .pv-theme.theme-neon i:last-child { --c1: #00C8E6; --c2: #005B79; background: linear-gradient(155deg, #00C8E6, #005B79); }
+/* Avatars */
+.av-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+.av-emoji { font-size: 1.35em; line-height: 1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.av-icon { display: grid; place-items: center; width: 62%; height: 62%; }
+.av-icon svg { width: 100%; height: 100%; }
+.avatar .av-emoji { font-size: 24px; } .step.s1 .avatar .av-emoji { font-size: 30px; } .av .av-emoji { font-size: 28px; } .avatar-mini .av-emoji { font-size: 19px; }
+.avs i .av-emoji { font-size: 17px; } .avs i .av-img { width: 100%; height: 100%; }
+.avs i { overflow: visible; }
+.av-btn { border: 0; background: transparent; padding: 0; position: relative; display: inline-flex; flex: none; cursor: pointer; }
+.av-btn .av-edit { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 800; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 1px 5px; box-shadow: 0 0 0 2px var(--surface); }
+.av-preview { display: flex; align-items: center; gap: 14px; padding: 6px 2px; }
+.av-preview .av { width: 64px; height: 64px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 22px; --r: 38px; flex: none; }
+.av-preview .av .av-emoji { font-size: 36px; }
+.av-preview > span:last-child { font-size: 18px; font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.av-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.av-grid.icons { grid-template-columns: repeat(5, 1fr); }
+.av-pick { border: 1px solid var(--line); background: var(--surface-2); border-radius: 14px; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px; color: var(--ink); }
+.av-grid.icons .av-pick { aspect-ratio: auto; padding: 10px 4px 6px; }
+.av-pick .av-emoji { font-size: 24px; }
+.av-pick .av-icon { width: 30px; height: 30px; }
+.av-pick small { font-size: 10px; color: var(--muted); font-weight: 600; text-align: center; line-height: 1.1; }
+.av-pick.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink); background: var(--surface); }
+.photo-drop { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; border: 2px dashed var(--line); border-radius: 18px; padding: 22px 16px; cursor: pointer; font-weight: 700; }
+.photo-drop small { font-weight: 500; color: var(--muted); max-width: 32ch; }
+.photo-drop:focus-within, .photo-drop:hover { border-color: var(--blue); }
+
 /* Legendary cosmetics: animated, so owning one is obvious at a glance */
 .p-title.legendary { background: linear-gradient(100deg, #B8860B 0%, #FFE58A 35%, #FFF6D0 50%, #FFE58A 65%, #B8860B 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; animation: sheen 3.2s linear infinite; }
 @keyframes sheen { from { background-position: 100% 0; } to { background-position: -150% 0; } }
@@ -1285,7 +1312,9 @@ function renderClub() {
   const c = clubSheet;
   const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
   let body;
-  if (c.view === 'whoami' && club) {
+  if (c.view === 'avatar' && club && myName()) {
+    body = avatarSheetHTML(c);
+  } else if (c.view === 'whoami' && club) {
     body = whoamiHTML(c);
   } else if (c.view === 'shopadmin' && club) {
     body = shopAdminHTML(c);
@@ -1568,9 +1597,9 @@ function leadersView() {
   const order = podium.length === 3 ? [1, 0, 2] : podium.map((_, i) => i);
   const avatarColor = ['var(--ink)', 'var(--blue)', 'var(--green)'];
   const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<button class="step s${i + 1}" style="--c:${avatarColor[i]}" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile">
-      <span class="avatar${frameClass(p.name)}">${esc(initials(p.name))}</span><span class="pl-name">${styledName(p.name, false)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
+      <span class="avatar${frameClass(p.name)}">${avatarInner(p.name)}</span><span class="pl-name">${styledName(p.name, false)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
-  const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span>
+  const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
       <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${p.rel < 60 ? '<span class="badge prov">Provisional</span>' : ''}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span><span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
@@ -1645,7 +1674,7 @@ function renderCourt() {
   const half = t => {
     const k = t ? 'b' : 'a';
     const serving = s.serving === t;
-    const avs = cfg.teams[t].map((p, i) => `<i class="${serving && s.server === i ? 'srv' : ''}">${esc(initials(p))}</i>`).join('');
+    const avs = cfg.teams[t].map((p, i) => `<i class="${serving && s.server === i ? 'srv' : ''}">${avatarInner(p)}</i>`).join('');
     const names = cfg.teams[t].map((p, i) => `<span class="${serving && s.server === i ? 'srv' : ''}">${esc(p)}</span>`).join('');
     const serverTag = cfg.mode === 'doubles' && cfg.scoring === 'sideout' ? ` ${s.serverNum === 1 ? '1st' : '2nd'}` : '';
     const badges = [
@@ -1936,6 +1965,82 @@ function whoamiHTML(c) {
     <div class="btns"><button class="btn btn-soft" data-act="whoami-skip">Skip for now</button></div>`;
 }
 
+/* ---------- avatars: initials, an emoji, a pickleball icon, or a photo ---------- */
+const AVATAR_ICONS = {
+  paddle: '<path d="M8.6 3.6a5.4 5.4 0 017.6 7.6l-3.4 3.4a5.4 5.4 0 01-7.6-7.6z" fill="currentColor" fill-opacity=".22"/><path d="M8.6 3.6a5.4 5.4 0 017.6 7.6l-3.4 3.4a5.4 5.4 0 01-7.6-7.6z"/><path d="M11.4 16.2l-1.6 1.6M9.6 18l-3.3 3.3" stroke-width="2.6" stroke-linecap="round"/><circle cx="19" cy="18.5" r="2.3" fill="currentColor" stroke="none"/>',
+  ball: '<circle cx="12" cy="12" r="8.6" fill="currentColor" fill-opacity=".22"/><circle cx="12" cy="12" r="8.6"/><g fill="currentColor" stroke="none"><circle cx="9" cy="8.6" r="1.1"/><circle cx="14.6" cy="8.2" r="1.1"/><circle cx="12" cy="12.4" r="1.1"/><circle cx="8.2" cy="14.6" r="1.1"/><circle cx="15.6" cy="14" r="1.1"/><circle cx="12.4" cy="17" r="1.1"/></g>',
+  paddles: '<path d="M4.2 6.6a3.6 3.6 0 015.1-5.1l2.3 2.3a3.6 3.6 0 01-5.1 5.1zM19.8 6.6a3.6 3.6 0 00-5.1-5.1l-2.3 2.3a3.6 3.6 0 005.1 5.1z" fill="currentColor" fill-opacity=".22"/><path d="M4.2 6.6a3.6 3.6 0 015.1-5.1l2.3 2.3a3.6 3.6 0 01-5.1 5.1zM19.8 6.6a3.6 3.6 0 00-5.1-5.1l-2.3 2.3a3.6 3.6 0 005.1 5.1z"/><path d="M9.5 11l9.7 9.7M14.5 11l-9.7 9.7" stroke-width="2.4" stroke-linecap="round"/>',
+  net: '<path d="M3 7v13M21 7v13" stroke-width="2.2" stroke-linecap="round"/><path d="M3 8h18v7H3z" fill="currentColor" fill-opacity=".14"/><path d="M3 8h18M3 15h18M7.5 8v7M12 8v7M16.5 8v7M3 11.5h18" stroke-width="1.2"/><path d="M3 8h18" stroke-width="2.4"/>',
+  court: '<rect x="5" y="2.5" width="14" height="19" rx="1.5" fill="currentColor" fill-opacity=".16"/><rect x="5" y="2.5" width="14" height="19" rx="1.5"/><path d="M5 12h14" stroke-width="2.4"/><path d="M5 9h14M5 15h14M12 2.5V9M12 15v6.5"/>',
+  trophy: '<path d="M7 3.5h10v5.5a5 5 0 01-10 0z" fill="currentColor" fill-opacity=".22"/><path d="M7 3.5h10v5.5a5 5 0 01-10 0zM7 5.5H4.2a3 3 0 003 4.4M17 5.5h2.8a3 3 0 01-3 4.4M12 14v3.5M8.5 21h7M9.5 17.5h5V21h-5z"/>',
+  pickle: '<path d="M7.2 18.8c-3-3-1.9-9.4 2.4-13.6 2.6-2.6 6.4-3.4 8.2-1.6s1 5.6-1.6 8.2c-4.2 4.3-6 9.9-9 7z" fill="currentColor" fill-opacity=".22"/><path d="M7.2 18.8c-3-3-1.9-9.4 2.4-13.6 2.6-2.6 6.4-3.4 8.2-1.6s1 5.6-1.6 8.2c-4.2 4.3-6 9.9-9 7z"/><g fill="currentColor" stroke="none"><circle cx="11" cy="8.6" r=".9"/><circle cx="14.6" cy="6.8" r=".9"/><circle cx="9.4" cy="12.6" r=".9"/><circle cx="12.6" cy="11.4" r=".9"/><circle cx="9.2" cy="16.4" r=".9"/></g>',
+  lightning: '<path d="M13.5 2.5L5 13.5h6l-1.5 8 8.5-11h-6z" fill="currentColor" fill-opacity=".25" stroke-linejoin="round"/>',
+  flame: '<path d="M12 21.5c-4 0-6.8-2.8-6.8-6.6 0-3.4 2.4-5.6 3.6-8.6.4 1.8 1.4 2.8 2.4 3.3.2-3 1.7-5.6 4.1-7.1-.3 2.6.9 4.4 2.3 6.2 1.1 1.5 1.9 3.3 1.9 5.5 0 4.2-3.3 7.3-7.5 7.3z" fill="currentColor" fill-opacity=".22" stroke-linejoin="round"/><path d="M12 21.5c-2 0-3.3-1.4-3.3-3.2 0-1.9 1.6-2.8 2.2-4.7 1.6 1 3.9 2.6 3.9 4.8 0 1.8-1.2 3.1-2.8 3.1z" fill="currentColor" stroke="none" fill-opacity=".7"/>',
+  target: '<circle cx="12" cy="12" r="9" fill="currentColor" fill-opacity=".14"/><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>'
+};
+const AVATAR_ICON_NAMES = { paddle: 'Paddle', ball: 'Ball', paddles: 'Crossed paddles', net: 'Net', court: 'Court', trophy: 'Trophy', pickle: 'Pickle', lightning: 'Banger', flame: 'On fire', target: 'Target' };
+const iconSvg = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">${AVATAR_ICONS[k] || ''}</svg>`;
+const AVATAR_EMOJI = ['🏓', '🥒', '🔥', '⚡', '🏆', '👑', '🎯', '💪', '😎', '🤩', '🥳', '😤', '🦖', '🦈', '🐯', '🦊', '🐼', '🦄', '🐸', '🦅', '🌶️', '🍕', '🌮', '🍀', '⭐', '🌈', '🚀', '💎', '🎸', '🧠'];
+function avatarOf(name) {
+  if (!club) return null;
+  const p = clubPlayers().find(x => sameName(x.name, name));
+  return (p && p.avatar) || null;
+}
+// What goes inside an avatar circle. Photos only come back from the server as JPEG or WebP data URLs.
+function avatarInner(name, override) {
+  const a = override !== undefined ? override : avatarOf(name);
+  if (a && a.type === 'photo' && /^data:image\/(jpeg|webp);base64,/.test(a.value)) return `<img class="av-img" src="${esc(a.value)}" alt="">`;
+  if (a && a.type === 'emoji') return `<span class="av-emoji">${esc(a.value)}</span>`;
+  if (a && a.type === 'icon' && AVATAR_ICONS[a.value]) return `<span class="av-icon">${iconSvg(a.value)}</span>`;
+  return esc(initials(name || '?'));
+}
+// Shrink a photo on the phone to a 160px square JPEG before it's sent.
+function photoToAvatar(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//.test(file.type)) return reject(new Error('Pick a photo.'));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.naturalWidth, img.naturalHeight), S = 160;
+      const c = document.createElement('canvas'); c.width = c.height = S;
+      c.getContext('2d').drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, S, S);
+      URL.revokeObjectURL(url);
+      let q = 0.82, out = c.toDataURL('image/jpeg', q);
+      while (out.length > 55000 && q > 0.4) { q -= 0.1; out = c.toDataURL('image/jpeg', q); }
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That photo couldn't be opened. Try a different one.")); };
+    img.src = url;
+  });
+}
+function avatarSheetHTML(c) {
+  const name = myName();
+  const tabs = [['emoji', 'Emoji'], ['icon', 'Icons'], ['photo', 'Photo'], ['initials', 'Initials']];
+  const cur = c.pending !== undefined ? c.pending : avatarOf(name);
+  const sel = (type, value) => cur && cur.type === type && cur.value === value;
+  let body = '';
+  if (c.atab === 'emoji') body = `<div class="av-grid">${AVATAR_EMOJI.map(e => `<button type="button" class="av-pick ${sel('emoji', e) ? 'on' : ''}" data-av-emoji="${esc(e)}" aria-label="${esc(e)}"><span class="av-emoji">${esc(e)}</span></button>`).join('')}</div>
+    <form class="club-form" data-form="av-emoji"><label class="lab" for="av-emoji-in">Or type any emoji</label><div class="add-player"><input id="av-emoji-in" maxlength="16" autocomplete="off" placeholder="Tap the emoji key"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px">Use</button></div></form>`;
+  if (c.atab === 'icon') body = `<div class="av-grid icons">${Object.keys(AVATAR_ICONS).map(k => `<button type="button" class="av-pick ${sel('icon', k) ? 'on' : ''}" data-av-icon="${k}"><span class="av-icon">${iconSvg(k)}</span><small>${AVATAR_ICON_NAMES[k]}</small></button>`).join('')}</div>`;
+  if (c.atab === 'photo') body = `<label class="photo-drop" for="av-file"><span>${cur && cur.type === 'photo' ? 'Choose a different photo' : 'Choose a photo'}</span><small>It's cropped to a square and shrunk before it's saved. Everyone in ${esc(club.name)} can see it.</small></label><input id="av-file" type="file" accept="image/*" hidden>`;
+  if (c.atab === 'initials') body = `<p class="note">Use the letters of your name, like everyone starts with.</p><button type="button" class="btn btn-soft" data-av-initials="1">Use my initials</button>`;
+  return `<h2 id="club-h">Your picture</h2>
+    <div class="av-preview"><span class="av${frameClass(name)}">${avatarInner(name, cur || null)}</span><span>${styledName(name)}</span></div>
+    ${seg('data-av-tab', tabs, c.atab, 'sm')}
+    ${body}
+    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+    <div class="btns"><button class="btn btn-ink" data-act="av-save" ${c.busy || c.pending === undefined ? 'disabled' : ''}>Save picture</button><button class="btn btn-soft" data-act="club-close">Cancel</button></div>`;
+}
+async function saveAvatar() {
+  const c = clubSheet;
+  c.busy = true; c.error = ''; renderClub();
+  try {
+    await shopCall({ action: 'avatar', name: myName(), playerToken: myToken(), avatar: c.pending || { type: 'initials' } });
+    clubSheet = null; showToast('Picture saved', false);
+    await refreshClub(); render(); renderProfile();
+  } catch (err) { c.busy = false; c.error = err.message; renderClub(); }
+}
+
 const SLOT_LABEL = { title: 'Titles', frame: 'Avatar rings', style: 'Name styles', theme: 'Court themes', celebrate: 'Win celebrations' };
 const SLOT_NOTE = { title: 'Shown under your name.', frame: 'A ring around your initials.', style: 'How your name looks on the leaderboard.', theme: 'Your scoring screen on this phone.', celebrate: 'Plays when your team wins.' };
 const TROPHY_SVG = `<svg class="pv-trophy" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 8h28v14a14 14 0 01-28 0z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><path d="M18 12H9a9 9 0 009 12M46 12h9a9 9 0 01-9 12" fill="none" stroke="#F2C94C" stroke-width="4" stroke-linecap="round"/><path d="M28 35h8v10h-8z" fill="#E0A82E"/><path d="M20 46h24v8H20z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><circle cx="32" cy="20" r="5" fill="#DDF247" stroke="#9A6B00" stroke-width="1.5"/></svg>`;
@@ -1943,7 +2048,7 @@ function itemPreview(it, name) {
   if (it.slot === 'title') return `<span class="pv-title${it.rarity === 'legendary' ? ' p-title legendary' : ''}" style="${it.rarity === 'legendary' ? 'font-size:15px' : ''}">${esc(it.name)}</span>`;
   if (it.id === 'celebrate-trophy') return TROPHY_SVG;
   if (it.id === 'celebrate-fireworks') return `<span class="pv-fw">${Array.from({ length: 10 }, (_, i) => { const a = i / 10 * Math.PI * 2; return `<i style="transform:translate(${Math.round(Math.cos(a) * 20)}px,${Math.round(Math.sin(a) * 18)}px);background:${['#FFD54F', '#FF8AD8', '#6EE7FF'][i % 3]}"></i>`; }).join('')}</span>`;
-  if (it.slot === 'frame') return `<span class="avatar-mini ${it.id}">${esc(initials(name || 'You'))}</span>`;
+  if (it.slot === 'frame') return `<span class="avatar-mini ${it.id}">${name ? avatarInner(name) : 'You'}</span>`;
   if (it.slot === 'style') return `<span class="p-name ${it.id}">${esc(name || 'Your name')}</span>`;
   if (it.slot === 'theme') return `<span class="pv-theme ${it.id}"><i></i><i></i></span>`;
   return `<span class="pv-cele ${it.id}"><i></i><i></i><i></i><i></i><i></i></span>`;
@@ -1960,7 +2065,7 @@ function shopView() {
   const earnRules = `<ul class="earn"><li><b>+${s.earn.win}</b> for a win</li><li><b>+${s.earn.play}</b> for playing</li><li><b>+${s.earn.beatForecast}</b> for beating the forecast</li><li><b>+${s.earn.streak}</b> per win in a ${s.earn.streakFrom}+ win streak</li></ul>
     <p class="note">Full Dinks come from games scored live and sent from a player's own phone. Other games earn the +${s.earn.play} for playing. Up to ${s.earn.dailyCap} a day.</p>`;
   const walletCard = name
-    ? `<section class="wallet"><div class="w-top"><span class="avatar-mini${frameClass(name)}">${esc(initials(name))}</span><div class="w-who">${styledName(name)}</div><span class="badge you">You</span></div>
+    ? `<section class="wallet"><div class="w-top"><button class="av-btn" data-act="av-open" aria-label="Change your picture"><span class="avatar-mini${frameClass(name)}">${avatarInner(name)}</span><span class="av-edit">Edit</span></button><div class="w-who">${styledName(name)}</div><span class="badge you">You</span></div>
         <div class="w-bal"><b>${w.balance}</b><span>Dinks</span></div><div class="w-sub">${w.earned} earned, ${w.spent} spent</div>${earnRules}</section>`
     : `<section class="wallet"><h3>Who are you?</h3><p class="note">Link this phone to your name to see your Dinks and buy things.</p><button class="btn btn-ink" data-act="whoami-open">Choose my name</button>${earnRules}</section>`;
   const card = it => {
@@ -2214,7 +2319,9 @@ function renderProfile() {
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
   }
   root.innerHTML = `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
-    <div class="pf-head"><span class="av${frameClass(pr.name)}">${esc(initials(pr.name))}</span><h2 id="pf-h">${styledName(pr.name)}${youTag(pr.name)}${club && clubData ? `<span class="pf-dinks">${wallet(pr.name).balance} Dinks</span>` : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    <div class="pf-head"><span class="av${frameClass(pr.name)}">${avatarInner(pr.name)}</span><h2 id="pf-h">${styledName(pr.name)}${youTag(pr.name)}${club && clubData ? `<span class="pf-dinks">${wallet(pr.name).balance} Dinks</span>` : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
+    ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}</div></div>`;
   wireChart();
@@ -2295,6 +2402,17 @@ document.addEventListener('click', e => {
   if (ds.player) { profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
   if (ds.act === 'profile-close') { profile = null; renderProfile(); return; }
+  // Avatars
+  if (ds.act === 'av-open') { if (!myName()) { clubSheet = { view: 'whoami' }; renderClub(); return; } profile = null; renderProfile(); clubSheet = { view: 'avatar', atab: (avatarOf(myName()) || {}).type || 'emoji' }; if (clubSheet.atab === 'initials') clubSheet.atab = 'emoji'; renderClub(); return; }
+  if (ds.avTab) { clubSheet.atab = ds.avTab; clubSheet.error = ''; renderClub(); return; }
+  if (ds.avEmoji) { clubSheet.pending = { type: 'emoji', value: ds.avEmoji }; renderClub(); return; }
+  if (ds.avIcon) { clubSheet.pending = { type: 'icon', value: ds.avIcon }; renderClub(); return; }
+  if (ds.avInitials) { clubSheet.pending = null; renderClub(); return; }
+  if (ds.act === 'av-save') { saveAvatar(); return; }
+  if (ds.clearAvatar) {
+    if (el.dataset.armed !== '1') { el.dataset.armed = '1'; el.textContent = 'Tap again to remove it'; return; }
+    adminAction({ action: 'clear-avatar', name: ds.clearAvatar }, 'Picture removed').then(() => renderProfile()); return;
+  }
   // Who are you, and the shop
   if (ds.claim) { claimName(ds.claim); return; }
   if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
@@ -2411,6 +2529,12 @@ document.addEventListener('input', e => {
   if (ds.rwPrice !== undefined) d.rewards[+ds.rwPrice].price = Math.trunc(Number(t.value));
 });
 document.addEventListener('change', e => {
+  if (e.target.id === 'av-file' && clubSheet && clubSheet.view === 'avatar') {
+    const file = e.target.files && e.target.files[0];
+    photoToAvatar(file).then(url => { clubSheet.pending = { type: 'photo', value: url }; clubSheet.error = ''; renderClub(); })
+      .catch(err => { clubSheet.error = err.message; renderClub(); });
+    return;
+  }
   if (e.target.id === 'adm-rewards' && clubSheet && clubSheet.draft) { clubSheet.draft.rewardsEnabled = e.target.checked; renderClub(); }
 });
 document.addEventListener('input', e => {
@@ -2434,6 +2558,13 @@ document.addEventListener('submit', e => {
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
+  if (form.matches('[data-form="av-emoji"]')) {
+    e.preventDefault();
+    const v = $('#av-emoji-in').value.trim();
+    const count = typeof Intl.Segmenter === 'function' ? [...new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(v)].length : 1;
+    if (!v || count !== 1 || !/\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(v)) { clubSheet.error = 'Type a single emoji.'; renderClub(); return; }
+    clubSheet.pending = { type: 'emoji', value: v }; clubSheet.error = ''; renderClub(); return;
+  }
   if (form.matches('[data-form="whoami"]')) { e.preventDefault(); claimName($('#whoami-name').value); return; }
   if (form.matches('[data-form="whoami-pin"]')) { e.preventDefault(); clubSheet.claimPin = $('#whoami-pin').value.trim(); claimName(clubSheet.needPinFor); return; }
   if (form.matches('[data-form="pin-set"]')) { e.preventDefault(); pinSet($('#pin-old') ? $('#pin-old').value : '', $('#pin-new').value, $('#pin-new2').value); return; }
