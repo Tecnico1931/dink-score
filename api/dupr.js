@@ -11,7 +11,7 @@
 // DUPR data never goes into /api/club or the events API, so it stays out of anything public. Event matches reach DUPR only
 // from here and never write to `games`, so the app's ratings can't double count.
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, tokenMatches, cleanName, clientIp } from './_db.js';
-import { config, publicConfig, DuprError, userInfo, entitlements, userRatings, createBatch, updateMatch, deleteMatch } from './_dupr.js';
+import { config, publicConfig, DuprError, userInfo, entitlements, userRatings, createBatch, updateMatch, deleteMatch } from './_duprapi.js';
 import { ensureDuprSchema, linkMap, getPause, setPause } from './_dupr_store.js';
 import { listEventMatches, preflight, toDuprMatch, fingerprint, plan, chunk, cleanZone, classify, redact, BATCH_SIZE } from './_dupr_map.js';
 
