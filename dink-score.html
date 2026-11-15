@@ -2551,10 +2551,10 @@ function announceUnlocks() {
 
 /* ---------- levels: one for each player (with prestige) and one for the whole club ---------- */
 // Same rules as api/_dinks.js: only games sent from a club player's phone count, 10 XP a game and 5 more for a win,
-// at most 150 XP a player a day. Personal levels stop at
+// at most 300 XP a player a day. Personal levels stop at
 // LEVEL_MAX; a maxed player can prestige to start again from level 1 with a star and bonus Dinks. The club level adds up
 // every game the club has played and never stops.
-const XP = { game: 10, win: 5, dailyCap: 150 }, LEVEL_MAX = 25, PRESTIGE_ID = 'prestige', PRESTIGE_DINKS = 250;
+const XP = { game: 10, win: 5, dailyCap: 300 }, LEVEL_MAX = 25, PRESTIGE_ID = 'prestige', PRESTIGE_DINKS = 250;
 const levelNeed = n => 40 + 8 * (n - 1);
 function levelFrom(xp) {
   let level = 1, left = Math.max(0, Math.floor(xp));

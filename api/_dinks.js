@@ -325,7 +325,7 @@ export function computeProgress(games, now = Date.now()) {
 // made-up or backdated results must not be able to farm it. The app works out the same numbers in dink-score.html.
 // Personal levels stop at LEVEL_MAX. A maxed player can prestige: their level starts again from 1, they keep a prestige
 // star, and they get PRESTIGE_DINKS (stored as a purchase row with a negative price, like the daily spin).
-export const XP = { game: 10, win: 5, dailyCap: 150 };
+export const XP = { game: 10, win: 5, dailyCap: 300 };
 export const LEVEL_MAX = 25;
 export const PRESTIGE_ID = 'prestige';
 export const PRESTIGE_DINKS = 250;
