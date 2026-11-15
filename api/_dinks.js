@@ -87,20 +87,45 @@ export const CATALOG = [
   { id: 'title-lob-legend', slot: 'title', name: 'Lob Legend', price: 90 },
   { id: 'title-third-shot', slot: 'title', name: 'Third-Shot Wizard', price: 105 },
   { id: 'title-erne-artist', slot: 'title', name: 'Erne Artist', price: 120 },
+  { id: 'title-soft-hands', slot: 'title', name: 'Soft Hands', price: 60 },
+  { id: 'title-net-ninja', slot: 'title', name: 'Net Ninja', price: 75 },
+  { id: 'title-drop-doctor', slot: 'title', name: 'Drop Shot Doctor', price: 90 },
+  { id: 'title-speed-up', slot: 'title', name: 'Speed-Up Specialist', price: 105 },
+  { id: 'title-atp', slot: 'title', name: 'Around the Post', price: 135 },
   { id: 'frame-ball', slot: 'frame', name: 'Optic ring', price: 45 },
   { id: 'frame-cobalt', slot: 'frame', name: 'Cobalt ring', price: 45 },
   { id: 'frame-forest', slot: 'frame', name: 'Forest ring', price: 45 },
   { id: 'frame-sunset', slot: 'frame', name: 'Sunset ring', price: 90 },
   { id: 'frame-prism', slot: 'frame', name: 'Prism ring', price: 135 },
+  { id: 'frame-pickle', slot: 'frame', name: 'Pickle ring', price: 45 },
+  { id: 'frame-ice', slot: 'frame', name: 'Ice ring', price: 60 },
+  { id: 'frame-lava', slot: 'frame', name: 'Lava ring', price: 90 },
+  { id: 'frame-rainbow', slot: 'frame', name: 'Spinning rainbow', price: 180 },
   { id: 'style-gold', slot: 'style', name: 'Gold name', price: 120 },
   { id: 'style-glow', slot: 'style', name: 'Glowing name', price: 150 },
   { id: 'style-flame', slot: 'style', name: 'Flame name', price: 180 },
+  { id: 'style-pickle', slot: 'style', name: 'Pickle name', price: 120 },
+  { id: 'style-ice', slot: 'style', name: 'Ice name', price: 135 },
+  { id: 'style-neon', slot: 'style', name: 'Neon sign name', price: 165 },
   { id: 'theme-sunset', slot: 'theme', name: 'Sunset court', price: 150 },
   { id: 'theme-clay', slot: 'theme', name: 'Clay court', price: 150 },
   { id: 'theme-grass', slot: 'theme', name: 'Grass court', price: 150 },
   { id: 'theme-neon', slot: 'theme', name: 'Neon court', price: 210 },
+  { id: 'theme-beach', slot: 'theme', name: 'Beach court', price: 150 },
+  { id: 'theme-ice', slot: 'theme', name: 'Ice rink', price: 150 },
+  { id: 'theme-midnight', slot: 'theme', name: 'Midnight court', price: 150 },
+  { id: 'theme-arcade', slot: 'theme', name: 'Retro arcade', price: 210 },
   { id: 'celebrate-confetti', slot: 'celebrate', name: 'Confetti', price: 120 },
   { id: 'celebrate-balls', slot: 'celebrate', name: 'Ball burst', price: 120 },
+  { id: 'celebrate-pickles', slot: 'celebrate', name: 'Pickle rain', price: 150 },
+  { id: 'celebrate-paddles', slot: 'celebrate', name: 'Flying paddles', price: 150 },
+  { id: 'celebrate-hearts', slot: 'celebrate', name: 'Heart burst', price: 120 },
+  // Victory sounds: play on the scoring phone when your team wins. Made with Web Audio, so there are no files to load.
+  { id: 'sound-ding', slot: 'sound', name: 'Bell ding', price: 60 },
+  { id: 'sound-horn', slot: 'sound', name: 'Air horn', price: 90 },
+  { id: 'sound-arcade', slot: 'sound', name: '8-bit win', price: 105 },
+  { id: 'sound-drum', slot: 'sound', name: 'Drum roll', price: 135 },
+  { id: 'sound-crowd', slot: 'sound', name: 'Crowd roar', price: 150 },
   // Legendary: animated showpieces, priced for several weeks of steady winning (120 Dinks a day at most).
   { id: 'title-legend-erne', slot: 'title', name: 'Erne Overlord', price: 1500, rarity: 'legendary' },
   { id: 'title-legend-kitchen', slot: 'title', name: 'Ruler of the Kitchen', price: 1800, rarity: 'legendary' },
@@ -111,7 +136,9 @@ export const CATALOG = [
   { id: 'theme-aurora', slot: 'theme', name: 'Aurora court', price: 2700, rarity: 'legendary' },
   { id: 'theme-galaxy', slot: 'theme', name: 'Galaxy court', price: 2700, rarity: 'legendary' },
   { id: 'celebrate-fireworks', slot: 'celebrate', name: 'Fireworks', price: 2250, rarity: 'legendary' },
-  { id: 'celebrate-trophy', slot: 'celebrate', name: 'Trophy shower', price: 3000, rarity: 'legendary' }
+  { id: 'celebrate-trophy', slot: 'celebrate', name: 'Trophy shower', price: 3000, rarity: 'legendary' },
+  { id: 'title-legend-unbeaten', slot: 'title', name: 'The Unbeatable', price: 1650, rarity: 'legendary' },
+  { id: 'sound-fanfare', slot: 'sound', name: 'Royal fanfare', price: 1800, rarity: 'legendary' }
 ];
 // Every item gets a rarity for the shop: legendary as marked, rare from 120 Dinks, common below.
 for (const item of CATALOG) if (!item.rarity) item.rarity = item.price >= 120 ? 'rare' : 'common';
@@ -120,7 +147,12 @@ export const DEFAULT_REWARDS = [
   { id: 'reward-music', name: 'Choose the music', price: 60 },
   { id: 'reward-skip-pickup', name: 'Skip ball pickup', price: 45 }
 ];
-export const SLOTS = ['title', 'frame', 'style', 'theme', 'celebrate'];
+export const SLOTS = ['title', 'frame', 'style', 'theme', 'celebrate', 'sound'];
+// Daily spin: once per UTC day, a linked player spins the wheel for free Dinks. The server picks where it lands.
+// Stored as a purchase row (item SPIN_ID, negative price), so balances and the buy check need no other change.
+export const SPIN_ID = 'daily-spin';
+export const SPIN_WHEEL = [5, 10, 3, 15, 5, 25, 3, 50];
+export const SPIN_WEIGHTS = [20, 14, 22, 8, 20, 4, 22, 1]; // the 50 lands about 1 spin in 110
 
 // Club shop settings with defaults filled in. Stored on the club as JSON.
 export function shopSettings(raw) {

@@ -3,7 +3,7 @@
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, cleanPin, hashPin, requirePin, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
-import { CATALOG, EARN, shopSettings, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_PRIZES, SEASON_MIN_GAMES } from './_dinks.js';
+import { CATALOG, EARN, SPIN_WHEEL, shopSettings, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_PRIZES, SEASON_MIN_GAMES } from './_dinks.js';
 
 // Achievements, this week's challenges, trophies and Dinks (base + bonuses) for every player, as the server counts them.
 function progressFor(games) {
@@ -85,7 +85,7 @@ export default handler(async (req, res) => {
     // Shop: who has claimed a name (never the claim itself), what everyone wears and has bought, and the club's settings.
     players: roster.map(r => ({ name: r.name, claimed: r.claimed, equipped: r.equipped || {}, avatar: r.avatar || null })),
     purchases: purchases.map(p => ({ id: Number(p.id), player: p.name_key, itemId: p.item_id, itemName: p.item_name, price: p.price, reward: p.is_reward, givenAt: p.given_at ? new Date(p.given_at).getTime() : null, at: new Date(p.created_at).getTime() })),
-    shop: Object.assign({ catalog: CATALOG, earn: EARN }, shopSettings(shopRow && shopRow.shop)),
+    shop: Object.assign({ catalog: CATALOG, earn: EARN, spinWheel: SPIN_WHEEL }, shopSettings(shopRow && shopRow.shop)),
     progress: progressFor(games.map(r => r.data))
   });
 });

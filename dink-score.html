@@ -638,6 +638,53 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .pv-fw i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; margin: -2.5px; }
 @media (prefers-reduced-motion: reduce) { .p-title.legendary, .p-name.style-holo, .p-name.style-molten, .frame-orbit::after, .frame-crown::before, .item.legendary::before, .legend-sec .sec-head h3::before, .court[data-theme] .half { animation: none !important; } }
 
+/* More rings, name styles, courts and celebrations */
+.frame-pickle { box-shadow: 0 0 0 3px #7CB342, 0 0 0 5px #33691E !important; }
+.frame-ice { box-shadow: 0 0 0 3px #A8E6FF, 0 0 12px 3px rgb(120 210 255 / .6) !important; }
+.frame-lava { box-shadow: 0 0 0 3px #FF6A1A, 0 0 0 6px #8C1A00, 0 0 14px 3px rgb(255 90 20 / .5) !important; }
+.frame-rainbow::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: conic-gradient(#FF5A5A, #FFD54F, #7CFFB2, #6EE7FF, #B388FF, #FF8AD8, #FF5A5A); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); animation: spin 3s linear infinite; pointer-events: none; }
+.p-name.style-pickle { background: linear-gradient(180deg, #AED581, #558B2F 70%, #33691E); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
+.p-name.style-ice { background: linear-gradient(180deg, #CFF3FF, #5CC2FF 55%, #1C7FCC); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; filter: drop-shadow(0 0 1px rgb(20 90 150 / .55)) drop-shadow(0 0 6px rgb(120 210 255 / .45)); }
+.p-name.style-neon { color: #FF4FD8; font-weight: 800; text-shadow: 0 0 2px #fff, 0 0 8px #FF4FD8, 0 0 16px rgb(255 79 216 / .7); animation: neon 3.5s step-end infinite; }
+@keyframes neon { 0%, 100% { opacity: 1; } 41% { opacity: .55; } 42% { opacity: 1; } 44% { opacity: .6; } 45% { opacity: 1; } }
+.court[data-theme="theme-beach"] .half[data-k="a"], .pv-theme.theme-beach i:first-child { --c1: #E0A95A; --c2: #9A6324; background: radial-gradient(1px 1px at 20% 30%, rgb(255 255 255 / .5), transparent), radial-gradient(1px 1px at 70% 60%, rgb(255 255 255 / .4), transparent), linear-gradient(155deg, #E0A95A, #9A6324); }
+.court[data-theme="theme-beach"] .half[data-k="b"], .pv-theme.theme-beach i:last-child { --c1: #1FA8C9; --c2: #0A4F6E; background: linear-gradient(155deg, #1FA8C9, #0A4F6E); }
+.court[data-theme="theme-ice"] .half[data-k="a"], .pv-theme.theme-ice i:first-child { --c1: #4FA3D9; --c2: #164A7A; background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / .18) 41%, transparent 43%), linear-gradient(155deg, #4FA3D9, #164A7A); }
+.court[data-theme="theme-ice"] .half[data-k="b"], .pv-theme.theme-ice i:last-child { --c1: #6FB6C9; --c2: #1F5566; background: linear-gradient(65deg, transparent 55%, rgb(255 255 255 / .16) 56%, transparent 58%), linear-gradient(155deg, #6FB6C9, #1F5566); }
+.court[data-theme="theme-midnight"] .half[data-k="a"], .pv-theme.theme-midnight i:first-child { --c1: #34497A; --c2: #0B1226; background: linear-gradient(155deg, #34497A, #0B1226); box-shadow: inset 0 0 0 1.5px rgb(140 170 255 / .25); }
+.court[data-theme="theme-midnight"] .half[data-k="b"], .pv-theme.theme-midnight i:last-child { --c1: #5A3A7E; --c2: #150B26; background: linear-gradient(155deg, #5A3A7E, #150B26); box-shadow: inset 0 0 0 1.5px rgb(200 150 255 / .25); }
+.court[data-theme="theme-arcade"] .half[data-k="a"], .pv-theme.theme-arcade i:first-child { --c1: #FF3EA5; --c2: #4A0F7A; background: linear-gradient(rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(155deg, #FF3EA5, #4A0F7A); }
+.court[data-theme="theme-arcade"] .half[data-k="b"], .pv-theme.theme-arcade i:last-child { --c1: #19D3C5; --c2: #0B2F6B; background: linear-gradient(rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(155deg, #19D3C5, #0B2F6B); }
+.pv-theme.theme-arcade i { background-size: 8px 8px, 8px 8px, auto !important; }
+.pv-cele.celebrate-pickles i { width: 7px; height: 16px; border-radius: 99px; background: linear-gradient(90deg, #9CCC65, #558B2F); transform: rotate(25deg); }
+.pv-cele.celebrate-paddles i { width: 11px; height: 13px; border-radius: 6px 6px 5px 5px; background: #4361FF; }
+.pv-cele.celebrate-paddles i::after { content: ""; position: absolute; left: 4px; top: 12px; width: 3px; height: 6px; border-radius: 1px; background: #C9A27A; }
+.pv-cele.celebrate-paddles i:nth-child(even) { background: #FF8A5B; transform: rotate(-30deg); } .pv-cele.celebrate-paddles i:nth-child(odd) { transform: rotate(20deg); }
+.pv-cele.celebrate-hearts i { width: auto; height: auto; background: none; font-size: 14px; line-height: 1; color: #FF4D6D; } .pv-cele.celebrate-hearts i::before { content: "♥"; }
+.pv-cele.celebrate-hearts i:nth-child(even) { color: #FF8AD8; }
+.celebrate.celebrate-pickles i { width: 14px; height: 34px; border-radius: 99px; background: radial-gradient(circle at 30% 30%, rgb(255 255 255 / .35) 0 2px, transparent 3px), radial-gradient(circle at 60% 65%, rgb(0 0 0 / .18) 0 2px, transparent 3px), linear-gradient(90deg, #9CCC65, #558B2F 70%, #33691E); }
+.celebrate.celebrate-paddles i { width: 26px; height: 30px; border-radius: 13px 13px 11px 11px; box-shadow: inset 0 0 0 2px rgb(0 0 0 / .18); }
+.celebrate.celebrate-paddles i::after { content: ""; position: absolute; left: 10px; top: 28px; width: 6px; height: 14px; border-radius: 2px; background: #C9A27A; }
+.celebrate.celebrate-hearts i { width: auto; height: auto; border-radius: 0; background: none; font-size: 26px; line-height: 1; }
+.celebrate.celebrate-hearts i::before { content: "♥"; }
+/* Victory sound previews */
+.pv-play { border: 0; background: var(--ink); color: var(--bg); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer; }
+.pv-play svg { width: 16px; height: 16px; margin-left: 2px; }
+.pv-play.playing { background: var(--ball); color: var(--ball-ink); }
+/* Daily spin */
+.spin-card { background: var(--surface); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); display: grid; grid-template-columns: 132px 1fr; gap: 16px; align-items: center; }
+.spin-wrap { position: relative; width: 132px; height: 132px; }
+.spin-wheel { width: 100%; height: 100%; display: block; transform: rotate(var(--rot, 0deg)); filter: drop-shadow(0 6px 14px rgb(0 0 0 / .18)); }
+.spin-wheel.go { transition: transform 3.6s cubic-bezier(.12, .7, .14, 1); }
+.spin-wheel text { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 19px; }
+.spin-ptr { position: absolute; left: 50%; top: -6px; width: 18px; height: 20px; margin-left: -9px; background: var(--ink); clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 2px 2px rgb(0 0 0 / .25)); }
+.spin-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.spin-text h3 { margin: 0; }
+.spin-text .note { margin: 0; }
+.spin-won { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 30px; line-height: 1; color: var(--up); }
+@media (max-width: 360px) { .spin-card { grid-template-columns: 104px 1fr; gap: 12px; } .spin-wrap { width: 104px; height: 104px; } }
+@media (prefers-reduced-motion: reduce) { .frame-rainbow::before, .p-name.style-neon { animation: none !important; } .spin-wheel.go { transition-duration: .6s; } }
+
 /* Win celebrations */
 .celebrate { position: fixed; inset: 0; z-index: 120; pointer-events: none; overflow: hidden; }
 .celebrate i { position: absolute; top: -20px; width: 10px; height: 14px; border-radius: 2px; animation: fall 2.2s cubic-bezier(.25, .6, .4, 1) forwards; }
@@ -1732,7 +1779,7 @@ function rulesView() {
         <li>Logged results count the same as games scored live.</li></ul></div>
     <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer, each paying bonus Dinks. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 3.50. The top 3 with 5 or more games win a permanent trophy and 100, 60 or 40 Dinks.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
     <div class="rule"><h3>Earning Dinks</h3><p>In a club, every game earns each named player Dinks to spend in the shop.</p>
-      <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the same as games scored live. Games need to be sent from a club player's own phone (it doesn't have to be theirs) to earn more than the +2 for playing. Each player can earn up to 120 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li></ul></div>
+      <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the same as games scored live. Games need to be sent from a club player's own phone (it doesn't have to be theirs) to earn more than the +2 for playing. Each player can earn up to 120 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li><li>Linked players get one free spin a day in the shop for a few extra Dinks.</li></ul></div>
     <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
   </div>`;
 }
@@ -1844,6 +1891,7 @@ setInterval(() => { const el = document.getElementById('court-clock'); if (el &&
 document.addEventListener('pointerdown', e => {
   const h = e.target.closest && e.target.closest('.half[data-rally]');
   if (!h) return;
+  if (club && live && live.state.cfg.teams.some(t => t.some(n => !isDefaultName(n) && equippedFor(n).sound))) audioCtx();
   const r = h.getBoundingClientRect();
   lastTap = { t: h.dataset.rally, x: e.clientX - r.left, y: e.clientY - r.top };
 });
@@ -1862,6 +1910,8 @@ function dinksPreview(s) {
     live.celebrated = true;
     const fx = s.cfg.teams[s.winner].map(n => equippedFor(n).celebrate).find(Boolean);
     if (fx) setTimeout(() => celebrate(fx), 250);
+    const snd = s.cfg.teams[s.winner].map(n => equippedFor(n).sound).find(Boolean);
+    if (snd) playSound(snd);
   }
   return `<div class="dinks-row"><span class="lab">Dinks earned</span><div class="chips">${got.map(x => `<span class="dk-chip" style="--c:${TEAM_COLOR[x.t]}">${esc(x.n)} <b>+${x.d}</b></span>`).join('')}</div></div>`;
 }
@@ -2317,8 +2367,11 @@ function wallet(name) {
   const pendingEstimate = pendingGames ? (DK.compute(allGames()).get(key) || { earned: 0 }).earned - (DK.compute((clubData && clubData.games) || []).get(key) || { earned: 0 }).earned : 0;
   const earned = prog ? prog.earned + Math.max(0, pendingEstimate) : (DK.compute(allGames()).get(key) || { earned: 0 }).earned;
   const mine = ((clubData && clubData.purchases) || []).filter(p => p.player === key);
-  const spent = mine.reduce((s, p) => s + p.price, 0);
-  return { earned, spent, balance: earned - spent, owned: new Set(mine.filter(p => !p.reward).map(p => p.itemId)), rewards: mine.filter(p => p.reward) };
+  const spins = mine.filter(p => p.itemId === SPIN_ID);
+  const bought = mine.filter(p => p.itemId !== SPIN_ID);
+  const won = spins.reduce((s, p) => s - p.price, 0);
+  const spent = bought.reduce((s, p) => s + p.price, 0);
+  return { earned: earned + won, spent, balance: earned + won - spent, owned: new Set(bought.filter(p => !p.reward).map(p => p.itemId)), rewards: bought.filter(p => p.reward), spins };
 }
 async function shopCall(body) {
   return api('shop', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
@@ -2554,8 +2607,8 @@ async function saveAvatar() {
   } catch (err) { c.busy = false; c.error = err.message; renderClub(); }
 }
 
-const SLOT_LABEL = { title: 'Titles', frame: 'Avatar rings', style: 'Name styles', theme: 'Court themes', celebrate: 'Win celebrations' };
-const SLOT_NOTE = { title: 'Shown under your name.', frame: 'A ring around your initials.', style: 'How your name looks on the leaderboard.', theme: 'Your scoring screen on this phone.', celebrate: 'Plays when your team wins.' };
+const SLOT_LABEL = { title: 'Titles', frame: 'Avatar rings', style: 'Name styles', theme: 'Court themes', celebrate: 'Win celebrations', sound: 'Victory sounds' };
+const SLOT_NOTE = { title: 'Shown under your name.', frame: 'A ring around your initials.', style: 'How your name looks on the leaderboard.', theme: 'Your scoring screen on this phone.', celebrate: 'Plays when your team wins.', sound: 'Plays on the scoring phone when your team wins. Tap to hear it.' };
 const TROPHY_SVG = `<svg class="pv-trophy" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 8h28v14a14 14 0 01-28 0z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><path d="M18 12H9a9 9 0 009 12M46 12h9a9 9 0 01-9 12" fill="none" stroke="#F2C94C" stroke-width="4" stroke-linecap="round"/><path d="M28 35h8v10h-8z" fill="#E0A82E"/><path d="M20 46h24v8H20z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><circle cx="32" cy="20" r="5" fill="#DDF247" stroke="#9A6B00" stroke-width="1.5"/></svg>`;
 function itemPreview(it, name) {
   if (it.slot === 'title') return `<span class="pv-title${it.rarity === 'legendary' ? ' p-title legendary' : ''}" style="${it.rarity === 'legendary' ? 'font-size:15px' : ''}">${esc(it.name)}</span>`;
@@ -2564,6 +2617,7 @@ function itemPreview(it, name) {
   if (it.slot === 'frame') return `<span class="avatar-mini ${it.id}">${name ? avatarInner(name) : 'You'}</span>`;
   if (it.slot === 'style') return `<span class="p-name ${it.id}">${esc(name || 'Your name')}</span>`;
   if (it.slot === 'theme') return `<span class="pv-theme ${it.id}"><i></i><i></i></span>`;
+  if (it.slot === 'sound') return `<button class="pv-play" data-sound="${it.id}" aria-label="Play ${esc(it.name)}"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg></button>`;
   return `<span class="pv-cele ${it.id}"><i></i><i></i><i></i><i></i><i></i></span>`;
 }
 let armedBuy = null;
@@ -2598,7 +2652,7 @@ function shopView() {
   };
   const legends = s.catalog.filter(i => i.rarity === 'legendary');
   const legendSec = legends.length ? `<section class="legend-sec"><div class="sec-head"><h3>Legendary</h3></div><div class="items">${legends.map(card).join('')}</div></section>` : '';
-  const byslot = ['title', 'frame', 'style', 'theme', 'celebrate'].map(slot => {
+  const byslot = ['title', 'frame', 'style', 'theme', 'celebrate', 'sound'].map(slot => {
     const items = s.catalog.filter(i => i.slot === slot && i.rarity !== 'legendary');
     return `<section class="shop-sec"><div class="sec-head"><h3>${SLOT_LABEL[slot]}</h3><span class="note">${SLOT_NOTE[slot]}</span></div>
       <div class="items">${items.map(card).join('')}</div></section>`;
@@ -2610,7 +2664,54 @@ function shopView() {
     }).join('')}</div>
     ${w && w.rewards.length ? `<p class="note">Your rewards: ${w.rewards.slice(-5).reverse().map(p => `${esc(p.itemName)} (${p.givenAt ? 'given' : 'waiting for an organizer'})`).join(', ')}</p>` : ''}</section>` : '';
   const admin = club.hasPin || isCreator() ? `<section><button class="btn btn-soft block" data-act="shop-admin-open">Manage shop${pendingRewards().length ? ` (${pendingRewards().length} to hand out)` : ''}</button></section>` : '';
-  return head + walletCard + legendSec + byslot + rewards + admin;
+  return head + walletCard + (name ? spinCard(w, s) : '') + legendSec + byslot + rewards + admin;
+}
+// Daily spin: one free spin per UTC day. The server picks the result; the wheel only shows it.
+const SPIN_ID = 'daily-spin';
+const SPIN_COLORS = ['#DDF247', '#4361FF', '#17B988', '#FF8A5B', '#B388FF', '#FF4D6D', '#6EE7FF', '#F2C94C'];
+let spinRot = 0, spinBusy = false;
+const utcDay = t => new Date(t).toISOString().slice(0, 10);
+function spinToday(w) { const today = utcDay(Date.now()); return (w.spins || []).find(p => utcDay(p.at) === today) || null; }
+function wheelSVG(values) {
+  const n = values.length, a = 360 / n, R = 96;
+  const pt = deg => { const r = (deg - 90) * Math.PI / 180; return [(Math.cos(r) * R).toFixed(2), (Math.sin(r) * R).toFixed(2)]; };
+  const segs = values.map((v, i) => {
+    const c = SPIN_COLORS[i % SPIN_COLORS.length];
+    const [x1, y1] = pt(i * a - a / 2), [x2, y2] = pt(i * a + a / 2);
+    const dark = ['#4361FF', '#17B988', '#FF4D6D'].includes(c);
+    return `<path d="M0 0L${x1} ${y1}A${R} ${R} 0 0 1 ${x2} ${y2}Z" fill="${c}"/><text transform="rotate(${i * a}) translate(0 -62)" text-anchor="middle" dominant-baseline="middle" fill="${dark ? '#fff' : '#1B2104'}">${Number(v)}</text>`;
+  }).join('');
+  return `<svg class="spin-wheel" id="spin-wheel" viewBox="-100 -100 200 200" style="--rot:${spinRot}deg" aria-hidden="true"><circle r="99" fill="var(--ink)"/>${segs}<circle r="16" fill="var(--ink)"/><circle r="6" fill="var(--ball)"/></svg>`;
+}
+function spinCard(w, s) {
+  const values = s.spinWheel || [5, 10, 3, 15, 5, 25, 3, 50];
+  const done = spinToday(w);
+  const next = new Date(); next.setUTCHours(24, 0, 0, 0);
+  const mins = Math.max(1, Math.round((next - Date.now()) / 6e4));
+  const wait = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+  const text = done && !spinBusy
+    ? `<h3>Daily spin</h3><span class="spin-won">+${-done.price}</span><p class="note">Won today. Next spin in ${wait}.</p>`
+    : `<h3>Daily spin</h3><p class="note">Free Dinks once a day, up to ${Math.max(...values)}.</p><button class="btn btn-ink" data-act="spin" ${spinBusy ? 'disabled' : ''}>${spinBusy ? 'Spinning…' : 'Spin'}</button>`;
+  return `<section class="spin-card"><div class="spin-wrap">${wheelSVG(values)}<span class="spin-ptr"></span></div><div class="spin-text">${text}</div></section>`;
+}
+async function doSpin(btn) {
+  if (spinBusy) return;
+  spinBusy = true; if (btn) { btn.disabled = true; btn.textContent = 'Spinning…'; }
+  try {
+    const data = await shopCall({ action: 'spin', name: myName(), playerToken: myToken() });
+    const n = (shopInfo().spinWheel || []).length || 8, a = 360 / n;
+    const want = (360 - data.index * a + (Math.random() - 0.5) * a * 0.6 + 360) % 360;
+    spinRot = spinRot + 360 * 5 + ((want - spinRot % 360) + 360) % 360;
+    const el = document.getElementById('spin-wheel');
+    if (el) { el.classList.add('go'); el.getBoundingClientRect(); el.style.setProperty('--rot', spinRot + 'deg'); }
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    await new Promise(r => setTimeout(r, el ? (reduce ? 700 : 3700) : 0));
+    spinBusy = false;
+    showToast(`You won ${data.amount} Dinks`, false);
+    if (data.amount >= 25) celebrate('celebrate-confetti');
+    await refreshClub();
+    if (tab === 'shop') safeRender();
+  } catch (err) { spinBusy = false; showToast(err.message, false); await refreshClub(); if (tab === 'shop') safeRender(); }
 }
 const pendingRewards = () => ((clubData && clubData.purchases) || []).filter(p => p.reward && !p.givenAt);
 async function buyItem(id) {
@@ -2649,7 +2750,7 @@ function shopAdminHTML(c) {
     <div class="field" style="margin:0"><span class="lab">Item prices (Dinks)</span><div class="adm-rows">${s.catalog.map(it => `<div class="adm-row"><span class="adm-item">${esc(it.name)}<small>${SLOT_LABEL[it.slot]}</small></span><input class="field-input price" type="number" inputmode="numeric" min="0" max="9999" data-price="${it.id}" value="${Number(d.prices[it.id])}" aria-label="${esc(it.name)} price"></div>`).join('')}</div></div>
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     <button class="btn btn-ink" data-act="adm-save" ${c.busy ? 'disabled' : ''}>Save shop</button>
-    ${((clubData && clubData.purchases) || []).length ? `<div class="field" style="margin:0"><span class="lab">Recent purchases</span><ul class="deleted">${clubData.purchases.slice(-15).reverse().map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}, ${Number(p.price)} Dinks</span><button class="link" data-refund="${p.id}">Refund</button></li>`).join('')}</ul><p class="note">Refunding gives the Dinks back and takes the item off.</p></div>` : ''}
+    ${((clubData && clubData.purchases) || []).some(p => p.itemId !== SPIN_ID) ? `<div class="field" style="margin:0"><span class="lab">Recent purchases</span><ul class="deleted">${clubData.purchases.filter(p => p.itemId !== SPIN_ID).slice(-15).reverse().map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}, ${Number(p.price)} Dinks</span><button class="link" data-refund="${p.id}">Refund</button></li>`).join('')}</ul><p class="note">Refunding gives the Dinks back and takes the item off.</p></div>` : ''}
     ${clubPlayers().some(p => p.claimed) ? `<div class="field" style="margin:0"><span class="lab">Names linked to phones</span><ul class="deleted">${clubPlayers().filter(p => p.claimed).map(p => `<li><span>${esc(p.name)}</span><button class="link" data-release="${esc(p.name)}">Release</button></li>`).join('')}</ul><p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p></div>` : ''}`}
     <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
@@ -2693,6 +2794,62 @@ async function adminSave() {
 async function adminAction(body, okMsg) {
   try { await shopCall(Object.assign(body, adminCreds())); showToast(okMsg, false); await refreshClub(); renderClub(); }
   catch (err) { showToast(err.message, false); }
+}
+
+// Victory sounds, made with Web Audio (no files). The audio context is only made when a sound may play, so phones
+// that aren't using one never have their music interrupted.
+let actx = null;
+function audioCtx() {
+  if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { actx = new C(); } catch { return null; } }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(ctx, { f, f2, type = 'sine', at = 0, dur = 0.3, vol = 0.25, attack = 0.01, out }) {
+  const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + at;
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(out || ctx.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(ctx, { at = 0, dur = 0.5, vol = 0.3, attack = 0.01, filter = 'bandpass', freq = 1000, q = 1, out }) {
+  const len = Math.ceil(ctx.sampleRate * (dur + 0.05)), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource(), bq = ctx.createBiquadFilter(), g = ctx.createGain(), t = ctx.currentTime + at;
+  src.buffer = buf; bq.type = filter; bq.frequency.value = freq; bq.Q.value = q;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(bq).connect(g).connect(out || ctx.destination); src.start(t); src.stop(t + dur + 0.05);
+}
+const NOTE = n => 440 * Math.pow(2, (n - 69) / 12);
+function playSound(id) {
+  const ctx = audioCtx();
+  if (!ctx) return;
+  const out = ctx.createGain(); out.gain.value = 0.9; out.connect(ctx.destination);
+  if (id === 'sound-ding') {
+    [[88, 0], [93, 0.22]].forEach(([n, at]) => { tone(ctx, { f: NOTE(n), at, dur: 1.4, vol: 0.3, out }); tone(ctx, { f: NOTE(n) * 2.76, at, dur: 0.5, vol: 0.06, out }); });
+  } else if (id === 'sound-horn') {
+    [[0, 0.22], [0.3, 0.22], [0.6, 0.9]].forEach(([at, dur]) => {
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400; lp.connect(out);
+      [233, 294, 349, 466].forEach(f => tone(ctx, { f: f * 0.985, f2: f, type: 'sawtooth', at, dur, vol: 0.07, attack: 0.02, out: lp }));
+    });
+  } else if (id === 'sound-arcade') {
+    [72, 76, 79, 84, 79, 84].forEach((n, i) => tone(ctx, { f: NOTE(n), type: 'square', at: i * 0.09, dur: i === 5 ? 0.6 : 0.09, vol: 0.09, attack: 0.003, out }));
+    tone(ctx, { f: NOTE(91), type: 'square', at: 0.54, dur: 0.6, vol: 0.05, attack: 0.003, out });
+  } else if (id === 'sound-drum') {
+    for (let i = 0; i < 22; i++) noise(ctx, { at: i * 0.055, dur: 0.08, vol: 0.06 + i * 0.012, freq: 1800, q: 0.7, out });
+    tone(ctx, { f: 110, f2: 45, at: 1.25, dur: 0.6, vol: 0.6, out });
+    noise(ctx, { at: 1.25, dur: 1.6, vol: 0.28, filter: 'highpass', freq: 5000, q: 0.5, out });
+  } else if (id === 'sound-crowd') {
+    noise(ctx, { dur: 2.4, vol: 0.32, attack: 0.5, freq: 900, q: 0.6, out });
+    noise(ctx, { at: 0.2, dur: 2.0, vol: 0.16, attack: 0.4, freq: 2400, q: 1.2, out });
+    for (let i = 0; i < 6; i++) tone(ctx, { f: 500 + Math.random() * 400, f2: 900 + Math.random() * 500, type: 'triangle', at: 0.3 + Math.random() * 1.2, dur: 0.45, vol: 0.025, attack: 0.08, out });
+    for (let i = 0; i < 14; i++) noise(ctx, { at: 0.2 + Math.random() * 1.8, dur: 0.05, vol: 0.12, freq: 2500, q: 2, out });
+  } else if (id === 'sound-fanfare') {
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(out);
+    const seq = [[67, 0, 0.14], [67, 0.15, 0.14], [67, 0.3, 0.14], [72, 0.45, 0.5], [76, 0.95, 0.25], [79, 1.2, 1.1]];
+    seq.forEach(([n, at, dur]) => { tone(ctx, { f: NOTE(n), type: 'sawtooth', at, dur, vol: 0.09, attack: 0.03, out: lp }); tone(ctx, { f: NOTE(n - 12), type: 'sawtooth', at, dur, vol: 0.05, attack: 0.03, out: lp }); });
+    [64, 67, 72].forEach(n => tone(ctx, { f: NOTE(n), type: 'triangle', at: 1.2, dur: 1.1, vol: 0.06, attack: 0.05, out: lp }));
+    noise(ctx, { at: 1.2, dur: 1.3, vol: 0.12, filter: 'highpass', freq: 6000, q: 0.5, out });
+  }
 }
 
 // Win celebrations: a short burst over the game-over screen when a winner has one equipped.
@@ -2742,12 +2899,15 @@ function celebrate(kind) {
     setTimeout(() => layer.remove(), 3000);
     return;
   }
-  for (let i = 0; i < 36; i++) {
+  const count = kind === 'celebrate-pickles' || kind === 'celebrate-paddles' ? 24 : 36;
+  for (let i = 0; i < count; i++) {
     const b = document.createElement('i');
     b.style.left = (Math.random() * 100) + '%';
     b.style.animationDelay = (Math.random() * 0.5) + 's';
     b.style.setProperty('--dx', ((Math.random() - 0.5) * 160) + 'px');
     if (kind === 'celebrate-confetti') b.style.background = colors[i % colors.length];
+    if (kind === 'celebrate-paddles') b.style.background = ['#4361FF', '#FF8A5B', '#17B988', '#DDF247', '#FF4D6D'][i % 5];
+    if (kind === 'celebrate-hearts') { b.style.color = ['#FF4D6D', '#FF8AD8', '#FF2B5E', '#FFB3C7'][i % 4]; b.style.fontSize = (18 + Math.random() * 18) + 'px'; }
     layer.appendChild(b);
   }
   document.body.appendChild(layer);
@@ -2890,7 +3050,7 @@ function tourSteps() {
   if (API_OK) steps.push({ title: 'Share one record with your club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
     body: `<p>Tap <b>Join a club</b> at the top to start a club or join one with its code. Everyone in the club sees the same games, saved players and leaderboard on their own phone. No accounts needed.</p>` });
   if (API_OK) steps.push({ title: 'Earn Dinks, spend them in the shop', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>+10 a win</span><span>Titles</span><span>Courts</span></div>`,
-    body: `<p>When you join a club, pick your name. Every win earns you <b>Dinks</b> to spend in the <b>Shop</b> on titles, name styles, avatar rings, court themes and win celebrations. Your organizer can also add real club rewards.</p>` });
+    body: `<p>When you join a club, pick your name. Every win earns you <b>Dinks</b> to spend in the <b>Shop</b> on titles, name styles, avatar rings, court themes, win celebrations and victory sounds, and spin the wheel once a day for free Dinks. Your organizer can also add real club rewards.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
     body: isIOS
       ? `<p>In Safari, tap the <b>Share</b> button, then <b>Add to Home Screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>`
@@ -2978,6 +3138,8 @@ document.addEventListener('click', e => {
     el.disabled = true; el.textContent = 'Buying…'; buyItem(ds.buy); return;
   }
   if (ds.equip) { equipItem(ds.slot, ds.off ? null : ds.equip); return; }
+  if (ds.sound) { el.classList.add('playing'); setTimeout(() => el.classList.remove('playing'), 1400); playSound(ds.sound); return; }
+  if (ds.act === 'spin') { doSpin(el); return; }
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); return; }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.act === 'shop-admin-open') { clubSheet = { view: 'shopadmin' }; renderClub(); return; }

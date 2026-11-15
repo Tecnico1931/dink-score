@@ -3,6 +3,7 @@
 //                                                       (a name that already has Dinks needs an organizer to confirm)
 //   buy      {name, playerToken, itemId}             -> spends Dinks on a catalog item or a club reward
 //   equip    {name, playerToken, slot, itemId|null}  -> wears an owned item (or takes it off)
+//   spin     {name, playerToken}                     -> the daily wheel: once per UTC day, returns {index, amount}
 //   avatar   {name, playerToken, avatar}              -> sets your picture: {type: emoji|icon|photo, value} or {type: initials}
 //   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
 //   settings {pin|ownerToken, rewardsEnabled?, prices?, rewards?} -> organizer: change prices, toggle and edit rewards
@@ -10,7 +11,7 @@
 //   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp } from './_db.js';
-import { computeDinks, computeProgress, CATALOG, SLOTS, shopSettings } from './_dinks.js';
+import { computeDinks, computeProgress, CATALOG, SLOTS, shopSettings, SPIN_ID, SPIN_WHEEL, SPIN_WEIGHTS } from './_dinks.js';
 
 const MAX_CLAIMS_PER_DAY = 3; // names one network can link to phones per club per day without an organizer
 
@@ -116,6 +117,25 @@ export default handler(async (req, res) => {
       throw fail(402, `You need ${price} Dinks and have ${earned - spent}. Win more games to earn Dinks.`);
     }
     return send(res, 200, { ok: true, purchaseId: inserted[0].id });
+  }
+
+  if (body.action === 'spin') {
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    // The server picks the result, weighted, so the app can't choose a big win.
+    let r = crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32 * SPIN_WEIGHTS.reduce((a, b) => a + b, 0), index = 0;
+    while (r >= SPIN_WEIGHTS[index]) r -= SPIN_WEIGHTS[index++];
+    const amount = SPIN_WHEEL[index];
+    const lockKey = code + ':' + player.name_key;
+    const [, inserted] = await sql.transaction([
+      sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`,
+      sql`INSERT INTO purchases (club, name_key, item_id, item_name, price, is_reward)
+          SELECT ${code}, ${player.name_key}, ${SPIN_ID}, ${'Daily spin'}, ${-amount}, false
+          WHERE NOT EXISTS (SELECT 1 FROM purchases WHERE club = ${code} AND name_key = ${player.name_key} AND item_id = ${SPIN_ID}
+            AND created_at >= date_trunc('day', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')
+          RETURNING id`
+    ]);
+    if (!inserted.length) throw fail(409, 'You already spun today. Come back tomorrow.');
+    return send(res, 200, { ok: true, index, amount });
   }
 
   if (body.action === 'avatar') {
