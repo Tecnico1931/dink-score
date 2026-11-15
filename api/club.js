@@ -3,6 +3,7 @@
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, cleanPin, hashPin, requirePin, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
+import { duprFrom } from './_dupr.js';
 import { XP, LEVEL_MAX, PRESTIGE_DINKS, CATALOG, EARN, SPIN_WHEEL, shopSettings, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_PRIZES, SEASON_MIN_GAMES } from './_dinks.js';
 
 // Achievements, this week's challenges, trophies and Dinks (base + bonuses) for every player, as the server counts them.
@@ -74,7 +75,7 @@ export default handler(async (req, res) => {
   const [games, deleted, roster, purchases, [shopRow]] = await Promise.all([
     sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
-    sql`SELECT name, claim_hash IS NOT NULL AS claimed, equipped, avatar, prestige FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
+    sql`SELECT name, claim_hash IS NOT NULL AS claimed, equipped, avatar, prestige, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
     sql`SELECT id, name_key, item_id, item_name, price, is_reward, given_at, created_at FROM purchases WHERE club = ${code} ORDER BY id LIMIT 5000`,
     sql`SELECT shop FROM clubs WHERE code = ${code}`
   ]);
@@ -84,7 +85,7 @@ export default handler(async (req, res) => {
     deleted: deleted.map(r => Object.assign({}, r.data, { deletedAt: new Date(r.deleted_at).getTime() })),
     roster: roster.map(r => r.name),
     // Shop: who has claimed a name (never the claim itself), what everyone wears and has bought, and the club's settings.
-    players: roster.map(r => ({ name: r.name, claimed: r.claimed, equipped: r.equipped || {}, avatar: r.avatar || null, prestige: r.prestige || null })),
+    players: roster.map(r => ({ name: r.name, claimed: r.claimed, equipped: r.equipped || {}, avatar: r.avatar || null, prestige: r.prestige || null, dupr: duprFrom(r.dupr_rating) })),
     purchases: purchases.map(p => ({ id: Number(p.id), player: p.name_key, itemId: p.item_id, itemName: p.item_name, price: p.price, reward: p.is_reward, givenAt: p.given_at ? new Date(p.given_at).getTime() : null, at: new Date(p.created_at).getTime() })),
     shop: Object.assign({ catalog: CATALOG, earn: EARN, spinWheel: SPIN_WHEEL }, shopSettings(shopRow && shopRow.shop), { configured: !!(shopRow && shopRow.shop) }),
     progress: progressFor(games.map(r => r.data))

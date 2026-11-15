@@ -467,6 +467,13 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .frame-sunset { box-shadow: 0 0 0 3px #FF7A45, 0 0 0 6px #C2185B !important; }
 .frame-prism { box-shadow: 0 0 0 3px #FF2BD6, 0 0 0 6px #00E5FF, 0 0 14px 4px rgb(0 229 255 / .35) !important; }
 .avatar-mini { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--bg); display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
+.dupr { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.dupr small { font-size: 10px; font-weight: 500; opacity: .8; }
+.dupr-box { display: flex; flex-direction: column; gap: 8px; }
+.dupr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.dupr-form { display: flex; gap: 8px; align-items: stretch; }
+.dupr-form input { flex: 1; min-width: 0; border: 1px solid var(--line, #d6d6d6); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; color: var(--ink); }
+.dupr-form .btn { padding: 10px 16px; font-size: 15px; border-radius: 12px; }
 .pf-dinks { display: inline-block; margin-left: 8px; font-family: var(--ui); font-size: 13px; font-weight: 700; color: var(--ball-ink); background: var(--ball); border-radius: 999px; padding: 2px 9px; vertical-align: middle; }
 .tile.dinks { background: var(--ball); color: var(--ball-ink); }
 .tile.dinks .t-k, .tile.dinks .t-foot { color: rgb(27 33 4 / .72); }
@@ -1899,7 +1906,7 @@ function leadersView() {
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
   const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
       <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${levelChip(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
-        <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span><span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
+        <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
   const awards = [by(p => p.wins, 'Most wins', p => p.wins), by(p => p.best, 'Longest win streak', p => p.best), by(p => p.diff, 'Best point difference', p => '+' + p.diff), by(p => p.games, 'Most games', p => p.games)].join('');
@@ -2668,6 +2675,33 @@ function playerLevel(name) {
   return Object.assign(levelFrom(xp - pr.xpAt), { xp, prestige: pr.count });
 }
 const stars = n => n ? `<span class="lv-stars" aria-hidden="true">${n > 3 ? '★×' + n : '★'.repeat(n)}</span>` : '';
+// Self-reported DUPR rating (display only, never used for the Dink Rating, XP or order). Everyone in the club sees it.
+const DUPR_TIP = 'Self-reported by the player or an organizer. Not verified by DUPR.';
+const duprOf = name => { const p = club && clubPlayers().find(x => sameName(x.name, name)); return p && p.dupr ? p.dupr : null; };
+const duprChip = name => { const v = duprOf(name); return v ? `<span class="dupr" title="${DUPR_TIP}" aria-label="DUPR ${v.toFixed(2)}, self-reported, not verified">DUPR ${v.toFixed(2)}<small>self-reported</small></span>` : ''; };
+// That name's own phone, or an organizer (the only one who can set it on a guest name).
+const canSetDupr = name => !!club && !!clubData && clubPlayers().some(x => sameName(x.name, name)) && (isMe(name) || (club.hasPin ? hasOrganizer() : isCreator()));
+let duprEdit = null; // { name, value, error, busy } while the DUPR box in a profile is being edited
+function duprHTML(name) {
+  if (!club || !clubData) return '';
+  const v = duprOf(name), can = canSetDupr(name);
+  if (!v && !can) return '';
+  const e = duprEdit && sameName(duprEdit.name, name) ? duprEdit : null;
+  const live = e && $('#dupr-in');
+  const liveVal = live && !e.busy ? live.value : e ? e.value : '';
+  if (e) return `<div class="dupr-box"><label class="lab" for="dupr-in">DUPR rating</label><div class="dupr-form"><input id="dupr-in" type="text" inputmode="decimal" autocomplete="off" maxlength="6" placeholder="e.g. 3.52" value="${esc(liveVal)}"${e.busy ? ' disabled' : ''}><button type="button" class="btn btn-blue" data-act="dupr-save"${e.busy ? ' disabled' : ''}>${e.busy ? 'Saving…' : 'Save'}</button><button type="button" class="btn btn-soft" data-act="dupr-cancel">Cancel</button></div>${e.error ? `<p class="err" role="alert">${esc(e.error)}</p>` : ''}<p class="note">Optional, for reference only. Not sent to DUPR. Not verified. Everyone in ${esc(club.name)} can see it. Leave it empty and save to clear it.</p></div>`;
+  return `<div class="dupr-box"><div class="dupr-row">${v ? duprChip(name) : '<span class="note">No DUPR rating set</span>'}${can ? `<button type="button" class="link" data-act="dupr-edit">${v ? 'Edit' : 'Set DUPR rating'}</button>${v ? '<button type="button" class="link" data-act="dupr-clear">Clear</button>' : ''}` : ''}</div>${can && !v ? '<p class="note">Optional, for reference only. Not sent to DUPR. Not verified. Everyone in the club can see it.</p>' : ''}</div>`;
+}
+async function saveDupr(clear) {
+  const e = duprEdit; if (!e || e.busy) return;
+  const raw = clear ? '' : String(($('#dupr-in') || {}).value || '');
+  e.value = raw; e.error = ''; e.busy = true; renderProfile();
+  try {
+    const d = await shopCall(Object.assign({ action: 'dupr', name: e.name, rating: raw, playerToken: isMe(e.name) ? myToken() : '' }, adminCreds()));
+    const p = clubPlayers().find(x => sameName(x.name, e.name)); if (p) p.dupr = d.dupr;
+    duprEdit = null; showToast(d.dupr ? 'DUPR rating saved' : 'DUPR rating cleared', false); renderProfile(); render();
+  } catch (err) { e.busy = false; e.error = err.message; renderProfile(); }
+}
 const levelChip = name => { if (!club) return ''; const L = playerLevel(name); return `<span class="badge lv${L.maxed ? ' max' : ''}" aria-label="Level ${L.level}${L.prestige ? ', prestige ' + L.prestige : ''}">${stars(L.prestige)}Lv ${L.level}</span>`; };
 // Club level: 10 XP for every game; level n needs 50 x n XP to reach the next.
 const CLUB_XP = 10, clubNeed = n => 50 * n;
@@ -3239,7 +3273,7 @@ function wireChart() {
 }
 function renderProfile() {
   const root = $('#sheet4');
-  if (!profile) { root.innerHTML = ''; root._html = root._key = ''; return; }
+  if (!profile) { duprEdit = null; root.innerHTML = ''; root._html = root._key = ''; return; }
   const pr = playerProfile(profile.name, profile.mode, allGames());
   const games = pr.w + pr.l;
   const diff = pr.pf - pr.pa;
@@ -3265,6 +3299,7 @@ function renderProfile() {
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${levelCardHTML(pr.name)}
+    ${duprHTML(pr.name)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}
     ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`, profile.name + '|' + profile.mode);
@@ -3771,7 +3806,11 @@ document.addEventListener('click', e => {
   }
   if (ds.player) { if (clubSheet && el.closest && el.closest('#sheet3')) { clubSheet = null; renderClub(); } profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
-  if (ds.act === 'profile-close') { profile = null; renderProfile(); return; }
+  if (ds.act === 'profile-close') { profile = null; duprEdit = null; renderProfile(); return; }
+  if (ds.act === 'dupr-edit' && profile) { duprEdit = { name: profile.name, value: String(duprOf(profile.name) || ''), error: '', busy: false }; renderProfile(); const i = $('#dupr-in'); if (i) i.focus(); return; }
+  if (ds.act === 'dupr-cancel') { duprEdit = null; renderProfile(); return; }
+  if (ds.act === 'dupr-save') { saveDupr(false); return; }
+  if (ds.act === 'dupr-clear' && profile) { duprEdit = { name: profile.name, value: '', error: '', busy: false }; saveDupr(true); return; }
   if (ds.act === 'me-open') {
     if (club && myName()) { profile = { name: myName(), mode: ratingMode }; renderProfile(); }
     else if (club) { clubSheet = { view: 'whoami' }; renderClub(); }

@@ -59,6 +59,8 @@ export function ensureSchema() {
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS equipped jsonb NOT NULL DEFAULT '{}'::jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS avatar jsonb`; // {type: emoji|icon|photo, value}; none means initials
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS prestige jsonb`; // {count, xpAt}: times prestiged and lifetime XP at the last one
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS dupr_rating numeric(4,3)`; // self-reported, display only (see _dupr.js)
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS dupr_set_at timestamptz`;
       await q`CREATE TABLE IF NOT EXISTS purchases (
         id bigserial PRIMARY KEY,
         club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,

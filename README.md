@@ -22,6 +22,10 @@ Open **Events** from the Play tab (in a club). An organizer starts an event; any
 - **Record:** each finished match is saved once to the club's games (its id comes from the event and match), so ratings, the leaderboard and history count it exactly once. Fixing a score in the event fixes the game too.
 - **Organizers only:** creating an event, planning rounds, changing pairings, starting the knockout and fixing scores need the creating phone or the organizer PIN, like the shop settings. Everyone else can watch and score.
 
+## DUPR rating (self-reported)
+
+A player can add an optional DUPR rating (2.000 to 8.000) to their profile for reference inside the club. It is stored on the saved player (`roster.dupr_rating`), labelled "self-reported, not verified", visible to everyone in the club, and never sent to DUPR. It does not feed the Dink Rating, XP, achievements, leaderboard order or event seeding. Only that name's phone or an organizer can set or clear it; releasing a name clears it. It is not stored as a DUPR ID, name, link or password. Validation lives in `api/_dupr.js`. Any public or spectator view (such as a shared bracket) must not include it.
+
 ## Tests
 
 ```bash
