@@ -2279,7 +2279,7 @@ function shopView() {
     return `<div class="item ${owned ? 'owned' : ''} ${legend ? 'legendary' : ''}"><div class="pv">${itemPreview(it, name)}</div>${badge}<span class="iname">${esc(it.name)}</span>${!owned ? `<span class="iprice">${price} Dinks</span>` : '<span class="iprice">Owned</span>'}${goal}${action}</div>`;
   };
   const legends = s.catalog.filter(i => i.rarity === 'legendary');
-  const legendSec = legends.length ? `<section class="legend-sec"><div class="sec-head"><h3>Legendary</h3><span class="note">Animated, rare, and worth the grind.</span></div><div class="items">${legends.map(card).join('')}</div></section>` : '';
+  const legendSec = legends.length ? `<section class="legend-sec"><div class="sec-head"><h3>Legendary</h3></div><div class="items">${legends.map(card).join('')}</div></section>` : '';
   const byslot = ['title', 'frame', 'style', 'theme', 'celebrate'].map(slot => {
     const items = s.catalog.filter(i => i.slot === slot && i.rarity !== 'legendary');
     return `<section class="shop-sec"><div class="sec-head"><h3>${SLOT_LABEL[slot]}</h3><span class="note">${SLOT_NOTE[slot]}</span></div>
