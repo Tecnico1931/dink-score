@@ -1573,7 +1573,7 @@ function renderClub() {
           : isCreator() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button>'
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
-      ${shopHidden() && (club.hasPin || isCreator()) ? `<button class="btn btn-soft block" data-act="shop-admin-open">Set up shop</button>` : ''}
+      ${clubData && shopHidden() && (club.hasPin || isCreator()) ? `<button class="btn btn-soft block" data-act="shop-admin-open">Set up shop</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
@@ -2424,8 +2424,8 @@ const whoamiSkipped = () => !!(club && store.get('pb.whoamiSkip', {})[club.code]
 function skipWhoami() { const s = store.get('pb.whoamiSkip', {}); s[club.code] = Date.now(); store.set('pb.whoamiSkip', s); }
 const clubPlayers = () => (clubData && clubData.players) || [];
 const shopInfo = () => (clubData && clubData.shop) || null;
-// The shop stays hidden in a club until its organizer has saved shop settings (the server reports this as shop.configured).
-const shopHidden = () => !!club && !(shopInfo() && shopInfo().configured);
+// The shop shows only inside a club whose organizer has saved shop settings (the server reports this as shop.configured).
+const shopHidden = () => !(club && shopInfo() && shopInfo().configured);
 const youTag = n => (isMe(n) ? '<span class="badge you">You</span>' : '');
 function equippedFor(name) {
   const p = clubPlayers().find(x => sameName(x.name, name));
