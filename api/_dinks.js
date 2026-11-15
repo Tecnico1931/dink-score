@@ -39,7 +39,7 @@ const forecasts = sorted => replay(sorted).pA;
 // --- Earning ---
 export const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 120 };
 // Returns Map(nameKey -> { name, earned, games: { gameId: dinks } }).
-// Win, forecast and streak Dinks need a game scored live AND sent from the phone linked to one of its players (or the
+// Win, forecast and streak Dinks need a game (scored live or logged) sent from the phone linked to one of its players (or the
 // club creator), which the server records as scoredBy. Everything else earns only the play bonus, so made-up results
 // can't farm Dinks. The daily cap counts by the server's receivedAt, so backdating games doesn't get around it.
 // Each player earns at most EARN.dailyCap per UTC day.
@@ -58,7 +58,7 @@ export function computeDinks(games) {
         if (!name || /^Player \d+$/.test(name)) continue;
         const k = key(name);
         let n = EARN.play;
-        if (!g.logged && g.scoredBy) { // scored live and sent by one of its players (or the club creator), as the server recorded
+        if (g.scoredBy) { // sent by one of its players (or the club creator), as the server recorded; logged or live
           const s = won ? (streaks.get(k) || 0) + 1 : 0;
           streaks.set(k, s);
           if (won) n += EARN.win;
@@ -137,11 +137,11 @@ export function shopSettings(raw) {
 // ============================================================================================================
 // Achievements, weekly challenges and seasons. Worked out here on the server from the club's games, so the bonus
 // Dinks they pay can't be faked or drift from what the app shows (the app displays what the server sends).
-// Only verified games count: scored live and sent from the phone of one of its players (or the club creator).
+// Only verified games count: scored live or logged, and sent from the phone of one of its players (or the club creator).
 // "When" is the server's receive time, so backdating games doesn't change weeks or seasons.
 // ============================================================================================================
 const when = g => g.receivedAt || g.endedAt;
-const verified = g => !g.logged && !!g.scoredBy;
+const verified = g => !!g.scoredBy;
 const isNamed = n => { const s = String(n).trim(); return !!s && !/^Player \d+$/.test(s); };
 
 export const ACHIEVEMENTS = [
@@ -198,7 +198,7 @@ export function seasonOf(ts) {
 export const SEASON_PRIZES = [100, 60, 40];
 export const SEASON_MIN_GAMES = 5;
 // Final standings of a season for one format: everyone starts at 3.50 and only that season's verified games count
-// (scored live from a player's phone), so made-up results can't win a season. The app's season table uses the same rule.
+// (sent from a player's phone), so made-up results can't win a season. The app's season table uses the same rule.
 export function seasonStandings(games, season, mode) {
   const inSeason = games.filter(g => verified(g) && when(g) >= season.start && when(g) < season.end && (g.mode === 'singles' ? 'singles' : 'doubles') === mode)
     .sort((a, b) => a.endedAt - b.endedAt);
@@ -212,7 +212,7 @@ export function computeProgress(games, now = Date.now()) {
   const base = computeDinks(games);
   const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
   // Forecasts and ratings used to judge achievements and challenges (Giant killer, upsets, Four point oh) come from
-  // verified games only, so logged results can't be used to set them up.
+  // verified games only, so results sent from other phones can't be used to set them up.
   const { pA, after } = replay(sorted.filter(verified));
   const people = new Map();
   const get = (k, name) => {
