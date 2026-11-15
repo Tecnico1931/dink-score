@@ -20,8 +20,9 @@ test('only well-formed tokens are looked up', () => {
 
 // Every key a spectator may ever get. Adding a field to publicView means adding it here on purpose.
 const ALLOWED = {
-  top: ['v', 'name', 'format', 'partners', 'status', 'stage', 'target', 'scoring', 'winBy', 'courts', 'advance', 'poolDone', 'roundsPlanned', 'champion', 'updatedAt', 'standings', 'rounds', 'knockout', 'tree'],
-  standing: ['rank', 'name', 'played', 'wins', 'losses', 'diff'],
+  top: ['v', 'name', 'format', 'partners', 'status', 'stage', 'target', 'scoring', 'winBy', 'courts', 'advance', 'poolDone', 'roundsPlanned', 'champion', 'updatedAt', 'teamInfo', 'standings', 'rounds', 'knockout', 'tree'],
+  teamInfo: ['players', 'name', 'logo'],
+  standing: ['rank', 'name', 'logo', 'played', 'wins', 'losses', 'diff'],
   round: ['n', 'title', 'status', 'matches', 'byes'],
   knockoutRound: ['key', 'title', 'matches'],
   match: ['id', 'court', 'teams', 'score', 'status', 'winner', 'ready'],
@@ -34,6 +35,7 @@ const sameKeys = (o, list) => assert.deepEqual(keys(o), [...list].sort());
 
 function checkShape(p) {
   sameKeys(p, ALLOWED.top);
+  p.teamInfo.forEach(t => sameKeys(t, ALLOWED.teamInfo));
   p.standings.forEach(r => sameKeys(r, ALLOWED.standing));
   p.rounds.forEach(r => { sameKeys(r, ALLOWED.round); r.matches.forEach(m => sameKeys(m, ALLOWED.match)); });
   p.knockout.forEach(r => { sameKeys(r, ALLOWED.knockoutRound); r.matches.forEach(m => sameKeys(m, ALLOWED.match)); });
@@ -57,6 +59,40 @@ test('a private field added to an event, at any depth, never reaches a spectator
   for (const s of ['K7P2QX', '123456', 'ownerToken', 'ownerHash', 'pinHash', 'claimHash', 'shareToken', 'dinks', 'a@b.c', 'private', 'MATCH-SECRET', 'GAME-ID-SECRET', 'LINK-SECRET', 'SECRET-SEED', 'seed', 'gameId', 'startedAt', 'endedAt', 'rallies', 'purchases', 'clubCode'])
     assert.ok(!text.includes(s), `leaked ${s}`);
   checkShape(publicView(ev));
+});
+
+const teamsFrom = (format, extra = {}) => createEvent({ name: 'Cup', format, rotation: 'manual', partners: 'fixed', courts: 2, players, seed: 'SECRET-SEED',
+  teams: [[players[0], players[1]], [players[2], players[3]], [players[4], players[5]], [players[6], players[7]]],
+  teamMeta: [{ name: 'Net Ninjas', logo: 'https://example.com/a.png' }, { name: 'Drop Shots', logo: '' }, { name: '', logo: 'https://example.com/c.png' }, { name: 'Kitchen Crew' }], ...extra }, NOW);
+
+test('team names reach the public page; logos only when the organizer allowed them; DUPR IDs never', () => {
+  const ev = teamsFrom('single_elim');
+  ev.refs = { P1: 'K4M2P9' }; ev.duprId = 'K4M2P9'; ev.teamInfo[0].dupr = 'K4M2P9'; // even if one were planted in the event, only the allow-list leaves
+  const on = publicView(ev);
+  checkShape(on);
+  assert.deepEqual(on.teamInfo.map(t => t.name), ['Net Ninjas', 'Drop Shots', '', 'Kitchen Crew']);
+  assert.equal(on.teamInfo[0].logo, 'https://example.com/a.png');
+  assert.ok(!JSON.stringify(on).includes('K4M2P9'));
+  ev.publicLogos = false;
+  const off = publicView(ev);
+  assert.ok(off.teamInfo.every(t => t.logo === ''));
+  assert.ok(!JSON.stringify(off).includes('example.com'));
+  assert.deepEqual(off.teamInfo.map(t => t.name), on.teamInfo.map(t => t.name));
+});
+
+test('a stored logo that is not a safe https link is dropped, not served', () => {
+  const ev = teamsFrom('single_elim');
+  ev.teamInfo[0].logo = 'javascript:alert(1)'; ev.teamInfo[1].logo = 'http://example.com/x.png'; ev.teamInfo[2].logo = 'https://user:pw@example.com/x.png';
+  const p = publicView(ev);
+  assert.ok(p.teamInfo.every(t => !/javascript|http:|user:pw/.test(t.logo)));
+});
+
+test('fixed-team round robin standings carry the team name and logo', () => {
+  const ev = teamsFrom('roundrobin');
+  const p = publicView(ev);
+  checkShape(p);
+  assert.deepEqual(p.standings.map(r => r.name).sort(), ['Drop Shots', 'Kitchen Crew', 'Net Ninjas', 'P5 & P6'].sort());
+  assert.ok(p.standings.some(r => r.logo === 'https://example.com/a.png'));
 });
 
 test('the public view carries what a screen needs: names, scores, standings, champion', () => {

@@ -53,6 +53,36 @@ Lets a saved player connect their DUPR account, shows their DUPR rating, and let
 
 **Follow-ups, not built:** rating webhooks (Phase 2b), DUPR club matches (`matchSource: CLUB`), forfeits and retirements, removing matches of an event that was deleted.
 
+## Import players and teams from a sheet
+
+On **New event**, an organizer can tap *Import players and teams from a sheet* instead of picking players one by one. Nothing is created until the preview is checked and confirmed.
+
+**Three ways in** (no Google login, OAuth or API key anywhere):
+
+1. **Google Sheets link.** In the sheet choose **Share**, then **General access: Anyone with the link** (Viewer). A sheet *published to the web* works too. Paste the address. If the sheet has several tabs, open the tab with the players first, so the link carries its `gid`. The server reads the sheet once, as CSV, when the organizer taps *Read the sheet*.
+2. **Paste CSV**, or rows copied straight from a spreadsheet (tab-separated is detected).
+3. **Upload a .csv** (in Google Sheets: File, Download, Comma-separated values).
+
+**Columns.** The first row names them, in any order and capitals, spaces and punctuation ignored; other columns are ignored. The app says which layout it detected:
+
+| One row per player | One row per team |
+| --- | --- |
+| `Player` (required) | `Player 1`, `Player 2` (required) |
+| `Team` (rows sharing a name form a team) | `Team` |
+| `DUPR ID`, `Logo URL` (optional) | `DUPR ID 1`, `DUPR ID 2`, `Logo URL` (optional) |
+
+The screen offers a downloadable template for each layout; the accepted headers are defined in one place (`COLUMNS` in `sheet-import.js`), so the screen, the templates and the parser agree.
+
+**Preview.** Rows are grouped into teams, with a message beside each problem: missing or duplicate names, a team without exactly 2 players, a bad DUPR ID or logo link, too few players or teams for the format. Fix them in the preview or in the sheet and read it again. Up to 200 rows, 512 KB and 32 players.
+
+**What gets created.** Fixed-team round robin and single/double elimination use the sheet's teams, in sheet order (the first team is seed 1). With rotating partners there are no fixed teams, so only the players are added, and the preview says so. A sheet with no team column still works: the app pairs the players as set on the form. A team shows its name and logo, or its two players when it has neither, in the event, the standings, the Brackets page and the public page.
+
+**DUPR IDs** are an optional, private reference: uppercase, 5 to 10 letters and numbers, stored in their own column (`events.refs`), never inside the event. Only organizers can read them (the *Teams* card on the event). They are not checked with DUPR, never sent to DUPR, never on the public bracket page or any other response, and are labelled *reference only, unverified*, because DUPR does not accept typed-in IDs for results. Linking players for real is a separate feature.
+
+**Logos** are `https` links only (no `http`, `data:`, `javascript:`, credentials, ports, IP addresses or local names, 300 characters at most). The server never fetches them. Browsers load them with `referrerpolicy="no-referrer"`, lazily, in a fixed box with `object-fit: contain`, and the initials show if one fails. **Privacy tradeoff:** the Content-Security-Policy now allows images from any `https` site (`img-src https:`), so anyone who opens a page showing a logo, including spectators on the public bracket page, makes their browser contact the logo's website. Logos on the public page are on by default for imported events and organizers can switch them off per event (the *Team logos on the public page* card, or the checkbox in the preview). Team names are public either way.
+
+**Fetching the sheet (SSRF hardening).** `api/_gsheet.js` accepts only `https://docs.google.com/spreadsheets/d/<id>/...` links (published `/d/e/...` links too), takes only the sheet id and tab number from them and rebuilds the CSV address itself, follows at most 4 redirects by hand and only to `docs.google.com` or `*.googleusercontent.com`, sends no cookies or credentials, stops at 512 KB or 8 seconds, and requires a CSV answer. It is organizer-only and limited to 20 reads a minute per club. Tests never call Google: `fetch` is injected or stubbed.
+
 ## Tests
 
 ```bash

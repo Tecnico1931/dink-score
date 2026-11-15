@@ -846,6 +846,27 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .ev-back { width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); display: grid; place-items: center; flex: none; }
 .ev-back svg { width: 20px; height: 20px; }
 .ev-card { background: var(--surface); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+/* Sheet import: the preview groups rows into teams; every row is editable. */
+.imp-team { border: 1px solid var(--line); border-radius: 16px; padding: 10px; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.imp-team legend { padding: 0 6px; font-size: 13px; color: var(--muted); }
+.imp-head { display: flex; align-items: center; gap: 8px; }
+.imp-head .field-input { flex: 1; min-width: 0; }
+.imp-head .tlogo { margin: 0; width: 32px; height: 32px; }
+.imp-pl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 7.5em) auto; gap: 6px; align-items: center; }
+.imp-pl .field-input, .imp-team > .field-input, .imp-head .field-input, .imp-text { width: 100%; box-sizing: border-box; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; color: var(--ink); }
+.imp-dupr { text-transform: uppercase; letter-spacing: .04em; }
+.imp-text { font-family: ui-monospace, Menlo, monospace; font-size: 14px; resize: vertical; }
+.imp-msg { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.imp-msg:empty { display: none; }
+.imp-msg .err { margin: 0; }
+.imp-warn { color: var(--muted); }
+.imp-sum { margin: 0; font-size: 15px; display: flex; flex-direction: column; gap: 4px; }
+.imp-check { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+.imp-cols { margin: 0 0 4px; padding-left: 18px; }
+.imp-roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.imp-roster li { display: flex; align-items: center; gap: 10px; }
+.imp-roster .tlogo { margin: 0; width: 32px; height: 32px; }
+.imp-ref { font-variant-numeric: tabular-nums; letter-spacing: .04em; font-weight: 600; color: var(--ink); background: var(--surface-2); border-radius: 6px; padding: 0 6px; }
 button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font: inherit; }
 .ev-item-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .ev-item-head b { font-size: 17px; overflow-wrap: anywhere; min-width: 0; }
@@ -921,6 +942,14 @@ button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font:
 .bk-row.tbd .bk-name { font-weight: 400; }
 .bk-champ { display: flex; align-items: center; gap: 12px; width: 100%; height: 100%; padding: 0 16px; border-radius: 18px; background: var(--surface-2); color: var(--muted); box-sizing: border-box; font-size: 14px; line-height: 17px; }
 .bk-champ.won { background: var(--ink); color: var(--bg); box-shadow: var(--shadow); }
+/* Team logo: a fixed box, the whole image shown (never cropped or stretched). The initials only appear when the image fails to load (BK.watchLogos marks the box .bad). */
+.tlogo { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 7px; vertical-align: -6px; border-radius: 6px; overflow: hidden; background: color-mix(in srgb, var(--ink) 6%, var(--surface)); flex: none; }
+.tlogo.big { width: 40px; height: 40px; margin: 0; border-radius: 10px; }
+.tlogo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tlogo .tl-i { display: none; font: 700 12px/1 var(--ui); color: var(--ink); letter-spacing: .02em; }
+.tlogo.big .tl-i { font-size: 15px; }
+.tlogo.bad img { display: none; }
+.tlogo.bad .tl-i { display: block; }
 .bk-champ small { display: block; font-size: 13px; opacity: .8; }
 .bk-champ b { display: block; font-size: 17px; overflow-wrap: anywhere; }
 .bk-champ .ball { width: 24px; height: 24px; flex: none; }
@@ -1187,7 +1216,32 @@ const BK = (() => {
   const CW = 240, CH = 112, GX = 48, ROW = 128, HEAD = 36, SECT = 40; // card, gap between rounds, row pitch, header and section space (logical px)
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const TEAM = ['var(--blue)', 'var(--green)'];
-  const names = t => (t ? t.join(' & ') : '');
+  // Team names and logos (from a sheet import): ev.teamInfo is [{ players: [a, b], name, logo }]. A team is found by its
+  // players, whichever way round they are listed. Without a name a team is shown as its players, as before.
+  const tkey = t => t.slice().sort().join('|');
+  const TI = new WeakMap();
+  const infoOf = (ev, t) => {
+    const l = ev && ev.teamInfo;
+    if (!t || !l || !l.length) return null;
+    let m = TI.get(l);
+    if (!m) { m = new Map(l.map(i => [tkey(i.players || []), i])); TI.set(l, m); }
+    return m.get(tkey(t)) || null;
+  };
+  const teamName = (ev, t) => { if (!t) return ''; const i = infoOf(ev, t); return (i && i.name) || t.join(' & '); };
+  const initials = s => { const w = String(s || '').split(/\s+/).filter(Boolean); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase(); };
+  // The logo is the viewer's browser loading the organizer's https link (never fetched by the server). If it fails, the
+  // initials show instead: the page's error listener (watchLogos) marks the box, because inline handlers are not allowed.
+  const logoHTML = (ev, t, big) => {
+    const i = infoOf(ev, t), u = i && i.logo;
+    return u ? `<span class="tlogo${big ? ' big' : ''}" aria-hidden="true"><img src="${esc(u)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async"><span class="tl-i">${esc(initials(teamName(ev, t)))}</span></span>` : '';
+  };
+  const logoOfUrl = (u, label) => (u ? `<span class="tlogo" aria-hidden="true"><img src="${esc(u)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async"><span class="tl-i">${esc(initials(label))}</span></span>` : '');
+  let watching = false;
+  function watchLogos() {
+    if (watching || typeof document === 'undefined') return;
+    watching = true;
+    document.addEventListener('error', e => { const el = e.target; if (el && el.tagName === 'IMG' && el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('tlogo')) el.parentNode.classList.add('bad'); }, true);
+  }
   const CHECK = '<svg class="bk-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
   // Where everything goes. tree is event.tree: { kind, rounds: [{key, title}] (the rounds worth showing), matches: [...] }.
@@ -1281,12 +1335,13 @@ const BK = (() => {
   const scoreText = s => `${s[0]} to ${s[1]}`;
   function describe(n, o) {
     const m = n.m, sc = o.scoreOf ? o.scoreOf(m) : m.score;
-    const side = t => (m.slots[t] === -1 ? 'a bye' : names(m.teams[t]) || 'to be decided');
+    const ev = o.ev, nm = t => { const i = infoOf(ev, t); return teamName(ev, t) + (i && i.name ? ` (${t.join(' and ')})` : ''); };
+    const side = t => (m.slots[t] === -1 ? 'a bye' : nm(m.teams[t]) || 'to be decided');
     const win = sc ? (sc[0] > sc[1] ? 0 : 1) : m.status === 'bye' ? m.winner : null;
     const title = (o.titleOf && o.titleOf(m)) || '';
     let state;
-    if (m.status === 'bye') state = `${names(m.teams[win])} has a bye and moves on`;
-    else if (sc) state = `Final, ${scoreText(sc)}. ${names(m.teams[win])} won`;
+    if (m.status === 'bye') state = `${teamName(ev, m.teams[win])} has a bye and moves on`;
+    else if (sc) state = `Final, ${scoreText(sc)}. ${teamName(ev, m.teams[win])} won`;
     else if (m.ready) state = m.court ? `Ready to play on court ${m.court}` : 'Ready to play, waiting for a court';
     else state = m.id === 'F2' ? 'Only played if the losers bracket team wins the grand final' : 'Waiting for earlier matches';
     const f = n.feed;
@@ -1301,9 +1356,9 @@ const BK = (() => {
     const win = sc ? (sc[0] > sc[1] ? 0 : 1) : bye ? m.winner : null;
     const row = t => {
       const isBye = m.slots[t] === -1, tbd = !isBye && !m.teams[t];
-      const label = isBye ? 'Bye' : tbd ? 'To be decided' : names(m.teams[t]);
+      const label = isBye ? 'Bye' : tbd ? 'To be decided' : teamName(o.ev, m.teams[t]);
       const won = win === t && !bye;
-      return `<span class="bk-row${won ? ' win' : ''}${tbd ? ' tbd' : ''}" style="--c:${TEAM[t]}"><span class="bk-name">${esc(label)}${won ? '<span class="vh">, winner</span>' : ''}</span>${won ? CHECK : '<span></span>'}<span class="bk-pts">${sc ? sc[t] : ''}</span></span>`;
+      return `<span class="bk-row${won ? ' win' : ''}${tbd ? ' tbd' : ''}" style="--c:${TEAM[t]}"><span class="bk-name">${isBye || tbd ? '' : logoHTML(o.ev, m.teams[t])}${esc(label)}${won ? '<span class="vh">, winner</span>' : ''}</span>${won ? CHECK : '<span></span>'}<span class="bk-pts">${sc ? sc[t] : ''}</span></span>`;
     };
     const st = bye ? 'Bye, moves on' : saving ? 'Saving…' : sc ? 'Final' : m.ready ? `<b>Up next${m.court ? ` · Court ${m.court}` : ''}</b>` : m.id === 'F2' ? 'Only if the losers team wins' : 'Waiting for earlier matches';
     const f = n.feed, short = t => esc(String(t).replace(/^(Winners|Losers) round (\d+)$/, '$1 $2')); // the full name stays in the label
@@ -1318,13 +1373,13 @@ const BK = (() => {
   function champHTML(n, ev) {
     const c = ev.champion;
     const style = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
-    return `<li style="${style}"><div class="bk-champ${c ? ' won' : ''}" role="group" aria-label="${c ? 'Champions: ' + esc(names(c)) : 'Champion, to be decided'}">${c ? '<span class="ball"></span>' : ''}<span><small>${c ? 'Champions' : 'Champion'}</small><b>${c ? esc(names(c)) : 'To be decided'}</b></span></div></li>`;
+    return `<li style="${style}"><div class="bk-champ${c ? ' won' : ''}" role="group" aria-label="${c ? 'Champions: ' + esc(teamName(ev, c)) : 'Champion, to be decided'}">${c ? (logoHTML(ev, c, true) || '<span class="ball"></span>') : ''}<span><small>${c ? 'Champions' : 'Champion'}</small><b>${c ? esc(teamName(ev, c)) : 'To be decided'}</b></span></div></li>`;
   }
 
   // The scrollable, scalable bracket. opts: interactive (cards are buttons), sel (selected match id), scoreOf(m), saving(m).
   function bracketHTML(ev, opts = {}) {
     const L = layout(ev.tree);
-    const o = Object.assign({}, opts, { titleOf: m => (ev.tree.rounds.find(r => r.key === m.stage + m.round) || {}).title });
+    const o = Object.assign({}, opts, { ev, titleOf: m => (ev.tree.rounds.find(r => r.key === m.stage + m.round) || {}).title });
     const groups = L.headers.map(h => {
       const items = L.nodes.filter(n => (h.key === 'champion' ? n.kind === 'champion' : n.kind === 'match' && n.m.stage + n.m.round === h.key));
       const id = `bk-${h.key}`;
@@ -1356,18 +1411,18 @@ const BK = (() => {
   // Pool or round robin table. ev.standings rows: { rank, name, played, wins, losses, diff }.
   function standingsHTML(ev) {
     const cut = ev.format === 'pool_knockout' ? (ev.partners === 'fixed' ? ev.advance : ev.advance * 2) : 0;
-    const rows = ev.standings.map((r, i) => `<tr${cut && i === cut ? ' class="cut"' : ''}><td class="who"><span class="bk-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${esc(r.name)}${cut && i < cut ? ` <span class="bk-tag">${ev.tree ? 'In the knockout' : 'Advances'}</span>` : ''}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('');
+    const rows = ev.standings.map((r, i) => `<tr${cut && i === cut ? ' class="cut"' : ''}><td class="who"><span class="bk-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${logoOfUrl(r.logo, r.name)}${esc(r.name)}${cut && i < cut ? ` <span class="bk-tag">${ev.tree ? 'In the knockout' : 'Advances'}</span>` : ''}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('');
     return `<table class="bk-table"><caption class="vh">Wins, losses and point difference</caption><thead><tr><th scope="col" class="who">${ev.partners === 'fixed' ? 'Team' : 'Player'}</th><th scope="col">W–L</th><th scope="col">+/−</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // One match as a plain line, for schedules on the public page.
-  function lineHTML(m) {
+  function lineHTML(m, ev) {
     const sc = m.score, win = sc ? (sc[0] > sc[1] ? 0 : 1) : null;
-    const r = i => `<div class="r${win === i ? ' win' : ''}"><span>${esc(names(m.teams[i]) || 'To be decided')}${win === i ? '<span class="vh">, winner</span>' : ''}</span><span class="num">${sc ? sc[i] : ''}</span></div>`;
+    const r = i => `<div class="r${win === i ? ' win' : ''}"><span>${m.teams[i] ? logoHTML(ev, m.teams[i]) : ''}${esc(teamName(ev, m.teams[i]) || 'To be decided')}${win === i ? '<span class="vh">, winner</span>' : ''}</span><span class="num">${sc ? sc[i] : ''}</span></div>`;
     return `<li class="bk-mline">${r(0)}${r(1)}<div class="c">${sc ? 'Final' : m.court ? `Court ${m.court}` : 'Up next'}</div></li>`;
   }
 
-  return { layout, scale, bracketHTML, fitAll, standingsHTML, lineHTML, describe, esc, CW, CH, GX, ROW };
+  return { layout, scale, bracketHTML, fitAll, standingsHTML, lineHTML, describe, esc, teamName, logoHTML, logoOfUrl, initials, watchLogos, CW, CH, GX, ROW };
 })();
 /*BRACKETVIEW-END*/
 </script>
@@ -3796,9 +3851,9 @@ let evSummary = [];   // the club's events, for the home tile
 let evPending = false;
 const canOrganize = () => !!club && (isCreator() || (!!club.hasPin && !!pins[club.code]));
 const evCall = body => api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, adminCreds())) });
-const evTeamName = t => (t ? t.join(' & ') : 'To be decided');
+const evTeamName = (t, ev) => (t ? BK.teamName(ev, t) : 'To be decided'); // a team's name from the sheet, else its players
 function evNewForm() {
-  return { name: '', format: 'roundrobin', partners: 'rotating', rotation: 'auto', courts: 2, rounds: null, advance: 4, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, players: [], error: '', busy: false };
+  return { name: '', format: 'roundrobin', partners: 'rotating', rotation: 'auto', courts: 2, rounds: null, advance: 4, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, players: [], imp: null, error: '', busy: false };
 }
 const evDefaultRounds = n => Math.min(15, Math.max(3, n - 1));
 
@@ -3836,6 +3891,7 @@ async function evLoad(id, quiet) {
     const data = await api(`events?code=${club.code}&id=${encodeURIComponent(id)}`);
     if (evScreen !== s || s.id !== id) return;
     s.event = data.event; s.loading = false; if (!quiet) s.error = '';
+    evRefsLoad(s);
   } catch (err) {
     if (evScreen !== s) return;
     s.loading = false;
@@ -3865,10 +3921,12 @@ function renderEvents(force) {
   const sc = root.querySelector('.ev-screen');
   if (sc && y) sc.scrollTop = y;
   BK.fitAll(root);
+  if (evScreen.view === 'new') evImpRefresh(); // fills in the messages next to the import preview's rows
   root.querySelectorAll('.bk-scroll').forEach((e, i) => { if (sx[i]) e.scrollLeft = sx[i]; });
   if (pickId) { const b = root.querySelector(`[data-ev="pick"][data-m="${CSS.escape(pickId)}"]`); if (b) b.focus({ preventScroll: true }); }
   if (!old || root._focusKey !== key) { root._focusKey = key; const b = root.querySelector('.ev-back'); if (b) b.focus({ preventScroll: true }); }
 }
+BK.watchLogos();
 window.addEventListener('resize', () => { if (evScreen && evScreen.view === 'bracket') requestAnimationFrame(() => BK.fitAll($('#events'))); });
 document.addEventListener('focusout', () => { if (evPending) setTimeout(() => { if (evPending && !evTyping()) renderEvents(); }, 50); });
 setInterval(() => { if (evScreen && (evScreen.view === 'detail' || evScreen.view === 'bracket') && !document.hidden && !evScreen.busy && club) evLoad(evScreen.id, true); }, 8000);
@@ -3903,10 +3961,11 @@ function evNewHTML(s) {
   const f = s.form, n = f.players.length, rotating = f.partners === 'rotating' && (f.format === 'roundrobin' || f.format === 'pool_knockout');
   const elim = f.format === 'single_elim' || f.format === 'double_elim';
   const fixed = !rotating;
+  const imp = f.imp && f.imp.draft && imMod ? imMod.validate(f.imp.draft, evImpOpts(f)) : null; // the checked import, once a sheet has been read
   const rotLabels = rotating ? [['auto', 'Fair rotation'], ['random', 'Random draw'], ['manual', 'I pick']] : [['auto', 'Balanced'], ['random', 'Random draw'], ['manual', 'I pick']];
   const names = [...roster, ...f.players.filter(p => !roster.some(r => sameName(r, p)))];
   const chips = names.map(p => { const i = f.players.findIndex(x => sameName(x, p)); return `<button type="button" class="chip-btn" data-ev="pick" data-pl="${esc(p)}" aria-pressed="${i >= 0}">${i >= 0 && fixed && f.rotation === 'manual' ? `<span class="r">${i + 1}</span>` : ''}${esc(p)}</button>`; }).join('');
-  const hint = n < 4 ? 'Pick at least 4 players.' : fixed && n % 2 ? 'Fixed teams need an even number of players.' : f.format === 'double_elim' && n < 6 ? 'Double elimination needs at least 6 players (3 teams).'
+  const hint = imp ? (imp.ok ? '' : 'Fix the problems in the import first.') : n < 4 ? 'Pick at least 4 players.' : fixed && n % 2 ? 'Fixed teams need an even number of players.' : f.format === 'double_elim' && n < 6 ? 'Double elimination needs at least 6 players (3 teams).'
     : f.format === 'pool_knockout' && n < 8 ? 'Pool play and knockout needs at least 8 players.' : n > 32 ? 'An event holds at most 32 players.' : '';
   const rounds = f.rounds || evDefaultRounds(n || 8);
   const maxAdv = Math.max(2, Math.min(16, Math.floor(n / 2)));
@@ -3915,18 +3974,180 @@ function evNewHTML(s) {
     <div class="field"><label class="lab" for="ev-name">Name</label><input id="ev-name" class="field-input" data-ev-input="name" maxlength="40" autocomplete="off" placeholder="Saturday ladder, Club cup…" value="${esc(f.name)}"></div>
     <div class="field"><span class="lab">Format</span><div class="seg ev-seg2" role="group">${EV_FORMATS.map(([v, l]) => `<button type="button" data-ev="set" data-k="format" data-v="${v}" aria-pressed="${f.format === v}">${l}</button>`).join('')}</div><p class="note">${esc(EV_FORMAT_NOTE[f.format])}</p></div>
     ${elim ? '' : `<div class="field"><span class="lab">Partners</span>${evSeg('partners', [['rotating', 'Rotate every round'], ['fixed', 'Fixed teams']], f.partners)}</div>`}
-    <div class="field"><span class="lab">${rotating ? 'Who plays with whom' : 'Forming teams'}</span>${evSeg('rotation', rotLabels, f.rotation)}<p class="note">${esc(EV_ROT_NOTE[(rotating ? 'rotating-' : 'fixed-') + f.rotation])}</p></div>
+    ${imp && imp.usesTeams ? '' : `<div class="field"><span class="lab">${rotating ? 'Who plays with whom' : 'Forming teams'}</span>${evSeg('rotation', rotLabels, f.rotation)}<p class="note">${esc(EV_ROT_NOTE[(rotating ? 'rotating-' : 'fixed-') + f.rotation])}</p></div>`}
     ${evStepper('courts', 'Courts', f.courts, 1, 8)}
     ${rotating ? evStepper('rounds', 'Rounds', rounds, 1, 30) : ''}
     ${f.format === 'pool_knockout' ? evStepper('advance', 'Teams in the knockout', Math.min(f.advance, maxAdv), 2, maxAdv) : ''}
     <div class="seg-row" style="margin:0"><div class="field"><span class="lab">Play to</span>${evSeg('target', [[11, '11'], [15, '15'], [21, '21']], f.target)}</div>
       <div class="field" style="margin:0"><span class="lab">Win by</span>${evSeg('winBy', [[2, '2'], [1, '1']], f.winBy)}</div></div>
     <div class="field"><span class="lab">Scoring</span>${evSeg('scoring', [['sideout', 'Side-out'], ['rally', 'Rally']], f.scoring)}</div>
-    <div class="field"><div class="rhead"><span class="lab">Players (${n})</span><span><button type="button" class="link" data-ev="pick-all">All</button> <button type="button" class="link" data-ev="pick-none">None</button></span></div>
+    ${evImportHTML(f)}
+    ${imp ? '' : `<div class="field"><div class="rhead"><span class="lab">Players (${n})</span><span><button type="button" class="link" data-ev="pick-all">All</button> <button type="button" class="link" data-ev="pick-none">None</button></span></div>
       <div class="chips">${chips || '<span class="note">Add the players below.</span>'}</div>${teamsPreview}
-      <div class="add-player"><input id="ev-guest" data-ev-input="guest" placeholder="Add a player" autocomplete="off" maxlength="40" aria-label="Add a player"><button type="button" class="btn btn-soft" data-ev="guest" style="padding:10px 16px;border-radius:12px">Add</button></div></div>
+      <div class="add-player"><input id="ev-guest" data-ev-input="guest" placeholder="Add a player" autocomplete="off" maxlength="40" aria-label="Add a player"><button type="button" class="btn btn-soft" data-ev="guest" style="padding:10px 16px;border-radius:12px">Add</button></div></div>`}
     ${hint ? `<p class="note" role="status">${esc(hint)}</p>` : ''}${f.error ? `<p class="err" role="alert">${esc(f.error)}</p>` : ''}
-    <button type="submit" class="btn btn-ink block" ${f.busy || hint ? 'disabled' : ''}>${f.busy ? 'Starting…' : 'Start event'}</button></form>`;
+    <button type="submit" class="btn btn-ink block" ${imp ? 'data-imp-go' : ''} ${f.busy || hint ? 'disabled' : ''}>${f.busy ? 'Starting…' : imp ? `Create the event with ${imp.players.length} players` : 'Start event'}</button></form>`;
+}
+
+// ---- Import players and teams from a Google Sheet or a CSV (the parsing and checks live in sheet-import.js, loaded on demand) ----
+// The preview is edited in place: typing updates the draft and the messages next to each row without redrawing the form.
+let imMod = null;
+function imLoad() {
+  if (imMod || imLoad.started) return;
+  imLoad.started = true;
+  import('./sheet-import.js').then(m => { imMod = m; renderEvents(true); })
+    .catch(() => { imLoad.started = false; const im = evScreen && evScreen.form && evScreen.form.imp; if (im) { im.error = 'The importer could not load. Check your connection and try again.'; renderEvents(true); } });
+}
+const evRotating = f => f.partners === 'rotating' && (f.format === 'roundrobin' || f.format === 'pool_knockout');
+const evImpOpts = f => ({ format: f.format, partners: evRotating(f) ? 'rotating' : 'fixed' });
+const IMP_TABS = [['link', 'Google Sheet'], ['paste', 'Paste CSV'], ['file', 'Upload a file']];
+function impHelpHTML() {
+  const C = imMod.COLUMNS, list = ids => ids.map(id => `<li><b>${esc(C[id].label)}</b>: ${esc(C[id].about.replace(/^(one row per \w+|optional): /, ''))}</li>`).join('');
+  return `<details class="ev-more"><summary>Accepted columns and templates</summary>
+    <p class="note">The first row names the columns, in any order, in any capitals. Other columns are ignored. Two layouts work:</p>
+    <p class="note"><b>One row per player</b>, rows with the same Team form a team:</p><ul class="note imp-cols">${list(imMod.LAYOUT_COLUMNS.players)}</ul>
+    <p class="note"><b>One row per team</b>, with a Player 1 and a Player 2 column:</p><ul class="note imp-cols">${list(imMod.LAYOUT_COLUMNS.teams)}</ul>
+    <div class="ev-actions"><button type="button" class="btn btn-soft ev-small" data-ev="imp-tpl" data-v="players">Template: one row per player</button><button type="button" class="btn btn-soft ev-small" data-ev="imp-tpl" data-v="teams">Template: one row per team</button></div></details>`;
+}
+function evImportHTML(f) {
+  const im = f.imp;
+  if (!im) return `<div class="field"><button type="button" class="btn btn-soft block" data-ev="imp-open">Import players and teams from a sheet</button><p class="note">From a Google Sheet or a CSV file: player names, team names, team logo links and DUPR IDs.</p></div>`;
+  if (!imMod) { imLoad(); return `<div class="ev-card imp"><p class="note" role="status">${im.error ? esc(im.error) : 'Loading the importer…'}</p></div>`; }
+  if (im.draft) return evPreviewHTML(f);
+  const tabs = `<div class="seg" role="group" aria-label="Where the players come from">${IMP_TABS.map(([v, l]) => `<button type="button" data-ev="imp-tab" data-v="${v}" aria-pressed="${im.tab === v}">${l}</button>`).join('')}</div>`;
+  const src = im.tab === 'link'
+    ? `<div class="field"><label class="lab" for="imp-link">Link to the sheet</label><input id="imp-link" class="field-input" data-ev-input="imp-link" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://docs.google.com/spreadsheets/d/…" value="${esc(im.link)}">
+        <p class="note">In Google Sheets choose <b>Share</b>, then <b>General access: Anyone with the link</b> (Viewer). A sheet published to the web works too. Dink Score only reads the sheet once, when you tap Read; it never asks for your Google login. If the sheet has several tabs, open the one with the players before copying the link.</p></div>`
+    : im.tab === 'paste'
+      ? `<div class="field"><label class="lab" for="imp-text">Paste the rows, header row first</label><textarea id="imp-text" class="field-input imp-text" data-ev-input="imp-text" rows="7" spellcheck="false" autocapitalize="off" placeholder="Player,Team,DUPR ID,Logo URL">${esc(im.text)}</textarea><p class="note">CSV, or rows copied straight from a spreadsheet.</p></div>`
+      : `<div class="field"><label class="lab" for="imp-file">A .csv file</label><input id="imp-file" type="file" class="field-input" accept=".csv,text/csv,text/plain" data-ev-file="imp"><p class="note">${im.fileName ? esc(im.fileName) + ' · ' : ''}Up to 512 KB and 200 rows. In Google Sheets: File, Download, Comma-separated values.</p></div>`;
+  return `<div class="ev-card imp"><div class="ev-item-head"><h3>Import from a sheet</h3><button type="button" class="link" data-ev="imp-close">Cancel</button></div>${tabs}${src}
+    ${im.error ? `<p class="err" role="alert">${esc(im.error)}</p>` : ''}
+    ${im.tab === 'file' ? '' : `<button type="button" class="btn btn-ink" data-ev="imp-read" ${im.busy ? 'disabled' : ''}>${im.busy ? 'Reading…' : im.tab === 'link' ? 'Read the sheet' : 'Preview'}</button>`}
+    ${impHelpHTML()}</div>`;
+}
+function impMsgHTML(V, at) {
+  return V.errors.filter(e => e.at === at).map(e => `<span class="err">${esc(e.msg)}</span>`).join('') + V.warnings.filter(w => w.at === at).map(w => `<span class="note imp-warn">Check: ${esc(w.msg)}</span>`).join('');
+}
+function impSummaryHTML(f, V) {
+  const teams = V.usesTeams ? `, ${V.teams.length} team${V.teams.length === 1 ? '' : 's'}` : '';
+  const glob = V.errors.filter(e => e.at === 'g').map(e => `<span class="err">${esc(e.msg)}</span>`).join('');
+  const other = V.errors.length - V.errors.filter(e => e.at === 'g').length;
+  return `<b>${V.players.length} player${V.players.length === 1 ? '' : 's'}${teams}</b> · ${V.ok ? 'ready to create' : `${V.errors.length} problem${V.errors.length === 1 ? '' : 's'} to fix${other ? ' (marked below)' : ''}`}${V.warnings.length ? ` · ${V.warnings.length} to check` : ''}${glob}`;
+}
+function impPlayerRow(at, p, label) {
+  return `<div class="imp-pl"><input class="field-input" data-ev-draft="${at}:name" value="${esc(p.name)}" maxlength="60" autocomplete="off" placeholder="Player" aria-label="${esc(label)} name"><input class="field-input imp-dupr" data-ev-draft="${at}:dupr" value="${esc(p.dupr)}" maxlength="14" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="DUPR ID" aria-label="${esc(label)} DUPR ID, reference only"><button type="button" class="link" data-ev="imp-del" data-at="${at}" aria-label="Remove ${esc(label)}">Remove</button></div><div class="imp-msg" data-imp-at="${at}"></div>`;
+}
+function evPreviewHTML(f) {
+  const im = f.imp, d = im.draft, V = imMod.validate(d, evImpOpts(f));
+  const layout = d.layout === 'teams' ? 'one row per team (Player 1 and Player 2 columns)' : 'one row per player (rows with the same Team form a team)';
+  const why = V.usesTeams ? 'The teams from the sheet are used, in sheet order. In a bracket the first team is seed 1.'
+    : d.teams.length && evRotating(f) ? 'Partners rotate every round in this format, so team names and logos are not used: only the players are added. To use the sheet\'s teams, choose Fixed teams or a single or double elimination format above.'
+    : d.teams.length ? 'The teams in the sheet are not used here. The app forms the teams with the setting above.' : 'The sheet has no teams, so the app forms them with the setting above.';
+  let body = '';
+  if (V.usesTeams) {
+    body = d.teams.map((t, i) => {
+      const at = 't' + i, ok = !imMod.cleanLogoUrl(t.logo).error ? imMod.cleanLogoUrl(t.logo).value : '';
+      return `<fieldset class="imp-team"><legend class="vh">Team ${i + 1}</legend>
+        <div class="imp-head">${ok ? BK.logoOfUrl(ok, t.name || (t.players[0] || {}).name) : ''}<input class="field-input" data-ev-draft="${at}:name" value="${esc(t.name)}" maxlength="60" autocomplete="off" placeholder="Team ${i + 1} name (optional)" aria-label="Team ${i + 1} name"><button type="button" class="link" data-ev="imp-del" data-at="${at}" aria-label="Remove team ${i + 1}">Remove</button></div>
+        <input class="field-input" data-ev-draft="${at}:logo" value="${esc(t.logo)}" maxlength="400" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Logo link, https://… (optional)" aria-label="Team ${i + 1} logo link">
+        <div class="imp-msg" data-imp-at="${at}"></div>${t.players.map((p, j) => impPlayerRow(`${at}p${j}`, p, `Team ${i + 1} player ${j + 1}`)).join('')}</fieldset>`;
+    }).join('');
+    if (d.loose.length) body += `<fieldset class="imp-team"><legend>No team</legend>${d.loose.map((p, j) => impPlayerRow('l' + j, p, `Player without a team ${j + 1}`)).join('')}</fieldset>`;
+  } else {
+    const rows = [...d.teams.flatMap((t, i) => t.players.map((p, j) => [`t${i}p${j}`, p])), ...d.loose.map((p, j) => ['l' + j, p])];
+    body = `<fieldset class="imp-team"><legend class="vh">Players</legend>${rows.map(([at, p], k) => impPlayerRow(at, p, `Player ${k + 1}`)).join('')}</fieldset>`;
+  }
+  const anyLogo = V.usesTeams && d.teams.some(t => imMod.cleanLogoUrl(t.logo).value);
+  return `<div class="ev-card imp"><div class="ev-item-head"><h3>Check the import</h3><button type="button" class="link" data-ev="imp-reset">Use a different sheet</button></div>
+    <p class="note">Detected ${layout}. Columns found: ${esc(im.parsed.found.join(', '))}.</p><p class="note">${esc(why)}</p>
+    ${d.notes.map(n => `<p class="note imp-warn">${esc(n)}</p>`).join('')}
+    <p class="imp-sum" role="status" aria-live="polite" data-imp-sum>${impSummaryHTML(f, V)}</p>
+    <p class="note">Fix a name, team or link here, or edit the sheet and read it again. Nothing is created until you tap the button at the bottom.</p>
+    ${body}
+    <p class="note"><b>DUPR ID</b> is a private reference for organizers only. It is not checked with DUPR, never sent to DUPR, and never shown on the public bracket page. DUPR does not accept typed-in IDs for results, so it is unverified.</p>
+    ${anyLogo ? `<label class="imp-check"><input type="checkbox" data-ev-input="imp-publiclogos" ${im.publicLogos ? 'checked' : ''}> Show team logos on the public bracket page</label><p class="note">Logos load from the websites in your links, so a viewer's browser contacts those sites. Team names show either way. You can change this later.</p>` : ''}</div>`;
+}
+function evImpRefresh() {
+  const s = evScreen, f = s && s.form;
+  if (!f || !f.imp || !f.imp.draft || !imMod) return;
+  const V = imMod.validate(f.imp.draft, evImpOpts(f)), root = $('#events');
+  const sum = root.querySelector('[data-imp-sum]'); if (sum) sum.innerHTML = impSummaryHTML(f, V);
+  root.querySelectorAll('[data-imp-at]').forEach(el => { el.innerHTML = impMsgHTML(V, el.dataset.impAt); });
+  const go = root.querySelector('[data-imp-go]'); if (go) go.disabled = f.busy || !V.ok;
+}
+function impTarget(d, at) {
+  const m = /^t(\d+)(?:p(\d+))?$/.exec(at) || [], l = /^l(\d+)$/.exec(at) || [];
+  if (l[1] !== undefined) return d.loose[+l[1]] || null;
+  const t = d.teams[+m[1]];
+  return !t ? null : m[2] !== undefined ? t.players[+m[2]] || null : t;
+}
+function evImpSet(at, field, value) {
+  const f = evScreen && evScreen.form, d = f && f.imp && f.imp.draft, t = d && imMod && impTarget(d, at);
+  if (!t) return;
+  t[field] = field === 'dupr' ? value.trim().toUpperCase() : field === 'logo' ? value.trim() : imMod.cleanText(value);
+  evImpRefresh();
+}
+function evImpParse(text) {
+  const f = evScreen.form, im = f.imp, r = imMod.parseSheet(text);
+  im.busy = false;
+  if (!r.ok) { im.error = r.error; im.draft = null; }
+  else { im.error = ''; im.draft = r.draft; im.parsed = { layout: r.layout, found: r.found }; f.error = ''; }
+  renderEvents(true);
+}
+async function evImpRead() {
+  const s = evScreen, f = s && s.form, im = f && f.imp;
+  if (!im || im.busy || !imMod) return;
+  im.error = '';
+  if (im.tab !== 'link') { evImpParse(im.text); return; }
+  if (!im.link.trim()) { im.error = 'Paste the link to your Google Sheet first.'; renderEvents(true); return; }
+  im.busy = true; renderEvents(true);
+  try {
+    const data = await evCall({ action: 'sheet-fetch', url: im.link.trim() });
+    if (evScreen !== s || f.imp !== im) return;
+    im.text = data.csv;
+    evImpParse(data.csv);
+  } catch (err) {
+    if (err.status === 403) forgetPin();
+    if (evScreen !== s || f.imp !== im) return;
+    im.busy = false; im.error = err.message; renderEvents(true);
+  }
+}
+function evImpFile(input) {
+  const s = evScreen, f = s && s.form, im = f && f.imp, file = input.files && input.files[0];
+  if (!im || !file || !imMod) return;
+  im.fileName = file.name;
+  if (file.size > imMod.LIMITS.bytes) { im.error = 'That file is too large. Keep it under 512 KB.'; renderEvents(true); return; }
+  file.text().then(t => { if (evScreen === s && f.imp === im) { im.text = t; im.error = ''; evImpParse(t); } })
+    .catch(() => { im.error = 'Could not read that file.'; renderEvents(true); });
+}
+function evImpDownload(which) {
+  if (!imMod) return;
+  const url = URL.createObjectURL(new Blob([which === 'teams' ? imMod.TEMPLATE_TEAMS : imMod.TEMPLATE_PLAYERS], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `dink-score-${which === 'teams' ? 'teams' : 'players'}-template.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+// Buttons of the import. Returns true when the action was one of these.
+function evImpAct(a, d, f) {
+  if (a === 'imp-open') { f.imp = { tab: 'link', link: '', text: '', fileName: '', busy: false, error: '', draft: null, parsed: null, publicLogos: true }; imLoad(); renderEvents(true); const i = $('#imp-link'); if (i) i.focus({ preventScroll: true }); return true; }
+  if (!a.startsWith('imp-') || !f.imp) return false;
+  const im = f.imp;
+  if (a === 'imp-close') { f.imp = null; renderEvents(true); return true; }
+  if (a === 'imp-tab') { im.tab = d.v; im.error = ''; renderEvents(true); return true; }
+  if (a === 'imp-read') { evImpRead(); return true; }
+  if (a === 'imp-tpl') { evImpDownload(d.v); return true; }
+  if (a === 'imp-reset') { im.draft = null; im.parsed = null; im.error = ''; renderEvents(true); return true; }
+  if (a === 'imp-del' && im.draft) {
+    const dr = im.draft, m = /^t(\d+)(?:p(\d+))?$/.exec(d.at), l = /^l(\d+)$/.exec(d.at);
+    if (l) dr.loose.splice(+l[1], 1);
+    else if (m && m[2] !== undefined) dr.teams[+m[1]].players.splice(+m[2], 1);
+    else if (m) dr.teams.splice(+m[1], 1);
+    if (!dr.teams.length && !dr.loose.length) { im.draft = null; im.error = 'Nothing is left to import.'; }
+    renderEvents(true); return true;
+  }
+  return false;
 }
 
 // A result this phone has sent that the server has not confirmed yet (offline, or just sent).
@@ -3937,12 +4158,12 @@ function evMatchHTML(ev, m, org, allow = true) {
   const score = op ? op.score : m.score;
   const done = !!score;
   const win = done ? (score[0] > score[1] ? 0 : 1) : null;
-  const line = t => `<div class="line ${win === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(evTeamName(m.teams[t]))}<span class="vh"> ${TEAM_NAME[t]} team</span></span><span class="pts">${done ? score[t] : ''}</span></div>`;
+  const line = t => `<div class="line ${win === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${m.teams[t] ? BK.logoHTML(ev, m.teams[t]) : ''}${esc(evTeamName(m.teams[t], ev))}<span class="vh"> ${TEAM_NAME[t]} team</span></span><span class="pts">${done ? score[t] : ''}</span></div>`;
   const entry = allow && evScreen.entry && evScreen.entry.m === m.id ? evScreen.entry : null;
   const state = op ? '<span class="tag">Saving…</span>' : done ? '<span class="tag">Final</span>' : m.ready ? '' : '<span class="tag">Waiting for earlier matches</span>';
   const actions = !allow ? '' : !done && m.ready && !entry && ev.status !== 'done' ? `<button class="btn btn-ink ev-small" data-ev="live" data-m="${esc(m.id)}">Score live</button><button class="btn btn-soft ev-small" data-ev="enter" data-m="${esc(m.id)}">Enter score</button>`
     : done && !op && org && !entry ? `<button class="link" data-ev="fix" data-m="${esc(m.id)}">Fix score</button>` : '';
-  const form = entry ? `<form class="ev-entry" data-ev-form="entry" data-m="${esc(m.id)}">${[0, 1].map(t => `<label style="--c:${TEAM_COLOR[t]}"><span>${esc(evTeamName(m.teams[t]))}</span><input id="ev-s${t}" type="number" inputmode="numeric" min="0" max="99" data-ev-input="s${t}" value="${esc(entry.s[t])}" aria-label="${TEAM_NAME[t]} team score"></label>`).join('')}
+  const form = entry ? `<form class="ev-entry" data-ev-form="entry" data-m="${esc(m.id)}">${[0, 1].map(t => `<label style="--c:${TEAM_COLOR[t]}"><span>${esc(evTeamName(m.teams[t], ev))}</span><input id="ev-s${t}" type="number" inputmode="numeric" min="0" max="99" data-ev-input="s${t}" value="${esc(entry.s[t])}" aria-label="${TEAM_NAME[t]} team score"></label>`).join('')}
     ${entry.error ? `<p class="err" role="alert">${esc(entry.error)}</p>` : ''}<div class="ev-actions"><button type="submit" class="btn btn-blue ev-small">${entry.fix ? 'Save the fix' : 'Save score'}</button><button type="button" class="btn btn-soft ev-small" data-ev="entry-cancel">Cancel</button></div></form>` : '';
   return `<li class="game ev-game${done ? ' done' : ''}"><div class="lines">${line(0)}${line(1)}</div>
     <div class="meta">${m.court && !done ? `<span class="tag">Court ${m.court}</span>` : m.ready && !done ? '<span class="tag">Waiting for a court</span>' : ''}${state}</div>${actions ? `<div class="ev-actions">${actions}</div>` : ''}${form}</li>`;
@@ -3968,7 +4189,8 @@ function evDetailHTML(s) {
     <span class="note">${ev.partners === 'rotating' ? 'Partners rotate' : 'Fixed teams'} · ${ev.players.length} players · ${ev.courts} court${ev.courts === 1 ? '' : 's'} · to ${ev.target}, ${ev.scoring === 'rally' ? 'rally' : 'side-out'}, win by ${ev.winBy}</span>
     <span class="note">${esc(evProgress({ status: ev.status, champion: null, stage: ev.stage, round: (ev.rounds.find(r => r.status !== 'done') || ev.rounds[ev.rounds.length - 1] || { n: 1 }).n, roundsPlanned: ev.roundsPlanned }))}</span>
     <div class="ev-actions"><button class="btn btn-soft ev-small" data-ev="brackets">${ICON.bracket}Brackets</button></div></div>`);
-  if (ev.status === 'done' && ev.champion) out.push(`<div class="ev-champ" role="status"><span class="ball"></span><div><small>${ev.knockout ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(ev.champion.join(' & '))}</b></div></div>`);
+  if (ev.status === 'done' && ev.champion) out.push(`<div class="ev-champ" role="status">${BK.logoHTML(ev, ev.champion, true) || '<span class="ball"></span>'}<div><small>${ev.knockout ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(BK.teamName(ev, ev.champion))}</b></div></div>`);
+  if (org) out.push(evRosterHTML(s));
   // Now playing
   let nowTitle = '', now = [], byes = [], round = null;
   if (ev.knockout) {
@@ -4003,7 +4225,7 @@ function evDetailHTML(s) {
   // Standings
   if (ev.format !== 'single_elim' && ev.format !== 'double_elim') {
     out.push(`<section class="ev-sec" aria-labelledby="ev-st"><h3 id="ev-st">${ev.format === 'pool_knockout' ? 'Pool standings' : 'Standings'}</h3><div class="ev-card" style="padding:8px 12px"><table class="ev-table"><caption class="vh">Wins, losses and point difference</caption>
-      <thead><tr><th scope="col" class="who">${ev.partners === 'fixed' ? 'Team' : 'Player'}</th><th scope="col">W–L</th><th scope="col">+/−</th></tr></thead><tbody>${ev.standings.map(r => `<tr><td class="who"><span class="ev-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${esc(r.name)}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('')}</tbody></table></div>
+      <thead><tr><th scope="col" class="who">${ev.partners === 'fixed' ? 'Team' : 'Player'}</th><th scope="col">W–L</th><th scope="col">+/−</th></tr></thead><tbody>${ev.standings.map(r => `<tr><td class="who"><span class="ev-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${BK.logoOfUrl(r.logo, r.name)}${esc(r.name)}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('')}</tbody></table></div>
       ${ev.partners === 'rotating' ? '<p class="note">Ranked by wins, then point difference. Sitting out a round is not a loss.</p>' : ''}</section>`);
   }
   // The rest of the schedule
@@ -4054,6 +4276,27 @@ async function evShare(a) {
   }
   renderEvents(true);
 }
+// Organizers only: the private DUPR reference IDs typed into an imported sheet, fetched once per event (they are not part of the event).
+async function evRefsLoad(s) {
+  if (s.refsFor === s.id || !s.event || !canOrganize()) return;
+  s.refsFor = s.id;
+  try { const data = await evCall({ action: 'refs', id: s.id }); if (evScreen === s) { s.refs = data.refs || {}; renderEvents(); } } catch {}
+}
+function evRosterHTML(s) {
+  const ev = s.event, refs = s.refs || {}, has = Object.keys(refs).length;
+  if (!(ev.teamInfo && ev.teamInfo.length) && !has) return '';
+  const ref = p => (refs[p] ? ` <span class="imp-ref" title="Reference only, unverified">${esc(refs[p])}</span>` : '');
+  const rows = ev.partners === 'fixed' && ev.teams ? ev.teams.map(t => `<li>${BK.logoHTML(ev, t)}<span><b>${esc(BK.teamName(ev, t))}</b><br><span class="note">${t.map(p => esc(p) + ref(p)).join(' &amp; ')}</span></span></li>`)
+    : ev.players.filter(p => refs[p]).map(p => `<li><span>${esc(p)}${ref(p)}</span></li>`);
+  return `<section class="ev-card" aria-labelledby="ev-ros"><h3 id="ev-ros">${ev.partners === 'fixed' ? 'Teams' : 'Players'}</h3><ul class="imp-roster">${rows.join('')}</ul>
+    ${has ? '<p class="note">DUPR IDs are a private reference for organizers: unverified, not checked with DUPR, never sent to DUPR and never shown on the public page.</p>' : ''}</section>`;
+}
+function evLogosHTML(s) {
+  const ev = s.event;
+  if (!ev || !(ev.teamInfo || []).some(i => i.logo)) return '';
+  return `<div class="ev-card"><h3>Team logos on the public page</h3><p class="note">Team names always show. Logos load from the websites in the links you imported, so anyone who opens the public page contacts those sites.</p>
+    <div class="ev-actions"><button class="btn btn-soft ev-small" data-ev="logos-toggle" aria-pressed="${!!ev.publicLogos}" ${s.busy ? 'disabled' : ''}>${ev.publicLogos ? 'Showing logos. Tap to hide' : 'Logos hidden. Tap to show'}</button></div></div>`;
+}
 async function evCopyLink() {
   const sh = evScreen && evScreen.share;
   if (!sh || !sh.token) return;
@@ -4072,7 +4315,7 @@ function evBracketHTML(s) {
   narrow.push(`<div class="ev-card"><div class="ev-item-head"><b>${esc(EV_FORMAT_NAME[ev.format])}</b><span class="badge ${live ? 'hot' : 'prov'}">${live ? 'Live' : 'Finished'}</span></div>
     <span class="note">${what}${ev.tree ? ' Tap a match to score it.' : ''}</span>
     <div class="ev-actions"><button class="btn btn-soft ev-small" data-ev="back-detail">Schedule and scoring</button>${pool ? `<button class="btn btn-soft ev-small" data-ev="jump" data-to="bk-pool">Pool standings</button><button class="btn btn-soft ev-small" data-ev="jump" data-to="bk-ko">${ev.tree ? 'Knockout bracket' : 'About the knockout'}</button>` : ''}</div></div>`);
-  if (ev.status === 'done' && ev.champion) narrow.push(`<div class="ev-champ" role="status"><span class="ball"></span><div><small>${ev.tree ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(ev.champion.join(' & '))}</b></div></div>`);
+  if (ev.status === 'done' && ev.champion) narrow.push(`<div class="ev-champ" role="status">${BK.logoHTML(ev, ev.champion, true) || '<span class="ball"></span>'}<div><small>${ev.tree ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(BK.teamName(ev, ev.champion))}</b></div></div>`);
   if (!ev.tree && !pool) {
     narrow.push(`<div class="ev-card" role="status"><h3>No bracket for this format</h3><p class="note">A round robin has no knockout rounds to draw. Everyone plays everyone, and the standings decide who wins.</p>
       <button class="btn btn-ink block" data-ev="back-detail">Open the schedule and standings</button></div>`);
@@ -4089,7 +4332,7 @@ function evBracketHTML(s) {
     out.push(`<div class="ev-narrow"><section class="bk-sec" id="bk-ko" aria-labelledby="bk-ko-h"><div class="ev-card" role="status"><h3 id="bk-ko-h">The knockout is not drawn yet</h3><p class="note">${ev.poolDone ? (org ? 'Pool play is finished. Start the knockout from the event page and the bracket appears here.' : 'Pool play is finished. The organizer starts the knockout next, and the bracket appears here.') : `It appears here when pool play ends: the top ${ev.advance} ${ev.partners === 'fixed' ? 'teams' : 'teams of players'} play single elimination, best seed against the lowest.`}</p></div></section></div>`);
   }
   const tail = [];
-  if (org) tail.push(evShareHTML(s));
+  if (org) tail.push(evShareHTML(s) + evLogosHTML(s));
   if (tail.length) out.push(`<div class="ev-narrow">${tail.join('')}</div>`);
   if (sel) {
     const r = ev.tree.rounds.find(x => x.key === sel.stage + sel.round);
@@ -4170,17 +4413,27 @@ async function evOrg(body, ok) {
 async function evCreate() {
   const s = evScreen, f = s.form;
   if (f.busy) return;
-  const rotating = f.partners === 'rotating' && (f.format === 'roundrobin' || f.format === 'pool_knockout');
-  const body = { action: 'create', event: { name: f.name, format: f.format, partners: rotating ? 'rotating' : 'fixed', rotation: f.rotation, courts: f.courts, rounds: rotating ? (f.rounds || evDefaultRounds(f.players.length)) : undefined,
-    advance: f.advance, target: f.target, scoring: f.scoring, winBy: f.winBy, players: f.players } };
-  if (!rotating && f.rotation === 'manual') body.event.teams = Array.from({ length: Math.floor(f.players.length / 2) }, (_, i) => [f.players[2 * i], f.players[2 * i + 1]]);
-  if (!rotating && f.rotation === 'auto') body.event.ratings = Object.fromEntries(leaderStats(allGames(), 'doubles').map(p => [p.name, p.rating]));
+  const rotating = evRotating(f);
+  // A sheet that was read and checked: its players (and, where the format uses them, its teams) replace the picked players.
+  let imp = null;
+  if (f.imp && f.imp.draft && imMod) {
+    if (!imMod.validate(f.imp.draft, evImpOpts(f)).ok) { f.error = 'Fix the problems in the import first.'; renderEvents(true); return; }
+    imp = imMod.toEventInput(f.imp.draft, evImpOpts(f));
+  }
+  const players = imp ? imp.players : f.players;
+  const body = { action: 'create', event: { name: f.name, format: f.format, partners: rotating ? 'rotating' : 'fixed', rotation: imp && imp.rotation || f.rotation, courts: f.courts, rounds: rotating ? (f.rounds || evDefaultRounds(players.length)) : undefined,
+    advance: f.advance, target: f.target, scoring: f.scoring, winBy: f.winBy, players } };
+  if (imp && imp.teams) { Object.assign(body.event, { teams: imp.teams, teamMeta: imp.teamMeta, publicLogos: !!f.imp.publicLogos }); }
+  else if (!rotating && f.rotation === 'manual') body.event.teams = Array.from({ length: Math.floor(players.length / 2) }, (_, i) => [players[2 * i], players[2 * i + 1]]);
+  if (imp && Object.keys(imp.refs).length) body.event.refs = imp.refs; // private reference only; the server keeps it apart from the event
+  if (!rotating && !(imp && imp.teams) && f.rotation === 'auto') body.event.ratings = Object.fromEntries(leaderStats(allGames(), 'doubles').map(p => [p.name, p.rating]));
   f.busy = true; f.error = ''; renderEvents(true);
   try {
     const data = await evCall(body);
     evScreen = { view: 'detail', id: data.event.id, event: data.event, list: null, error: '' };
     showToast('Event started', false);
     evSummaryRefresh();
+    evRefsLoad(evScreen);
   } catch (err) {
     if (err.status === 403) forgetPin();
     f.busy = false; f.error = err.message;
@@ -4218,6 +4471,7 @@ function evAct(a, d) {
   if (a === 'open') { evShow(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;
+    if (evImpAct(a, d, f)) return;
     if (a === 'set') {
       const num = ['courts', 'rounds', 'advance', 'target', 'winBy'].includes(d.k);
       f[d.k] = num ? +d.v : d.v;
@@ -4250,6 +4504,7 @@ function evAct(a, d) {
   else if (a === 'share-open' || a === 'share-new' || a === 'share-off') evShare(a);
   else if (a === 'share-hide') { s.share = null; s.arm = ''; renderEvents(true); }
   else if (a === 'share-copy') evCopyLink();
+  else if (a === 'logos-toggle') evOrg({ action: 'public-logos', id: ev.id, on: !ev.publicLogos }, ev.publicLogos ? 'Logos hidden on the public page' : 'Logos shown on the public page');
   else if (a === 'live') evScoreLive(d.m);
   else if (a === 'enter' || a === 'fix') {
     const m = evMatchOf(d.m);
@@ -4291,6 +4546,13 @@ document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('button[data-ev]');
   if (b) evAct(b.dataset.ev, b.dataset);
 });
+// Enter in the sheet link, or in a field of the import preview, must not submit the whole new-event form.
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (e.key !== 'Enter' || !evScreen || !t.dataset || t.tagName !== 'INPUT') return;
+  if (t.dataset.evInput === 'imp-link') { e.preventDefault(); evImpRead(); }
+  else if (t.dataset.evDraft) e.preventDefault();
+});
 document.addEventListener('submit', e => {
   const f = e.target.closest && e.target.closest('[data-ev-form]');
   if (!f || !evScreen) return;
@@ -4300,11 +4562,18 @@ document.addEventListener('submit', e => {
 });
 document.addEventListener('input', e => {
   const t = e.target, k = t.dataset && t.dataset.evInput;
+  if (t.dataset && t.dataset.evDraft && evScreen) { const [at, field] = t.dataset.evDraft.split(':'); evImpSet(at, field, t.value); return; }
   if (!k || !evScreen) return;
   if (k === 'name' && evScreen.form) evScreen.form.name = t.value;
+  const im = evScreen.form && evScreen.form.imp;
+  if (im && k === 'imp-link') im.link = t.value;
+  if (im && k === 'imp-text') im.text = t.value;
+  if (im && k === 'imp-publiclogos') im.publicLogos = t.checked;
   if ((k === 's0' || k === 's1') && evScreen.entry) evScreen.entry.s[+k[1]] = t.value;
 });
 document.addEventListener('change', e => {
+  if (e.target.dataset && e.target.dataset.evFile === 'imp' && evScreen) { evImpFile(e.target); return; }
+  if (e.target.dataset && e.target.dataset.evInput === 'imp-publiclogos' && evScreen && evScreen.form && evScreen.form.imp) evScreen.form.imp.publicLogos = e.target.checked;
   const t = e.target, sel = t.dataset && t.dataset.evSel;
   if (!sel || !evScreen || !evScreen.edit) return;
   const [i, tm, j] = sel.split('-').map(Number);
