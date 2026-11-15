@@ -76,6 +76,7 @@ const csp = [
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'self'",
+  "frame-src https://dashboard.dupr.com https://uat.dupr.gg",       // DUPR's login iframe (Connect DUPR); nothing else may be framed
   "frame-ancestors 'none'"
 ].join('; ');
 const vercel = {
