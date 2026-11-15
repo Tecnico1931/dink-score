@@ -86,7 +86,7 @@ export default handler(async (req, res) => {
     // Shop: who has claimed a name (never the claim itself), what everyone wears and has bought, and the club's settings.
     players: roster.map(r => ({ name: r.name, claimed: r.claimed, equipped: r.equipped || {}, avatar: r.avatar || null, prestige: r.prestige || null })),
     purchases: purchases.map(p => ({ id: Number(p.id), player: p.name_key, itemId: p.item_id, itemName: p.item_name, price: p.price, reward: p.is_reward, givenAt: p.given_at ? new Date(p.given_at).getTime() : null, at: new Date(p.created_at).getTime() })),
-    shop: Object.assign({ catalog: CATALOG, earn: EARN, spinWheel: SPIN_WHEEL }, shopSettings(shopRow && shopRow.shop)),
+    shop: Object.assign({ catalog: CATALOG, earn: EARN, spinWheel: SPIN_WHEEL }, shopSettings(shopRow && shopRow.shop), { configured: !!(shopRow && shopRow.shop) }),
     progress: progressFor(games.map(r => r.data))
   });
 });

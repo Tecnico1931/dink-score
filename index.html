@@ -278,11 +278,12 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
   padding-bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 14px));
 }
 .tabs nav {
-  pointer-events: auto; max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 6px;
+  pointer-events: auto; max-width: 420px; margin: 0 auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 6px;
   background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
   border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 12px 34px -12px rgb(0 0 0 / .35);
 }
 .tabs button { border: 0; background: transparent; padding: 8px 4px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
+.tabs button[hidden] { display: none; }
 .tabs button svg { width: 22px; height: 22px; }
 .tabs button[aria-current="page"] { background: var(--ink); color: var(--bg); }
 
@@ -1048,7 +1049,7 @@ const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch {
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];
 const TEAM_NAME = ['Blue', 'Green'];
 const DAY = 864e5;
-const SITE_URL = 'https://dink-score.vercel.app';
+const SITE_URL = 'https://dink-score-alpha.vercel.app';
 const FRAMED = (() => { try { return window.self !== window.top; } catch { return true; } })();
 // Club sync needs this site's own /api, so it is off inside the Claude artifact and on the old GitHub Pages address.
 const API_OK = !FRAMED && /^https?:$/.test(location.protocol) && !/github\.io$/.test(location.hostname);
@@ -1596,6 +1597,7 @@ function renderClub() {
           : isCreator() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button>'
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
+      ${shopHidden() && (club.hasPin || isCreator()) ? `<button class="btn btn-soft block" data-act="shop-admin-open">Set up shop</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
@@ -1671,7 +1673,9 @@ function lockBody(on) { if (shareSheet) on = true; const v = on ? 'hidden' : '';
 
 function render() {
   const y = document.body.scrollTop;
-  document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'));
+  const noShop = shopHidden();
+  if (noShop && tab === 'shop') tab = 'play';
+  document.querySelectorAll('#tabs button').forEach(b => { b.hidden = noShop && b.dataset.tab === 'shop'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
   const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'shop' ? shopView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
@@ -1694,7 +1698,7 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
-  if (club && myName() && shopInfo()) tiles.push(`<button class="tile dinks" data-tab-go="shop"><span class="t-k">Your Dinks</span><span class="t-big">${wallet(myName()).balance}</span><span class="t-foot">Spend them in the shop</span></button>`);
+  if (club && myName() && !shopHidden()) tiles.push(`<button class="tile dinks" data-tab-go="shop"><span class="t-k">Your Dinks</span><span class="t-big">${wallet(myName()).balance}</span><span class="t-foot">Spend them in the shop</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">${needsClubToLog() ? 'Join a club to log results' : 'For games on other courts'}</span></button>`);
   const top = leaderStats(games, setup.mode)[0];
   tiles.push(`<button class="tile" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
@@ -2444,6 +2448,8 @@ const whoamiSkipped = () => !!(club && store.get('pb.whoamiSkip', {})[club.code]
 function skipWhoami() { const s = store.get('pb.whoamiSkip', {}); s[club.code] = Date.now(); store.set('pb.whoamiSkip', s); }
 const clubPlayers = () => (clubData && clubData.players) || [];
 const shopInfo = () => (clubData && clubData.shop) || null;
+// The shop stays hidden in a club until its organizer has saved shop settings (the server reports this as shop.configured).
+const shopHidden = () => !!club && !(shopInfo() && shopInfo().configured);
 const youTag = n => (isMe(n) ? '<span class="badge you">You</span>' : '');
 function equippedFor(name) {
   const p = clubPlayers().find(x => sameName(x.name, name));
@@ -2977,7 +2983,7 @@ async function adminSave() {
   c.busy = true; c.error = ''; renderClub();
   try {
     const data = await shopCall(Object.assign({ action: 'settings', rewardsEnabled: d.rewardsEnabled, prices: d.prices, rewards: d.rewards }, adminCreds()));
-    if (clubData) clubData.shop = Object.assign({}, clubData.shop, data.settings);
+    if (clubData) clubData.shop = Object.assign({}, clubData.shop, data.settings, { configured: true });
     clubSheet = null; showToast('Shop saved', false); render();
     refreshClub();
   } catch (err) { c.busy = false; c.error = err.message; renderClub(); }

@@ -1,6 +1,6 @@
 # Dink Score
 
-A pickleball scorekeeper you can install on your phone: **https://dink-score.vercel.app**
+A pickleball scorekeeper you can install on your phone: **https://dink-score-alpha.vercel.app**
 
 - Side-out or rally scoring, singles or doubles, to 11, 15 or 21
 - Tracks server 1 and 2, which side to serve from, and when to change ends
