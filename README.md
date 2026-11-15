@@ -8,6 +8,7 @@ A pickleball scorekeeper you can install on your phone: **https://dinkscore.verc
 - Saved players, so you can pick names with a tap
 - Dink Rating: the app's own 2.00–8.00 player rating (new players start at 2.00) with score forecasts and a leaderboard
 - Clubs: one shared record of games, players and rankings across everyone's phones, with no accounts
+- Club display page: open `/?display=CODE` on a TV or monitor at the courts for a full-screen sign with the club's name, a big QR code (the invite link) and the club code, so new players can join by scanning. There's a link to it in the club sheet, under the invite link
 - Offline support and a first-visit tour
 
 ## Events: tournaments and rotating doubles
