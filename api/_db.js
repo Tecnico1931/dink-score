@@ -71,6 +71,21 @@ export function ensureSchema() {
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
       await q`CREATE INDEX IF NOT EXISTS purchases_club_name ON purchases (club, name_key)`;
+      // Events (tournaments and rotating-partner sessions): one JSON document per event. `version` lets two phones
+      // saving different matches at once take turns (see mutate() in events.js). Finished matches also become
+      // ordinary rows in `games`, so the record, ratings and leaderboard need no changes.
+      await q`CREATE TABLE IF NOT EXISTS events (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        data jsonb NOT NULL,
+        version int NOT NULL DEFAULT 1,
+        status text NOT NULL DEFAULT 'live',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz,
+        PRIMARY KEY (club, id)
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS events_club_updated ON events (club, updated_at DESC)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -211,6 +226,16 @@ export function tokenMatches(stored, token) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 export const pinFrom = req => (req.headers || {})['x-club-pin'];
+
+// Who is sending these games: a player's name key (their phone's player token checks out), 'organizer' (the club
+// creator's phone), or null. Never trusted from the game data itself.
+export async function verifiedSender(sql, club, code, body) {
+  if (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)) return 'organizer';
+  if (!body.playerName || !body.playerToken) return null;
+  const k = cleanName(body.playerName).toLowerCase();
+  const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
+  return row && row.claim_hash && tokenMatches(row.claim_hash, body.playerToken) ? k : null;
+}
 
 // Reserves room for `count` new games in one atomic update: at most 1,200 per club per 10-minute window
 // (enough for a phone's whole history of up to 1,000 games) and 20,000 per club in total.

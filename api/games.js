@@ -4,17 +4,7 @@
 // DELETE /api/games?code=ABC123&id=g123      -> moves a game to recently deleted
 // Deleting, restoring and editing need the organizer PIN (X-Club-PIN header, or "pin" in the body) when the club has one,
 // or the creating phone's token (X-Club-Owner header, or "ownerToken" in the body).
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches } from './_db.js';
-
-// Who is sending these games: a player's name key (their phone's player token checks out), 'organizer' (the club
-// creator's phone), or null. Never trusted from the game data itself.
-async function verifiedSender(sql, club, code, body) {
-  if (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)) return 'organizer';
-  if (!body.playerName || !body.playerToken) return null;
-  const k = cleanName(body.playerName).toLowerCase();
-  const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
-  return row && row.claim_hash && tokenMatches(row.claim_hash, body.playerToken) ? k : null;
-}
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, verifiedSender } from './_db.js';
 
 export default handler(async (req, res) => {
   const sql = db();
