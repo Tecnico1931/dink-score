@@ -2574,10 +2574,11 @@ function announceUnlocks() {
 }
 
 /* ---------- levels: one for each player (with prestige) and one for the whole club ---------- */
-// Same rules as api/_dinks.js: 10 XP a game, 5 more for a win sent from a club player's phone. Personal levels stop at
+// Same rules as api/_dinks.js: only games sent from a club player's phone count, 10 XP a game and 5 more for a win,
+// at most 150 XP a player a day. Personal levels stop at
 // LEVEL_MAX; a maxed player can prestige to start again from level 1 with a star and bonus Dinks. The club level adds up
 // every game the club has played and never stops.
-const XP = { game: 10, win: 5 }, LEVEL_MAX = 25, PRESTIGE_ID = 'prestige', PRESTIGE_DINKS = 250;
+const XP = { game: 10, win: 5, dailyCap: 150 }, LEVEL_MAX = 25, PRESTIGE_ID = 'prestige', PRESTIGE_DINKS = 250;
 const levelNeed = n => 40 + 8 * (n - 1);
 function levelFrom(xp) {
   let level = 1, left = Math.max(0, Math.floor(xp));
@@ -2589,12 +2590,18 @@ function xpMap() {
   const games = allGames();
   const sig = games.length + ':' + games.map(g => g.id + g.winner + (g.scoredBy ? 1 : 0)).join('').length + ':' + (games[0] ? games[0].id : '');
   if (xpCache.sig === sig) return xpCache.map;
-  const map = new Map();
-  for (const g of games) for (const t of [0, 1]) for (const raw of g.teams[t]) {
-    const nm = String(raw).trim();
-    if (!nm || isDefaultName(nm)) continue;
-    const k = nm.toLowerCase();
-    map.set(k, (map.get(k) || 0) + XP.game + (g.scoredBy && g.winner === t ? XP.win : 0));
+  const map = new Map(), daily = new Map();
+  for (const g of games) {
+    if (!g.scoredBy) continue;
+    const day = new Date(g.receivedAt || g.endedAt).toISOString().slice(0, 10);
+    for (const t of [0, 1]) for (const raw of g.teams[t]) {
+      const nm = String(raw).trim();
+      if (!nm || isDefaultName(nm)) continue;
+      const k = nm.toLowerCase(), dk = k + '|' + day, used = daily.get(dk) || 0;
+      const n = Math.max(0, Math.min(XP.game + (g.winner === t ? XP.win : 0), XP.dailyCap - used));
+      daily.set(dk, used + n);
+      map.set(k, (map.get(k) || 0) + n);
+    }
   }
   xpCache = { sig, map };
   return map;
@@ -2630,7 +2637,7 @@ function levelCardHTML(name) {
   const foot = L.maxed
     ? (mine ? `<p class="note">You're at the top level. Prestige to start again from level 1, keep a star by your level for good and get ${PRESTIGE_DINKS} Dinks.</p>
       <button class="btn ${prestigeArmed ? 'btn-blue' : 'btn-ink'}" data-act="prestige" ${prestigeBusy ? 'disabled' : ''}>${prestigeBusy ? 'Prestiging…' : prestigeArmed ? 'Tap again to prestige' : 'Prestige'}</button>` : `<p class="note">Top level reached. ${esc(name)} can prestige from their phone.</p>`)
-    : `<span class="lv-bar"><i style="width:${Math.round(100 * L.into / L.need)}%"></i></span><p class="note">${L.need - L.into} XP to level ${L.level + 1}. Each game is ${XP.game} XP, and a win from a club player's phone adds ${XP.win}.</p>`;
+    : `<span class="lv-bar"><i style="width:${Math.round(100 * L.into / L.need)}%"></i></span><p class="note">${L.need - L.into} XP to level ${L.level + 1}. Games sent from a club player's phone give ${XP.game} XP, ${XP.game + XP.win} for a win, up to ${XP.dailyCap} a day.</p>`;
   return `<div class="lv-card"><div class="lv-top"><span class="lv-num">${L.level}</span><span class="lv-txt"><b>Level ${L.level}${L.maxed ? ' (max)' : ` of ${LEVEL_MAX}`}</b><small>${L.prestige ? `${stars(L.prestige)}Prestige ${L.prestige} · ` : ''}${L.xp} XP all time</small></span></div>${foot}</div>`;
 }
 let prestigeArmed = false, prestigeBusy = false;
