@@ -91,6 +91,17 @@ export function ensureSchema() {
       // The public, read-only link to an event's bracket (see _share.js and bracket.js). Null means not shared.
       await q`ALTER TABLE events ADD COLUMN IF NOT EXISTS share_token text`;
       await q`CREATE UNIQUE INDEX IF NOT EXISTS events_share_token ON events (share_token) WHERE share_token IS NOT NULL`;
+      // Watch scoring (prototype): one row per live game being scored on a phone. The phone publishes
+      // its state; a watch appends point/undo intents (numbered by seq) that the phone then applies.
+      await q`CREATE TABLE IF NOT EXISTS live_games (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        state jsonb NOT NULL,
+        intents jsonb NOT NULL DEFAULT '[]'::jsonb,
+        seq int NOT NULL DEFAULT 0,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, id)
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

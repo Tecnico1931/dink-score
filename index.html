@@ -977,6 +977,9 @@ a.btn { text-decoration: none; }
 .dsp-code { font-family: var(--display); font-weight: 800; font-size: 7vmin; letter-spacing: .18em; color: #DDF247; margin-top: -1.6vmin; }
 .dsp-exit { color: #7E9284; font-size: 1.8vmin; text-decoration: none; margin-top: 2vmin; }
 html.dsp-lock, html.dsp-lock body { overflow: hidden; }
+.watch-field { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; }
+.watch-field span { color: var(--muted); min-width: 58px; }
+.watch-field small { color: var(--muted); }
 
 </style>
 
@@ -1942,6 +1945,8 @@ function renderClub() {
     body = shopAdminHTML(c);
   } else if (c.view === 'members' && club) {
     body = membersHTML(c);
+  } else if (c.view === 'watch' && club) {
+    body = watchHTML(c);
   } else if (c.view === 'invite') {
     body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
@@ -1985,7 +1990,7 @@ function renderClub() {
       <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
-        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p></div>
+        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
@@ -2443,7 +2448,54 @@ function ratingPreview(s) {
     <div class="changes">${named.map(x => `<div class="ch" style="--c:${TEAM_COLOR[x.team]}"><span class="tick"></span><span class="nm">${esc(x.name)}</span><span class="rt">${r2(x.after)}</span>${deltaHTML(x.after - x.before)}</div>`).join('')}</div></div>`;
 }
 
-function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), open: live.open, event: live.event || null } : null); }
+/* ---------- watch scoring (prototype) ----------
+   While a club game is scored on this phone, the phone publishes the live state to /api/live. An
+   Apple Watch running Shortcuts (setup steps are on the club sheet's watch page) appends point and
+   undo intents there; this phone polls for them and applies them with PB.rally, so the scoring
+   rules live in exactly one place and a watch tap changes nothing until this phone takes it.
+   Event matches are not watch-scored: they already report to the event. */
+let watchAck = 0, publishedLiveId = null, publishTimer = null;
+const liveGameId = () => 'live-' + live.state.startedAt.toString(36);
+function schedulePublishLive() {
+  if (!API_OK || !club) return;
+  clearTimeout(publishTimer);
+  publishTimer = setTimeout(publishLive, 250);
+}
+async function publishLive() {
+  if (!API_OK || !club) return;
+  try {
+    if (live && !live.event) {
+      publishedLiveId = liveGameId();
+      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'state', id: publishedLiveId, state: live.state, ack: watchAck }) });
+    } else if (publishedLiveId) {
+      const id = publishedLiveId; publishedLiveId = null; watchAck = 0;
+      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'end', id }) });
+    }
+  } catch {}
+}
+function applyWatchIntent(it) {
+  if (!live || live.event) return;
+  if (it.kind === 'point' && live.state.winner === null && !live.confirmEnd && !logForm) {
+    buzz();
+    live.stack.push(live.state);
+    live.state = PB.rally(live.state, it.side === 1 ? 1 : 0);
+    persistLive(); renderCourt();
+  } else if (it.kind === 'undo' && live.stack.length) {
+    live.state = live.stack.pop(); live.toast = null;
+    persistLive(); renderCourt();
+  }
+}
+setInterval(async () => {
+  if (!API_OK || !club || !live || live.event || !live.open || document.hidden) return;
+  try {
+    const d = await api('live?code=' + club.code + '&id=' + encodeURIComponent(liveGameId()));
+    const fresh = (d.intents || []).filter(i => i.n > watchAck).sort((a, b) => a.n - b.n);
+    for (const it of fresh) { applyWatchIntent(it); watchAck = Math.max(watchAck, it.n); }
+    if (fresh.length) schedulePublishLive();
+  } catch {}
+}, 4000);
+
+function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), open: live.open, event: live.event || null } : null); schedulePublishLive(); }
 let toastTimer;
 function showToast(msg, inCourt = true) {
   if (inCourt && live) { live.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (live) { live.toast = null; renderCourt(); } }, 3500); return; }
@@ -3386,6 +3438,19 @@ function shopAdminHTML(c) {
     ${((clubData && clubData.purchases) || []).some(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID) ? `<div class="field" style="margin:0"><span class="lab">Recent purchases</span><ul class="deleted">${clubData.purchases.filter(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID).slice(-15).reverse().map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}, ${Number(p.price)} Dinks</span><button class="link" data-refund="${p.id}">Refund</button></li>`).join('')}</ul><p class="note">Refunding gives the Dinks back and takes the item off.</p></div>` : ''}
     ${clubPlayers().some(p => p.claimed) ? `<div class="field" style="margin:0"><span class="lab">Names linked to phones</span><ul class="deleted">${clubPlayers().filter(p => p.claimed).map(p => `<li><span>${esc(p.name)}</span><button class="link" data-release="${esc(p.name)}">Release</button></li>`).join('')}</ul><p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p></div>` : ''}`}
     <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
+function watchHTML(c) {
+  const url = location.origin + '/api/live';
+  const fields = rows => rows.map(r => `<div class="watch-field"><span>${esc(r[0])}</span><b>${esc(r[1])}</b><small>${esc(r[2])}</small></div>`).join('');
+  const recipe = (name, rows) => `<div class="ev-card" style="margin-top:10px"><h3 style="margin-top:0">${esc(name)}</h3>${fields(rows)}</div>`;
+  return `<h2 id="club-h">Score from your watch</h2>
+  <p>A prototype. While you score a game on this phone, an Apple Watch can send the points: the watch asks, this phone applies the scoring rules and keeps the record. Keep this phone nearby with the game open; points land within a few seconds.</p>
+  <p>Make three shortcuts in the Shortcuts app on your iPhone. In each one, add the action <b>Get Contents of URL</b> and set the URL to <b>${esc(url)}</b>. Tap Show More, choose Method <b>POST</b> and Request Body <b>JSON</b>, and add the fields listed below. Then add <b>Get Dictionary Value</b> (key <b>say</b>, from Contents of URL) and <b>Show Result</b> after it, so the watch reads the score back. In the shortcut's settings, turn on <b>Show on Apple Watch</b>.</p>
+  ${recipe('Top point: the top team on the scoring screen scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['side', '0', 'Number']])}
+  ${recipe('Bottom point: the bottom team scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['side', '1', 'Number']])}
+  ${recipe('Undo: take back the last rally', [['code', club.code, 'Text'], ['action', 'undo', 'Text']])}
+  <p class="note" style="margin-top:12px">Top and bottom are the two halves of the scoring screen. Anyone with the club code can send points this way, the same trust as adding a game.</p>
+  <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 function membersHTML(c) {
   const games = allGames();
@@ -4364,6 +4429,7 @@ document.addEventListener('click', e => {
       try { navigator.clipboard.writeText(link).then(done, () => { const i = $('#invite-link'); if (i) i.select(); }); } catch { const i = $('#invite-link'); if (i) i.select(); }
       return;
     }
+    if (a === 'club-watch') { clubSheet = { view: 'watch' }; renderClub(); return; }
     renderClub(); return;
   }
   if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; render(); try { document.body.scrollTo(0, 0); } catch {} if (tab === 'events') evOpenList(); return; }

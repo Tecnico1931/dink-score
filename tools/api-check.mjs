@@ -36,7 +36,7 @@ neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}
 process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
-const [club, roster, games, events, shop, bracket] = await Promise.all(['club', 'roster', 'games', 'events', 'shop', 'bracket'].map(load));
+const [club, roster, games, events, shop, bracket, live] = await Promise.all(['club', 'roster', 'games', 'events', 'shop', 'bracket', 'live'].map(load));
 let ip = 0;
 async function call(handler, method, { query = '', body, headers = {} } = {}) {
   const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.0.0.' + (++ip % 200), ...headers }, body };
@@ -266,6 +266,28 @@ await step('DUPR: it is not in event responses', async () => {
   assert.ok(!/dupr/i.test(list));
 });
 
+
+await step('watch scoring: publish, point and undo intents, ack clears them, end removes the game', async () => {
+  const st = { cfg: { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, teams: [['Ana', 'Ben'], ['Cy', 'Di']] }, score: [0, 0], serving: 0, serverNum: 2, server: 0, rallies: 0, winner: null, startedAt: 123 };
+  let r = await call(live, 'POST', { body: { code, action: 'point', side: 0 } });
+  assert.equal(r.status, 404, 'no live game yet');
+  ok(await call(live, 'POST', { body: { code, action: 'state', id: 'live-t1', state: st, ack: 0 } }));
+  r = ok(await call(live, 'POST', { body: { code, action: 'point', side: 1 } }));
+  assert.equal(r.pending, 1);
+  assert.deepEqual(r.score, [0, 0], 'an intent does not change the published score by itself');
+  ok(await call(live, 'POST', { body: { code, action: 'undo' } }));
+  const got = ok(await call(live, 'GET', { query: '?code=' + code + '&id=live-t1' }));
+  assert.equal(got.intents.length, 2);
+  assert.equal(got.intents[0].kind, 'point'); assert.equal(got.intents[0].side, 1);
+  assert.equal(got.intents[1].kind, 'undo');
+  ok(await call(live, 'POST', { body: { code, action: 'state', id: 'live-t1', state: { ...st, score: [0, 1] }, ack: got.intents[1].n } }));
+  const got2 = ok(await call(live, 'GET', { query: '?code=' + code + '&id=live-t1' }));
+  assert.equal(got2.intents.length, 0, 'acked intents are gone');
+  assert.deepEqual(got2.state.score, [0, 1]);
+  ok(await call(live, 'POST', { body: { code, action: 'end', id: 'live-t1' } }));
+  r = await call(live, 'POST', { body: { code, action: 'point', side: 0 } });
+  assert.equal(r.status, 404, 'the game ended, so points bounce off');
+});
 
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
