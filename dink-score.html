@@ -875,6 +875,7 @@ button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font:
 <div class="tabs" id="tabs">
   <nav aria-label="Sections">
     <button data-tab="play" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="9" r=".9" fill="currentColor"/><circle cx="14.5" cy="8.7" r=".9" fill="currentColor"/><circle cx="12" cy="12.6" r=".9" fill="currentColor"/><circle cx="8.7" cy="14.6" r=".9" fill="currentColor"/><circle cx="15.4" cy="14.2" r=".9" fill="currentColor"/></svg>Play</button>
+    <button data-tab="events" hidden aria-label="Events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H5.5v1.5A2.5 2.5 0 008 10M16 6h2.5v1.5A2.5 2.5 0 0116 10M12 13v3.5M8.5 20h7M9.5 20l.5-3.5h4l.5 3.5"/></svg>Events</button>
     <button data-tab="leaders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 20.5h17M5 20.5v-6h4.5v6M9.5 20.5V10h5v10.5M14.5 20.5v-8H19v8"/><path d="M12 3l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2L8.8 5.3 11 5z" fill="currentColor" stroke="none"/></svg>Leaders</button>
     <button data-tab="shop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6.5a3 3 0 016 0V8" stroke-linecap="round"/></svg>Shop</button>
     <button data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6.5h12M8 12h12M8 17.5h12"/><circle cx="4" cy="6.5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="17.5" r="1" fill="currentColor"/></svg>Record</button>
@@ -1147,7 +1148,7 @@ if (location.hash.startsWith('#import=')) {
 const defaults = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, names: [['', ''], ['', '']] };
 let setup = Object.assign({}, defaults, store.get('pb.setup', {}));
 let tab = store.get('pb.tab', 'play');
-if (!['play', 'leaders', 'shop', 'history', 'rules'].includes(tab)) tab = 'play';
+if (!['play', 'leaders', 'events', 'shop', 'history', 'rules'].includes(tab)) tab = 'play';
 let live = store.get('pb.live', null); // { state, stack, open }
 if (live) live.stack = live.stack || [];
 let localGames = store.get('pb.games', []);
@@ -1704,13 +1705,19 @@ const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" heigh
 // Set body overflow only when it actually changes (WebKit can reset scroll position on reassignment).
 function lockBody(on) { if (shareSheet) on = true; const v = on ? 'hidden' : ''; if (document.body.style.overflow !== v) document.body.style.overflow = v; }
 
+// The Events tab opens the events screen on tap; this is the page behind it, shown when the screen is closed or the tab is restored.
+function eventsTabView() {
+  const liveEv = evSummary.find(e => e.status === 'live');
+  return `<section><div class="sec-head"><h2>Events</h2></div><button class="tile wide" data-ev="open-list" style="min-height:0;margin-top:10px"><span class="t-k">Events</span>${liveEv ? `<span class="t-name">${esc(liveEv.name)}</span><span class="t-foot">Live · ${esc(evProgress(liveEv))}</span>` : `<span class="t-name">Tournaments and rotating doubles</span><span class="t-foot">Round robins, brackets and several courts at once</span>`}</button></section>`;
+}
+
 function render() {
   const y = document.body.scrollTop;
   const noShop = shopHidden();
-  if (noShop && tab === 'shop') tab = 'play';
-  document.querySelectorAll('#tabs button').forEach(b => { b.hidden = noShop && b.dataset.tab === 'shop'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
+  if ((noShop && tab === 'shop') || (!club && tab === 'events')) tab = 'play';
+  document.querySelectorAll('#tabs button').forEach(b => { b.hidden = (noShop && b.dataset.tab === 'shop') || (!club && b.dataset.tab === 'events'); b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
   const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${profileButtonHTML()}</div></header>`;
-  $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'shop' ? shopView() : tab === 'history' ? historyView() : rulesView());
+  $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'shop' ? shopView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
   renderClub();
@@ -3367,13 +3374,13 @@ async function evLoadList() {
     evSummary = data.events;
     if (evScreen === s) { s.list = data.events; s.error = ''; }
   } catch (err) { if (evScreen === s) { s.list = s.list || []; s.error = err.message; } }
-  renderEvents(); if (tab === 'play') safeRender();
+  renderEvents(); if (tab === 'play' || tab === 'events') safeRender();
 }
 async function evSummaryRefresh() {
   if (!club || !API_OK || (tab !== 'play' && !evScreen)) return; // the summary only feeds the tile on Play
   try {
     const data = await api('events?code=' + club.code);
-    if (JSON.stringify(data.events.map(e => [e.id, e.status])) !== JSON.stringify(evSummary.map(e => [e.id, e.status]))) { evSummary = data.events; if (tab === 'play' && !evScreen) safeRender(); }
+    if (JSON.stringify(data.events.map(e => [e.id, e.status])) !== JSON.stringify(evSummary.map(e => [e.id, e.status]))) { evSummary = data.events; if ((tab === 'play' || tab === 'events') && !evScreen) safeRender(); }
     else evSummary = data.events;
   } catch {}
 }
@@ -3842,7 +3849,7 @@ document.addEventListener('click', e => {
     }
     renderClub(); return;
   }
-  if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; render(); try { document.body.scrollTo(0, 0); } catch {} return; }
+  if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; render(); try { document.body.scrollTo(0, 0); } catch {} if (tab === 'events') evOpenList(); return; }
   if (ds.tabGo) { tab = ds.tabGo; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} return; }
   for (const k of ['mode', 'scoring', 'target', 'winBy']) {
     const v = el.getAttribute('data-set-' + k);
