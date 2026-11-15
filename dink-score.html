@@ -888,7 +888,7 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 <div id="club-display" hidden>
   <div class="dsp-inner">
     <div class="dsp-brand">DINK SCORE</div>
-    <h1 class="dsp-name" id="dsp-name">Loading club\u2026</h1>
+    <h1 class="dsp-name" id="dsp-name">Loading club…</h1>
     <p class="dsp-sub">Scan to join the club and add your games</p>
     <div class="dsp-qr" id="dsp-qr" role="img" aria-label="QR code for this club's invite link"></div>
     <div class="dsp-code-lab">Club code</div>
@@ -1127,14 +1127,15 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     document.getElementById('dsp-qr').innerHTML = qr.createSvgTag({ cellSize: 8, margin: 12, scalable: true });
   } catch (e) { document.getElementById('dsp-qr').style.display = 'none'; }
   var nameEl = document.getElementById('dsp-name');
+  var named = false;
   function loadName() {
     fetch('/api/club?code=' + code, { cache: 'no-store' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
-        if (d && d.club && d.club.name) nameEl.textContent = d.club.name;
-        else if (nameEl.textContent === 'Loading club\u2026') nameEl.textContent = 'Join our club';
+        if (d && d.club && d.club.name) { named = true; nameEl.textContent = d.club.name; }
+        else if (!named) nameEl.textContent = 'Join our club';
       })
-      .catch(function () { if (nameEl.textContent === 'Loading club\u2026') nameEl.textContent = 'Join our club'; });
+      .catch(function () { if (!named) nameEl.textContent = 'Join our club'; });
   }
   loadName();
   setInterval(loadName, 5 * 60 * 1000);
