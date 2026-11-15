@@ -645,9 +645,6 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .rarity.rare { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue); }
 .rarity.legendary { background: linear-gradient(90deg, #FFD54F, #FF8AD8); color: #2A1600; }
 .item.legendary .pv { height: 74px; background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, #FFD54F 18%, var(--surface-2)), var(--surface-2)); }
-.goal { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
-.goal b { display: block; height: 100%; background: linear-gradient(90deg, #FFD54F, #FF8AD8); border-radius: 3px; }
-.goal-txt { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .pv-trophy { width: 42px; height: 42px; }
 .pv-fw { position: relative; width: 60px; height: 50px; }
 .pv-fw i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; margin: -2.5px; }
@@ -2295,10 +2292,8 @@ function shopView() {
     const action = !name ? '' : owned
       ? (worn ? `<button class="ibtn on" data-equip="${it.id}" data-slot="${slot}" data-off="1">Wearing</button>` : `<button class="ibtn" data-equip="${it.id}" data-slot="${slot}">Wear</button>`)
       : `<button class="ibtn buy ${armed ? 'armed' : ''}" data-buy="${it.id}" ${afford ? '' : 'disabled'}>${armed ? `Buy for ${price}?` : afford ? `${price} Dinks` : `${price - w.balance} more`}</button>`;
-    // Legendary items show how close you are, since they take a while to save for.
-    const goal = legend && w && !owned && price > 0 ? `<div class="goal" aria-hidden="true"><b style="width:${Math.min(100, Math.round(100 * Math.max(0, w.balance) / price))}%"></b></div><span class="goal-txt">${Math.max(0, w.balance)} of ${price}</span>` : '';
     const badge = it.rarity === 'rare' ? '<span class="rarity rare">Rare</span>' : legend ? '<span class="rarity legendary">Legendary</span>' : '';
-    return `<div class="item ${owned ? 'owned' : ''} ${legend ? 'legendary' : ''}"><div class="pv">${itemPreview(it, name)}</div>${badge}<span class="iname">${esc(it.name)}</span>${!owned ? `<span class="iprice">${price} Dinks</span>` : '<span class="iprice">Owned</span>'}${goal}${action}</div>`;
+    return `<div class="item ${owned ? 'owned' : ''} ${legend ? 'legendary' : ''}"><div class="pv">${itemPreview(it, name)}</div>${badge}<span class="iname">${esc(it.name)}</span>${!owned ? `<span class="iprice">${price} Dinks</span>` : '<span class="iprice">Owned</span>'}${action}</div>`;
   };
   const legends = s.catalog.filter(i => i.rarity === 'legendary');
   const legendSec = legends.length ? `<section class="legend-sec"><div class="sec-head"><h3>Legendary</h3></div><div class="items">${legends.map(card).join('')}</div></section>` : '';
