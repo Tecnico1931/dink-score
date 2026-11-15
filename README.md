@@ -37,11 +37,29 @@ A player can add an optional DUPR rating (2.000 to 8.000) to their profile for r
 - The link is a 192-bit random token stored in `events.share_token`. `GET /api/bracket?token=...` answers only from `publicView()` in `api/_share.js`, a field-by-field allow-list, so nothing private (club code, PIN, owner token, draw seed, game ids) can be added to the response by accident. Bad, revoked and deleted tokens all get the same 404, and good answers are cached for 5 seconds at the edge so a screen that polls is cheap.
 
 
+## DUPR link and send (built, switched off)
+
+Lets a saved player connect their DUPR account, shows their DUPR rating, and lets an organizer send finished event matches to DUPR. **It is invisible and inert until the server has DUPR keys**: `GET /api/dupr` answers `{enabled:false}`, every other DUPR action answers 404, no DUPR tables are created, and the app looks exactly as it did. It is separate from the self-reported rating above. **Real DUPR behaviour is unverified until DUPR issues UAT keys;** everything was built from DUPR's public OpenAPI specs and docs and tested only against a local mock (`tools/dupr-mock.mjs`).
+
+**Turning it on (the captain):** get UAT keys from DUPR (tech@mydupr.com), then in Vercel set `DUPR_CLIENT_KEY` and `DUPR_CLIENT_SECRET` (and `DUPR_ENV=uat`, the default; `prod` only once DUPR approves production). Redeploy. Do UAT first; switch to production keys and `DUPR_ENV=prod` only after the checks below. Unsetting either key turns everything off again.
+
+- **Link:** a player opens their profile, taps Connect DUPR and signs in inside DUPR's own login iframe (DUPR forbids typing IDs). The browser passes the sign-in token to `api/dupr.js` (`link`), which checks the phone claimed that name (or an organizer), asks DUPR who the token belongs to, and stores only `roster.dupr_id`, the link time and a small rating snapshot. The sign-in token is used once and **never stored**. One DUPR account links to one name per club. Unlink deletes the stored ID and rating.
+- **Ratings:** shown as "DUPR 3.52 doubles / 3.61 singles", labelled as DUPR's. Refresh reads DUPR at most every 15 minutes per player; a 403 or lost consent asks the player to connect again. DUPR numbers never feed the Dink Rating, Dinks, achievements or leaderboard order.
+- **Send to DUPR:** organizers only. The review screen lists every finished event match as Ready or Blocked with the reason (a player not linked, tie, winner under 6, a player twice). Nothing is sent until the organizer ticks the confirm box and taps Send; it is never automatic. Ready matches go to `POST /match/v1.0/batch` in chunks of 100 (identifier `dink-<club>-<gameId>-r<revision>`, `PARTNER` source, `COMPLETED` only; `TOURNAMENT` for pool or knockout events, otherwise `RECREATIONAL`). Each match is saved as `pending` in `dupr_matches` before DUPR is called, so a retry reuses the same identifier. A score fixed afterwards is sent as an update; a deleted game is removed from DUPR; a restored one goes again as the next revision. A 403 or 417 pauses all sending for an hour. Sending never writes to `games` or touches ratings.
+- **Privacy:** the consent note in the Connect screen says what is sent (DUPR IDs, scores, date, event name). DUPR data is kept out of `/api/club`, the events API and anything public. Keep it out of the public bracket serializer (`publicView()` in `api/_share.js`) too.
+- **Security:** secrets come only from the environment, are redacted from errors and never reach the browser (it gets the base64 client key for the iframe URL only). The CSP gains `frame-src https://dashboard.dupr.com https://uat.dupr.gg` (via `build.cjs`).
+
+**Test in UAT before trusting it:** (1) whether update takes `matchId` equal to the saved `matchCode` (the spec says `matchId`, the docs say `matchCode`); (2) recovering a lost `matchCode` after a dropped reply (today such a match is recorded as sent without a code and can't be updated from the app); (3) how a restricted partner's player detail behaves for players who have not connected (we treat 403 as "connect again"); (4) the postMessage payload of the login iframe (we accept `userToken` or `accessToken`, only from the DUPR login origin and that iframe), and whether the iframe needs `allow="payment"` (our Permissions-Policy blocks `payment`); (5) the exact response shapes of `/public/user/info`, `/subscription/active` and `GET /user/v1.0/{id}` (the code reads both documented shapes); (6) how DUPR treats `matchPlayType` and whether a winner under 6 points is ever acceptable; (7) the base64 client key in the iframe URL (we URL-encode it).
+
+**Follow-ups, not built:** rating webhooks (Phase 2b), DUPR club matches (`matchSource: CLUB`), forfeits and retirements, removing matches of an event that was deleted.
+
 ## Tests
 
 ```bash
 npm test                                              # rotation, schedule, bracket, event and DUPR export logic (no database)
 npm i --no-save @electric-sql/pglite && node tools/api-check.mjs   # the events API against a throwaway in-memory Postgres
+node tools/dupr-check.mjs                                          # the DUPR API against that Postgres and a local mock DUPR
+node tools/dupr-preview.mjs 4180 [off]                             # the built site with the real API and the mock, for driving the DUPR screens in a browser
 ```
 
 `npm test` uses Node's built-in test runner and needs nothing installed. `tools/api-check.mjs` never touches a real database: it answers the Neon driver from an in-memory Postgres.
