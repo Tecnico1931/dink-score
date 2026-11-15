@@ -1,6 +1,7 @@
 // Shared helpers for the club API. Files starting with "_" are not routes.
 import { neon } from '@neondatabase/serverless';
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { cleanName } from './_names.js';
 
 let sql = null;
 let ready = null;
@@ -70,6 +71,21 @@ export function ensureSchema() {
         created_at timestamptz NOT NULL DEFAULT now()
       )`;
       await q`CREATE INDEX IF NOT EXISTS purchases_club_name ON purchases (club, name_key)`;
+      // Events (tournaments and rotating-partner sessions): one JSON document per event. `version` lets two phones
+      // saving different matches at once take turns (see mutate() in events.js). Finished matches also become
+      // ordinary rows in `games`, so the record, ratings and leaderboard need no changes.
+      await q`CREATE TABLE IF NOT EXISTS events (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        data jsonb NOT NULL,
+        version int NOT NULL DEFAULT 1,
+        status text NOT NULL DEFAULT 'live',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz,
+        PRIMARY KEY (club, id)
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS events_club_updated ON events (club, updated_at DESC)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -211,6 +227,16 @@ export function tokenMatches(stored, token) {
 }
 export const pinFrom = req => (req.headers || {})['x-club-pin'];
 
+// Who is sending these games: a player's name key (their phone's player token checks out), 'organizer' (the club
+// creator's phone), or null. Never trusted from the game data itself.
+export async function verifiedSender(sql, club, code, body) {
+  if (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)) return 'organizer';
+  if (!body.playerName || !body.playerToken) return null;
+  const k = cleanName(body.playerName).toLowerCase();
+  const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
+  return row && row.claim_hash && tokenMatches(row.claim_hash, body.playerToken) ? k : null;
+}
+
 // Reserves room for `count` new games in one atomic update: at most 1,200 per club per 10-minute window
 // (enough for a phone's whole history of up to 1,000 games) and 20,000 per club in total.
 // The row lock on the club makes simultaneous requests take turns, so they can't overshoot together.
@@ -240,13 +266,7 @@ export async function releaseGames(code, count, windowStart) {
     WHERE code = ${code}`;
 }
 
-// Player and club names: no control or invisible formatting characters and no '|', collapsed spaces, at most 40 characters.
-// Built from character codes so no invisible characters live in this file: control characters, zero-width and
-// direction marks, line and paragraph separators, the byte-order mark, and the '|' character.
-const NAME_JUNK = new RegExp('[' + [[0x00, 0x1F], [0x7F, 0x9F], [0x200B, 0x200F], [0x2028, 0x202E], [0x2060, 0x206F], [0xFEFF, 0xFEFF]]
-  .map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + '|]', 'g');
-const cleanName = n => String(n || '').replace(/\s/g, ' ').replace(NAME_JUNK, '').trim().replace(/\s+/g, ' ').slice(0, 40);
-
+// Player and club names: see _names.js.
 // Validates one game from the app and returns a safe copy.
 export function cleanGame(g) {
   if (!g || typeof g !== 'object') throw fail(400, 'A game is missing.');

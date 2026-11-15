@@ -284,6 +284,9 @@ A dark glass capsule on the net tape. It holds three 60px cells for the call: se
 ### Bottom Sheet
 A surface sheet rising from the bottom with 28px top corners, a grip bar, 22px top padding and safe-area padding. It sits over a 55% night backdrop with a 4px blur and rises with `cubic-bezier(.2, .8, .2, 1)` in 0.32s.
 
+### Event screen
+A full-screen daylight page over the tabs (z-index below the court, above the tab bar; the page behind is `inert` while it is open), opened from the Events tile on Play. It uses only existing parts: a round back button, a 26px headline, white cards with the ambient shadow, the game-row card for every match (blue line for team one, green for team two, squeezed score numerals, a Court tag), segmented controls and chips for setup, and recessed surface-2 fieldsets for hand-picked pairings. Ball yellow keeps its meanings: live (the Live badge) and first place (the leader's rank, the champion's ball). "Score live" is an ink button, so several matches on screen never put two yellow actions side by side.
+
 ## Do's and Don'ts
 
 ### Do:

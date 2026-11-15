@@ -1,0 +1,171 @@
+// Runs the club API against a throwaway in-memory Postgres (PGlite) instead of Neon, so the SQL in api/*.js can be
+// checked without touching any real database. It answers the Neon driver's SQL-over-HTTP calls on a local port.
+//   npm ci && npm i --no-save @electric-sql/pglite && node tools/api-check.mjs
+// Nothing is read from .env files or the environment: the connection string below is a made-up local one.
+import http from 'node:http';
+import assert from 'node:assert/strict';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import path from 'node:path';
+
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+let PGlite;
+try { ({ PGlite } = await import('@electric-sql/pglite')); } catch { console.error('Install the test database first: npm i --no-save @electric-sql/pglite'); process.exit(2); }
+const neon = await import('@neondatabase/serverless'); // the same copy api/_db.js loads
+
+const pg = new PGlite();
+const TEXT_OIDS = [16, 20, 21, 23, 25, 700, 701, 1043, 1082, 1114, 1184, 1700, 114, 3802];
+const parsers = Object.fromEntries(TEXT_OIDS.map(o => [o, v => v]));
+async function run(q) {
+  const r = await pg.query(q.query, q.params || [], { rowMode: 'array', parsers });
+  return { command: 'SELECT', rowCount: r.rows.length, rows: r.rows, fields: r.fields.map(f => ({ name: f.name, dataTypeID: f.dataTypeID, tableID: 0, columnID: 0, dataTypeSize: -1, dataTypeModifier: -1, format: 'text' })), rowAsArray: true };
+}
+const server = http.createServer((req, res) => {
+  let data = '';
+  req.on('data', c => (data += c));
+  req.on('end', async () => {
+    try {
+      const body = JSON.parse(data);
+      const out = body.queries ? await Promise.all(body.queries.map(run)) : await run(body);
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify(body.queries ? { results: out } : out));
+    } catch (err) { res.statusCode = 400; res.end(JSON.stringify({ message: String(err.message), code: err.code || '42000' })); }
+  });
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r));
+neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}/sql`;
+process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
+
+const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
+const [club, roster, games, events] = await Promise.all(['club', 'roster', 'games', 'events'].map(load));
+let ip = 0;
+async function call(handler, method, { query = '', body, headers = {} } = {}) {
+  const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.0.0.' + (++ip % 200), ...headers }, body };
+  let status = 0, text = '';
+  const res = { statusCode: 0, setHeader() {}, end(t) { status = res.statusCode; text = t; } };
+  await handler(req, res);
+  return { status, json: JSON.parse(text) };
+}
+const ok = (r, want = 200) => { assert.equal(r.status, want, JSON.stringify(r.json)); return r.json; };
+
+let passed = 0;
+const step = async (name, fn) => { await fn(); passed++; console.log('ok  ' + name); };
+
+const created = ok(await call(club, 'POST', { body: { name: 'API check club' } }), 201);
+const code = created.club.code, owner = created.ownerToken;
+const players = ['Ana', 'Ben', 'Cy', 'Di', 'Ed', 'Flo', 'Gus', 'Hal'];
+const create = (event, creds = { ownerToken: owner }) => call(events, 'POST', { body: { code, action: 'create', event, ...creds } });
+const act = (action, extra = {}, creds = { ownerToken: owner }) => call(events, 'POST', { body: { code, action, ...extra, ...creds } });
+const clubGames = async () => ok(await call(club, 'GET', { query: '?code=' + code })).games;
+
+let ev;
+await step('only the organizer can create events', async () => {
+  const r = await create({ name: 'Nope', format: 'roundrobin', players }, {});
+  assert.equal(r.status, 403);
+  assert.equal(ok(await call(events, 'GET', { query: '?code=' + code })).events.length, 0);
+});
+await step('create an 8 player rotating doubles round robin on 2 courts', async () => {
+  ev = ok(await create({ name: 'Sunday rotation', format: 'roundrobin', rotation: 'auto', courts: 2, players, seed: 'api' }), 201).event;
+  assert.equal(ev.rounds.length, 1);
+  assert.equal(ev.rounds[0].matches.length, 2);
+  assert.equal(ok(await call(events, 'GET', { query: `?code=${code}` })).events[0].name, 'Sunday rotation');
+  const rosterNow = ok(await call(club, 'GET', { query: '?code=' + code })).roster;
+  assert.equal(rosterNow.length, 8, 'event players are saved to the club roster');
+});
+await step('results feed the club record once, with the event named on the game', async () => {
+  const m = ev.rounds[0].matches[0];
+  const body = { id: ev.id, matchId: m.id, score: [11, 6], startedAt: Date.now() - 600000, endedAt: Date.now(), rallies: 33, live: true };
+  const r = ok(await call(events, 'POST', { body: { code, action: 'result', ...body } }));
+  assert.equal(r.event.rounds[0].matches[0].status, 'done');
+  let g = await clubGames();
+  assert.equal(g.length, 1);
+  assert.equal(g[0].id, `${ev.id}-${m.id}`);
+  assert.equal(g[0].event.id, ev.id);
+  assert.equal(g[0].logged, false);
+  ok(await call(events, 'POST', { body: { code, action: 'result', ...body } })); // a phone retrying
+  assert.equal((await clubGames()).length, 1, 'a retry does not add a second game');
+  const other = await call(events, 'POST', { body: { code, action: 'result', ...body, score: [3, 11] } });
+  assert.equal(other.status, 409);
+  assert.equal((await clubGames()).length, 1);
+});
+await step('two phones scoring different courts at the same moment both land', async () => {
+  const [a, b] = ev.rounds[0].matches;
+  const second = ev.rounds[0].matches[1];
+  const [r1, r2] = await Promise.all([
+    call(events, 'POST', { body: { code, action: 'result', id: ev.id, matchId: second.id, score: [11, 9], endedAt: Date.now() } }),
+    call(events, 'POST', { body: { code, action: 'result', id: ev.id, matchId: a.id, score: [11, 6], endedAt: Date.now() } })
+  ]);
+  assert.equal(r1.status, 200); assert.equal(r2.status, 200);
+  const now = ok(await call(events, 'GET', { query: `?code=${code}&id=${ev.id}` })).event;
+  assert.ok(now.rounds[0].matches.every(m => m.status === 'done'));
+  assert.equal(now.rounds[0].status, 'done');
+  assert.equal((await clubGames()).length, 2);
+});
+await step('next round, organizer-only', async () => {
+  assert.equal((await act('next-round', { id: ev.id }, {})).status, 403);
+  const r = ok(await act('next-round', { id: ev.id })).event;
+  assert.equal(r.rounds.length, 2);
+  ev = r;
+});
+await step('a manual round: set the pairings, publish, then score', async () => {
+  const m = ok(await create({ name: 'Manual', format: 'roundrobin', rotation: 'manual', courts: 1, players: players.slice(0, 5) }), 201).event;
+  assert.equal(m.rounds[0].status, 'draft');
+  const set = ok(await act('set-round', { id: m.id, round: 1, matches: [{ teams: [['Ana', 'Ben'], ['Cy', 'Di']] }] })).event;
+  assert.deepEqual(set.rounds[0].matches[0].teams, [['Ana', 'Ben'], ['Cy', 'Di']]);
+  assert.equal((await call(events, 'POST', { body: { code, action: 'result', id: m.id, matchId: 'r1m1', score: [11, 1] } })).status, 409);
+  ok(await act('publish-round', { id: m.id, round: 1 }));
+  ok(await call(events, 'POST', { body: { code, action: 'result', id: m.id, matchId: 'r1m1', score: [11, 1], endedAt: Date.now() } }));
+  const bad = await act('set-round', { id: m.id, round: 1, matches: [{ teams: [['Ana', 'Ben'], ['Cy', 'Di']] }] });
+  assert.equal(bad.status, 409);
+});
+await step('correcting a score updates the club game in place', async () => {
+  const m = ev.rounds[0].matches[0];
+  const r = ok(await act('correct', { id: ev.id, matchId: m.id, score: [8, 11] })).event;
+  assert.deepEqual(r.rounds[0].matches[0].score, [8, 11]);
+  const g = (await clubGames()).find(x => x.id === `${ev.id}-${m.id}`);
+  assert.deepEqual(g.score, [8, 11]);
+  assert.equal(g.winner, 1);
+  assert.equal(g.event.id, ev.id, 'the event tag survives a correction');
+  assert.ok(g.receivedAt, 'when the server got it is kept');
+  assert.equal((await act('correct', { id: ev.id, matchId: m.id, score: [8, 11] }, {})).status, 403);
+});
+await step('a single elimination bracket plays to a champion and every game is recorded', async () => {
+  const b = ok(await create({ name: 'Cup', format: 'single_elim', rotation: 'random', courts: 2, players, seed: 'cup' }), 201).event;
+  let cur = b, played = 0;
+  const before = (await clubGames()).length;
+  for (let guard = 0; guard < 10 && cur.status !== 'done'; guard++) {
+    const next = cur.knockout.flatMap(r => r.matches).find(m => m.ready);
+    cur = ok(await call(events, 'POST', { body: { code, action: 'result', id: b.id, matchId: next.id, score: [11, 4], endedAt: Date.now() } })).event; played++;
+  }
+  assert.equal(cur.status, 'done'); assert.equal(played, 3); assert.equal(cur.champion.length, 2);
+  assert.equal((await clubGames()).length, before + 3);
+  assert.equal((await call(events, 'POST', { body: { code, action: 'result', id: b.id, matchId: 'W1-0', score: [1, 11] } })).status, 409);
+});
+await step('pool play then knockout through the API', async () => {
+  const p = ok(await create({ name: 'Pool', format: 'pool_knockout', rotation: 'auto', courts: 2, players, rounds: 3, advance: 2, seed: 'pool' }), 201).event;
+  let cur = p;
+  for (let r = 1; r <= 3; r++) {
+    for (const m of cur.rounds[r - 1].matches) cur = ok(await call(events, 'POST', { body: { code, action: 'result', id: p.id, matchId: m.id, score: [11, 7], endedAt: Date.now() } })).event;
+    if (r < 3) cur = ok(await act('next-round', { id: p.id })).event;
+  }
+  assert.equal(cur.poolDone, true);
+  cur = ok(await act('start-knockout', { id: p.id, advance: 2 })).event;
+  assert.equal(cur.knockout.length, 1);
+  assert.equal(cur.knockout[0].title, 'Final');
+});
+await step('end and delete hide an event but keep its games', async () => {
+  const list = ok(await call(events, 'GET', { query: '?code=' + code })).events;
+  const gamesBefore = (await clubGames()).length;
+  ok(await act('end', { id: ev.id }));
+  ok(await act('delete', { id: ev.id }));
+  assert.equal((await call(events, 'GET', { query: `?code=${code}&id=${ev.id}` })).status, 404);
+  assert.equal(ok(await call(events, 'GET', { query: '?code=' + code })).events.length, list.length - 1);
+  assert.equal((await clubGames()).length, gamesBefore);
+});
+await step('the existing club data still loads with event games in it (ratings, progress, history)', async () => {
+  const c = ok(await call(club, 'GET', { query: '?code=' + code }));
+  assert.ok(c.games.length >= 5);
+  assert.ok(c.progress && c.progress.players);
+});
+
+console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
+server.close(); await pg.close(); process.exit(0);
