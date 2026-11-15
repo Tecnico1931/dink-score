@@ -25,6 +25,7 @@ A scorekeeper and a club record in one, built for one real group rather than a l
 - Live scoring during a game: side-out or rally scoring, singles or doubles, to 11, 15 or 21; server and serving-side tracking; change-ends prompts.
 - Logging results from other courts, including mid-game.
 - Picking saved players by tap; joining a club by code; optional organizer PIN for organizer actions (members list, manage shop).
+- Running events (organizer-led, scored by anyone in the club): round robin with rotating partners, pool play then a knockout, single or double elimination, on one or several courts at once, with rotation by fair spread, random draw or the organizer's own picks.
 - Reviewing afterwards: Recent games, Record, Leaderboard, Rating over time, Club honors, Past champions, Shop.
 - First-visit tour and an in-app Rules section explaining scoring, serving, the kitchen, and how Dink Rating and Dinks work.
 

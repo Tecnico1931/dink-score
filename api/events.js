@@ -19,8 +19,9 @@ const MAX_EVENTS = 100; // per club, not counting deleted ones
 
 function summary(row) {
   const e = row.data;
+  const current = e.rounds.find(r => r.status !== 'done') || e.rounds[e.rounds.length - 1]; // for fixed teams every round exists from the start
   return { id: e.id, name: e.name, format: e.format, partners: e.partners, status: e.status, players: e.players.length, courts: e.courts,
-    rounds: e.rounds.length, roundsPlanned: e.roundsPlanned, stage: e.stage, champion: e.champion || null, createdAt: e.createdAt, updatedAt: e.updatedAt };
+    round: current ? current.n : 0, roundsPlanned: e.roundsPlanned, stage: e.stage, champion: e.champion || null, createdAt: e.createdAt, updatedAt: e.updatedAt };
 }
 
 // Reads an event, lets fn change it, and saves it only if nobody else saved first (the version number); otherwise

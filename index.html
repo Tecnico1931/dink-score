@@ -841,6 +841,57 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 @media (min-width: 520px) { .tile.live .t-big { font-size: 64px; } }
 @media (max-width: 360px) { .seg-row { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+/* Events: tournaments and rotating doubles */
+.vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ev-screen { position: fixed; inset: 0; z-index: 30; background: var(--bg); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.ev-wrap { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(40px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.ev-top { display: flex; align-items: center; gap: 12px; }
+.ev-top h2 { margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 26px; line-height: 1.1; letter-spacing: -.02em; text-wrap: balance; }
+.ev-back { width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); display: grid; place-items: center; flex: none; }
+.ev-back svg { width: 20px; height: 20px; }
+.ev-card { background: var(--surface); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font: inherit; }
+.ev-item-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ev-item-head b { font-size: 17px; overflow-wrap: anywhere; min-width: 0; }
+.ev-sec { display: flex; flex-direction: column; gap: 10px; }
+.ev-sec h3, .ev-card h3 { margin: 0; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 19px; letter-spacing: -.01em; }
+.ev-seg2 { grid-auto-flow: row; grid-template-columns: 1fr 1fr; }
+.ev-step { display: flex; align-items: center; gap: 14px; }
+.ev-step button { width: 44px; height: 44px; border-radius: 14px; border: 0; background: var(--surface-2); font-size: 22px; font-weight: 700; padding: 0; }
+.ev-step button:disabled { opacity: .35; }
+.ev-step b { min-width: 2ch; text-align: center; font-size: 30px; line-height: 1; }
+.ev-game { grid-template-columns: 1fr; }
+.ev-game .who { color: var(--ink); }
+.ev-game.done .line:not(.win) .who { color: var(--muted); }
+.ev-game .meta { padding-left: 18px; }
+.ev-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ev-small { padding: 12px 16px; font-size: 15px; border-radius: 14px; }
+.ev-entry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.ev-entry label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; color: var(--muted); min-width: 0; border-left: 5px solid var(--c); padding-left: 10px; }
+.ev-entry label span { overflow-wrap: anywhere; }
+.ev-entry input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 6px 8px; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ev-entry .err, .ev-entry .ev-actions { grid-column: 1 / -1; }
+.ev-fs { border: 0; margin: 0; padding: 12px; border-radius: 16px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ev-fs legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
+.ev-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-left: 5px solid var(--c); padding-left: 8px; }
+.ev-pair select { min-height: 44px; }
+.ev-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.ev-table th { font-size: 12px; font-weight: 500; color: var(--muted); text-align: right; padding: 8px 6px; }
+.ev-table th.who { text-align: left; }
+.ev-table td { padding: 10px 6px; border-top: 1px solid var(--line); text-align: right; font-size: 20px; line-height: 1; }
+.ev-table td.who { text-align: left; font-family: var(--ui); font-weight: 500; font-stretch: normal; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+.ev-rank { display: inline-block; min-width: 26px; padding: 2px 6px; margin-right: 6px; border-radius: 999px; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 16px; color: var(--muted); }
+.ev-rank.first { background: var(--ball); color: var(--ball-ink); }
+.ev-champ { display: flex; align-items: center; gap: 14px; background: var(--ink); color: var(--bg); border-radius: 22px; padding: 16px 18px; }
+.ev-champ .ball { width: 22px; height: 22px; }
+.ev-champ small { display: block; font-size: 13px; opacity: .7; }
+.ev-champ b { font-size: 20px; overflow-wrap: anywhere; }
+.ev-more { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow); padding: 4px 14px 10px; }
+.ev-more > summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; cursor: pointer; }
+.ev-more[open] > summary { margin-bottom: 6px; }
+.ev-more .games { gap: 8px; }
+.ev-more .game { box-shadow: none; background: var(--surface-2); }
 </style>
 
 <div class="app" id="app"></div>
@@ -855,6 +906,7 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
   </nav>
 </div>
 
+<div id="events"></div>
 <div id="overlay"></div>
 <div id="sheet2"></div>
 <div id="sheet3"></div>
@@ -1354,6 +1406,7 @@ function flush() {
         else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
+        else if (op.type === 'event-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'result', id: op.eventId, matchId: op.matchId, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, live: op.live }, senderCreds(code))) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
@@ -1361,6 +1414,7 @@ function flush() {
         const pinOp = op.type === 'delete' || op.type === 'restore' || op.type === 'edit' || op.type === 'roster-del';
         if (err.offline || err.status >= 500 || (err.status === 429 && !pinOp)) { clubState = 'offline'; updateSyncPill(); break; }
         if (op.type === 'game') showToast(`A game couldn't be saved to the club: ${err.message}`, false);
+        if (op.type === 'event-result') showToast(`A result couldn't be saved to the event: ${err.message}`, false);
         if (pinOp && (err.status === 403 || err.status === 429)) {
           if (err.status === 403) { delete pins[code]; store.set('pb.pins', pins); }
           showToast(`${err.message} ${op.type === 'roster-del' ? `${op.name} was not removed.` : `The game was not ${op.type === 'delete' ? 'deleted' : op.type === 'edit' ? 'changed' : 'restored'}.`}`, false);
@@ -1369,6 +1423,8 @@ function flush() {
       outbox.shift(); store.set('pb.outbox', outbox); sent = true;
     }
     flushing = null;
+    if (sent && evScreen && evScreen.view === 'detail') evLoad(evScreen.id, true);
+    else if (sent && evScreen) renderEvents(true);
     if (sent && !clubOps().length) await refreshClub();
   })();
   return flushing;
@@ -1387,6 +1443,7 @@ async function refreshClub() {
     if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
     clubState = 'idle';
     safeRender();
+    evSummaryRefresh();
     announceUnlocks();
     if (!myName() && !whoamiSkipped() && !askedWhoami && !clubSheet && !logForm && !profile && tourStep === null && !(live && live.open)) { askedWhoami = true; clubSheet = { view: 'whoami' }; renderClub(); }
   } catch (err) {
@@ -1683,6 +1740,7 @@ function render() {
   renderClub();
   renderProfile();
   renderTour();
+  renderEvents();
   if (document.body.scrollTop !== y) document.body.scrollTop = y;
 }
 
@@ -1700,6 +1758,10 @@ function homeTiles(games) {
   }
   if (club && myName() && !shopHidden()) tiles.push(`<button class="tile dinks" data-tab-go="shop"><span class="t-k">Your Dinks</span><span class="t-big">${wallet(myName()).balance}</span><span class="t-foot">Spend them in the shop</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">${needsClubToLog() ? 'Join a club to log results' : 'For games on other courts'}</span></button>`);
+  if (club) {
+    const liveEv = evSummary.find(e => e.status === 'live');
+    tiles.push(`<button class="tile wide" data-ev="open-list" style="min-height:0"><span class="t-k">Events</span>${liveEv ? `<span class="t-name">${esc(liveEv.name)}</span><span class="t-foot">Live · ${esc(evProgress(liveEv))}</span>` : `<span class="t-name">Tournaments and rotating doubles</span><span class="t-foot">Round robins, brackets and several courts at once</span>`}</button>`);
+  }
   const top = leaderStats(games, setup.mode)[0];
   tiles.push(`<button class="tile" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
     ${top ? `<span class="t-name">${esc(top.name)}</span><span class="t-big">${r2(top.rating)}</span>` : `<span class="t-name">No ratings yet</span><span class="t-foot">Save a game with named players</span>`}</button>`);
@@ -1803,7 +1865,7 @@ function gameItem(g) {
   const armed = armedDelete === g.id;
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
     <span class="g-actions"><button class="link" data-share="${esc(g.id)}">Share</button><button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
-    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.editedAt ? '<span class="tag">Edited</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
+    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
 }
 
 function historyView() {
@@ -1956,8 +2018,8 @@ function renderCourt() {
       <div class="facts"><div><b>${s.rallies}</b><small>Rallies</small></div><div><b>${minutes(s)} min</b><small>Duration</small></div><div><b>${cfg.scoring === 'rally' ? 'Rally' : 'Side-out'}</b><small>To ${cfg.target}</small></div></div>
       ${ratingPreview(s)}
       ${dinksPreview(s)}
-      <div class="btns"><button class="btn btn-ball" data-act="rematch">Save and rematch</button>
-        <button class="btn btn-ink" data-act="finish">Save and finish</button>
+      <div class="btns">${live.event ? '' : '<button class="btn btn-ball" data-act="rematch">Save and rematch</button>'}
+        <button class="btn ${live.event ? 'btn-ball' : 'btn-ink'}" data-act="finish">${live.event ? 'Save result' : 'Save and finish'}</button>
         <button class="btn btn-soft" data-act="undo">Undo last rally</button></div></div></div>`;
   } else if (live.confirmEnd) {
     sheet = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="end-h"><span class="grip"></span>
@@ -1972,7 +2034,7 @@ function renderCourt() {
   root.innerHTML = `<div class="court"${myTheme ? ` data-theme="${esc(myTheme)}"` : ''}>
     <div class="court-top">
       <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
-      <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
+      <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${live.event ? esc(live.event.name) + ': ' : ''}${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
       <div class="cright"><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
     </div>
     ${half(0)}
@@ -2034,7 +2096,7 @@ function ratingPreview(s) {
     <div class="changes">${named.map(x => `<div class="ch" style="--c:${TEAM_COLOR[x.team]}"><span class="tick"></span><span class="nm">${esc(x.name)}</span><span class="rt">${r2(x.after)}</span>${deltaHTML(x.after - x.before)}</div>`).join('')}</div></div>`;
 }
 
-function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), open: live.open } : null); }
+function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), open: live.open, event: live.event || null } : null); }
 let toastTimer;
 function showToast(msg, inCourt = true) {
   if (inCourt && live) { live.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (live) { live.toast = null; renderCourt(); } }, 3500); return; }
@@ -3282,6 +3344,424 @@ document.addEventListener('touchend', e => {
   renderTour();
 }, { passive: true });
 
+/* ---------- events: tournaments and rotating doubles ---------- */
+// An organizer sets an event up; anyone in the club can score its matches. The server keeps the rounds, courts and
+// standings and, when a match is finished, adds it to the club's games itself, so this screen never saves a game twice.
+const EV_FORMATS = [['roundrobin', 'Round robin'], ['pool_knockout', 'Pool + knockout'], ['single_elim', 'Single elim'], ['double_elim', 'Double elim']];
+const EV_FORMAT_NAME = { roundrobin: 'Round robin', pool_knockout: 'Pool play + knockout', single_elim: 'Single elimination', double_elim: 'Double elimination' };
+const EV_FORMAT_NOTE = {
+  roundrobin: 'Round after round, on as many courts as you pick. Standings count wins, then point difference.',
+  pool_knockout: 'A round robin first, then the best teams play a knockout bracket.',
+  single_elim: 'Lose once and you are out. Top seeds get byes when the bracket is not full.',
+  double_elim: 'Out after a second loss. The losers bracket can still win it all.'
+};
+const EV_ROT_NOTE = {
+  'rotating-auto': 'Partners and opponents are spread as evenly as possible. When there are more players than courts, everyone takes turns sitting out.',
+  'rotating-random': 'A fresh random draw every round. Byes are still shared evenly.',
+  'rotating-manual': 'Each round starts as a suggestion. You change the pairings, then open it.',
+  'fixed-auto': 'The strongest player is paired with the weakest by Dink Rating, so teams come out even.',
+  'fixed-random': 'Teams are drawn at random.',
+  'fixed-manual': 'Teams are the players in the order you tap them: 1st with 2nd, 3rd with 4th.'
+};
+let evScreen = null;  // null, or { view: 'list' | 'new' | 'detail', list, id, event, form, entry, edit, error, busy }
+let evSummary = [];   // the club's events, for the home tile
+let evPending = false;
+const canOrganize = () => !!club && (isCreator() || (!!club.hasPin && !!pins[club.code]));
+const evCall = body => api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, adminCreds())) });
+const evTeamName = t => (t ? t.join(' & ') : 'To be decided');
+function evNewForm() {
+  return { name: '', format: 'roundrobin', partners: 'rotating', rotation: 'auto', courts: 2, rounds: null, advance: 4, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, players: [], error: '', busy: false };
+}
+const evDefaultRounds = n => Math.min(15, Math.max(3, n - 1));
+
+function evOpenList() {
+  if (!club) return;
+  evScreen = { view: 'list', list: null, error: '' };
+  renderEvents(true); evLoadList();
+  const b = document.querySelector('#events .ev-back'); if (b) b.focus();
+}
+function evShow(id) {
+  evScreen = { view: 'detail', id, event: null, loading: true, error: '', list: evScreen ? evScreen.list : null };
+  renderEvents(true); evLoad(id);
+}
+async function evLoadList() {
+  const s = evScreen;
+  try {
+    const data = await api('events?code=' + club.code);
+    evSummary = data.events;
+    if (evScreen === s) { s.list = data.events; s.error = ''; }
+  } catch (err) { if (evScreen === s) { s.list = s.list || []; s.error = err.message; } }
+  renderEvents(); if (tab === 'play') safeRender();
+}
+async function evSummaryRefresh() {
+  if (!club || !API_OK || (tab !== 'play' && !evScreen)) return; // the summary only feeds the tile on Play
+  try {
+    const data = await api('events?code=' + club.code);
+    if (JSON.stringify(data.events.map(e => [e.id, e.status])) !== JSON.stringify(evSummary.map(e => [e.id, e.status]))) { evSummary = data.events; if (tab === 'play' && !evScreen) safeRender(); }
+    else evSummary = data.events;
+  } catch {}
+}
+async function evLoad(id, quiet) {
+  const s = evScreen;
+  if (!s || !club) return;
+  try {
+    const data = await api(`events?code=${club.code}&id=${encodeURIComponent(id)}`);
+    if (evScreen !== s || s.id !== id) return;
+    s.event = data.event; s.loading = false; if (!quiet) s.error = '';
+  } catch (err) {
+    if (evScreen !== s) return;
+    s.loading = false;
+    if (err.status === 404) { s.view = 'list'; s.error = 'That event no longer exists.'; evLoadList(); }
+    else if (!quiet || !s.event) s.error = err.offline && s.event ? '' : err.message;
+  }
+  renderEvents();
+}
+// While someone is typing a score, the polling refresh waits so it can't wipe what they typed.
+const evTyping = () => { const a = document.activeElement; return !!(a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.closest && a.closest('#events')); };
+function renderEvents(force) {
+  const root = $('#events');
+  if (!root) return;
+  const open = !!(evScreen && club);
+  for (const sel of ['#app', '#tabs']) { const el = $(sel); if (el) el.inert = open; } // the page behind is out of reach while the screen is open
+  if (!open) { if (root._html) { root.innerHTML = ''; root._html = ''; } return; }
+  if (!force && evTyping()) { evPending = true; return; }
+  evPending = false;
+  const html = evHTML();
+  if (root._html === html) return;
+  const old = root.querySelector('.ev-screen');
+  const key = evScreen.view + ':' + (evScreen.id || '');
+  const y = old && root._key === key ? old.scrollTop : 0;
+  root.innerHTML = html; root._html = html; root._key = key;
+  const sc = root.querySelector('.ev-screen');
+  if (sc && y) sc.scrollTop = y;
+  if (!old || root._focusKey !== key) { root._focusKey = key; const b = root.querySelector('.ev-back'); if (b) b.focus({ preventScroll: true }); }
+}
+document.addEventListener('focusout', () => { if (evPending) setTimeout(() => { if (evPending && !evTyping()) renderEvents(); }, 50); });
+setInterval(() => { if (evScreen && evScreen.view === 'detail' && !document.hidden && !evScreen.busy && club) evLoad(evScreen.id, true); }, 8000);
+
+function evSeg(key, options, value) {
+  return `<div class="seg" role="group">${options.map(([v, l]) => `<button type="button" data-ev="set" data-k="${key}" data-v="${v}" aria-pressed="${String(v) === String(value)}">${l}</button>`).join('')}</div>`;
+}
+function evStepper(key, label, value, min, max) {
+  return `<div class="field"><span class="lab" id="ev-l-${key}">${label}</span><div class="ev-step" role="group" aria-labelledby="ev-l-${key}"><button type="button" data-ev="step" data-k="${key}" data-d="-1" aria-label="Fewer" ${value <= min ? 'disabled' : ''}>−</button><b class="num" aria-live="polite">${value}</b><button type="button" data-ev="step" data-k="${key}" data-d="1" aria-label="More" ${value >= max ? 'disabled' : ''}>+</button></div></div>`;
+}
+const evProgress = e => e.status === 'done' ? (e.champion ? `Won by ${e.champion.join(' & ')}` : 'Finished')
+  : e.stage === 'knockout' ? 'Knockout under way' : `Round ${Math.max(1, e.round)} of ${e.roundsPlanned}`;
+
+function evHTML() {
+  const s = evScreen;
+  const body = s.view === 'new' ? evNewHTML(s) : s.view === 'detail' ? evDetailHTML(s) : evListHTML(s);
+  const title = s.view === 'new' ? 'New event' : s.view === 'detail' ? (s.event ? s.event.name : 'Event') : 'Events';
+  return `<div class="ev-screen" role="dialog" aria-modal="true" aria-labelledby="ev-h"><div class="ev-wrap">
+    <div class="ev-top"><button class="ev-back" data-ev="back" aria-label="${s.view === 'list' ? 'Close events' : 'Back to events'}">${ICON.back}</button><h2 id="ev-h">${esc(title)}</h2></div>${body}</div></div>`;
+}
+function evListHTML(s) {
+  const org = canOrganize();
+  const hint = club.hasPin ? 'Starting and running events needs the organizer PIN.' : 'Only the phone that created the club can start events. Set an organizer PIN from the club screen to let other organizers help.';
+  const make = org ? '<button class="btn btn-ink block" data-ev="new">New event</button>'
+    : `<div class="org-card"><p>${esc(hint)}</p>${club.hasPin ? '<button class="btn btn-ink" data-ev="unlock">Unlock this phone</button>' : ''}</div>`;
+  const items = (s.list || []).map(e => `<button class="ev-card ev-item" data-ev="open" data-id="${esc(e.id)}"><span class="ev-item-head"><b>${esc(e.name)}</b><span class="badge ${e.status === 'live' ? 'hot' : 'prov'}">${e.status === 'live' ? 'Live' : 'Finished'}</span></span>
+    <span class="note">${esc(EV_FORMAT_NAME[e.format])}${e.partners === 'rotating' ? ', partners rotate' : ', fixed teams'} · ${e.players} players · ${e.courts} court${e.courts === 1 ? '' : 's'}</span><span class="note">${esc(evProgress(e))}</span></button>`).join('');
+  return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}${make}
+    ${s.list === null ? '<p class="note">Loading events…</p>' : items ? `<div class="ev-sec">${items}</div>` : '<div class="empty"><p>No events yet. An organizer can run a round robin with rotating partners, a pool play and knockout, or a single or double elimination bracket.</p></div>'}`;
+}
+function evNewHTML(s) {
+  const f = s.form, n = f.players.length, rotating = f.partners === 'rotating' && (f.format === 'roundrobin' || f.format === 'pool_knockout');
+  const elim = f.format === 'single_elim' || f.format === 'double_elim';
+  const fixed = !rotating;
+  const rotLabels = rotating ? [['auto', 'Fair rotation'], ['random', 'Random draw'], ['manual', 'I pick']] : [['auto', 'Balanced'], ['random', 'Random draw'], ['manual', 'I pick']];
+  const names = [...roster, ...f.players.filter(p => !roster.some(r => sameName(r, p)))];
+  const chips = names.map(p => { const i = f.players.findIndex(x => sameName(x, p)); return `<button type="button" class="chip-btn" data-ev="pick" data-pl="${esc(p)}" aria-pressed="${i >= 0}">${i >= 0 && fixed && f.rotation === 'manual' ? `<span class="r">${i + 1}</span>` : ''}${esc(p)}</button>`; }).join('');
+  const hint = n < 4 ? 'Pick at least 4 players.' : fixed && n % 2 ? 'Fixed teams need an even number of players.' : f.format === 'double_elim' && n < 6 ? 'Double elimination needs at least 6 players (3 teams).'
+    : f.format === 'pool_knockout' && n < 8 ? 'Pool play and knockout needs at least 8 players.' : n > 32 ? 'An event holds at most 32 players.' : '';
+  const rounds = f.rounds || evDefaultRounds(n || 8);
+  const maxAdv = Math.max(2, Math.min(16, Math.floor(n / 2)));
+  const teamsPreview = fixed && f.rotation === 'manual' && n >= 2 ? `<p class="note">${Array.from({ length: Math.floor(n / 2) }, (_, i) => `Team ${i + 1}: ${esc(f.players[2 * i])} &amp; ${esc(f.players[2 * i + 1])}`).join('<br>')}</p>` : '';
+  return `<form class="ev-card" data-ev-form="create" novalidate>
+    <div class="field"><label class="lab" for="ev-name">Name</label><input id="ev-name" class="field-input" data-ev-input="name" maxlength="40" autocomplete="off" placeholder="Saturday ladder, Club cup…" value="${esc(f.name)}"></div>
+    <div class="field"><span class="lab">Format</span><div class="seg ev-seg2" role="group">${EV_FORMATS.map(([v, l]) => `<button type="button" data-ev="set" data-k="format" data-v="${v}" aria-pressed="${f.format === v}">${l}</button>`).join('')}</div><p class="note">${esc(EV_FORMAT_NOTE[f.format])}</p></div>
+    ${elim ? '' : `<div class="field"><span class="lab">Partners</span>${evSeg('partners', [['rotating', 'Rotate every round'], ['fixed', 'Fixed teams']], f.partners)}</div>`}
+    <div class="field"><span class="lab">${rotating ? 'Who plays with whom' : 'Forming teams'}</span>${evSeg('rotation', rotLabels, f.rotation)}<p class="note">${esc(EV_ROT_NOTE[(rotating ? 'rotating-' : 'fixed-') + f.rotation])}</p></div>
+    ${evStepper('courts', 'Courts', f.courts, 1, 8)}
+    ${rotating ? evStepper('rounds', 'Rounds', rounds, 1, 30) : ''}
+    ${f.format === 'pool_knockout' ? evStepper('advance', 'Teams in the knockout', Math.min(f.advance, maxAdv), 2, maxAdv) : ''}
+    <div class="seg-row" style="margin:0"><div class="field"><span class="lab">Play to</span>${evSeg('target', [[11, '11'], [15, '15'], [21, '21']], f.target)}</div>
+      <div class="field" style="margin:0"><span class="lab">Win by</span>${evSeg('winBy', [[2, '2'], [1, '1']], f.winBy)}</div></div>
+    <div class="field"><span class="lab">Scoring</span>${evSeg('scoring', [['sideout', 'Side-out'], ['rally', 'Rally']], f.scoring)}</div>
+    <div class="field"><div class="rhead"><span class="lab">Players (${n})</span><span><button type="button" class="link" data-ev="pick-all">All</button> <button type="button" class="link" data-ev="pick-none">None</button></span></div>
+      <div class="chips">${chips || '<span class="note">Add the players below.</span>'}</div>${teamsPreview}
+      <div class="add-player"><input id="ev-guest" data-ev-input="guest" placeholder="Add a player" autocomplete="off" maxlength="40" aria-label="Add a player"><button type="button" class="btn btn-soft" data-ev="guest" style="padding:10px 16px;border-radius:12px">Add</button></div></div>
+    ${hint ? `<p class="note" role="status">${esc(hint)}</p>` : ''}${f.error ? `<p class="err" role="alert">${esc(f.error)}</p>` : ''}
+    <button type="submit" class="btn btn-ink block" ${f.busy || hint ? 'disabled' : ''}>${f.busy ? 'Starting…' : 'Start event'}</button></form>`;
+}
+
+// A result this phone has sent that the server has not confirmed yet (offline, or just sent).
+const evQueued = id => clubOps().find(o => o.type === 'event-result' && o.matchId === id);
+// allow is false for a match already shown (with its buttons) in the "now" section, so no button or field appears twice.
+function evMatchHTML(ev, m, org, allow = true) {
+  const op = evQueued(m.id);
+  const score = op ? op.score : m.score;
+  const done = !!score;
+  const win = done ? (score[0] > score[1] ? 0 : 1) : null;
+  const line = t => `<div class="line ${win === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(evTeamName(m.teams[t]))}<span class="vh"> ${TEAM_NAME[t]} team</span></span><span class="pts">${done ? score[t] : ''}</span></div>`;
+  const entry = allow && evScreen.entry && evScreen.entry.m === m.id ? evScreen.entry : null;
+  const state = op ? '<span class="tag">Saving…</span>' : done ? '<span class="tag">Final</span>' : m.ready ? '' : '<span class="tag">Waiting for earlier matches</span>';
+  const actions = !allow ? '' : !done && m.ready && !entry && ev.status !== 'done' ? `<button class="btn btn-ink ev-small" data-ev="live" data-m="${esc(m.id)}">Score live</button><button class="btn btn-soft ev-small" data-ev="enter" data-m="${esc(m.id)}">Enter score</button>`
+    : done && !op && org && !entry ? `<button class="link" data-ev="fix" data-m="${esc(m.id)}">Fix score</button>` : '';
+  const form = entry ? `<form class="ev-entry" data-ev-form="entry" data-m="${esc(m.id)}">${[0, 1].map(t => `<label style="--c:${TEAM_COLOR[t]}"><span>${esc(evTeamName(m.teams[t]))}</span><input id="ev-s${t}" type="number" inputmode="numeric" min="0" max="99" data-ev-input="s${t}" value="${esc(entry.s[t])}" aria-label="${TEAM_NAME[t]} team score"></label>`).join('')}
+    ${entry.error ? `<p class="err" role="alert">${esc(entry.error)}</p>` : ''}<div class="ev-actions"><button type="submit" class="btn btn-blue ev-small">${entry.fix ? 'Save the fix' : 'Save score'}</button><button type="button" class="btn btn-soft ev-small" data-ev="entry-cancel">Cancel</button></div></form>` : '';
+  return `<li class="game ev-game${done ? ' done' : ''}"><div class="lines">${line(0)}${line(1)}</div>
+    <div class="meta">${m.court && !done ? `<span class="tag">Court ${m.court}</span>` : m.ready && !done ? '<span class="tag">Waiting for a court</span>' : ''}${state}</div>${actions ? `<div class="ev-actions">${actions}</div>` : ''}${form}</li>`;
+}
+function evEditHTML(ev, ed) {
+  const opts = sel => `<option value="">Pick a player</option>${ev.players.map(p => `<option value="${esc(p)}" ${sameName(p, sel || '') ? 'selected' : ''}>${esc(p)}</option>`).join('')}`;
+  const matches = ed.matches.map((m, i) => `<fieldset class="ev-fs"><legend>Court ${i + 1}</legend>${[0, 1].map(t => `<div class="ev-pair" style="--c:${TEAM_COLOR[t]}">${[0, 1].map(j => `<select class="field-input" data-ev-sel="${i}-${t}-${j}" aria-label="Court ${i + 1}, ${TEAM_NAME[t]} team, player ${j + 1}">${opts(m.teams[t][j])}</select>`).join('')}</div>`).join('')}
+    ${ed.matches.length > 1 ? `<button type="button" class="link" data-ev="edit-del" data-i="${i}">Remove court ${i + 1}</button>` : ''}</fieldset>`).join('');
+  const used = new Set(ed.matches.flatMap(m => m.teams.flat()).filter(Boolean));
+  const sit = ev.players.filter(p => !used.has(p));
+  return `<form class="ev-card" data-ev-form="edit" novalidate><h3 style="margin:0">Pairings for round ${ed.round}</h3>${matches}
+    ${ed.matches.length < Math.min(ev.courts, Math.floor(ev.players.length / 4)) ? '<button type="button" class="link" data-ev="edit-add">+ Add a court</button>' : ''}
+    <p class="note">Sitting out: ${sit.length ? esc(sit.join(', ')) : 'nobody'}</p>${ed.error ? `<p class="err" role="alert">${esc(ed.error)}</p>` : ''}
+    <div class="ev-actions"><button type="submit" class="btn btn-ink ev-small" ${evScreen.busy ? 'disabled' : ''}>${ed.draft ? 'Save and open round' : 'Save pairings'}</button><button type="button" class="btn btn-soft ev-small" data-ev="edit-cancel">Cancel</button></div></form>`;
+}
+function evDetailHTML(s) {
+  const ev = s.event;
+  if (!ev) return s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : '<p class="note">Loading…</p>';
+  const org = canOrganize(), live = ev.status === 'live';
+  const out = [];
+  if (s.error) out.push(`<p class="err" role="alert">${esc(s.error)}</p>`);
+  out.push(`<div class="ev-card"><div class="ev-item-head"><b>${esc(EV_FORMAT_NAME[ev.format])}</b><span class="badge ${live ? 'hot' : 'prov'}">${live ? 'Live' : 'Finished'}</span></div>
+    <span class="note">${ev.partners === 'rotating' ? 'Partners rotate' : 'Fixed teams'} · ${ev.players.length} players · ${ev.courts} court${ev.courts === 1 ? '' : 's'} · to ${ev.target}, ${ev.scoring === 'rally' ? 'rally' : 'side-out'}, win by ${ev.winBy}</span>
+    <span class="note">${esc(evProgress({ status: ev.status, champion: null, stage: ev.stage, round: (ev.rounds.find(r => r.status !== 'done') || ev.rounds[ev.rounds.length - 1] || { n: 1 }).n, roundsPlanned: ev.roundsPlanned }))}</span></div>`);
+  if (ev.status === 'done' && ev.champion) out.push(`<div class="ev-champ" role="status"><span class="ball"></span><div><small>${ev.knockout ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(ev.champion.join(' & '))}</b></div></div>`);
+  // Now playing
+  let nowTitle = '', now = [], byes = [], round = null;
+  if (ev.knockout) {
+    const ready = ev.knockout.flatMap(r => r.matches.map(m => Object.assign({ round: r.title }, m))).filter(m => m.status === 'pending' && m.ready);
+    now = ready; nowTitle = ready.length ? 'Up now' : '';
+  } else {
+    round = ev.rounds.find(r => r.status !== 'done') || ev.rounds[ev.rounds.length - 1];
+    if (round) { now = round.matches; byes = round.byes; nowTitle = round.title + (round.status === 'draft' ? ' (not open yet)' : ''); }
+  }
+  const nowIds = new Set(now.map(m => m.id));
+  const editing = s.edit && round && s.edit.round === round.n;
+  if (editing) out.push(evEditHTML(ev, s.edit));
+  else if (nowTitle) {
+    const canEdit = org && ev.partners === 'rotating' && round && round.status !== 'done' && round.matches.every(m => !m.score && !evQueued(m.id));
+    out.push(`<section class="ev-sec" aria-labelledby="ev-now"><div class="sec-head"><h3 id="ev-now">${esc(nowTitle)}</h3>${canEdit ? `<button class="link" data-ev="edit-open" data-n="${round.n}">Change pairings</button>` : ''}</div>
+      ${round && round.status === 'draft' ? `<p class="note">${org ? 'This is a suggestion. Change the pairings if you like, then open the round so scores can come in.' : 'The organizer is setting this round up.'}</p>` : ''}
+      <ul class="games">${now.map(m => evMatchHTML(ev, m, org)).join('')}</ul>${byes.length ? `<p class="note">Sitting out: ${esc(byes.join(', '))}</p>` : ''}
+      ${round && round.status === 'draft' && org ? `<button class="btn btn-ink block" data-ev="publish" data-n="${round.n}" ${s.busy ? 'disabled' : ''}>Open round ${round.n}</button>` : ''}</section>`);
+  }
+  // Organizer: next round, start the knockout
+  if (org && live && ev.partners === 'rotating' && ev.stage === 'pool' && ev.rounds.length < ev.roundsPlanned && ev.rounds.every(r => r.status === 'done')) {
+    out.push(`<button class="btn btn-ink block" data-ev="next-round" ${s.busy ? 'disabled' : ''}>Plan round ${ev.rounds.length + 1}${ev.rotation === 'manual' ? '' : ''}</button>`);
+  }
+  if (ev.format === 'pool_knockout' && ev.poolDone && !ev.knockout) {
+    const maxAdv = Math.max(2, Math.min(16, ev.partners === 'fixed' ? ev.teams.length : Math.floor(ev.players.length / 2)));
+    const opts = [2, 4, 8, 16].filter(v => v <= maxAdv);
+    const cur = s.advance || Math.min(ev.advance, opts[opts.length - 1]);
+    out.push(org ? `<div class="ev-card"><h3 style="margin:0">Pool play is finished</h3><p class="note">The top of the table plays a knockout${ev.partners === 'rotating' ? '. Players are paired best with weakest, so teams come out even.' : '.'}</p>
+      <div class="field"><span class="lab">Teams in the knockout</span>${evSeg('advance-pick', opts.map(v => [v, v]), cur)}</div>
+      <button class="btn btn-ink block" data-ev="knockout" ${s.busy ? 'disabled' : ''}>Start the knockout</button></div>` : '<div class="ev-card"><b>Pool play is finished</b><p class="note">The organizer starts the knockout next.</p></div>');
+  }
+  // Standings
+  if (ev.format !== 'single_elim' && ev.format !== 'double_elim') {
+    out.push(`<section class="ev-sec" aria-labelledby="ev-st"><h3 id="ev-st">${ev.format === 'pool_knockout' ? 'Pool standings' : 'Standings'}</h3><div class="ev-card" style="padding:8px 12px"><table class="ev-table"><caption class="vh">Wins, losses and point difference</caption>
+      <thead><tr><th scope="col" class="who">${ev.partners === 'fixed' ? 'Team' : 'Player'}</th><th scope="col">W–L</th><th scope="col">+/−</th></tr></thead><tbody>${ev.standings.map(r => `<tr><td class="who"><span class="ev-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${esc(r.name)}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('')}</tbody></table></div>
+      ${ev.partners === 'rotating' ? '<p class="note">Ranked by wins, then point difference. Sitting out a round is not a loss.</p>' : ''}</section>`);
+  }
+  // The rest of the schedule
+  if (ev.knockout) {
+    out.push(`<section class="ev-sec" aria-labelledby="ev-br"><h3 id="ev-br">Bracket</h3>${ev.knockout.map(r => `<details class="ev-more" ${r.matches.some(m => m.status === 'pending') ? 'open' : ''}><summary>${esc(r.title)}</summary><ul class="games">${r.matches.map(m => evMatchHTML(ev, m, org, !nowIds.has(m.id))).join('')}</ul></details>`).join('')}</section>`);
+  }
+  if (ev.rounds.length > (ev.knockout ? 0 : 1)) {
+    out.push(`<section class="ev-sec" aria-labelledby="ev-rd"><h3 id="ev-rd">${ev.knockout ? 'Pool play rounds' : 'All rounds'}</h3>${ev.rounds.map(r => `<details class="ev-more"><summary>${esc(r.title)}${r.status === 'done' ? ' · done' : ''}</summary><ul class="games">${r.matches.map(m => evMatchHTML(ev, m, org, !nowIds.has(m.id))).join('')}</ul>${r.byes.length ? `<p class="note">Sitting out: ${esc(r.byes.join(', '))}</p>` : ''}</details>`).join('')}</section>`);
+  }
+  if (org) {
+    out.push(`<div class="ev-card">${live ? `<button class="btn btn-soft block" data-ev="end">${s.armEnd ? 'Tap again to finish the event' : 'Finish the event now'}</button>` : ''}
+      <button class="btn btn-line-danger block" data-ev="delete">${s.armDelete ? 'Tap again to delete the event' : 'Delete the event'}</button><p class="note">Games already played stay in the club record.</p></div>`);
+  } else if (live) {
+    out.push(`<p class="note">Anyone in the club can score a match. Organizers run the rounds.${club.hasPin ? ' <button class="link" data-ev="unlock">Unlock this phone</button>' : ''}</p>`);
+  }
+  return out.join('\n');
+}
+
+function evMatchOf(id) {
+  const ev = evScreen && evScreen.event;
+  if (!ev) return null;
+  for (const r of ev.rounds) for (const m of r.matches) if (m.id === id) return m;
+  for (const r of ev.knockout || []) for (const m of r.matches) if (m.id === id) return m;
+  return null;
+}
+// Starts the usual scoring screen for an event match. Finishing it sends the result to the event, not the club record directly.
+function evScoreLive(id) {
+  const ev = evScreen.event, m = evMatchOf(id);
+  if (!m || !m.ready) return;
+  if (live && live.event && live.event.matchId === id && live.state.winner === null) { live.open = true; persistLive(); keepAwake(true); render(); return; } // pick the paused game back up
+  if (live && live.state.winner === null) { showToast('Finish or end the game in progress first.', false); return; }
+  startGame({ mode: 'doubles', scoring: ev.scoring, target: ev.target, winBy: ev.winBy, first: 0, teams: [m.teams[0].slice(), m.teams[1].slice()] });
+  live.event = { id: ev.id, matchId: m.id, name: ev.name, code: club.code };
+  persistLive(); renderCourt();
+}
+function finishEventMatch(s) {
+  const e = live.event;
+  queueOp({ type: 'event-result', eventId: e.id, matchId: e.matchId, score: s.score.slice(), startedAt: s.startedAt, endedAt: s.endedAt, rallies: s.rallies, live: true });
+  live = null; persistLive(); keepAwake(false); render();
+  showToast('Result saved', false);
+  if (evScreen && evScreen.id === e.id) renderEvents(true); else evShow(e.id);
+}
+async function evOrg(body, ok) {
+  const s = evScreen;
+  if (!s || s.busy) return;
+  s.busy = true; s.error = ''; renderEvents(true);
+  try {
+    const data = await evCall(body);
+    if (data.event && evScreen === s) { s.event = data.event; s.id = data.event.id; }
+    s.edit = null; s.armEnd = s.armDelete = false;
+    if (ok) showToast(ok, false);
+  } catch (err) {
+    if (err.status === 403) forgetPin();
+    s.error = err.message;
+  }
+  s.busy = false; renderEvents(true);
+}
+async function evCreate() {
+  const s = evScreen, f = s.form;
+  if (f.busy) return;
+  const rotating = f.partners === 'rotating' && (f.format === 'roundrobin' || f.format === 'pool_knockout');
+  const body = { action: 'create', event: { name: f.name, format: f.format, partners: rotating ? 'rotating' : 'fixed', rotation: f.rotation, courts: f.courts, rounds: rotating ? (f.rounds || evDefaultRounds(f.players.length)) : undefined,
+    advance: f.advance, target: f.target, scoring: f.scoring, winBy: f.winBy, players: f.players } };
+  if (!rotating && f.rotation === 'manual') body.event.teams = Array.from({ length: Math.floor(f.players.length / 2) }, (_, i) => [f.players[2 * i], f.players[2 * i + 1]]);
+  if (!rotating && f.rotation === 'auto') body.event.ratings = Object.fromEntries(leaderStats(allGames(), 'doubles').map(p => [p.name, p.rating]));
+  f.busy = true; f.error = ''; renderEvents(true);
+  try {
+    const data = await evCall(body);
+    evScreen = { view: 'detail', id: data.event.id, event: data.event, list: null, error: '' };
+    showToast('Event started', false);
+    evSummaryRefresh();
+  } catch (err) {
+    if (err.status === 403) forgetPin();
+    f.busy = false; f.error = err.message;
+  }
+  renderEvents(true);
+}
+function evSaveEntry(form) {
+  const s = evScreen, en = s.entry, m = evMatchOf(en.m);
+  const sc = en.s.map(v => parseInt(v, 10));
+  const err = msg => { en.error = msg; renderEvents(true); };
+  if (sc.some(v => !Number.isFinite(v) || v < 0 || v > 99)) return err('Enter both scores, from 0 to 99.');
+  if (sc[0] === sc[1]) return err("Scores can't be tied. Pickleball games need a winner.");
+  if (en.fix) {
+    s.entry = null;
+    evOrg({ action: 'correct', id: s.event.id, matchId: en.m, score: sc }, 'Score fixed');
+    return;
+  }
+  s.entry = null;
+  queueOp({ type: 'event-result', eventId: s.event.id, matchId: m.id, score: sc, startedAt: Date.now(), endedAt: Date.now(), rallies: 0, live: false });
+  renderEvents(true);
+}
+function evAct(a, d) {
+  const s = evScreen;
+  if (a === 'open-list') { evOpenList(); return; }
+  if (!s) return;
+  if (a === 'back') {
+    if (s.view === 'list') { evScreen = null; renderEvents(true); safeRender(); const t = document.querySelector('[data-ev="open-list"]'); if (t) t.focus({ preventScroll: true }); return; }
+    if (s.view === 'detail' && s.list === null) { evOpenList(); return; }
+    s.view = 'list'; s.event = null; s.entry = s.edit = null; s.error = ''; renderEvents(true); evLoadList(); return;
+  }
+  if (a === 'unlock') { clubSheet = { view: 'unlock', back: null }; renderClub(); return; }
+  if (a === 'new') { s.view = 'new'; s.form = evNewForm(); renderEvents(true); return; }
+  if (a === 'open') { evShow(d.id); return; }
+  if (s.view === 'new') {
+    const f = s.form;
+    if (a === 'set') {
+      const num = ['courts', 'rounds', 'advance', 'target', 'winBy'].includes(d.k);
+      f[d.k] = num ? +d.v : d.v;
+      if (d.k === 'format' && (d.v === 'single_elim' || d.v === 'double_elim')) f.partners = 'fixed';
+      f.error = '';
+    }
+    if (a === 'step') {
+      const cur = d.k === 'rounds' ? (f.rounds || evDefaultRounds(f.players.length || 8)) : f[d.k];
+      const lim = { courts: [1, 8], rounds: [1, 30], advance: [2, 16] }[d.k];
+      f[d.k] = Math.min(lim[1], Math.max(lim[0], cur + (+d.d)));
+    }
+    if (a === 'pick') {
+      const i = f.players.findIndex(x => sameName(x, d.pl));
+      if (i >= 0) f.players.splice(i, 1); else f.players.push(d.pl);
+    }
+    if (a === 'pick-all') f.players = roster.slice(0, 32);
+    if (a === 'pick-none') f.players = [];
+    if (a === 'guest') {
+      const inp = $('#ev-guest'), name = cleanPlayer(inp ? inp.value : '');
+      if (name && !isDefaultName(name)) { addToRoster([name]); if (!f.players.some(x => sameName(x, name)) && f.players.length < 32) f.players.push(roster.find(r => sameName(r, name)) || name); }
+    }
+    renderEvents(true);
+    return;
+  }
+  if (s.view !== 'detail' || !s.event) return;
+  const ev = s.event;
+  if (a === 'live') evScoreLive(d.m);
+  else if (a === 'enter' || a === 'fix') {
+    const m = evMatchOf(d.m);
+    s.entry = { m: d.m, fix: a === 'fix', s: m && m.score ? [String(m.score[0]), String(m.score[1])] : ['', ''], error: '' };
+    renderEvents(true);
+    const f = $('#ev-s0'); if (f) f.focus();
+  } else if (a === 'entry-cancel') { s.entry = null; renderEvents(true); }
+  else if (a === 'next-round') evOrg({ action: 'next-round', id: ev.id }, 'Round planned');
+  else if (a === 'publish') evOrg({ action: 'publish-round', id: ev.id, round: +d.n }, 'Round open');
+  else if (a === 'advance-pick-set' || (a === 'set' && d.k === 'advance-pick')) { s.advance = +d.v; renderEvents(true); }
+  else if (a === 'knockout') evOrg({ action: 'start-knockout', id: ev.id, advance: s.advance || undefined }, 'Knockout started');
+  else if (a === 'edit-open') {
+    const r = ev.rounds.find(x => x.n === +d.n);
+    s.edit = { round: r.n, draft: r.status === 'draft', error: '', matches: r.matches.map(m => ({ teams: [m.teams[0].slice(), m.teams[1].slice()] })) };
+    renderEvents(true);
+  } else if (a === 'edit-cancel') { s.edit = null; renderEvents(true); }
+  else if (a === 'edit-add') { s.edit.matches.push({ teams: [['', ''], ['', '']] }); renderEvents(true); }
+  else if (a === 'edit-del') { s.edit.matches.splice(+d.i, 1); renderEvents(true); }
+  else if (a === 'end') { if (!s.armEnd) { s.armEnd = true; s.armDelete = false; renderEvents(true); return; } evOrg({ action: 'end', id: ev.id }, 'Event finished'); }
+  else if (a === 'delete') {
+    if (!s.armDelete) { s.armDelete = true; s.armEnd = false; renderEvents(true); return; }
+    s.busy = true; renderEvents(true);
+    evCall({ action: 'delete', id: ev.id }).then(() => { showToast('Event deleted', false); evSummary = evSummary.filter(e => e.id !== ev.id); evScreen = { view: 'list', list: null, error: '' }; renderEvents(true); evLoadList(); safeRender(); })
+      .catch(err => { if (err.status === 403) forgetPin(); s.busy = false; s.error = err.message; renderEvents(true); });
+  }
+}
+function evSaveEdit() {
+  const s = evScreen, ed = s.edit;
+  const all = ed.matches.flatMap(m => m.teams.flat());
+  if (all.some(p => !p)) { ed.error = 'Pick all four players for every court.'; renderEvents(true); return; }
+  if (new Set(all.map(p => p.toLowerCase())).size !== all.length) { ed.error = 'Each player can only be on one court.'; renderEvents(true); return; }
+  const open = ed.draft, id = s.event.id, round = ed.round;
+  evOrg({ action: 'set-round', id, round, matches: ed.matches }, open ? null : 'Pairings saved').then(() => {
+    if (open && evScreen === s && !s.error) evOrg({ action: 'publish-round', id, round }, 'Round open');
+  });
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('button[data-ev]');
+  if (b) evAct(b.dataset.ev, b.dataset);
+});
+document.addEventListener('submit', e => {
+  const f = e.target.closest && e.target.closest('[data-ev-form]');
+  if (!f || !evScreen) return;
+  e.preventDefault();
+  const k = f.dataset.evForm;
+  if (k === 'create') evCreate(); else if (k === 'entry') evSaveEntry(f); else if (k === 'edit') evSaveEdit();
+});
+document.addEventListener('input', e => {
+  const t = e.target, k = t.dataset && t.dataset.evInput;
+  if (!k || !evScreen) return;
+  if (k === 'name' && evScreen.form) evScreen.form.name = t.value;
+  if ((k === 's0' || k === 's1') && evScreen.entry) evScreen.entry.s[+k[1]] = t.value;
+});
+document.addEventListener('change', e => {
+  const t = e.target, sel = t.dataset && t.dataset.evSel;
+  if (!sel || !evScreen || !evScreen.edit) return;
+  const [i, tm, j] = sel.split('-').map(Number);
+  evScreen.edit.matches[i].teams[tm][j] = t.value; evScreen.edit.error = '';
+  renderEvents(true);
+});
+
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
   const el = e.target.closest('button');
@@ -3438,6 +3918,7 @@ document.addEventListener('click', e => {
   if (act === 'discard') { live = null; persistLive(); keepAwake(false); render(); }
   if (act === 'finish' || act === 'rematch') {
     const s = live.state;
+    if (live.event) { finishEventMatch(s); return; } // an event match goes to the event; the server adds it to the club's games
     saveGame(record(s));
     if (act === 'rematch') startGame(Object.assign({}, s.cfg, { first: 1 - (s.cfg.first || 0) }));
     else { live = null; persistLive(); keepAwake(false); tab = 'history'; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} }
@@ -3513,6 +3994,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && profile) { profile = null; renderProfile(); return; }
   if (e.key === 'Escape' && clubSheet) { clubSheet = null; renderClub(); if (renderPending) safeRender(); return; }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
+  if (e.key === 'Escape' && evScreen && !(live && live.open)) { evAct('back', {}); return; }
   if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet || profile) return;
   if (e.target.matches && e.target.matches('input')) return;
   if (e.key === '1' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); document.querySelector('[data-rally="0"]').click(); }

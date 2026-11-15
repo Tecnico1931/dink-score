@@ -9,6 +9,46 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 // The same security headers Vercel sends (from vercel.json), so the Content-Security-Policy can be tested locally.
 let securityHeaders = [];
 try { securityHeaders = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers[0].headers; } catch {}
+// Stand-in events for the preview: kept in memory and run by the same pure modules as api/events.js, with no
+// organizer checks. Finished matches also land in the stand-in club's games, like the real API does.
+const preview = { games: [], events: new Map(), roster: new Set() };
+function previewEvents(req, url, res) {
+  const send = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
+  import('../api/_events.js').then(E => {
+    const fail = err => send(err.status || 500, { error: err.message });
+    if (req.method === 'GET') {
+      const id = url.searchParams.get('id');
+      if (id) return preview.events.has(id) ? send(200, { event: E.view(preview.events.get(id)) }) : send(404, { error: 'That event no longer exists.' });
+      return send(200, { events: [...preview.events.values()].map(e => { const cur = e.rounds.find(r => r.status !== 'done') || e.rounds[e.rounds.length - 1];
+        return { id: e.id, name: e.name, format: e.format, partners: e.partners, status: e.status, players: e.players.length, courts: e.courts, round: cur ? cur.n : 0, roundsPlanned: e.roundsPlanned, stage: e.stage, champion: e.champion, createdAt: e.createdAt, updatedAt: e.updatedAt }; }) });
+    }
+    let data = '';
+    req.on('data', c => (data += c));
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(data || '{}'), now = Date.now();
+        const keep = out => { if (!out || !out.game) return; const g = Object.assign({}, out.game, { winner: out.game.score[0] > out.game.score[1] ? 0 : 1, event: { id: out.event.id, name: out.event.name }, receivedAt: now });
+          const i = preview.games.findIndex(x => x.id === g.id); if (i >= 0) preview.games[i] = Object.assign(preview.games[i], g); else preview.games.unshift(g); };
+        if (b.action === 'create') {
+          const ev = E.createEvent(b.event, now); preview.events.set(ev.id, ev); ev.players.forEach(p => preview.roster.add(p));
+          return send(201, { event: E.view(ev) });
+        }
+        const ev = preview.events.get(b.id);
+        if (b.action === 'delete') { preview.events.delete(b.id); return send(200, { ok: true }); }
+        if (!ev) return send(404, { error: 'That event no longer exists.' });
+        if (b.action === 'result') { const out = E.recordResult(ev, b.matchId, b, now); keep(out); }
+        else if (b.action === 'correct') keep(E.correctResult(ev, b.matchId, b.score, now));
+        else if (b.action === 'next-round') E.startNextRound(ev, now);
+        else if (b.action === 'set-round') E.setRound(ev, b.round, b.matches, now);
+        else if (b.action === 'publish-round') E.publishRound(ev, b.round, now);
+        else if (b.action === 'start-knockout') E.startKnockout(ev, b.advance, now);
+        else if (b.action === 'end') E.endEvent(ev, now);
+        else return send(400, { error: 'Unknown action.' });
+        send(200, { event: E.view(ev) });
+      } catch (err) { fail(err); }
+    });
+  }).catch(err => send(500, { error: String(err.message) }));
+}
 http.createServer((req, res) => {
   for (const h of securityHeaders) res.setHeader(h.key, h.value);
   const url = new URL(req.url, 'http://localhost');
@@ -19,11 +59,12 @@ http.createServer((req, res) => {
     import('file://' + file.replace(/\\/g, '/')).then(m => m.default(req, res)).catch(err => { console.error(err); res.writeHead(500); res.end('{"error":"Server error"}'); });
     return;
   }
+  if (url.pathname === '/api/events') return previewEvents(req, url, res);
   if (url.pathname.startsWith('/api/')) {
     // Stand-in club so the app can be previewed without the real server.
     const code = (url.searchParams.get('code') || 'K7P2QX').toUpperCase();
     const body = url.pathname === '/api/club'
-      ? { club: { code, name: 'Preview Club' }, games: [], deleted: [], roster: [] }
+      ? { club: { code, name: 'Preview Club' }, games: preview.games, deleted: [], roster: [...preview.roster] }
       : { ok: true, saved: 0 };
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(body));
