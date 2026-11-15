@@ -6,8 +6,9 @@ A pickleball scorekeeper you can install on your phone: **https://dinkscore.verc
 - Tracks server 1 and 2, which side to serve from, and when to change ends
 - Log results from other courts, even mid-game
 - Saved players, so you can pick names with a tap
-- Dink Rating: the app's own 2.00–8.00 player rating with score forecasts and a leaderboard
+- Dink Rating: the app's own 2.00–8.00 player rating (new players start at 2.00) with score forecasts and a leaderboard
 - Clubs: one shared record of games, players and rankings across everyone's phones, with no accounts
+- Club display page: open `/?display=CODE` on a TV or monitor at the courts for a full-screen sign with the club's name, a big QR code (the invite link) and the club code, so new players can join by scanning. There's a link to it in the club sheet, under the invite link
 - Offline support and a first-visit tour
 
 ## Events: tournaments and rotating doubles
@@ -21,6 +22,7 @@ Open **Events** from the Play tab (in a club). An organizer starts an event; any
 - **Courts:** up to 8, played at the same time. In a bracket the next ready match takes the next free court.
 - **Record:** each finished match is saved once to the club's games (its id comes from the event and match), so ratings, the leaderboard and history count it exactly once. Fixing a score in the event fixes the game too.
 - **Organizers only:** creating an event, planning rounds, changing pairings, starting the knockout and fixing scores need the creating phone or the organizer PIN, like the shop settings. Everyone else can watch and score.
+- **Export for DUPR:** on a finished event, organizers get *Export for DUPR* (a CSV download) and *Copy results* (plain text), one row per completed match with a clear winner of at least 6 points. Anything left out (not played, tied, winner under 6) is listed on screen with the reason. The columns are a generic layout defined in one place (`DUPR_COLUMNS` in `dupr-export.js`), **not** DUPR's official club import template, which could not be read; compare with the template downloaded from DUPR and adjust. Names only, no DUPR IDs. It is built in the browser from what the organizer already sees.
 
 ### Brackets page and the public link
 
@@ -32,7 +34,7 @@ Open **Events** from the Play tab (in a club). An organizer starts an event; any
 ## Tests
 
 ```bash
-npm test                                              # rotation, schedule, bracket and event logic (no database)
+npm test                                              # rotation, schedule, bracket, event and DUPR export logic (no database)
 npm i --no-save @electric-sql/pglite && node tools/api-check.mjs   # the events API against a throwaway in-memory Postgres
 ```
 

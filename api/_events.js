@@ -262,7 +262,7 @@ export function view(ev) {
   const out = clone(ev);
   const mv = m => {
     const teams = matchTeams(ev, m);
-    return { id: m.id, court: m.court || null, teams, score: m.score || null, status: m.status, winner: m.winner ?? null,
+    return { id: m.id, court: m.court || null, teams, score: m.score || null, status: m.status, winner: m.winner ?? null, startedAt: m.startedAt || null, endedAt: m.endedAt || null,
       ready: m.status === 'pending' && teams.every(Boolean) };
   };
   out.rounds.forEach(r => { r.matches = r.matches.map(m => mv(m)); });
