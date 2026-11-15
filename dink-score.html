@@ -143,6 +143,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .chip-btn.editing::after { content: "✕"; font-size: 11px; color: var(--danger); }
 .add-player { display: flex; gap: 8px; }
 .add-player input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; }
+.new-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .link { border: 0; background: transparent; padding: 4px 2px; font-size: 14px; font-weight: 600; color: var(--blue); }
 .link.armed { color: var(--danger); }
 
@@ -1674,7 +1675,7 @@ function playView() {
   const games = allGames();
   return `${homeTiles(games)}
   <section class="card" aria-labelledby="new-h">
-    <h2 id="new-h">New game</h2>
+    <div class="new-head"><h2 id="new-h">New game</h2><button type="button" class="link" data-act="clear-names" ${setup.names.flat().some(n => n && n.trim()) ? '' : 'hidden'}>Clear names</button></div>
     <div class="field" style="margin-top:14px"><span class="lab">Format</span>${seg('data-set-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], setup.mode)}</div>
     <div class="field"><span class="lab">Scoring</span>${seg('data-set-scoring', [['sideout', 'Side-out'], ['rally', 'Rally']], setup.scoring)}
       <p class="note">${setup.scoring === 'sideout' ? 'Classic rules. Only the serving side scores.' : 'A point on every rally, whoever served.'}</p></div>
@@ -3223,6 +3224,7 @@ document.addEventListener('click', e => {
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
+  if (act === 'clear-names') { setup.names = [['', ''], ['', '']]; store.set('pb.setup', setup); render(); return; }
   if (act === 'swap') { setup.names = [setup.names[1], setup.names[0]]; setup.first = 1 - setup.first; store.set('pb.setup', setup); render(); }
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
   if (act === 'start') beginGame();
@@ -3263,6 +3265,8 @@ document.addEventListener('input', e => {
   if (d.name) {
     const [t, i] = d.name.split('-').map(Number);
     setup.names[t][i] = e.target.value; store.set('pb.setup', setup);
+    const clr = $('[data-act="clear-names"]');
+    if (clr) clr.hidden = !setup.names.flat().some(n => n && n.trim());
     clearTimeout(fcTimer);
     fcTimer = setTimeout(() => { const el = $('#forecast'); if (el) el.innerHTML = forecastHTML(); }, 250);
   } else if (d.logName && logForm) {
