@@ -18,6 +18,7 @@ self.addEventListener('fetch', e => {
   const isFont = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (url.origin === location.origin && url.pathname.startsWith('/api/')) return; // club data always comes live from the server
   if (url.origin === location.origin && url.pathname.startsWith("/_vercel/")) return; // Vercel Web Analytics
+  if (url.origin === location.origin && url.pathname.startsWith('/b/')) return; // the public bracket page is its own page, never the app shell
   if (req.mode === 'navigate') {
     // Network first for the page, so updates arrive; fall back to the cached copy offline.
     e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put('index.html', copy)); return res; })

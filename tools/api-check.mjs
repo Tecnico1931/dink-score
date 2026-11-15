@@ -36,7 +36,7 @@ neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}
 process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
-const [club, roster, games, events, shop] = await Promise.all(['club', 'roster', 'games', 'events', 'shop'].map(load));
+const [club, roster, games, events, shop, bracket] = await Promise.all(['club', 'roster', 'games', 'events', 'shop', 'bracket'].map(load));
 let ip = 0;
 async function call(handler, method, { query = '', body, headers = {} } = {}) {
   const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.0.0.' + (++ip % 200), ...headers }, body };
@@ -160,6 +160,55 @@ await step('end and delete hide an event but keep its games', async () => {
   assert.equal((await call(events, 'GET', { query: `?code=${code}&id=${ev.id}` })).status, 404);
   assert.equal(ok(await call(events, 'GET', { query: '?code=' + code })).events.length, list.length - 1);
   assert.equal((await clubGames()).length, gamesBefore);
+});
+await step('the public bracket link: organizer makes it, a spectator sees only the allowed fields, revoking and deleting end it', async () => {
+  const pub = await create({ name: 'Public Cup', format: 'double_elim', rotation: 'random', courts: 2, players, seed: 'SECRET-SEED' });
+  const e = ok(pub, 201).event;
+  const spectator = token => call(bracket, 'GET', { query: '?token=' + encodeURIComponent(token) });
+  // Only an organizer can make, replace or remove the link.
+  for (const a of ['share', 'share-new', 'share-off']) assert.equal((await call(events, 'POST', { body: { code, action: a, id: e.id } })).status, 403, a + ' without credentials');
+  assert.equal((await call(events, 'POST', { body: { code, action: 'share', id: e.id, ownerToken: 'wrong' } })).status, 403);
+  const { shareToken: t1 } = ok(await act('share', { id: e.id }));
+  assert.match(t1, /^[A-Za-z0-9_-]{32}$/);
+  assert.equal(ok(await act('share', { id: e.id })).shareToken, t1, 'asking again returns the same link');
+  // The link never shows up for people who are not organizers.
+  const asMember = JSON.stringify(ok(await call(events, 'GET', { query: `?code=${code}&id=${e.id}` })));
+  assert.ok(!asMember.includes(t1), 'the token is not in the event a member reads');
+  // A spectator: no code, no PIN, no cookies, just the token.
+  const first = await spectator(t1);
+  assert.equal(first.status, 200);
+  const v = first.json;
+  assert.deepEqual(Object.keys(v).sort(), ['advance', 'champion', 'courts', 'format', 'name', 'partners', 'poolDone', 'roundsPlanned', 'rounds', 'knockout', 'scoring', 'stage', 'standings', 'status', 'target', 'tree', 'updatedAt', 'v', 'winBy'].sort());
+  assert.equal(v.name, 'Public Cup');
+  assert.ok(v.tree.matches.length > 5);
+  const text = JSON.stringify(v);
+  for (const secret of [code, owner, 'SECRET-SEED', 'ownerToken', 'pin_hash', 'owner_hash', 'purchases', 'shop', 'claim', 'Another club event', e.id]) assert.ok(!text.includes(secret), 'leaked ' + secret);
+  assert.ok(!text.includes('"gameId"') && !text.includes('startedAt') && !text.includes('rallies'));
+  // Every bad token gets the very same answer.
+  const answers = new Set();
+  for (const bad of ['', 'nope', 'a'.repeat(32), t1.slice(0, -1), t1 + 'x', "x' OR '1'='1", t1.toLowerCase() === t1 ? t1.toUpperCase() : t1.toLowerCase()]) {
+    const r = await spectator(bad); assert.equal(r.status, 404, `bad token ${bad}`); answers.add(JSON.stringify(r.json));
+  }
+  assert.equal(answers.size, 1);
+  assert.equal((await call(bracket, 'POST', { body: { token: t1 } })).status, 405);
+  // Replacing the link kills the old one.
+  const { shareToken: t2 } = ok(await act('share-new', { id: e.id }));
+  assert.notEqual(t2, t1);
+  assert.equal((await spectator(t1)).status, 404);
+  assert.equal((await spectator(t2)).status, 200);
+  // A score shows up for the spectator.
+  const m = (await spectator(t2)).json.tree.matches.find(x => x.ready);
+  ok(await call(events, 'POST', { body: { code, action: 'result', id: e.id, matchId: m.id, score: [11, 2], endedAt: Date.now() } }));
+  const after = (await spectator(t2)).json.tree.matches.find(x => x.id === m.id);
+  assert.deepEqual(after.score, [11, 2]);
+  // Removing the link, and deleting the event, both end it.
+  ok(await act('share-off', { id: e.id }));
+  assert.equal((await spectator(t2)).status, 404);
+  const { shareToken: t3 } = ok(await act('share', { id: e.id }));
+  assert.equal((await spectator(t3)).status, 200);
+  ok(await act('delete', { id: e.id }));
+  assert.equal((await spectator(t3)).status, 404);
+  assert.equal((await act('share', { id: e.id })).status, 404, 'a deleted event cannot be shared');
 });
 await step('the existing club data still loads with event games in it (ratings, progress, history)', async () => {
   const c = ok(await call(club, 'GET', { query: '?code=' + code }));

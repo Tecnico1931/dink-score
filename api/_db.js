@@ -88,6 +88,9 @@ export function ensureSchema() {
         PRIMARY KEY (club, id)
       )`;
       await q`CREATE INDEX IF NOT EXISTS events_club_updated ON events (club, updated_at DESC)`;
+      // The public, read-only link to an event's bracket (see _share.js and bracket.js). Null means not shared.
+      await q`ALTER TABLE events ADD COLUMN IF NOT EXISTS share_token text`;
+      await q`CREATE UNIQUE INDEX IF NOT EXISTS events_share_token ON events (share_token) WHERE share_token IS NOT NULL`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

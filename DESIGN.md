@@ -287,6 +287,11 @@ A surface sheet rising from the bottom with 28px top corners, a grip bar, 22px t
 ### Event screen
 A full-screen daylight page over the tabs (z-index below the court, above the tab bar; the page behind is `inert` while it is open), opened from the Events tile on Play. It uses only existing parts: a round back button, a 26px headline, white cards with the ambient shadow, the game-row card for every match (blue line for team one, green for team two, squeezed score numerals, a Court tag), segmented controls and chips for setup, and recessed surface-2 fieldsets for hand-picked pairings. Ball yellow keeps its meanings: live (the Live badge) and first place (the leader's rank, the champion's ball). "Score live" is an ink button, so several matches on screen never put two yellow actions side by side.
 
+### Brackets page
+Opened from the Brackets button on the event screen, and also the public page at `/b/<token>`. The bracket is one canvas of fixed logical size: a 240 by 112px match card per match, a column per round with a 17px display-weight round title, and 2.5px ink lines for decided paths and dashed muted lines for paths still open. A card has a status strip (Final, Up next with the court, Waiting, Bye), two team rows (a 5px blue or green stripe for team one or two, the pair's names clamped to two lines, a squeezed score numeral) and a feed strip (the round the winner goes to, and the loser's drop in double elimination). The winner is bold with a check mark and a hidden "winner" word, never colour alone; the loser's row is muted. An up-next card gets a 2.5px ink outline (not yellow: it is not a leader), the selected card a double ring. Byes are recessed surface-2 cards. The champion is the ink slab with the ball, the same as the event screen's. Cards are 112px tall and every round is a labelled group, so tap targets stay well over 44px and nothing is canvas-only.
+
+The canvas scrolls and snaps round by round on a phone. Where it fits at 93% of its design size or more it is scaled to fit instead (up to 1.35x in the app, 1.6x on the public page), so text is never below 13px; TV mode fits both width and height and may grow to 3x. Round robin and pool tables use the same squeezed numerals. A match tapped in the app opens as a sticky bottom card holding the event screen's own match row and score entry.
+
 ## Do's and Don'ts
 
 ### Do:
