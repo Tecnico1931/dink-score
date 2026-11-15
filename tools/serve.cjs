@@ -6,7 +6,11 @@ const path = require('path');
 const root = path.join(__dirname, '..', 'public');
 const port = Number(process.argv[2]) || 4173;
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+// The same security headers Vercel sends (from vercel.json), so the Content-Security-Policy can be tested locally.
+let securityHeaders = [];
+try { securityHeaders = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers[0].headers; } catch {}
 http.createServer((req, res) => {
+  for (const h of securityHeaders) res.setHeader(h.key, h.value);
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname.startsWith('/api/') && process.env.DATABASE_URL && /^\/api\/[a-z]+$/.test(url.pathname)) {
     // With the database settings loaded (node --env-file=.env.local tools/serve.cjs), run the real API functions.

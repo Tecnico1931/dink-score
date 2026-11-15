@@ -44,8 +44,44 @@ if ('serviceWorker' in navigator) {
 </html>
 `;
 
-fs.writeFileSync(path.join(__dirname, 'index.html'), head + body + tail);
+const html = head + body + tail;
+fs.writeFileSync(path.join(__dirname, 'index.html'), html);
 console.log('Wrote index.html from', path.basename(src));
+
+// Security headers for every response, written to vercel.json (commit it: Vercel reads it before the build runs).
+// The Content-Security-Policy only runs the page's own inline scripts, matched by hash, so an injected <script> or
+// onclick="..." can't run. The hashes change whenever a script changes, which is why this file is rebuilt every time.
+const crypto = require('crypto');
+const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+  .map(m => `'sha256-${crypto.createHash('sha256').update(m[1], 'utf8').digest('base64')}'`);
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' ${hashes.join(' ')}`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // the app uses inline styles throughout
+  "font-src https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",                                    // photo avatars (data:) and the photo picker (blob:)
+  "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com", // the service worker caches the fonts
+  "manifest-src 'self'",
+  "worker-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join('; ');
+const vercel = {
+  headers: [{
+    source: '/(.*)',
+    headers: [
+      { key: 'Content-Security-Policy', value: csp },
+      { key: 'X-Frame-Options', value: 'DENY' },
+      { key: 'X-Content-Type-Options', value: 'nosniff' },
+      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' }
+    ]
+  }]
+};
+fs.writeFileSync(path.join(__dirname, 'vercel.json'), JSON.stringify(vercel, null, 2) + '\n');
+console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)`);
 
 // Vercel serves the static site from public/ (the /api folder is deployed as server functions).
 const out = path.join(__dirname, 'public');

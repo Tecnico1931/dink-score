@@ -1071,8 +1071,10 @@ function addToRoster(names) {
   if (changed) { if (club) roster.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); else persistRoster(); }
 }
 function removeFromRoster(name) {
+  // In a club with a PIN, removing a saved player is an organizer action: withPin asks for the PIN first if needed.
+  if (club && club.hasPin && !hasOrganizer()) { withPin({ type: 'roster-del', name }); return; }
   roster = roster.filter(r => !sameName(r, name));
-  if (club) queueOp({ type: 'roster-del', name }); else persistRoster();
+  if (club) withPin({ type: 'roster-del', name }); else persistRoster();
 }
 // Toggle a saved player into the first open slot of a names grid, or out of it if already there.
 function pickInto(names, mode, name) {
@@ -1226,15 +1228,15 @@ function flush() {
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
-        else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE' });
+        else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
       } catch (err) {
-        const pinOp = op.type === 'delete' || op.type === 'restore' || op.type === 'edit';
+        const pinOp = op.type === 'delete' || op.type === 'restore' || op.type === 'edit' || op.type === 'roster-del';
         if (err.offline || err.status >= 500 || (err.status === 429 && !pinOp)) { clubState = 'offline'; updateSyncPill(); break; }
         if (op.type === 'game') showToast(`A game couldn't be saved to the club: ${err.message}`, false);
         if (pinOp && (err.status === 403 || err.status === 429)) {
           if (err.status === 403) forgetPin();
-          showToast(`${err.message} The game was not ${op.type === 'delete' ? 'deleted' : op.type === 'edit' ? 'changed' : 'restored'}.`, false);
+          showToast(`${err.message} ${op.type === 'roster-del' ? `${op.name} was not removed.` : `The game was not ${op.type === 'delete' ? 'deleted' : op.type === 'edit' ? 'changed' : 'restored'}.`}`, false);
         }
       }
       outbox.shift(); store.set('pb.outbox', outbox); sent = true;
@@ -1403,9 +1405,9 @@ function renderClub() {
         <p class="note">With a PIN, only people who know it can delete or restore games. You can add one later.</p></form>${err}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
-      <p>${c.pending ? `${{ delete: 'Deleting', restore: 'Restoring', edit: 'Editing' }[c.pending.type]} games in ${esc(club.name)} needs the organizer PIN.` : `Unlock this phone to edit, delete and restore games in ${esc(club.name)}.`} This phone remembers it until you lock it again.</p>
+      <p>${c.pending ? `${c.pending.type === 'roster-del' ? `Removing saved players from ${esc(club.name)}` : `${{ delete: 'Deleting', restore: 'Restoring', edit: 'Editing' }[c.pending.type]} games in ${esc(club.name)}`} needs the organizer PIN.` : `Unlock this phone to edit, delete and restore games and remove saved players in ${esc(club.name)}.`} This phone remembers it until you lock it again.</p>
       <form class="club-form" data-form="pin-unlock"><label class="lab" for="pin-input">PIN</label>
-        <div class="add-player"><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${c.pending ? ({ delete: 'Delete game', restore: 'Restore game', edit: 'Save changes' }[c.pending.type]) : 'Unlock'}</button></div></form>${err}
+        <div class="add-player"><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${c.pending ? ({ delete: 'Delete game', restore: 'Restore game', edit: 'Save changes', 'roster-del': 'Remove player' }[c.pending.type]) : 'Unlock'}</button></div></form>${err}
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
   } else if (c.view === 'setpin') {
     body = `<h2 id="club-h">${club.hasPin ? 'Change organizer PIN' : 'Set an organizer PIN'}</h2>

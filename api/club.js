@@ -2,7 +2,7 @@
 // POST /api/club {name, pin?}                        -> creates a club (optionally with an organizer PIN), returns its code
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
-import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, cleanPin, hashPin, requirePin, newOwnerToken, hashToken, tokenMatches } from './_db.js';
+import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, cleanPin, hashPin, requirePin, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { CATALOG, EARN, shopSettings, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_PRIZES, SEASON_MIN_GAMES } from './_dinks.js';
 
 // Achievements, this week's challenges, trophies and Dinks (base + bonuses) for every player, as the server counts them.
@@ -55,7 +55,7 @@ export default handler(async (req, res) => {
       if (!rows.length) throw fail(409, 'Someone just set a PIN for this club. Ask your organizer for it.');
       return send(res, 200, { ok: true, club: { code, name: club.name, hasPin: true, openClaim: false }, ...(ownerToken ? { ownerToken } : {}) });
     }
-    const name = String(body.name || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+    const name = cleanName(body.name); // same cleanup as player names: no control or invisible characters
     if (!name) throw fail(400, 'Give your club a name.');
     const pinHash = body.pin ? hashPin(cleanPin(body.pin)) : null;
     const ownerToken = newOwnerToken();

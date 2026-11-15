@@ -1,13 +1,15 @@
 // POST   /api/roster {code, name}            -> adds a saved player to the club
-// DELETE /api/roster?code=ABC123&name=Ana    -> removes a saved player (their games stay)
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName } from './_db.js';
+// DELETE /api/roster?code=ABC123&name=Ana    -> removes a saved player (their games stay). In a club with a PIN this
+//                                                needs the PIN (X-Club-PIN) or the creating phone's token (X-Club-Owner).
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requirePin, pinFrom, ownerFrom } from './_db.js';
 
 export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'DELETE') {
     const url = new URL(req.url, 'http://x');
     const code = cleanCode(url.searchParams.get('code'));
-    await requireClub(code, req);
+    const club = await requireClub(code, req);
+    await requirePin(club, pinFrom(req), req, ownerFrom(req));
     const name = cleanName(url.searchParams.get('name'));
     // A name someone has claimed holds their shop items and equipped looks, so it stays until an organizer releases it.
     const rows = await sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${name.toLowerCase()} AND claim_hash IS NULL RETURNING name`;
