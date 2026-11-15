@@ -50,15 +50,14 @@ export default handler(async (req, res) => {
     // - An edit that changes who played, the score, or whether it was scored live keeps verification only when an
     //   organizer has proved it: the club creator's phone, or the PIN in a club that has one. (In a club without a
     //   PIN anyone can edit, so their changes can't keep a game's full-Dinks status.)
-    // - Any other edit (just the date or format) keeps it, as long as the original sender is still one of the players.
+    // - Any other edit (just the date or format) keeps it.
     // An edit never adds verification to a game that didn't have it.
     g.receivedAt = old.data.receivedAt || old.data.endedAt;
     const o = old.data;
     const sameResult = JSON.stringify(o.teams) === JSON.stringify(g.teams) && JSON.stringify(o.score) === JSON.stringify(g.score) && !!o.logged === !!g.logged;
     const organizerProved = (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken ?? ownerFrom(req))) || !!club.pin_hash;
     const sender = o.scoredBy;
-    const senderStillPlays = sender === 'organizer' || (sender && g.teams.flat().some(n => n.toLowerCase() === sender));
-    if (sender && senderStillPlays && (sameResult || organizerProved)) g.scoredBy = sender;
+    if (sender && (sameResult || organizerProved)) g.scoredBy = sender;
     const rows = await sql`UPDATE games SET data = ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}
       WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That game no longer exists, so it could not be changed.');
@@ -79,12 +78,12 @@ export default handler(async (req, res) => {
   // Server-side facts for Dinks (the app can't set these; cleanGame drops them):
   // - receivedAt: when the server got the game. The daily earning cap counts by this, so backdating doesn't help.
   // - scoredBy: who sent it. Win, forecast and streak Dinks need a game sent from the phone linked to one of
-  //   its players, or from the club creator's phone. Anything else earns the play bonus only.
+  //   any club player (the game can be for other people), or from the club creator's phone. Anything else earns the play bonus only.
   const sender = await verifiedSender(sql, club, code, body);
   const now = Date.now();
   for (const g of games) {
     g.receivedAt = now;
-    if (sender === 'organizer' || (sender && g.teams.flat().some(n => n.toLowerCase() === sender))) g.scoredBy = sender;
+    if (sender) g.scoredBy = sender;
   }
   // Flood protection on every request, bulk uploads included (see reserveGames in _db.js).
   const windowStart = await reserveGames(code, games.length);
