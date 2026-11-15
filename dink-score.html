@@ -2970,7 +2970,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.act === 'shop-admin-open') { clubSheet = { view: 'shopadmin' }; renderClub(); return; }
   if (ds.act === 'adm-save') { adminSave(); return; }
-  if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 20 }); renderClub(); return; }
+  if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 60 }); renderClub(); return; }
   if (ds.rwDel !== undefined) { clubSheet.draft.rewards.splice(+ds.rwDel, 1); renderClub(); return; }
   if (ds.given) { adminAction({ action: 'given', purchaseId: +ds.given }, 'Marked as given'); return; }
   if (ds.refund) {

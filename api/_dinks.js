@@ -81,44 +81,44 @@ export function computeDinks(games) {
 // --- The shop catalog. Prices are defaults; organizers can change any of them. ---
 // slot: which part of a player's look an item fills (one equipped item per slot).
 export const CATALOG = [
-  { id: 'title-kitchen-king', slot: 'title', name: 'Kitchen King', price: 25 },
-  { id: 'title-dink-master', slot: 'title', name: 'Dink Master', price: 25 },
-  { id: 'title-banger', slot: 'title', name: 'Banger', price: 20 },
-  { id: 'title-lob-legend', slot: 'title', name: 'Lob Legend', price: 30 },
-  { id: 'title-third-shot', slot: 'title', name: 'Third-Shot Wizard', price: 35 },
-  { id: 'title-erne-artist', slot: 'title', name: 'Erne Artist', price: 40 },
-  { id: 'frame-ball', slot: 'frame', name: 'Optic ring', price: 15 },
-  { id: 'frame-cobalt', slot: 'frame', name: 'Cobalt ring', price: 15 },
-  { id: 'frame-forest', slot: 'frame', name: 'Forest ring', price: 15 },
-  { id: 'frame-sunset', slot: 'frame', name: 'Sunset ring', price: 30 },
-  { id: 'frame-prism', slot: 'frame', name: 'Prism ring', price: 45 },
-  { id: 'style-gold', slot: 'style', name: 'Gold name', price: 40 },
-  { id: 'style-glow', slot: 'style', name: 'Glowing name', price: 50 },
-  { id: 'style-flame', slot: 'style', name: 'Flame name', price: 60 },
-  { id: 'theme-sunset', slot: 'theme', name: 'Sunset court', price: 50 },
-  { id: 'theme-clay', slot: 'theme', name: 'Clay court', price: 50 },
-  { id: 'theme-grass', slot: 'theme', name: 'Grass court', price: 50 },
-  { id: 'theme-neon', slot: 'theme', name: 'Neon court', price: 70 },
-  { id: 'celebrate-confetti', slot: 'celebrate', name: 'Confetti', price: 40 },
-  { id: 'celebrate-balls', slot: 'celebrate', name: 'Ball burst', price: 40 },
-  // Legendary: animated showpieces, priced for one to three weeks of steady winning (120 Dinks a day at most).
-  { id: 'title-legend-erne', slot: 'title', name: 'Erne Overlord', price: 500, rarity: 'legendary' },
-  { id: 'title-legend-kitchen', slot: 'title', name: 'Ruler of the Kitchen', price: 600, rarity: 'legendary' },
-  { id: 'style-holo', slot: 'style', name: 'Holographic name', price: 650, rarity: 'legendary' },
-  { id: 'style-molten', slot: 'style', name: 'Molten gold name', price: 700, rarity: 'legendary' },
-  { id: 'frame-orbit', slot: 'frame', name: 'Orbiting ball', price: 600, rarity: 'legendary' },
-  { id: 'frame-crown', slot: 'frame', name: "Champion's crown", price: 800, rarity: 'legendary' },
-  { id: 'theme-aurora', slot: 'theme', name: 'Aurora court', price: 900, rarity: 'legendary' },
-  { id: 'theme-galaxy', slot: 'theme', name: 'Galaxy court', price: 900, rarity: 'legendary' },
-  { id: 'celebrate-fireworks', slot: 'celebrate', name: 'Fireworks', price: 750, rarity: 'legendary' },
-  { id: 'celebrate-trophy', slot: 'celebrate', name: 'Trophy shower', price: 1000, rarity: 'legendary' }
+  { id: 'title-kitchen-king', slot: 'title', name: 'Kitchen King', price: 75 },
+  { id: 'title-dink-master', slot: 'title', name: 'Dink Master', price: 75 },
+  { id: 'title-banger', slot: 'title', name: 'Banger', price: 60 },
+  { id: 'title-lob-legend', slot: 'title', name: 'Lob Legend', price: 90 },
+  { id: 'title-third-shot', slot: 'title', name: 'Third-Shot Wizard', price: 105 },
+  { id: 'title-erne-artist', slot: 'title', name: 'Erne Artist', price: 120 },
+  { id: 'frame-ball', slot: 'frame', name: 'Optic ring', price: 45 },
+  { id: 'frame-cobalt', slot: 'frame', name: 'Cobalt ring', price: 45 },
+  { id: 'frame-forest', slot: 'frame', name: 'Forest ring', price: 45 },
+  { id: 'frame-sunset', slot: 'frame', name: 'Sunset ring', price: 90 },
+  { id: 'frame-prism', slot: 'frame', name: 'Prism ring', price: 135 },
+  { id: 'style-gold', slot: 'style', name: 'Gold name', price: 120 },
+  { id: 'style-glow', slot: 'style', name: 'Glowing name', price: 150 },
+  { id: 'style-flame', slot: 'style', name: 'Flame name', price: 180 },
+  { id: 'theme-sunset', slot: 'theme', name: 'Sunset court', price: 150 },
+  { id: 'theme-clay', slot: 'theme', name: 'Clay court', price: 150 },
+  { id: 'theme-grass', slot: 'theme', name: 'Grass court', price: 150 },
+  { id: 'theme-neon', slot: 'theme', name: 'Neon court', price: 210 },
+  { id: 'celebrate-confetti', slot: 'celebrate', name: 'Confetti', price: 120 },
+  { id: 'celebrate-balls', slot: 'celebrate', name: 'Ball burst', price: 120 },
+  // Legendary: animated showpieces, priced for several weeks of steady winning (120 Dinks a day at most).
+  { id: 'title-legend-erne', slot: 'title', name: 'Erne Overlord', price: 1500, rarity: 'legendary' },
+  { id: 'title-legend-kitchen', slot: 'title', name: 'Ruler of the Kitchen', price: 1800, rarity: 'legendary' },
+  { id: 'style-holo', slot: 'style', name: 'Holographic name', price: 1950, rarity: 'legendary' },
+  { id: 'style-molten', slot: 'style', name: 'Molten gold name', price: 2100, rarity: 'legendary' },
+  { id: 'frame-orbit', slot: 'frame', name: 'Orbiting ball', price: 1800, rarity: 'legendary' },
+  { id: 'frame-crown', slot: 'frame', name: "Champion's crown", price: 2400, rarity: 'legendary' },
+  { id: 'theme-aurora', slot: 'theme', name: 'Aurora court', price: 2700, rarity: 'legendary' },
+  { id: 'theme-galaxy', slot: 'theme', name: 'Galaxy court', price: 2700, rarity: 'legendary' },
+  { id: 'celebrate-fireworks', slot: 'celebrate', name: 'Fireworks', price: 2250, rarity: 'legendary' },
+  { id: 'celebrate-trophy', slot: 'celebrate', name: 'Trophy shower', price: 3000, rarity: 'legendary' }
 ];
-// Every item gets a rarity for the shop: legendary as marked, rare from 40 Dinks, common below.
-for (const item of CATALOG) if (!item.rarity) item.rarity = item.price >= 40 ? 'rare' : 'common';
+// Every item gets a rarity for the shop: legendary as marked, rare from 120 Dinks, common below.
+for (const item of CATALOG) if (!item.rarity) item.rarity = item.price >= 120 ? 'rare' : 'common';
 export const DEFAULT_REWARDS = [
-  { id: 'reward-pick-game', name: 'Pick the next game', price: 30 },
-  { id: 'reward-music', name: 'Choose the music', price: 20 },
-  { id: 'reward-skip-pickup', name: 'Skip ball pickup', price: 15 }
+  { id: 'reward-pick-game', name: 'Pick the next game', price: 90 },
+  { id: 'reward-music', name: 'Choose the music', price: 60 },
+  { id: 'reward-skip-pickup', name: 'Skip ball pickup', price: 45 }
 ];
 export const SLOTS = ['title', 'frame', 'style', 'theme', 'celebrate'];
 
