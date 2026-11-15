@@ -100,7 +100,7 @@ export const CATALOG = [
   { id: 'frame-pickle', slot: 'frame', name: 'Pickle ring', price: 45 },
   { id: 'frame-ice', slot: 'frame', name: 'Ice ring', price: 60 },
   { id: 'frame-lava', slot: 'frame', name: 'Lava ring', price: 90 },
-  { id: 'frame-rainbow', slot: 'frame', name: 'Spinning rainbow', price: 180 },
+  { id: 'frame-rainbow', slot: 'frame', name: 'Spinning rainbow', price: 1650, rarity: 'legendary' },
   { id: 'style-gold', slot: 'style', name: 'Gold name', price: 120 },
   { id: 'style-glow', slot: 'style', name: 'Glowing name', price: 150 },
   { id: 'style-flame', slot: 'style', name: 'Flame name', price: 180 },
