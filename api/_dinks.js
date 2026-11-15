@@ -319,3 +319,30 @@ export function computeProgress(games, now = Date.now()) {
   for (const p of people.values()) { p.earned = p.base + p.bonus; delete p._s; }
   return people;
 }
+
+// --- Levels. XP comes from games: every named player gets XP.game per game, and XP.win more for a win in a game sent
+// from a club player's phone (the same check as win Dinks). The app works out the same numbers in dink-score.html.
+// Personal levels stop at LEVEL_MAX. A maxed player can prestige: their level starts again from 1, they keep a prestige
+// star, and they get PRESTIGE_DINKS (stored as a purchase row with a negative price, like the daily spin).
+export const XP = { game: 10, win: 5 };
+export const LEVEL_MAX = 25;
+export const PRESTIGE_ID = 'prestige';
+export const PRESTIGE_DINKS = 250;
+export const levelNeed = n => 40 + 8 * (n - 1); // XP to go from level n to n + 1
+export function levelFrom(xp) {
+  let level = 1, left = Math.max(0, Math.floor(xp));
+  while (level < LEVEL_MAX && left >= levelNeed(level)) { left -= levelNeed(level); level++; }
+  return { level, into: level < LEVEL_MAX ? left : 0, need: level < LEVEL_MAX ? levelNeed(level) : 0, maxed: level >= LEVEL_MAX };
+}
+// Map(name key -> lifetime XP)
+export function computeXP(games) {
+  const out = new Map();
+  for (const g of games) {
+    for (const t of [0, 1]) for (const raw of g.teams[t]) {
+      if (!isNamed(raw)) continue;
+      const k = key(raw);
+      out.set(k, (out.get(k) || 0) + XP.game + (g.scoredBy && g.winner === t ? XP.win : 0));
+    }
+  }
+  return out;
+}

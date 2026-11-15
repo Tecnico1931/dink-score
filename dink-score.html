@@ -728,6 +728,28 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .wl.w { background: color-mix(in srgb, var(--up) 20%, transparent); color: var(--up); }
 .wl.l { background: color-mix(in srgb, var(--down) 18%, transparent); color: var(--down); }
 .badge.best { background: var(--ball); color: var(--ball-ink); }
+/* Club list */
+.club-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.club-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
+.club-list li span { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.club-list li small { color: var(--muted); font-size: 12px; }
+.club-list li.cur { box-shadow: inset 0 0 0 2px var(--ink); }
+.club-list .btn { padding: 8px 14px; border-radius: 12px; font-size: 14px; flex: none; }
+/* Levels */
+.badge.lv { background: var(--surface-2); color: var(--ink); font-variant-numeric: tabular-nums; }
+.badge.lv.max { background: var(--ball); color: var(--ball-ink); }
+.lv-stars { color: #E0A800; margin-right: 3px; letter-spacing: -1px; }
+.badge.lv.max .lv-stars { color: var(--ball-ink); }
+.lv-card { background: var(--surface-2); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.lv-card .note { margin: 0; }
+.lv-top { display: flex; align-items: center; gap: 12px; }
+.lv-num { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 22px; font-variant-numeric: tabular-nums; }
+.club-lv .lv-num { background: var(--blue); color: #fff; }
+.lv-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.lv-txt small { color: var(--muted); font-size: 12px; }
+.lv-bar { display: block; height: 8px; border-radius: 4px; background: var(--surface); overflow: hidden; }
+.lv-bar i { display: block; height: 100%; background: var(--ink); border-radius: 4px; transition: width .4s ease; }
+.club-lv .lv-bar i { background: var(--blue); }
 @media (max-width: 380px) { .pf-stats { grid-template-columns: repeat(2, 1fr); } }
 
 /* First-visit tutorial */
@@ -1213,7 +1235,22 @@ const newId = t => 'g' + t.toString(36) + Math.random().toString(36).slice(2, 6)
 // changes made here wait in an outbox until they reach it, so scoring keeps working without signal.
 let club = API_OK ? store.get('pb.club', null) : null;
 let clubData = store.get('pb.clubCache', null); // { code, games, roster, deleted, at }
-let outbox = store.get('pb.outbox', []);
+let outbox = store.get('pb.outbox', []); // changes for every club this phone is in; each op carries its club's code
+// Every club this phone has joined. One is open at a time (club); the others keep their cached data until you switch back.
+let clubs = API_OK ? store.get('pb.clubs', null) : [];
+if (!Array.isArray(clubs)) clubs = club ? [club] : [];
+if (club && !clubs.some(c => c.code === club.code)) clubs.unshift(club);
+for (const op of outbox) if (!op.code && club) op.code = club.code; // ops saved before multiple clubs belong to the open one
+const clubOps = () => (club ? outbox.filter(o => o.code === club.code) : []);
+function saveClubs() {
+  if (club) { const i = clubs.findIndex(c => c.code === club.code); if (i >= 0) clubs[i] = Object.assign({}, club); else clubs.push(Object.assign({}, club)); }
+  store.set('pb.clubs', clubs); store.set('pb.club', club);
+}
+function stashClubCache() {
+  if (!club || !clubData || clubData.code !== club.code) return;
+  const all = store.get('pb.clubCaches', {}); all[club.code] = clubData; store.set('pb.clubCaches', all);
+}
+function cachedClub(code) { const d = store.get('pb.clubCaches', {})[code]; return d && d.code === code ? d : null; }
 let clubState = 'idle'; // idle | syncing | offline | error
 let clubSheet = null;   // the club sheet when open: { view, error, joinCode, joinName, busy, msg }
 let uploading = false;
@@ -1223,7 +1260,7 @@ if (club) roster = (clubData && clubData.roster) ? clubData.roster.slice() : ros
 function clubGames() {
   const map = new Map();
   for (const g of (clubData ? clubData.games : [])) map.set(g.id, g);
-  for (const op of outbox) {
+  for (const op of clubOps()) {
     if (op.type === 'game') map.set(op.game.id, op.game);
     if (op.type === 'delete') map.delete(op.id);
     if (op.type === 'edit' && map.has(op.id)) map.set(op.id, op.game);
@@ -1233,7 +1270,7 @@ function clubGames() {
 }
 function rosterFromClub() {
   const list = clubData ? clubData.roster.slice() : [];
-  for (const op of outbox) {
+  for (const op of clubOps()) {
     if (op.type === 'roster-add' && !list.some(r => sameName(r, op.name))) list.push(op.name);
     if (op.type === 'roster-del') { const i = list.findIndex(r => sameName(r, op.name)); if (i >= 0) list.splice(i, 1); }
   }
@@ -1256,14 +1293,18 @@ async function api(path, opts = {}) {
 }
 function queueOp(op) {
   if (!club) return;
-  outbox.push(Object.assign({ at: Date.now() }, op));
+  outbox.push(Object.assign({ at: Date.now(), code: club.code }, op));
   store.set('pb.outbox', outbox);
   flush();
 }
 // Once a change has reached the server, fold it into the cached club data before it leaves the outbox.
 // Otherwise a just-saved game would briefly be in neither place, and anything worked out in that moment would miss it.
 function applyToCache(op) {
-  if (!clubData) return;
+  if (!clubData || op.code !== clubData.code) { // a club that isn't open: fold it into that club's stored copy instead
+    const all = store.get('pb.clubCaches', {}); const d = all[op.code];
+    if (d && op.type === 'game' && !(d.games || []).some(g => g.id === op.game.id)) { (d.games = d.games || []).unshift(op.game); store.set('pb.clubCaches', all); }
+    return;
+  }
   const games = clubData.games || (clubData.games = []);
   const at = id => games.findIndex(g => g.id === id);
   if (op.type === 'game' && at(op.game.id) < 0) games.unshift(op.game);
@@ -1276,14 +1317,15 @@ function applyToCache(op) {
 }
 let flushing = null;
 function flush() {
-  if (flushing || !club) return flushing;
+  if (flushing || !outbox.length) return flushing;
   flushing = (async () => {
     let sent = false;
-    while (outbox.length && club) {
+    while (outbox.length) {
       const op = outbox[0];
-      const code = club.code;
+      const code = op.code || (club && club.code);
+      if (!code) { outbox.shift(); continue; }
       try {
-        if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code, games: [op.game] }, senderCreds())) });
+        if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code, games: [op.game] }, senderCreds(code))) });
         else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
@@ -1295,14 +1337,14 @@ function flush() {
         if (err.offline || err.status >= 500 || (err.status === 429 && !pinOp)) { clubState = 'offline'; updateSyncPill(); break; }
         if (op.type === 'game') showToast(`A game couldn't be saved to the club: ${err.message}`, false);
         if (pinOp && (err.status === 403 || err.status === 429)) {
-          if (err.status === 403) forgetPin();
+          if (err.status === 403) { delete pins[code]; store.set('pb.pins', pins); }
           showToast(`${err.message} ${op.type === 'roster-del' ? `${op.name} was not removed.` : `The game was not ${op.type === 'delete' ? 'deleted' : op.type === 'edit' ? 'changed' : 'restored'}.`}`, false);
         }
       }
       outbox.shift(); store.set('pb.outbox', outbox); sent = true;
     }
     flushing = null;
-    if (sent && !outbox.length) await refreshClub();
+    if (sent && !clubOps().length) await refreshClub();
   })();
   return flushing;
 }
@@ -1313,7 +1355,7 @@ async function refreshClub() {
   try {
     const data = await api('club?code=' + club.code);
     if (!club || data.club.code !== club.code) return;
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; store.set('pb.club', club);
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; saveClubs();
     clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], purchases: data.purchases || [], shop: data.shop || null, progress: data.progress || null, at: Date.now() };
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
@@ -1324,7 +1366,7 @@ async function refreshClub() {
     if (!myName() && !whoamiSkipped() && !askedWhoami && !clubSheet && !logForm && !profile && tourStep === null && !(live && live.open)) { askedWhoami = true; clubSheet = { view: 'whoami' }; renderClub(); }
   } catch (err) {
     clubState = err.offline ? 'offline' : 'error';
-    if (err.status === 404) { showToast('That club no longer exists. You are back to games on this phone.', false); leaveClub(); }
+    if (err.status === 404) { showToast(`${club.name} no longer exists, so it was taken off this phone.`, false); leaveClub(); }
     updateSyncPill();
   } finally { refreshing = false; }
 }
@@ -1339,7 +1381,7 @@ document.addEventListener('focusout', () => { if (renderPending) setTimeout(() =
 function syncPillHTML() {
   if (!API_OK) return `<span class="sync ${syncOn ? 'on' : ''}">${esc(syncNote)}</span>`;
   if (!club) return `<button class="sync club-btn" data-act="club-open">Join a club</button>`;
-  const pending = outbox.length;
+  const pending = clubOps().length;
   const note = clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
   return `<button class="sync club-btn ${clubState === 'idle' && !pending ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}">${esc(note)}</button>`;
 }
@@ -1352,17 +1394,38 @@ function profileButtonHTML() {
 }
 function updateSyncPill() { const el = document.querySelector('header.top .sync'); if (el) el.outerHTML = syncPillHTML(); }
 function inviteLink() { return location.origin + '/?club=' + (club ? club.code : ''); }
+// Opens a club on this phone (joining it if it's new), keeping every other club this phone is in.
 async function joinClub(code, name) {
-  club = { code, name };
-  store.set('pb.club', club);
-  clubData = null; store.set('pb.clubCache', null);
-  outbox = []; store.set('pb.outbox', outbox);
-  roster = [];
+  stashClubCache();
+  const known = clubs.find(c => c.code === code);
+  club = Object.assign({}, known || {}, { code, name: name || (known && known.name) || code });
+  saveClubs();
+  clubData = cachedClub(code); store.set('pb.clubCache', clubData);
+  roster = rosterFromClub();
+  askedWhoami = false;
+  render();
   await refreshClub();
 }
+// A game in progress belongs to the club that was open when it started, so switching waits until it's over.
+const gameInProgress = () => !!(live && live.state && live.state.winner === null);
+function switchClub(code) {
+  if (!club || club.code === code) return;
+  if (gameInProgress()) { showToast('Finish or end the game in progress before switching clubs.', false); return; }
+  const c = clubs.find(x => x.code === code);
+  if (!c) return;
+  clubSheet = null;
+  joinClub(c.code, c.name).then(() => showToast(`Switched to ${c.name}`, false));
+}
+// Takes the open club off this phone. Its games stay in the club. Another club this phone is in opens instead, if any.
 function leaveClub() {
-  club = null; clubData = null; outbox = [];
-  store.set('pb.club', null); store.set('pb.clubCache', null); store.set('pb.outbox', []);
+  if (!club) return;
+  const code = club.code;
+  clubs = clubs.filter(c => c.code !== code);
+  outbox = outbox.filter(o => o.code !== code); store.set('pb.outbox', outbox);
+  const all = store.get('pb.clubCaches', {}); delete all[code]; store.set('pb.clubCaches', all);
+  club = null; clubData = null; store.set('pb.clubCache', null);
+  if (clubs.length) { const next = clubs[0]; club = Object.assign({}, next); saveClubs(); clubData = cachedClub(club.code); store.set('pb.clubCache', clubData); roster = rosterFromClub(); render(); refreshClub(); return; }
+  saveClubs();
   roster = store.get('pb.roster', []);
   render();
 }
@@ -1424,7 +1487,7 @@ async function pinSet(oldPin, pin, again) {
   try {
     const data = await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'set-pin', pin, oldPin: String(oldPin || '').trim(), ownerToken: owners[club.code] || '' }) });
     rememberOwner(club.code, data.ownerToken);
-    club.hasPin = true; club.openClaim = false; store.set('pb.club', club);
+    club.hasPin = true; club.openClaim = false; saveClubs();
     rememberPin(club.code, pin);
     clubSheet = { view: 'club', msg: 'Organizer PIN saved. Share it only with organizers.' };
     render();
@@ -1461,8 +1524,9 @@ function renderClub() {
     body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
       <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
-  } else if (!club) {
-    body = `<h2 id="club-h">${c.reason === 'log' ? 'Join a club to log results' : c.reason === 'start' ? 'Join a club to start a game' : 'Play as a club'}</h2>
+  } else if (!club || c.view === 'add') {
+    body = `<h2 id="club-h">${club ? 'Add another club' : c.reason === 'log' ? 'Join a club to log results' : c.reason === 'start' ? 'Join a club to start a game' : 'Play as a club'}</h2>
+      ${club ? `<p class="need-club">You'll stay in ${esc(club.name)} too. Switch between your clubs from the club screen.</p>` : ''}
       ${c.reason === 'log' ? `<p class="need-club">Logged results go into a club's shared record. Join your club with its code, or start one, and the log form opens next.</p>` : ''}
       ${c.reason === 'start' ? `<p class="need-club">Games are saved to a club's shared record. Join your club with its code, or start one, and your game starts right after with the players you picked.</p>` : ''}
       <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
@@ -1473,7 +1537,8 @@ function renderClub() {
         <input id="club-name" class="field-input" placeholder="Club name, like Tuesday Dinkers" autocomplete="off" maxlength="40">
         <label class="lab" for="club-new-pin">Organizer PIN (optional)</label>
         <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
-        <p class="note">With a PIN, only people who know it can delete or restore games. You can add one later.</p></form>${err}`;
+        <p class="note">With a PIN, only people who know it can delete or restore games. You can add one later.</p></form>${err}
+      ${club ? '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button></div>' : ''}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
       <p>${c.pending ? `${c.pending.type === 'roster-del' ? `Removing saved players from ${esc(club.name)}` : `${{ delete: 'Deleting', restore: 'Restoring', edit: 'Editing' }[c.pending.type]} games in ${esc(club.name)}`} needs the organizer PIN.` : `Unlock this phone to edit, delete and restore games and remove saved players in ${esc(club.name)}.`} This phone remembers it until you lock it again.</p>
@@ -1491,8 +1556,10 @@ function renderClub() {
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
   } else {
     const local = store.get('pb.games', []).length;
-    const deleted = clubData ? (clubData.deleted || []).filter(g => !outbox.some(o => o.type === 'restore' && o.id === g.id)) : [];
+    const deleted = clubData ? (clubData.deleted || []).filter(g => !clubOps().some(o => o.type === 'restore' && o.id === g.id)) : [];
     body = `<h2 id="club-h">${esc(club.name)}</h2>
+      ${clubLevelCard()}
+      ${clubSwitcherHTML()}
       <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
@@ -1508,10 +1575,17 @@ function renderClub() {
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
-        <button class="btn btn-line-danger" data-act="club-leave">Leave club on this phone</button></div>`;
+        <button class="btn btn-line-danger" data-act="club-leave">Leave ${esc(club.name)} on this phone</button></div>`;
   }
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
     <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
+}
+function clubSwitcherHTML() {
+  const others = clubs.filter(c => c.code !== club.code);
+  return `<div class="field" style="margin:0"><span class="lab">Your clubs</span><ul class="club-list">
+    <li class="cur"><span><b>${esc(club.name)}</b><small>Open now</small></span></li>
+    ${others.map(c => `<li><span><b>${esc(c.name)}</b><small>${esc(c.code)}${outbox.some(o => o.code === c.code) ? ' · changes waiting to sync' : ''}</small></span><button class="btn btn-soft" data-switch-club="${esc(c.code)}">Switch</button></li>`).join('')}
+    </ul><button class="link" data-act="club-add" style="align-self:flex-start">+ Join or start another club</button></div>`;
 }
 async function clubJoinByCode(raw) {
   const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -1561,7 +1635,7 @@ async function checkInvite() {
   } catch (err) { clubSheet = { view: 'club', joinCode: code, error: err.message }; }
   renderClub();
 }
-if (API_OK) setInterval(() => { if (club && document.visibilityState === 'visible') { if (outbox.length) flush(); else refreshClub(); } }, 15000);
+if (API_OK) setInterval(() => { if (club && document.visibilityState === 'visible') { if (outbox.length) flush(); if (!clubOps().length) refreshClub(); } }, 15000);
 document.addEventListener('visibilitychange', () => { if (club && document.visibilityState === 'visible') { flush(); refreshClub(); } });
 window.addEventListener('online', () => { if (club) flush(); });
 
@@ -1751,7 +1825,7 @@ function leadersView() {
       <span class="avatar${frameClass(p.name)}">${avatarInner(p.name)}</span><span class="pl-name">${styledName(p.name, false)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
   const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
-      <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
+      <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${levelChip(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span><span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
@@ -2364,13 +2438,13 @@ const frameClass = name => { const eq = club ? equippedFor(name) : {}; return eq
 function wallet(name) {
   const key = String(name || '').trim().toLowerCase();
   const prog = progressOf(name);
-  const pendingGames = outbox.filter(o => o.type === 'game').length;
+  const pendingGames = clubOps().filter(o => o.type === 'game').length;
   const pendingEstimate = pendingGames ? (DK.compute(allGames()).get(key) || { earned: 0 }).earned - (DK.compute((clubData && clubData.games) || []).get(key) || { earned: 0 }).earned : 0;
   const earned = prog ? prog.earned + Math.max(0, pendingEstimate) : (DK.compute(allGames()).get(key) || { earned: 0 }).earned;
   const mine = ((clubData && clubData.purchases) || []).filter(p => p.player === key);
   const spins = mine.filter(p => p.itemId === SPIN_ID);
-  const bought = mine.filter(p => p.itemId !== SPIN_ID);
-  const won = spins.reduce((s, p) => s - p.price, 0);
+  const bought = mine.filter(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID);
+  const won = mine.filter(p => p.itemId === SPIN_ID || p.itemId === PRESTIGE_ID).reduce((s, p) => s - p.price, 0);
   const spent = bought.reduce((s, p) => s + p.price, 0);
   return { earned: earned + won, spent, balance: earned + won - spent, owned: new Set(bought.filter(p => !p.reward).map(p => p.itemId)), rewards: bought.filter(p => p.reward), spins };
 }
@@ -2378,9 +2452,10 @@ async function shopCall(body) {
   return api('shop', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
 }
 // What this phone tells the server about who is sending a game, so live wins can earn full Dinks.
-function senderCreds() {
-  if (!club) return {};
-  return { playerName: myName() || '', playerToken: myToken() || '', ownerToken: owners[club.code] || '' };
+function senderCreds(code = club && club.code) {
+  if (!code) return {};
+  const m = me[code] || {};
+  return { playerName: m.name || '', playerToken: m.token || '', ownerToken: owners[code] || '' };
 }
 // This phone's best guess of how the server will mark a game it sends (the server decides; this only keeps
 // previews and totals right until the next refresh).
@@ -2463,13 +2538,97 @@ function announceUnlocks() {
   const seenKey = club.code + '|' + myName().toLowerCase();
   const seen = seenAll[seenKey];
   const now = { ach: p.achievements.map(a => a.id), ch: (p.week || []).filter(x => x.done).map(x => info.week.id + ':' + x.id), tr: p.trophies.map(t => t.season + t.mode) };
+  const lv = levelUnlockMsgs(seen);
+  Object.assign(now, lv.now);
   seenAll[seenKey] = now; store.set('pb.seenProgress', seenAll);
   if (!seen) return; // first time on this phone: don't replay old unlocks
-  const msgs = [];
+  const msgs = lv.msgs.slice();
   for (const id of now.ach) if (!seen.ach.includes(id)) { const a = info.achievements.find(x => x.id === id); if (a) msgs.push(`${ACH_ICON[id] || '🏅'} Achievement: ${a.name}! +${a.dinks} Dinks`); }
   for (const k of now.ch) if (!(seen.ch || []).includes(k)) { const c = info.week.challenges.find(x => k.endsWith(':' + x.id)); if (c) msgs.push(`✓ Challenge done: ${c.name}. +${c.dinks} Dinks`); }
   for (const k of now.tr) if (!(seen.tr || []).includes(k)) { const t = p.trophies.find(x => x.season + x.mode === k); if (t) msgs.push(`${MEDAL[t.place - 1]} ${t.name} ${t.mode} ${PLACE[t.place - 1]}! +${info.season.prizes[t.place - 1]} Dinks`); }
   msgs.slice(0, 3).forEach((m, i) => setTimeout(() => showToast(m, false), i * 3200));
+}
+
+/* ---------- levels: one for each player (with prestige) and one for the whole club ---------- */
+// Same rules as api/_dinks.js: 10 XP a game, 5 more for a win sent from a club player's phone. Personal levels stop at
+// LEVEL_MAX; a maxed player can prestige to start again from level 1 with a star and bonus Dinks. The club level adds up
+// every game the club has played and never stops.
+const XP = { game: 10, win: 5 }, LEVEL_MAX = 25, PRESTIGE_ID = 'prestige', PRESTIGE_DINKS = 250;
+const levelNeed = n => 40 + 8 * (n - 1);
+function levelFrom(xp) {
+  let level = 1, left = Math.max(0, Math.floor(xp));
+  while (level < LEVEL_MAX && left >= levelNeed(level)) { left -= levelNeed(level); level++; }
+  return { level, into: level < LEVEL_MAX ? left : 0, need: level < LEVEL_MAX ? levelNeed(level) : 0, maxed: level >= LEVEL_MAX };
+}
+let xpCache = { sig: null, map: null };
+function xpMap() {
+  const games = allGames();
+  const sig = games.length + ':' + games.map(g => g.id + g.winner + (g.scoredBy ? 1 : 0)).join('').length + ':' + (games[0] ? games[0].id : '');
+  if (xpCache.sig === sig) return xpCache.map;
+  const map = new Map();
+  for (const g of games) for (const t of [0, 1]) for (const raw of g.teams[t]) {
+    const nm = String(raw).trim();
+    if (!nm || isDefaultName(nm)) continue;
+    const k = nm.toLowerCase();
+    map.set(k, (map.get(k) || 0) + XP.game + (g.scoredBy && g.winner === t ? XP.win : 0));
+  }
+  xpCache = { sig, map };
+  return map;
+}
+function prestigeOf(name) {
+  const p = clubPlayers().find(x => sameName(x.name, name));
+  const pr = (p && p.prestige) || {};
+  return { count: Math.max(0, Number(pr.count) || 0), xpAt: Math.max(0, Number(pr.xpAt) || 0) };
+}
+function playerLevel(name) {
+  const xp = xpMap().get(String(name || '').trim().toLowerCase()) || 0;
+  const pr = prestigeOf(name);
+  return Object.assign(levelFrom(xp - pr.xpAt), { xp, prestige: pr.count });
+}
+const stars = n => n ? `<span class="lv-stars" aria-hidden="true">${n > 3 ? '★×' + n : '★'.repeat(n)}</span>` : '';
+const levelChip = name => { if (!club) return ''; const L = playerLevel(name); return `<span class="badge lv${L.maxed ? ' max' : ''}" aria-label="Level ${L.level}${L.prestige ? ', prestige ' + L.prestige : ''}">${stars(L.prestige)}Lv ${L.level}</span>`; };
+// Club level: 10 XP for every game; level n needs 50 x n XP to reach the next.
+const CLUB_XP = 10, clubNeed = n => 50 * n;
+function clubLevel() {
+  let level = 1, left = clubGames().length * CLUB_XP;
+  while (left >= clubNeed(level)) { left -= clubNeed(level); level++; }
+  return { level, into: left, need: clubNeed(level), games: Math.ceil((clubNeed(level) - left) / CLUB_XP) };
+}
+function clubLevelCard() {
+  if (!club || !clubData) return '';
+  const L = clubLevel();
+  return `<div class="lv-card club-lv"><div class="lv-top"><span class="lv-num">${L.level}</span><span class="lv-txt"><b>Club level ${L.level}</b><small>${L.games} more game${L.games === 1 ? '' : 's'} to level ${L.level + 1}. Every game anyone plays counts.</small></span></div>
+    <span class="lv-bar"><i style="width:${Math.round(100 * L.into / L.need)}%"></i></span></div>`;
+}
+function levelCardHTML(name) {
+  if (!club || !clubData) return '';
+  const L = playerLevel(name), mine = isMe(name);
+  const foot = L.maxed
+    ? (mine ? `<p class="note">You're at the top level. Prestige to start again from level 1, keep a star by your level for good and get ${PRESTIGE_DINKS} Dinks.</p>
+      <button class="btn ${prestigeArmed ? 'btn-blue' : 'btn-ink'}" data-act="prestige" ${prestigeBusy ? 'disabled' : ''}>${prestigeBusy ? 'Prestiging…' : prestigeArmed ? 'Tap again to prestige' : 'Prestige'}</button>` : `<p class="note">Top level reached. ${esc(name)} can prestige from their phone.</p>`)
+    : `<span class="lv-bar"><i style="width:${Math.round(100 * L.into / L.need)}%"></i></span><p class="note">${L.need - L.into} XP to level ${L.level + 1}. Each game is ${XP.game} XP, and a win from a club player's phone adds ${XP.win}.</p>`;
+  return `<div class="lv-card"><div class="lv-top"><span class="lv-num">${L.level}</span><span class="lv-txt"><b>Level ${L.level}${L.maxed ? ' (max)' : ` of ${LEVEL_MAX}`}</b><small>${L.prestige ? `${stars(L.prestige)}Prestige ${L.prestige} · ` : ''}${L.xp} XP all time</small></span></div>${foot}</div>`;
+}
+let prestigeArmed = false, prestigeBusy = false;
+async function doPrestige() {
+  if (prestigeBusy) return;
+  if (!prestigeArmed) { prestigeArmed = true; renderProfile(); setTimeout(() => { if (prestigeArmed && !prestigeBusy) { prestigeArmed = false; renderProfile(); } }, 4000); return; }
+  prestigeBusy = true; renderProfile();
+  try {
+    const data = await shopCall({ action: 'prestige', name: myName(), playerToken: myToken() });
+    showToast(`★ Prestige ${data.prestige.count}! Back to level 1, plus ${data.dinks} Dinks`, false);
+    celebrate('celebrate-fireworks');
+  } catch (err) { showToast(err.message, false); }
+  prestigeBusy = false; prestigeArmed = false;
+  await refreshClub(); renderProfile();
+}
+// Level-up toasts, checked with the other unlocks after each refresh.
+function levelUnlockMsgs(seen) {
+  const L = playerLevel(myName()), C = clubLevel(), msgs = [];
+  const now = { lv: L.level + L.prestige * 1000, club: C.level };
+  if (seen && seen.lv != null && now.lv > seen.lv && L.level > 1) msgs.push(`⬆️ Level up! You're level ${L.level}${L.maxed ? '. Prestige is ready on your profile' : ''}`);
+  if (seen && seen.club != null && now.club > seen.club) msgs.push(`🏟️ ${club.name} reached club level ${C.level}!`);
+  return { now, msgs };
 }
 
 // Profile: achievements, trophies and rivalries.
@@ -2751,7 +2910,7 @@ function shopAdminHTML(c) {
     <div class="field" style="margin:0"><span class="lab">Item prices (Dinks)</span><div class="adm-rows">${s.catalog.map(it => `<div class="adm-row"><span class="adm-item">${esc(it.name)}<small>${SLOT_LABEL[it.slot]}</small></span><input class="field-input price" type="number" inputmode="numeric" min="0" max="9999" data-price="${it.id}" value="${Number(d.prices[it.id])}" aria-label="${esc(it.name)} price"></div>`).join('')}</div></div>
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     <button class="btn btn-ink" data-act="adm-save" ${c.busy ? 'disabled' : ''}>Save shop</button>
-    ${((clubData && clubData.purchases) || []).some(p => p.itemId !== SPIN_ID) ? `<div class="field" style="margin:0"><span class="lab">Recent purchases</span><ul class="deleted">${clubData.purchases.filter(p => p.itemId !== SPIN_ID).slice(-15).reverse().map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}, ${Number(p.price)} Dinks</span><button class="link" data-refund="${p.id}">Refund</button></li>`).join('')}</ul><p class="note">Refunding gives the Dinks back and takes the item off.</p></div>` : ''}
+    ${((clubData && clubData.purchases) || []).some(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID) ? `<div class="field" style="margin:0"><span class="lab">Recent purchases</span><ul class="deleted">${clubData.purchases.filter(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID).slice(-15).reverse().map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}, ${Number(p.price)} Dinks</span><button class="link" data-refund="${p.id}">Refund</button></li>`).join('')}</ul><p class="note">Refunding gives the Dinks back and takes the item off.</p></div>` : ''}
     ${clubPlayers().some(p => p.claimed) ? `<div class="field" style="margin:0"><span class="lab">Names linked to phones</span><ul class="deleted">${clubPlayers().filter(p => p.claimed).map(p => `<li><span>${esc(p.name)}</span><button class="link" data-release="${esc(p.name)}">Release</button></li>`).join('')}</ul><p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p></div>` : ''}`}
     <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
@@ -3023,6 +3182,7 @@ function renderProfile() {
     <div class="pf-head"><span class="av${frameClass(pr.name)}">${avatarInner(pr.name)}</span><h2 id="pf-h">${styledName(pr.name)}${youTag(pr.name)}${club && clubData ? `<span class="pf-dinks">${wallet(pr.name).balance} Dinks</span>` : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
+    ${levelCardHTML(pr.name)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}
     ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`, profile.name + '|' + profile.mode);
@@ -3141,8 +3301,10 @@ document.addEventListener('click', e => {
   if (ds.equip) { equipItem(ds.slot, ds.off ? null : ds.equip); return; }
   if (ds.sound) { el.classList.add('playing'); setTimeout(() => el.classList.remove('playing'), 1400); playSound(ds.sound); return; }
   if (ds.act === 'spin') { doSpin(el); return; }
+  if (ds.act === 'prestige') { doPrestige(); return; }
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); return; }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
+  if (ds.switchClub) { switchClub(ds.switchClub); return; }
   if (ds.act === 'shop-admin-open') { clubSheet = { view: 'shopadmin' }; renderClub(); return; }
   if (ds.act === 'adm-save') { adminSave(); return; }
   if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 60 }); renderClub(); return; }
@@ -3172,8 +3334,11 @@ document.addEventListener('click', e => {
     if (a === 'club-close') { logAfterJoin = false; startAfterJoin = false; clubSheet = null; if (renderPending) safeRender(); }
     if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
     if (a === 'club-upload') { uploadLocalGames(); return; }
+    if (a === 'club-add') { if (gameInProgress()) { clubSheet.msg = 'Finish or end the game in progress before adding a club.'; renderClub(); return; } clubSheet = { view: 'add' }; }
     if (a === 'club-leave') {
-      if (!clubSheet.confirmLeave) { clubSheet.confirmLeave = true; clubSheet.msg = `Tap again to leave. ${club.name}'s games stay in the club. This phone goes back to its own games.`; renderClub(); return; }
+      if (gameInProgress()) { clubSheet.msg = 'Finish or end the game in progress first.'; renderClub(); return; }
+      const others = clubs.filter(x => x.code !== club.code);
+      if (!clubSheet.confirmLeave) { clubSheet.confirmLeave = true; clubSheet.msg = `Tap again to leave. ${club.name}'s games stay in the club. ${others.length ? `This phone switches to ${others[0].name}.` : 'This phone goes back to its own games.'}`; renderClub(); return; }
       leaveClub(); clubSheet = null;
     }
     if (a === 'club-copy') {

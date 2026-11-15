@@ -4,6 +4,7 @@
 //   buy      {name, playerToken, itemId}             -> spends Dinks on a catalog item or a club reward
 //   equip    {name, playerToken, slot, itemId|null}  -> wears an owned item (or takes it off)
 //   spin     {name, playerToken}                     -> the daily wheel: once per UTC day, returns {index, amount}
+//   prestige {name, playerToken}                     -> a maxed-out player starts their level again for a star and Dinks
 //   avatar   {name, playerToken, avatar}              -> sets your picture: {type: emoji|icon|photo, value} or {type: initials}
 //   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
 //   settings {pin|ownerToken, rewardsEnabled?, prices?, rewards?} -> organizer: change prices, toggle and edit rewards
@@ -11,7 +12,7 @@
 //   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp } from './_db.js';
-import { computeDinks, computeProgress, CATALOG, SLOTS, shopSettings, SPIN_ID, SPIN_WHEEL, SPIN_WEIGHTS } from './_dinks.js';
+import { computeDinks, computeProgress, CATALOG, SLOTS, shopSettings, SPIN_ID, SPIN_WHEEL, SPIN_WEIGHTS, computeXP, levelFrom, PRESTIGE_ID, PRESTIGE_DINKS } from './_dinks.js';
 
 const MAX_CLAIMS_PER_DAY = 3; // names one network can link to phones per club per day without an organizer
 
@@ -136,6 +137,27 @@ export default handler(async (req, res) => {
     ]);
     if (!inserted.length) throw fail(409, 'You already spun today. Come back tomorrow.');
     return send(res, 200, { ok: true, index, amount });
+  }
+
+  if (body.action === 'prestige') {
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    const xp = computeXP(await clubGames(sql, code)).get(player.name_key) || 0;
+    const [row] = await sql`SELECT prestige FROM roster WHERE club = ${code} AND name_key = ${player.name_key}`;
+    const cur = (row && row.prestige) || {};
+    const count = Math.max(0, Math.trunc(Number(cur.count)) || 0), xpAt = Math.max(0, Math.trunc(Number(cur.xpAt)) || 0);
+    if (!levelFrom(xp - xpAt).maxed) throw fail(409, 'Reach the top level first.');
+    const next = { count: count + 1, xpAt: xp };
+    // Moves on only from the prestige this check read, so a double tap can't prestige twice.
+    const [, updated] = await sql.transaction([
+      sql`SELECT pg_advisory_xact_lock(hashtext(${code + ':' + player.name_key}))`,
+      sql`UPDATE roster SET prestige = ${JSON.stringify(next)}::jsonb
+          WHERE club = ${code} AND name_key = ${player.name_key} AND coalesce((prestige ->> 'count')::int, 0) = ${count}
+          RETURNING name`
+    ]);
+    if (!updated.length) throw fail(409, 'You just prestiged. Refresh to see it.');
+    await sql`INSERT INTO purchases (club, name_key, item_id, item_name, price, is_reward)
+              VALUES (${code}, ${player.name_key}, ${PRESTIGE_ID}, ${'Prestige ' + next.count}, ${-PRESTIGE_DINKS}, false)`;
+    return send(res, 200, { ok: true, prestige: next, dinks: PRESTIGE_DINKS });
   }
 
   if (body.action === 'avatar') {
