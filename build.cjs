@@ -87,6 +87,6 @@ console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)
 const out = path.join(__dirname, 'public');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-for (const f of ['index.html', 'manifest.webmanifest', 'sw.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of ['index.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
 console.log('Copied the site into public/');
