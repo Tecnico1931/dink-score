@@ -2270,7 +2270,7 @@ function itemPreview(it, name) {
 }
 let armedBuy = null;
 function shopView() {
-  const head = `<section><div class="sec-head"><h2>Shop</h2></div><p class="sub">Spend Dinks from your wins on looks for your name and court.</p></section>`;
+  const head = `<section><div class="sec-head"><h2>Shop</h2></div></section>`;
   if (!API_OK) return head + `<div class="empty"><p>The shop works on the Dink Score website, inside a club.</p></div>`;
   if (!club) return head + `<div class="empty"><p>Join a club to earn Dinks from games and spend them here.</p><button class="btn btn-ink" data-act="club-open">Join a club</button></div>`;
   const s = shopInfo();
