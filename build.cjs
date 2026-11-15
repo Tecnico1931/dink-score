@@ -48,11 +48,21 @@ const html = head + body + tail;
 fs.writeFileSync(path.join(__dirname, 'index.html'), html);
 console.log('Wrote index.html from', path.basename(src));
 
+// The public bracket page (/b/<token>): bracket-public.html with the shared pieces of the app source dropped in,
+// so the app and the public page draw brackets from the same code and the same colours.
+const between = (text, a, b) => { const i = text.indexOf(a), j = text.indexOf(b); if (i < 0 || j < i) throw new Error(`Missing ${a} ... ${b} in ${path.basename(src)}`); return text.slice(i + a.length, j); };
+const pub = fs.readFileSync(path.join(__dirname, 'bracket-public.html'), 'utf8')
+  .replace('/*@TOKENS*/', () => between(body, '/*TOKENS-START*/', '/*TOKENS-END*/'))
+  .replace('/*@BRACKET-CSS*/', () => between(body, '/*BRACKET-CSS-START*/', '/*BRACKET-CSS-END*/'))
+  .replace('/*@BRACKETVIEW*/', () => between(body, '/*BRACKETVIEW-START*/', '/*BRACKETVIEW-END*/'));
+fs.writeFileSync(path.join(__dirname, 'b.html'), pub);
+console.log('Wrote b.html from bracket-public.html');
+
 // Security headers for every response, written to vercel.json (commit it: Vercel reads it before the build runs).
 // The Content-Security-Policy only runs the page's own inline scripts, matched by hash, so an injected <script> or
 // onclick="..." can't run. The hashes change whenever a script changes, which is why this file is rebuilt every time.
 const crypto = require('crypto');
-const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+const hashes = [...(html + pub).matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
   .map(m => `'sha256-${crypto.createHash('sha256').update(m[1], 'utf8').digest('base64')}'`);
 const csp = [
   "default-src 'self'",
@@ -69,7 +79,12 @@ const csp = [
   "frame-ancestors 'none'"
 ].join('; ');
 const vercel = {
+  // /b/<token> is the public bracket page: the same shell for every token, which then asks /api/bracket for the data.
+  rewrites: [{ source: '/b/:token', destination: '/b.html' }],
   headers: [{
+    source: '/b/(.*)',
+    headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }, { key: 'Cache-Control', value: 'no-store' }]
+  }, {
     source: '/(.*)',
     headers: [
       { key: 'Content-Security-Policy', value: csp },
@@ -87,6 +102,6 @@ console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)
 const out = path.join(__dirname, 'public');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-for (const f of ['index.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of ['index.html', 'b.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
 console.log('Copied the site into public/');

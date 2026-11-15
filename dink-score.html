@@ -7,6 +7,7 @@
 /* Layout: phone-first app. Home is a tile grid (now playing, log a result, top player, this week) over the game setup card.
    A floating pill tab bar. Scoring is two rounded court panels with condensed numerals and a score-call pill between them.
    One bold idea: the variable grotesque squeezed narrow and heavy for every number that matters. */
+/*TOKENS-START*/
 :root {
   --bg: #F2F4F7;
   --surface: #FFFFFF;
@@ -42,6 +43,7 @@
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
   color-scheme: dark;
 }
+/*TOKENS-END*/
 html { height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); }
 body { height: 100%; height: 100dvh; margin: 0; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 15; pointer-events: none; }
@@ -868,6 +870,68 @@ button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font:
 .ev-more[open] > summary { margin-bottom: 6px; }
 .ev-more .games { gap: 8px; }
 .ev-more .game { box-shadow: none; background: var(--surface-2); }
+/* Brackets: drawn on one canvas of fixed logical size (see BK.layout), scaled to fit or scrolled round by round. Shared with the public page. */
+/*BRACKET-CSS-START*/
+.bk-host { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bk-hint { display: none; margin: 0; font-size: 13px; color: var(--muted); }
+.bk-host.scrolling .bk-hint { display: block; }
+.bk-scroll { --bleed: 16px; overflow: hidden; margin-inline: calc(-1 * var(--bleed)); padding: 4px var(--bleed) 14px; overscroll-behavior-x: contain; }
+.bk-scroll.scrolling { overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--bleed); -webkit-overflow-scrolling: touch; }
+.bk-fit { margin-inline: auto; position: relative; }
+.bk-canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.bk-links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.bk-links path { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+.bk-links path.todo { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 5; }
+.bk-snap { position: absolute; top: 0; width: 1px; height: 1px; scroll-snap-align: start; pointer-events: none; }
+.bk-head { position: absolute; margin: 0; height: 30px; display: flex; align-items: center; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 17px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.bk-col { margin: 0; padding: 0; list-style: none; }
+.bk-col > li { position: absolute; margin: 0; padding: 0; }
+.bk-card { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 18px; overflow: hidden; text-align: left; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font: 500 14px/15px var(--ui); }
+.bk-card:active { transform: none; }
+.bk-card.up { box-shadow: 0 0 0 2.5px var(--ink); }
+.bk-card[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--ink); }
+.bk-card.bye { background: var(--surface-2); box-shadow: none; }
+.bk-st, .bk-feed { flex: none; height: 23px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; font-size: 13px; line-height: 1; color: var(--muted); white-space: nowrap; }
+.bk-st b { color: var(--ink); font-weight: 700; }
+.bk-feed { border-top: 1px solid var(--line); gap: 10px; }
+.bk-feed span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bk-row { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 0 12px 0 10px; border-left: 5px solid var(--c); color: var(--muted); }
+.bk-row + .bk-row { border-top: 1px solid var(--line); }
+.bk-name { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.bk-pts { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 24px; line-height: 1; min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.bk-ck { width: 16px; height: 16px; flex: none; }
+.bk-row.win { color: var(--ink); font-weight: 700; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.bk-row.tbd .bk-name { font-weight: 400; }
+.bk-champ { display: flex; align-items: center; gap: 12px; width: 100%; height: 100%; padding: 0 16px; border-radius: 18px; background: var(--surface-2); color: var(--muted); box-sizing: border-box; font-size: 14px; line-height: 17px; }
+.bk-champ.won { background: var(--ink); color: var(--bg); box-shadow: var(--shadow); }
+.bk-champ small { display: block; font-size: 13px; opacity: .8; }
+.bk-champ b { display: block; font-size: 17px; overflow-wrap: anywhere; }
+.bk-champ .ball { width: 24px; height: 24px; flex: none; }
+.bk-tag { display: inline-block; background: var(--surface-2); color: var(--ink); border-radius: 6px; padding: 1px 7px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.bk-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.bk-table th { font-size: 12px; font-weight: 500; color: var(--muted); text-align: right; padding: 8px 6px; }
+.bk-table th.who { text-align: left; }
+.bk-table td { padding: 10px 6px; border-top: 1px solid var(--line); text-align: right; font-size: 20px; line-height: 1; }
+.bk-table td.who { text-align: left; font-family: var(--ui); font-weight: 500; font-stretch: normal; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+.bk-table tr.cut td { border-top: 2px solid var(--ink); }
+.bk-rank { display: inline-block; min-width: 26px; padding: 2px 6px; margin-right: 6px; border-radius: 999px; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 16px; color: var(--muted); }
+.bk-rank.first { background: var(--ball); color: var(--ball-ink); }
+.bk-mline { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-top: 1px solid var(--line); }
+.bk-mline .r { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.bk-mline .r.win { color: var(--ink); font-weight: 700; }
+.bk-mline .r .num { font-size: 22px; line-height: 1.1; }
+.bk-mline .c { font-size: 13px; color: var(--muted); }
+/*BRACKET-CSS-END*/
+.ev-ic { width: 18px; height: 18px; flex: none; }
+a.btn { text-decoration: none; }
+.bk-sec { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ev-wrap.wide { max-width: min(1320px, 100%); }
+.ev-wrap.wide > .ev-narrow { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 18px; }
+.ev-wrap.wide .link { min-height: 44px; padding-inline: 8px; display: inline-flex; align-items: center; }
+.bk-jump { display: flex; gap: 8px; flex-wrap: wrap; }
+.bk-sheet { position: sticky; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 4; width: 100%; max-width: 560px; align-self: center; max-height: 68vh; overflow-y: auto; background: var(--surface); border-radius: 22px; padding: 12px 14px 14px; box-shadow: 0 0 0 1px var(--line), 0 -10px 34px -12px rgb(0 0 0 / .4); display: flex; flex-direction: column; gap: 8px; }
+.bk-sheet .games .game { box-shadow: none; padding: 4px 0 0; background: transparent; }
+.bk-share-url { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; font-size: 14px; }
 
 /* Club display: a full-screen join page for a TV or monitor at the courts. Open /?display=CODE.
    Fixed dark-green styling on purpose: it should look the same on any screen, day or night. */
@@ -882,6 +946,7 @@ button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font:
 .dsp-code { font-family: var(--display); font-weight: 800; font-size: 7vmin; letter-spacing: .18em; color: #DDF247; margin-top: -1.6vmin; }
 .dsp-exit { color: #7E9284; font-size: 1.8vmin; text-decoration: none; margin-top: 2vmin; }
 html.dsp-lock, html.dsp-lock body { overflow: hidden; }
+
 </style>
 
 <div class="app" id="app"></div>
@@ -1091,6 +1156,199 @@ const DK = (() => {
   return { compute, EARN };
 })();
 /*ENGINE-END*/
+</script>
+
+<script id="bracketview">
+/*BRACKETVIEW-START*/
+// Draws event brackets and pool tables. Pure: data in (an event as the API's view() or publicView() returns it), HTML or
+// numbers out, so the app and the public bracket page share it and test/bracketview.test.js can run it without a browser.
+const BK = (() => {
+  const CW = 240, CH = 112, GX = 48, ROW = 128, HEAD = 36, SECT = 40; // card, gap between rounds, row pitch, header and section space (logical px)
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const TEAM = ['var(--blue)', 'var(--green)'];
+  const names = t => (t ? t.join(' & ') : '');
+  const CHECK = '<svg class="bk-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  // Where everything goes. tree is event.tree: { kind, rounds: [{key, title}] (the rounds worth showing), matches: [...] }.
+  // One column per round; a match sits halfway between the two matches that feed it. Double elimination stacks the
+  // losers bracket under the winners bracket and puts the grand final to the right of both.
+  function layout(tree) {
+    const byId = new Map(tree.matches.map(m => [m.id, m]));
+    const keyOf = m => m.stage + m.round;
+    const visible = new Set(tree.rounds.map(r => r.key));
+    const title = new Map(tree.rounds.map(r => [r.key, r.title]));
+    const shown = m => visible.has(keyOf(m)) && !(m.slots[0] === -1 && m.slots[1] === -1); // two byes make no match
+    const double = tree.kind === 'double';
+    const col = {}, count = { W: 0, L: 0 };
+    for (const r of tree.rounds) if (r.key[0] !== 'F') col[r.key] = count[r.key[0]]++;
+    const f2 = visible.has('F2');
+    const base = Math.max(count.W, count.L);
+    if (double) { col.F1 = base; if (f2) col.F2 = base + 1; }
+    const champCol = base + (double ? (f2 ? 2 : 1) : 0);
+    const X = c => c * (CW + GX);
+
+    // A match's vertical centre inside its own section: round r doubles the spacing, and so does every second losers round.
+    const yc = m => (m.pos + 0.5) * ROW * 2 ** ((m.stage === 'L' ? Math.ceil(m.round / 2) : m.round) - 1);
+    const sec = { W: [], L: [] };
+    for (const m of tree.matches) if (m.stage !== 'F' && shown(m)) sec[m.stage].push(m);
+    const span = list => (list.length ? [Math.min.apply(null, list.map(m => yc(m) - CH / 2)), Math.max.apply(null, list.map(m => yc(m) + CH / 2))] : [0, 0]);
+    const [wMin, wMax] = span(sec.W), [lMin] = span(sec.L);
+    const wOff = HEAD - wMin;
+    const lHead = HEAD + (wMax - wMin) + SECT;
+    const lOff = lHead + HEAD - lMin;
+    const yOf = m => yc(m) + (m.stage === 'L' ? lOff : wOff);
+
+    const nodes = [], headers = [], links = [], snaps = [];
+    const at = new Map();
+    const place = (m, c, y) => { const n = { id: m.id, kind: 'match', m, col: c, x: X(c), y: y - CH / 2, w: CW, h: CH }; nodes.push(n); at.set(m.id, n); return n; };
+    for (const m of tree.matches) if (m.stage !== 'F' && shown(m)) place(m, col[keyOf(m)], yOf(m));
+    const centre = n => n.y + CH / 2;
+    const feeders = tree.matches.filter(m => m.winnerTo === 'F1' && at.has(m.id));
+    const fy = feeders.length ? feeders.reduce((s, m) => s + centre(at.get(m.id)), 0) / feeders.length : HEAD + CH / 2;
+    if (double) for (const m of tree.matches) if (m.stage === 'F' && shown(m)) place(m, col[keyOf(m)], fy);
+    // The single elimination final has nowhere to go but the champion.
+    const final = double ? null : tree.matches.find(m => m.stage === 'W' && !m.winnerTo && at.has(m.id));
+    const champY = double ? fy : final ? centre(at.get(final.id)) : HEAD + CH / 2;
+    const champion = { id: 'champion', kind: 'champion', col: champCol, x: X(champCol), y: champY - CH / 2, w: CW, h: CH };
+    nodes.push(champion);
+
+    for (const r of tree.rounds) {
+      const st = r.key[0], first = nodes.find(n => n.kind === 'match' && keyOf(n.m) === r.key);
+      const y = st === 'W' ? 0 : st === 'L' ? lHead : Math.max(0, (first ? first.y : champY - CH / 2) - HEAD);
+      headers.push({ key: r.key, title: r.title, x: X(col[r.key]), y, w: CW });
+    }
+    headers.push({ key: 'champion', title: 'Champion', x: X(champCol), y: Math.max(0, champY - CH / 2 - HEAD), w: CW });
+    for (let c = 0; c <= champCol; c++) snaps.push(X(c));
+
+    // Skips matches that are not drawn (two byes, or a whole round of byes) to the next one that is.
+    const next = id => { let t = id && byId.get(id); while (t && !at.has(t.id)) t = t.winnerTo ? byId.get(t.winnerTo) : null; return t || null; };
+    const link = (a, b) => {
+      const x1 = a.x + CW, y1 = centre(a), x2 = b.x, y2 = centre(b);
+      const xm = b.col - a.col > 1 ? x2 - GX / 2 : x1 + GX / 2;
+      const done = !!a.m && (a.m.status === 'done' || a.m.status === 'bye');
+      links.push({ from: a.id, to: b.id, done, d: y1 === y2 ? `M${x1} ${y1}H${x2}` : `M${x1} ${y1}H${xm}V${y2}H${x2}` });
+    };
+    for (const n of nodes) {
+      if (n.kind !== 'match') continue;
+      const m = n.m;
+      let target = null, winTitle;
+      if (m.id === 'F1') { const t = at.get('F2'); target = t || champion; winTitle = t ? 'Champion or reset' : 'Champion'; }
+      else if (m.id === 'F2' || m === final) { target = champion; winTitle = 'Champion'; }
+      else { const t = next(m.winnerTo); target = t ? at.get(t.id) : null; winTitle = t ? title.get(keyOf(t)) : 'Champion'; }
+      const lt = m.loserTo ? next(m.loserTo) : null;
+      n.feed = { win: winTitle, lose: lt ? title.get(keyOf(lt)) : m.stage === 'F' ? null : 'out' };
+      if (target) link(n, target);
+    }
+    const width = X(champCol) + CW;
+    const height = Math.max.apply(null, nodes.map(n => n.y + n.h)) + 6;
+    return { width, height, nodes, headers, links, snaps, double };
+  }
+
+  // How big to draw a layout of w x h logical px in cw x ch px. Returns the scale and whether to scroll instead of fit.
+  // Text is never drawn smaller than 93% of its design size (13px at the smallest), so a bracket too wide for that scrolls.
+  // A TV (tv: true) fits both width and height and may grow the text a lot; max caps the growth.
+  function scale({ cw, ch, w, h, tv = false, max = 1.35 }) {
+    const fit = cw / w;
+    if (tv) {
+      let s = ch ? Math.min(fit, ch / h) : fit;
+      if (s < 0.7) s = fit; // too tall for one screen: fit the width and let the page scroll
+      return s < 0.55 ? { s: 1, scroll: true } : { s: Math.min(s, max), scroll: false };
+    }
+    return fit < 0.93 ? { s: 1, scroll: true } : { s: Math.min(fit, max), scroll: false };
+  }
+
+  const scoreText = s => `${s[0]} to ${s[1]}`;
+  function describe(n, o) {
+    const m = n.m, sc = o.scoreOf ? o.scoreOf(m) : m.score;
+    const side = t => (m.slots[t] === -1 ? 'a bye' : names(m.teams[t]) || 'to be decided');
+    const win = sc ? (sc[0] > sc[1] ? 0 : 1) : m.status === 'bye' ? m.winner : null;
+    const title = (o.titleOf && o.titleOf(m)) || '';
+    let state;
+    if (m.status === 'bye') state = `${names(m.teams[win])} has a bye and moves on`;
+    else if (sc) state = `Final, ${scoreText(sc)}. ${names(m.teams[win])} won`;
+    else if (m.ready) state = m.court ? `Ready to play on court ${m.court}` : 'Ready to play, waiting for a court';
+    else state = m.id === 'F2' ? 'Only played if the losers bracket team wins the grand final' : 'Waiting for earlier matches';
+    const f = n.feed;
+    const feed = f ? `. Winner goes to ${f.win}${f.lose && f.lose !== 'out' ? `, loser to ${f.lose}` : f.lose === 'out' ? ', loser is out' : ''}` : '';
+    return `${title ? title + ': ' : ''}${side(0)} versus ${side(1)}. ${state}${feed}`;
+  }
+
+  function cardHTML(n, o) {
+    const m = n.m, sc = o.scoreOf ? o.scoreOf(m) : m.score;
+    const saving = !!(o.saving && o.saving(m));
+    const bye = m.status === 'bye';
+    const win = sc ? (sc[0] > sc[1] ? 0 : 1) : bye ? m.winner : null;
+    const row = t => {
+      const isBye = m.slots[t] === -1, tbd = !isBye && !m.teams[t];
+      const label = isBye ? 'Bye' : tbd ? 'To be decided' : names(m.teams[t]);
+      const won = win === t && !bye;
+      return `<span class="bk-row${won ? ' win' : ''}${tbd ? ' tbd' : ''}" style="--c:${TEAM[t]}"><span class="bk-name">${esc(label)}${won ? '<span class="vh">, winner</span>' : ''}</span>${won ? CHECK : '<span></span>'}<span class="bk-pts">${sc ? sc[t] : ''}</span></span>`;
+    };
+    const st = bye ? 'Bye, moves on' : saving ? 'Saving…' : sc ? 'Final' : m.ready ? `<b>Up next${m.court ? ` · Court ${m.court}` : ''}</b>` : m.id === 'F2' ? 'Only if the losers team wins' : 'Waiting for earlier matches';
+    const f = n.feed, short = t => esc(String(t).replace(/^(Winners|Losers) round (\d+)$/, '$1 $2')); // the full name stays in the label
+    const feed = f ? `<span class="bk-feed"><span><span class="vh">Winner goes to </span>→ ${short(f.win)}</span>${f.lose && f.lose !== 'out' ? `<span><span class="vh">Loser goes to </span>↓ ${short(f.lose)}</span>` : f.lose === 'out' ? '<span>Loser out</span>' : ''}</span>` : '';
+    const inner = `<span class="bk-st"><span>${st}</span></span>${row(0)}${row(1)}${feed}`;
+    const label = esc(describe(n, o));
+    const cls = `bk-card${m.ready && !sc ? ' up' : ''}${bye ? ' bye' : ''}`;
+    const style = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
+    if (o.interactive && !bye) return `<li style="${style}"><button type="button" class="${cls}" data-ev="pick" data-m="${esc(m.id)}" aria-pressed="${o.sel === m.id}" aria-label="${label}">${inner}</button></li>`;
+    return `<li style="${style}"><div class="${cls}" role="group" aria-label="${label}">${inner}</div></li>`;
+  }
+  function champHTML(n, ev) {
+    const c = ev.champion;
+    const style = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
+    return `<li style="${style}"><div class="bk-champ${c ? ' won' : ''}" role="group" aria-label="${c ? 'Champions: ' + esc(names(c)) : 'Champion, to be decided'}">${c ? '<span class="ball"></span>' : ''}<span><small>${c ? 'Champions' : 'Champion'}</small><b>${c ? esc(names(c)) : 'To be decided'}</b></span></div></li>`;
+  }
+
+  // The scrollable, scalable bracket. opts: interactive (cards are buttons), sel (selected match id), scoreOf(m), saving(m).
+  function bracketHTML(ev, opts = {}) {
+    const L = layout(ev.tree);
+    const o = Object.assign({}, opts, { titleOf: m => (ev.tree.rounds.find(r => r.key === m.stage + m.round) || {}).title });
+    const groups = L.headers.map(h => {
+      const items = L.nodes.filter(n => (h.key === 'champion' ? n.kind === 'champion' : n.kind === 'match' && n.m.stage + n.m.round === h.key));
+      const id = `bk-${h.key}`;
+      return `<div role="group" aria-labelledby="${id}"><h3 class="bk-head" id="${id}" style="left:${h.x}px;top:${h.y}px;width:${h.w}px">${esc(h.title)}</h3><ol class="bk-col">${items.map(n => (n.kind === 'champion' ? champHTML(n, ev) : cardHTML(n, o))).join('')}</ol></div>`;
+    }).join('');
+    const paths = L.links.map(l => `<path class="${l.done ? '' : 'todo'}" d="${l.d}"/>`).join('');
+    const snaps = L.snaps.map(x => `<i class="bk-snap" style="left:${x}px" aria-hidden="true"></i>`).join('');
+    return `<div class="bk-host"><p class="bk-hint">Swipe or scroll sideways to move between rounds.</p>
+      <div class="bk-scroll" tabindex="0" role="region" aria-label="${esc(ev.tree.kind === 'double' ? 'Double elimination bracket' : 'Bracket')}, one column per round" data-bk-w="${L.width}" data-bk-h="${L.height}">
+      <div class="bk-fit" style="width:${L.width}px;height:${L.height}px"><div class="bk-canvas" style="width:${L.width}px;height:${L.height}px">
+      <svg class="bk-links" width="${L.width}" height="${L.height}" viewBox="0 0 ${L.width} ${L.height}" aria-hidden="true">${paths}</svg>${snaps}${groups}</div></div></div></div>`;
+  }
+
+  // Sizes every bracket under root to its container. Call after rendering and when the window resizes.
+  function fitAll(root, { tv = false, max } = {}) {
+    for (const el of root.querySelectorAll('.bk-scroll')) {
+      const w = +el.dataset.bkW, h = +el.dataset.bkH, host = el.parentElement;
+      const cs = getComputedStyle(el), pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const cw = el.clientWidth - pad;
+      const ch = tv ? host.clientHeight - 8 : 0;
+      const r = scale({ cw, ch, w, h, tv, max: max || (tv ? 3 : 1.35) });
+      const fit = el.firstElementChild, canvas = fit.firstElementChild;
+      fit.style.width = w * r.s + 'px'; fit.style.height = h * r.s + 'px';
+      canvas.style.transform = r.s === 1 ? '' : `scale(${r.s})`;
+      el.classList.toggle('scrolling', r.scroll); host.classList.toggle('scrolling', r.scroll);
+    }
+  }
+
+  // Pool or round robin table. ev.standings rows: { rank, name, played, wins, losses, diff }.
+  function standingsHTML(ev) {
+    const cut = ev.format === 'pool_knockout' ? (ev.partners === 'fixed' ? ev.advance : ev.advance * 2) : 0;
+    const rows = ev.standings.map((r, i) => `<tr${cut && i === cut ? ' class="cut"' : ''}><td class="who"><span class="bk-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${esc(r.name)}${cut && i < cut ? ` <span class="bk-tag">${ev.tree ? 'In the knockout' : 'Advances'}</span>` : ''}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('');
+    return `<table class="bk-table"><caption class="vh">Wins, losses and point difference</caption><thead><tr><th scope="col" class="who">${ev.partners === 'fixed' ? 'Team' : 'Player'}</th><th scope="col">W–L</th><th scope="col">+/−</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // One match as a plain line, for schedules on the public page.
+  function lineHTML(m) {
+    const sc = m.score, win = sc ? (sc[0] > sc[1] ? 0 : 1) : null;
+    const r = i => `<div class="r${win === i ? ' win' : ''}"><span>${esc(names(m.teams[i]) || 'To be decided')}${win === i ? '<span class="vh">, winner</span>' : ''}</span><span class="num">${sc ? sc[i] : ''}</span></div>`;
+    return `<li class="bk-mline">${r(0)}${r(1)}<div class="c">${sc ? 'Final' : m.court ? `Court ${m.court}` : 'Up next'}</div></li>`;
+  }
+
+  return { layout, scale, bracketHTML, fitAll, standingsHTML, lineHTML, describe, esc, CW, CH, GX, ROW };
+})();
+/*BRACKETVIEW-END*/
 </script>
 
 <script>
@@ -1474,7 +1732,7 @@ function flush() {
       outbox.shift(); store.set('pb.outbox', outbox); sent = true;
     }
     flushing = null;
-    if (sent && evScreen && evScreen.view === 'detail') evLoad(evScreen.id, true);
+    if (sent && evScreen && (evScreen.view === 'detail' || evScreen.view === 'bracket')) evLoad(evScreen.id, true);
     else if (sent && evScreen) renderEvents(true);
     if (sent && !clubOps().length) await refreshClub();
   })();
@@ -2030,6 +2288,7 @@ function isGamePoint(s, t) {
 }
 const clock = ms => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
 const ICON = {
+  bracket: '<svg class="ev-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h5v4H3zM3 15h5v4H3zM16 10h5v4h-5zM8 7h3v10H8M11 12h5"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -3488,13 +3747,19 @@ function renderEvents(force) {
   const old = root.querySelector('.ev-screen');
   const key = evScreen.view + ':' + (evScreen.id || '');
   const y = old && root._key === key ? old.scrollTop : 0;
+  const sx = root._key === key ? [...root.querySelectorAll('.bk-scroll')].map(e => e.scrollLeft) : [];
+  const fa = document.activeElement, pickId = fa && fa.dataset && fa.dataset.ev === 'pick' && root.contains(fa) ? fa.dataset.m : null;
   root.innerHTML = html; root._html = html; root._key = key;
   const sc = root.querySelector('.ev-screen');
   if (sc && y) sc.scrollTop = y;
+  BK.fitAll(root);
+  root.querySelectorAll('.bk-scroll').forEach((e, i) => { if (sx[i]) e.scrollLeft = sx[i]; });
+  if (pickId) { const b = root.querySelector(`[data-ev="pick"][data-m="${CSS.escape(pickId)}"]`); if (b) b.focus({ preventScroll: true }); }
   if (!old || root._focusKey !== key) { root._focusKey = key; const b = root.querySelector('.ev-back'); if (b) b.focus({ preventScroll: true }); }
 }
+window.addEventListener('resize', () => { if (evScreen && evScreen.view === 'bracket') requestAnimationFrame(() => BK.fitAll($('#events'))); });
 document.addEventListener('focusout', () => { if (evPending) setTimeout(() => { if (evPending && !evTyping()) renderEvents(); }, 50); });
-setInterval(() => { if (evScreen && evScreen.view === 'detail' && !document.hidden && !evScreen.busy && club) evLoad(evScreen.id, true); }, 8000);
+setInterval(() => { if (evScreen && (evScreen.view === 'detail' || evScreen.view === 'bracket') && !document.hidden && !evScreen.busy && club) evLoad(evScreen.id, true); }, 8000);
 
 function evSeg(key, options, value) {
   return `<div class="seg" role="group">${options.map(([v, l]) => `<button type="button" data-ev="set" data-k="${key}" data-v="${v}" aria-pressed="${String(v) === String(value)}">${l}</button>`).join('')}</div>`;
@@ -3507,10 +3772,10 @@ const evProgress = e => e.status === 'done' ? (e.champion ? `Won by ${e.champion
 
 function evHTML() {
   const s = evScreen;
-  const body = s.view === 'new' ? evNewHTML(s) : s.view === 'detail' ? evDetailHTML(s) : evListHTML(s);
-  const title = s.view === 'new' ? 'New event' : s.view === 'detail' ? (s.event ? s.event.name : 'Event') : 'Events';
-  return `<div class="ev-screen" role="dialog" aria-modal="true" aria-labelledby="ev-h"><div class="ev-wrap">
-    <div class="ev-top"><button class="ev-back" data-ev="back" aria-label="${s.view === 'list' ? 'Close events' : 'Back to events'}">${ICON.back}</button><h2 id="ev-h">${esc(title)}</h2></div>${body}</div></div>`;
+  const body = s.view === 'new' ? evNewHTML(s) : s.view === 'detail' ? evDetailHTML(s) : s.view === 'bracket' ? evBracketHTML(s) : evListHTML(s);
+  const title = s.view === 'new' ? 'New event' : s.view === 'detail' || s.view === 'bracket' ? (s.event ? s.event.name : 'Event') : 'Events';
+  return `<div class="ev-screen" role="dialog" aria-modal="true" aria-labelledby="ev-h"><div class="ev-wrap${s.view === 'bracket' ? ' wide' : ''}">
+    <div class="ev-top"><button class="ev-back" data-ev="back" aria-label="${s.view === 'list' ? 'Close events' : s.view === 'bracket' ? 'Back to the event' : 'Back to events'}">${ICON.back}</button><h2 id="ev-h">${esc(title)}</h2></div>${body}</div></div>`;
 }
 function evListHTML(s) {
   const org = canOrganize();
@@ -3589,7 +3854,8 @@ function evDetailHTML(s) {
   if (s.error) out.push(`<p class="err" role="alert">${esc(s.error)}</p>`);
   out.push(`<div class="ev-card"><div class="ev-item-head"><b>${esc(EV_FORMAT_NAME[ev.format])}</b><span class="badge ${live ? 'hot' : 'prov'}">${live ? 'Live' : 'Finished'}</span></div>
     <span class="note">${ev.partners === 'rotating' ? 'Partners rotate' : 'Fixed teams'} · ${ev.players.length} players · ${ev.courts} court${ev.courts === 1 ? '' : 's'} · to ${ev.target}, ${ev.scoring === 'rally' ? 'rally' : 'side-out'}, win by ${ev.winBy}</span>
-    <span class="note">${esc(evProgress({ status: ev.status, champion: null, stage: ev.stage, round: (ev.rounds.find(r => r.status !== 'done') || ev.rounds[ev.rounds.length - 1] || { n: 1 }).n, roundsPlanned: ev.roundsPlanned }))}</span></div>`);
+    <span class="note">${esc(evProgress({ status: ev.status, champion: null, stage: ev.stage, round: (ev.rounds.find(r => r.status !== 'done') || ev.rounds[ev.rounds.length - 1] || { n: 1 }).n, roundsPlanned: ev.roundsPlanned }))}</span>
+    <div class="ev-actions"><button class="btn btn-soft ev-small" data-ev="brackets">${ICON.bracket}Brackets</button></div></div>`);
   if (ev.status === 'done' && ev.champion) out.push(`<div class="ev-champ" role="status"><span class="ball"></span><div><small>${ev.knockout ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(ev.champion.join(' & '))}</b></div></div>`);
   // Now playing
   let nowTitle = '', now = [], byes = [], round = null;
@@ -3645,6 +3911,80 @@ function evDetailHTML(s) {
   return out.join('\n');
 }
 
+// ---- Brackets page: the knockout drawn round by round (see BK in the bracketview script), or the pool table leading into it ----
+const evShareUrl = t => `${location.origin}/b/${t}`;
+function evShareHTML(s) {
+  const sh = s.share, shared = !!(sh && sh.token), arm = s.arm || '';
+  if (!shared) return `<div class="ev-card"><h3>Watch without the app</h3><p class="note">Make a link anyone can open to follow this ${s.event.tree ? 'bracket' : 'event'} live, on a phone or a TV. It shows names and scores only and nobody can change anything.</p>
+    ${sh && sh.error ? `<p class="err" role="alert">${esc(sh.error)}</p>` : ''}<div class="ev-actions"><button class="btn btn-ink ev-small" data-ev="share-open" ${sh && sh.busy ? 'disabled' : ''}>${sh && sh.busy ? 'Making the link…' : 'Share bracket'}</button></div></div>`;
+  const url = evShareUrl(sh.token);
+  return `<div class="ev-card"><div class="ev-item-head"><h3>Public link</h3><button class="link" data-ev="share-hide">Hide</button></div>
+    <p class="note">Anyone with this link can watch, nobody can change anything. Open the TV view on a big screen.</p>
+    <input class="bk-share-url" type="text" readonly value="${esc(url)}" aria-label="Public bracket link" id="bk-url">
+    ${sh.error ? `<p class="err" role="alert">${esc(sh.error)}</p>` : ''}
+    <div class="ev-actions"><button class="btn btn-ink ev-small" data-ev="share-copy">Copy link</button><a class="btn btn-soft ev-small" href="${esc(url)}" target="_blank" rel="noopener">Open</a><a class="btn btn-soft ev-small" href="${esc(url)}?tv=1" target="_blank" rel="noopener">TV view</a></div>
+    <div class="ev-actions"><button class="link ${arm === 'share-new' ? 'armed' : ''}" data-ev="share-new" ${sh.busy ? 'disabled' : ''}>${arm === 'share-new' ? 'Tap again: the old link stops working' : 'Make a new link'}</button><button class="link ${arm === 'share-off' ? 'armed' : ''}" data-ev="share-off" ${sh.busy ? 'disabled' : ''}>${arm === 'share-off' ? 'Tap again to stop sharing' : 'Stop sharing'}</button></div></div>`;
+}
+async function evShare(a) {
+  const s = evScreen;
+  if (!s || !s.event || (s.share && s.share.busy)) return;
+  if ((a === 'share-new' || a === 'share-off') && s.arm !== a) { s.arm = a; renderEvents(true); return; }
+  s.arm = '';
+  s.share = Object.assign({}, s.share, { busy: true, error: '' }); renderEvents(true);
+  try {
+    const data = await evCall({ action: a === 'share-open' ? 'share' : a, id: s.event.id });
+    s.share = data.shareToken ? { token: data.shareToken } : null;
+    if (a === 'share-off') showToast('Sharing stopped. The link no longer works.', false);
+  } catch (err) {
+    if (err.status === 403) forgetPin();
+    s.share = Object.assign({}, s.share, { busy: false, error: err.message });
+  }
+  renderEvents(true);
+}
+async function evCopyLink() {
+  const sh = evScreen && evScreen.share;
+  if (!sh || !sh.token) return;
+  try { await navigator.clipboard.writeText(evShareUrl(sh.token)); showToast('Link copied', false); }
+  catch { const i = $('#bk-url'); if (i) { i.focus(); i.select(); } showToast('Press and hold the link to copy it', false); }
+}
+function evBracketHTML(s) {
+  const ev = s.event;
+  if (!ev) return s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : '<p class="note">Loading…</p>';
+  const org = canOrganize(), live = ev.status === 'live', pool = ev.format === 'pool_knockout';
+  const sel = s.sel && ev.tree ? ev.tree.matches.find(m => m.id === s.sel && m.status !== 'bye') : null;
+  const out = [];
+  const narrow = [];
+  if (s.error) narrow.push(`<p class="err" role="alert">${esc(s.error)}</p>`);
+  const what = ev.tree ? (ev.tree.kind === 'double' ? 'Winners and losers brackets, then the grand final.' : 'Lose once and you are out.') : pool ? 'Pool play first, then the best teams play a knockout.' : 'A round robin: everyone plays everyone, so there is no bracket.';
+  narrow.push(`<div class="ev-card"><div class="ev-item-head"><b>${esc(EV_FORMAT_NAME[ev.format])}</b><span class="badge ${live ? 'hot' : 'prov'}">${live ? 'Live' : 'Finished'}</span></div>
+    <span class="note">${what}${ev.tree ? ' Tap a match to score it.' : ''}</span>
+    <div class="ev-actions"><button class="btn btn-soft ev-small" data-ev="back-detail">Schedule and scoring</button>${pool ? `<button class="btn btn-soft ev-small" data-ev="jump" data-to="bk-pool">Pool standings</button><button class="btn btn-soft ev-small" data-ev="jump" data-to="bk-ko">${ev.tree ? 'Knockout bracket' : 'About the knockout'}</button>` : ''}</div></div>`);
+  if (ev.status === 'done' && ev.champion) narrow.push(`<div class="ev-champ" role="status"><span class="ball"></span><div><small>${ev.tree ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(ev.champion.join(' & '))}</b></div></div>`);
+  if (!ev.tree && !pool) {
+    narrow.push(`<div class="ev-card" role="status"><h3>No bracket for this format</h3><p class="note">A round robin has no knockout rounds to draw. Everyone plays everyone, and the standings decide who wins.</p>
+      <button class="btn btn-ink block" data-ev="back-detail">Open the schedule and standings</button></div>`);
+  }
+  if (pool) {
+    narrow.push(`<section class="bk-sec" id="bk-pool" aria-labelledby="bk-pool-h"><h3 id="bk-pool-h" style="margin:0;font-family:var(--display);font-weight:700;font-stretch:90%;font-size:19px">Pool standings</h3><div class="ev-card" style="padding:8px 12px">${BK.standingsHTML(ev)}</div>
+      <p class="note">The top ${ev.advance} ${ev.partners === 'fixed' ? 'teams' : 'teams (players paired best with weakest)'} go into the knockout. The line marks the cut.</p>
+      <button class="btn btn-soft ev-small" data-ev="jump" data-to="bk-ko" style="align-self:flex-start">${ev.tree ? 'See the knockout bracket ↓' : 'About the knockout ↓'}</button></section>`);
+  }
+  out.push(`<div class="ev-narrow">${narrow.join('')}</div>`);
+  if (ev.tree) {
+    out.push(`<section class="bk-sec" id="bk-ko" aria-labelledby="bk-ko-h"><h3 id="bk-ko-h" class="vh">${pool ? 'Knockout bracket' : 'Bracket'}</h3>${BK.bracketHTML(ev, { interactive: true, sel: s.sel, scoreOf: m => { const op = evQueued(m.id); return op ? op.score : m.score; }, saving: m => !!evQueued(m.id) })}</section>`);
+  } else if (pool) {
+    out.push(`<div class="ev-narrow"><section class="bk-sec" id="bk-ko" aria-labelledby="bk-ko-h"><div class="ev-card" role="status"><h3 id="bk-ko-h">The knockout is not drawn yet</h3><p class="note">${ev.poolDone ? (org ? 'Pool play is finished. Start the knockout from the event page and the bracket appears here.' : 'Pool play is finished. The organizer starts the knockout next, and the bracket appears here.') : `It appears here when pool play ends: the top ${ev.advance} ${ev.partners === 'fixed' ? 'teams' : 'teams of players'} play single elimination, best seed against the lowest.`}</p></div></section></div>`);
+  }
+  const tail = [];
+  if (org) tail.push(evShareHTML(s));
+  if (tail.length) out.push(`<div class="ev-narrow">${tail.join('')}</div>`);
+  if (sel) {
+    const r = ev.tree.rounds.find(x => x.key === sel.stage + sel.round);
+    out.push(`<section class="bk-sheet" aria-label="Selected match"><div class="ev-item-head"><b>${esc(r ? r.title : 'Match')}</b><button class="link" data-ev="pick-close">Close</button></div><ul class="games">${evMatchHTML(ev, sel, org)}</ul></section>`);
+  }
+  return out.join('\n');
+}
+
 // Export for DUPR: finished results as a CSV (or text) an organizer can import. Logic lives in dupr-export.js; loaded on demand.
 let duprMod = null;
 function duprLoad() { if (!duprMod) import('./dupr-export.js').then(m => { duprMod = m; renderEvents(true); }).catch(() => {}); }
@@ -3672,6 +4012,7 @@ function duprExport(ev, copy) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('CSV downloaded', false);
+
 }
 
 function evMatchOf(id) {
@@ -3752,13 +4093,15 @@ function evAct(a, d) {
   const s = evScreen;
   if (a === 'open-list') { evOpenList(); return; }
   if (!s) return;
-  if (a === 'back') {
+  if (a === 'back' && s.view !== 'bracket') {
     if (s.view === 'list') { evScreen = null; renderEvents(true); safeRender(); const t = document.querySelector('[data-ev="open-list"]'); if (t) t.focus({ preventScroll: true }); return; }
     if (s.view === 'detail' && s.list === null) { evOpenList(); return; }
     s.view = 'list'; s.event = null; s.entry = s.edit = null; s.error = ''; renderEvents(true); evLoadList(); return;
   }
   if (a === 'unlock') { clubSheet = { view: 'unlock', back: null }; renderClub(); return; }
   if (a === 'new') { s.view = 'new'; s.form = evNewForm(); renderEvents(true); return; }
+  if (a === 'brackets' && s.view === 'detail') { s.view = 'bracket'; s.sel = s.entry = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
+  if (s.view === 'bracket' && (a === 'back' || a === 'back-detail')) { s.view = 'detail'; s.sel = s.entry = s.share = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
   if (a === 'open') { evShow(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;
@@ -3786,9 +4129,15 @@ function evAct(a, d) {
     renderEvents(true);
     return;
   }
-  if (s.view !== 'detail' || !s.event) return;
+  if ((s.view !== 'detail' && s.view !== 'bracket') || !s.event) return;
   const ev = s.event;
-  if (a === 'live') evScoreLive(d.m);
+  if (a === 'pick') { s.sel = s.sel === d.m ? null : d.m; s.entry = null; renderEvents(true); }
+  else if (a === 'pick-close') { const was = s.sel; s.sel = s.entry = null; renderEvents(true); const b = was && $(`#events [data-ev="pick"][data-m="${CSS.escape(was)}"]`); if (b) b.focus({ preventScroll: true }); }
+  else if (a === 'jump') { const el = document.getElementById(d.to); if (el) el.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+  else if (a === 'share-open' || a === 'share-new' || a === 'share-off') evShare(a);
+  else if (a === 'share-hide') { s.share = null; s.arm = ''; renderEvents(true); }
+  else if (a === 'share-copy') evCopyLink();
+  else if (a === 'live') evScoreLive(d.m);
   else if (a === 'enter' || a === 'fix') {
     const m = evMatchOf(d.m);
     s.entry = { m: d.m, fix: a === 'fix', s: m && m.score ? [String(m.score[0]), String(m.score[1])] : ['', ''], error: '' };

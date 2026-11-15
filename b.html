@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0F241E">
+<title>Live bracket · Dink Score</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Geist:wght@400..700&display=swap">
+<style>
+/* The public, read-only bracket page (served at /b/<token>). Built by build.cjs from this file plus the shared blocks of dink-score.html. */
+
+:root {
+  --bg: #F2F4F7;
+  --surface: #FFFFFF;
+  --surface-2: #E9EDF2;
+  --ink: #0E1726;
+  --muted: #5D6A7B;
+  --line: #DEE4EA;
+  --blue: #2B49E6;      /* team 1 court */
+  --green: #0B8562;     /* team 2 court */
+  --ball: #DDF247;      /* serve, highlights */
+  --ball-ink: #1B2104;
+  --up: #0B8562;
+  --down: #C2372B;
+  --danger: #C2372B;
+  --focus: #2B49E6;
+  --shadow: 0 1px 2px rgb(14 23 38 / .06), 0 8px 24px -12px rgb(14 23 38 / .18);
+  --display: "Bricolage Grotesque", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --ui: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
+    --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
+    --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
+    --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
+  --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
+  --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
+  --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); color-scheme: light dark; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.num { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ball { display: inline-block; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #F4FF9E, var(--ball) 55%, #B9CF22); }
+
+.bk-host { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.bk-hint { display: none; margin: 0; font-size: 13px; color: var(--muted); }
+.bk-host.scrolling .bk-hint { display: block; }
+.bk-scroll { --bleed: 16px; overflow: hidden; margin-inline: calc(-1 * var(--bleed)); padding: 4px var(--bleed) 14px; overscroll-behavior-x: contain; }
+.bk-scroll.scrolling { overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--bleed); -webkit-overflow-scrolling: touch; }
+.bk-fit { margin-inline: auto; position: relative; }
+.bk-canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.bk-links { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.bk-links path { fill: none; stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+.bk-links path.todo { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 5; }
+.bk-snap { position: absolute; top: 0; width: 1px; height: 1px; scroll-snap-align: start; pointer-events: none; }
+.bk-head { position: absolute; margin: 0; height: 30px; display: flex; align-items: center; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 17px; letter-spacing: -.01em; color: var(--ink); white-space: nowrap; }
+.bk-col { margin: 0; padding: 0; list-style: none; }
+.bk-col > li { position: absolute; margin: 0; padding: 0; }
+.bk-card { box-sizing: border-box; display: flex; flex-direction: column; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 18px; overflow: hidden; text-align: left; background: var(--surface); color: var(--ink); box-shadow: var(--shadow); font: 500 14px/15px var(--ui); }
+.bk-card:active { transform: none; }
+.bk-card.up { box-shadow: 0 0 0 2.5px var(--ink); }
+.bk-card[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--ink); }
+.bk-card.bye { background: var(--surface-2); box-shadow: none; }
+.bk-st, .bk-feed { flex: none; height: 23px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; font-size: 13px; line-height: 1; color: var(--muted); white-space: nowrap; }
+.bk-st b { color: var(--ink); font-weight: 700; }
+.bk-feed { border-top: 1px solid var(--line); gap: 10px; }
+.bk-feed span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bk-row { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 0 12px 0 10px; border-left: 5px solid var(--c); color: var(--muted); }
+.bk-row + .bk-row { border-top: 1px solid var(--line); }
+.bk-name { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.bk-pts { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 24px; line-height: 1; min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; }
+.bk-ck { width: 16px; height: 16px; flex: none; }
+.bk-row.win { color: var(--ink); font-weight: 700; background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.bk-row.tbd .bk-name { font-weight: 400; }
+.bk-champ { display: flex; align-items: center; gap: 12px; width: 100%; height: 100%; padding: 0 16px; border-radius: 18px; background: var(--surface-2); color: var(--muted); box-sizing: border-box; font-size: 14px; line-height: 17px; }
+.bk-champ.won { background: var(--ink); color: var(--bg); box-shadow: var(--shadow); }
+.bk-champ small { display: block; font-size: 13px; opacity: .8; }
+.bk-champ b { display: block; font-size: 17px; overflow-wrap: anywhere; }
+.bk-champ .ball { width: 24px; height: 24px; flex: none; }
+.bk-tag { display: inline-block; background: var(--surface-2); color: var(--ink); border-radius: 6px; padding: 1px 7px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.bk-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.bk-table th { font-size: 12px; font-weight: 500; color: var(--muted); text-align: right; padding: 8px 6px; }
+.bk-table th.who { text-align: left; }
+.bk-table td { padding: 10px 6px; border-top: 1px solid var(--line); text-align: right; font-size: 20px; line-height: 1; }
+.bk-table td.who { text-align: left; font-family: var(--ui); font-weight: 500; font-stretch: normal; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+.bk-table tr.cut td { border-top: 2px solid var(--ink); }
+.bk-rank { display: inline-block; min-width: 26px; padding: 2px 6px; margin-right: 6px; border-radius: 999px; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 16px; color: var(--muted); }
+.bk-rank.first { background: var(--ball); color: var(--ball-ink); }
+.bk-mline { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-top: 1px solid var(--line); }
+.bk-mline .r { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.bk-mline .r.win { color: var(--ink); font-weight: 700; }
+.bk-mline .r .num { font-size: 22px; line-height: 1.1; }
+.bk-mline .c { font-size: 13px; color: var(--muted); }
+
+.pub { max-width: 1840px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 18px; min-height: 100vh; min-height: 100dvh; }
+.pub-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
+.pub-brand { margin: 0 0 2px; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.pub-top h1 { margin: 0; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: clamp(28px, 4.2vw, 56px); line-height: 1.05; letter-spacing: -.02em; overflow-wrap: anywhere; text-wrap: balance; }
+.pub-meta { margin: 6px 0 0; display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted); }
+.badge { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 3px 10px; background: var(--surface-2); color: var(--muted); }
+.badge.hot { background: var(--ball); color: var(--ball-ink); }
+.pub-btn { min-height: 44px; border: 0; border-radius: 16px; padding: 10px 18px; font: 700 15px var(--ui); background: var(--ink); color: var(--bg); cursor: pointer; }
+.pub-status { margin: 0; font-size: 13px; color: var(--muted); }
+.pub-status.warn { color: var(--ink); font-weight: 600; }
+.card { background: var(--surface); border-radius: 22px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+.card h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 19px; letter-spacing: -.01em; }
+.pub-champ { display: flex; align-items: center; gap: 14px; background: var(--ink); color: var(--bg); border-radius: 22px; padding: 16px 20px; }
+.pub-champ .ball { width: 26px; height: 26px; flex: none; }
+.pub-champ small { display: block; font-size: 13px; opacity: .75; }
+.pub-champ b { font-size: 22px; overflow-wrap: anywhere; }
+.pub-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-items: start; min-height: 0; }
+.pub-grid > * { min-width: 0; }
+.pub-main { display: flex; flex-direction: column; gap: 18px; min-height: 0; }
+.pub-sec > h2 { margin: 0 0 8px; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 21px; letter-spacing: -.01em; }
+.pub-rounds { list-style: none; margin: 0; padding: 0; }
+.pub-rounds > li { margin-bottom: 14px; }
+.pub-rounds ul { list-style: none; margin: 0; padding: 0; }
+.pub-note { margin: 0; font-size: 14px; color: var(--muted); }
+.pub-dead { max-width: 520px; margin: 18vh auto 0; text-align: center; }
+.pub-dead h1 { font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: 30px; margin: 0 0 8px; }
+@media (min-width: 1000px) {
+  .bk-scroll { --bleed: 0px; }
+  .pub-grid.pool { grid-template-columns: minmax(300px, 27%) minmax(0, 1fr); }
+}
+/* TV mode: nothing but the bracket, as large as the screen allows. */
+html.tv, html.tv body { height: 100%; overflow: hidden; }
+html.tv .pub { max-width: none; height: 100vh; height: 100dvh; min-height: 0; padding: clamp(10px, 1.6vw, 28px); gap: clamp(8px, 1.2vw, 20px); }
+html.tv .pub-brand, html.tv .pub-status.idle { display: none; }
+html.tv .pub-top h1 { font-size: clamp(28px, 3.4vw, 72px); }
+html.tv .pub-meta { font-size: clamp(16px, 1.5vw, 32px); }
+html.tv .badge { font-size: clamp(14px, 1.3vw, 28px); }
+html.tv .pub-main { flex: 1; }
+html.tv .pub-grid { flex: 1; align-items: stretch; }
+html.tv .pub-grid > .pub-sec { display: flex; flex-direction: column; min-height: 0; }
+html.tv .bk-host { flex: 1; min-height: 0; }
+html.tv .bk-scroll { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding-block: 0; overflow: hidden !important; --bleed: 0px; }
+html.tv .bk-fit { margin: 0; flex: none; }
+html.tv .pub-champ { padding: clamp(10px, 1.4vw, 24px) clamp(14px, 2vw, 32px); }
+html.tv .pub-champ b { font-size: clamp(22px, 2.6vw, 56px); }
+html.tv .pub-champ small { font-size: clamp(14px, 1.3vw, 26px); }
+html.tv .bk-table td { font-size: clamp(16px, calc((100vh - 300px) / (var(--rows, 8) * 1.9)), 44px); padding-block: clamp(4px, calc((100vh - 300px) / (var(--rows, 8) * 7)), 14px); }
+html.tv .bk-table td.who { font-size: clamp(15px, calc((100vh - 300px) / (var(--rows, 8) * 2.1)), 38px); }
+html.tv .bk-mline { padding-block: clamp(8px, 1vw, 18px); }
+html.tv .bk-mline .r { font-size: clamp(18px, 2vw, 40px); }
+html.tv .bk-mline .r .num { font-size: clamp(22px, 2.4vw, 48px); }
+html.tv .bk-mline .c { font-size: clamp(14px, 1.3vw, 26px); }
+html.tv .pub-grid.pool .bk-scroll { align-items: flex-start; }
+html.tv .bk-table th { font-size: clamp(14px, 1.2vw, 24px); }
+html.tv .bk-rank { font-size: clamp(16px, 1.6vw, 32px); }
+html.tv .bk-tag { font-size: clamp(13px, 1.1vw, 22px); }
+html.tv .pub-sec > h2 { font-size: clamp(20px, 2vw, 40px); }
+html.tv .pub-sec > .pub-note { display: none; }
+html.tv .card h2 { font-size: clamp(20px, 2vw, 40px); }
+html.tv .card .pub-note { font-size: clamp(16px, 1.6vw, 34px); }
+html.tv .pub-btn { position: fixed; right: 12px; bottom: 12px; opacity: .55; z-index: 5; }
+html.tv .pub-btn:hover, html.tv .pub-btn:focus-visible { opacity: 1; }
+html.tv .pub-top .pub-btn { position: fixed; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main class="pub" id="pub">
+  <header class="pub-top">
+    <div>
+      <p class="pub-brand">Dink Score · live bracket</p>
+      <h1 id="pub-name">Loading…</h1>
+      <p class="pub-meta" id="pub-meta"></p>
+    </div>
+    <button type="button" class="pub-btn" id="pub-tv" aria-pressed="false" hidden>TV mode</button>
+  </header>
+  <div class="pub-main" id="pub-body"></div>
+  <p class="pub-status idle" id="pub-status" role="status"></p>
+</main>
+<script>
+
+// Draws event brackets and pool tables. Pure: data in (an event as the API's view() or publicView() returns it), HTML or
+// numbers out, so the app and the public bracket page share it and test/bracketview.test.js can run it without a browser.
+const BK = (() => {
+  const CW = 240, CH = 112, GX = 48, ROW = 128, HEAD = 36, SECT = 40; // card, gap between rounds, row pitch, header and section space (logical px)
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const TEAM = ['var(--blue)', 'var(--green)'];
+  const names = t => (t ? t.join(' & ') : '');
+  const CHECK = '<svg class="bk-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+
+  // Where everything goes. tree is event.tree: { kind, rounds: [{key, title}] (the rounds worth showing), matches: [...] }.
+  // One column per round; a match sits halfway between the two matches that feed it. Double elimination stacks the
+  // losers bracket under the winners bracket and puts the grand final to the right of both.
+  function layout(tree) {
+    const byId = new Map(tree.matches.map(m => [m.id, m]));
+    const keyOf = m => m.stage + m.round;
+    const visible = new Set(tree.rounds.map(r => r.key));
+    const title = new Map(tree.rounds.map(r => [r.key, r.title]));
+    const shown = m => visible.has(keyOf(m)) && !(m.slots[0] === -1 && m.slots[1] === -1); // two byes make no match
+    const double = tree.kind === 'double';
+    const col = {}, count = { W: 0, L: 0 };
+    for (const r of tree.rounds) if (r.key[0] !== 'F') col[r.key] = count[r.key[0]]++;
+    const f2 = visible.has('F2');
+    const base = Math.max(count.W, count.L);
+    if (double) { col.F1 = base; if (f2) col.F2 = base + 1; }
+    const champCol = base + (double ? (f2 ? 2 : 1) : 0);
+    const X = c => c * (CW + GX);
+
+    // A match's vertical centre inside its own section: round r doubles the spacing, and so does every second losers round.
+    const yc = m => (m.pos + 0.5) * ROW * 2 ** ((m.stage === 'L' ? Math.ceil(m.round / 2) : m.round) - 1);
+    const sec = { W: [], L: [] };
+    for (const m of tree.matches) if (m.stage !== 'F' && shown(m)) sec[m.stage].push(m);
+    const span = list => (list.length ? [Math.min.apply(null, list.map(m => yc(m) - CH / 2)), Math.max.apply(null, list.map(m => yc(m) + CH / 2))] : [0, 0]);
+    const [wMin, wMax] = span(sec.W), [lMin] = span(sec.L);
+    const wOff = HEAD - wMin;
+    const lHead = HEAD + (wMax - wMin) + SECT;
+    const lOff = lHead + HEAD - lMin;
+    const yOf = m => yc(m) + (m.stage === 'L' ? lOff : wOff);
+
+    const nodes = [], headers = [], links = [], snaps = [];
+    const at = new Map();
+    const place = (m, c, y) => { const n = { id: m.id, kind: 'match', m, col: c, x: X(c), y: y - CH / 2, w: CW, h: CH }; nodes.push(n); at.set(m.id, n); return n; };
+    for (const m of tree.matches) if (m.stage !== 'F' && shown(m)) place(m, col[keyOf(m)], yOf(m));
+    const centre = n => n.y + CH / 2;
+    const feeders = tree.matches.filter(m => m.winnerTo === 'F1' && at.has(m.id));
+    const fy = feeders.length ? feeders.reduce((s, m) => s + centre(at.get(m.id)), 0) / feeders.length : HEAD + CH / 2;
+    if (double) for (const m of tree.matches) if (m.stage === 'F' && shown(m)) place(m, col[keyOf(m)], fy);
+    // The single elimination final has nowhere to go but the champion.
+    const final = double ? null : tree.matches.find(m => m.stage === 'W' && !m.winnerTo && at.has(m.id));
+    const champY = double ? fy : final ? centre(at.get(final.id)) : HEAD + CH / 2;
+    const champion = { id: 'champion', kind: 'champion', col: champCol, x: X(champCol), y: champY - CH / 2, w: CW, h: CH };
+    nodes.push(champion);
+
+    for (const r of tree.rounds) {
+      const st = r.key[0], first = nodes.find(n => n.kind === 'match' && keyOf(n.m) === r.key);
+      const y = st === 'W' ? 0 : st === 'L' ? lHead : Math.max(0, (first ? first.y : champY - CH / 2) - HEAD);
+      headers.push({ key: r.key, title: r.title, x: X(col[r.key]), y, w: CW });
+    }
+    headers.push({ key: 'champion', title: 'Champion', x: X(champCol), y: Math.max(0, champY - CH / 2 - HEAD), w: CW });
+    for (let c = 0; c <= champCol; c++) snaps.push(X(c));
+
+    // Skips matches that are not drawn (two byes, or a whole round of byes) to the next one that is.
+    const next = id => { let t = id && byId.get(id); while (t && !at.has(t.id)) t = t.winnerTo ? byId.get(t.winnerTo) : null; return t || null; };
+    const link = (a, b) => {
+      const x1 = a.x + CW, y1 = centre(a), x2 = b.x, y2 = centre(b);
+      const xm = b.col - a.col > 1 ? x2 - GX / 2 : x1 + GX / 2;
+      const done = !!a.m && (a.m.status === 'done' || a.m.status === 'bye');
+      links.push({ from: a.id, to: b.id, done, d: y1 === y2 ? `M${x1} ${y1}H${x2}` : `M${x1} ${y1}H${xm}V${y2}H${x2}` });
+    };
+    for (const n of nodes) {
+      if (n.kind !== 'match') continue;
+      const m = n.m;
+      let target = null, winTitle;
+      if (m.id === 'F1') { const t = at.get('F2'); target = t || champion; winTitle = t ? 'Champion or reset' : 'Champion'; }
+      else if (m.id === 'F2' || m === final) { target = champion; winTitle = 'Champion'; }
+      else { const t = next(m.winnerTo); target = t ? at.get(t.id) : null; winTitle = t ? title.get(keyOf(t)) : 'Champion'; }
+      const lt = m.loserTo ? next(m.loserTo) : null;
+      n.feed = { win: winTitle, lose: lt ? title.get(keyOf(lt)) : m.stage === 'F' ? null : 'out' };
+      if (target) link(n, target);
+    }
+    const width = X(champCol) + CW;
+    const height = Math.max.apply(null, nodes.map(n => n.y + n.h)) + 6;
+    return { width, height, nodes, headers, links, snaps, double };
+  }
+
+  // How big to draw a layout of w x h logical px in cw x ch px. Returns the scale and whether to scroll instead of fit.
+  // Text is never drawn smaller than 93% of its design size (13px at the smallest), so a bracket too wide for that scrolls.
+  // A TV (tv: true) fits both width and height and may grow the text a lot; max caps the growth.
+  function scale({ cw, ch, w, h, tv = false, max = 1.35 }) {
+    const fit = cw / w;
+    if (tv) {
+      let s = ch ? Math.min(fit, ch / h) : fit;
+      if (s < 0.7) s = fit; // too tall for one screen: fit the width and let the page scroll
+      return s < 0.55 ? { s: 1, scroll: true } : { s: Math.min(s, max), scroll: false };
+    }
+    return fit < 0.93 ? { s: 1, scroll: true } : { s: Math.min(fit, max), scroll: false };
+  }
+
+  const scoreText = s => `${s[0]} to ${s[1]}`;
+  function describe(n, o) {
+    const m = n.m, sc = o.scoreOf ? o.scoreOf(m) : m.score;
+    const side = t => (m.slots[t] === -1 ? 'a bye' : names(m.teams[t]) || 'to be decided');
+    const win = sc ? (sc[0] > sc[1] ? 0 : 1) : m.status === 'bye' ? m.winner : null;
+    const title = (o.titleOf && o.titleOf(m)) || '';
+    let state;
+    if (m.status === 'bye') state = `${names(m.teams[win])} has a bye and moves on`;
+    else if (sc) state = `Final, ${scoreText(sc)}. ${names(m.teams[win])} won`;
+    else if (m.ready) state = m.court ? `Ready to play on court ${m.court}` : 'Ready to play, waiting for a court';
+    else state = m.id === 'F2' ? 'Only played if the losers bracket team wins the grand final' : 'Waiting for earlier matches';
+    const f = n.feed;
+    const feed = f ? `. Winner goes to ${f.win}${f.lose && f.lose !== 'out' ? `, loser to ${f.lose}` : f.lose === 'out' ? ', loser is out' : ''}` : '';
+    return `${title ? title + ': ' : ''}${side(0)} versus ${side(1)}. ${state}${feed}`;
+  }
+
+  function cardHTML(n, o) {
+    const m = n.m, sc = o.scoreOf ? o.scoreOf(m) : m.score;
+    const saving = !!(o.saving && o.saving(m));
+    const bye = m.status === 'bye';
+    const win = sc ? (sc[0] > sc[1] ? 0 : 1) : bye ? m.winner : null;
+    const row = t => {
+      const isBye = m.slots[t] === -1, tbd = !isBye && !m.teams[t];
+      const label = isBye ? 'Bye' : tbd ? 'To be decided' : names(m.teams[t]);
+      const won = win === t && !bye;
+      return `<span class="bk-row${won ? ' win' : ''}${tbd ? ' tbd' : ''}" style="--c:${TEAM[t]}"><span class="bk-name">${esc(label)}${won ? '<span class="vh">, winner</span>' : ''}</span>${won ? CHECK : '<span></span>'}<span class="bk-pts">${sc ? sc[t] : ''}</span></span>`;
+    };
+    const st = bye ? 'Bye, moves on' : saving ? 'Saving…' : sc ? 'Final' : m.ready ? `<b>Up next${m.court ? ` · Court ${m.court}` : ''}</b>` : m.id === 'F2' ? 'Only if the losers team wins' : 'Waiting for earlier matches';
+    const f = n.feed, short = t => esc(String(t).replace(/^(Winners|Losers) round (\d+)$/, '$1 $2')); // the full name stays in the label
+    const feed = f ? `<span class="bk-feed"><span><span class="vh">Winner goes to </span>→ ${short(f.win)}</span>${f.lose && f.lose !== 'out' ? `<span><span class="vh">Loser goes to </span>↓ ${short(f.lose)}</span>` : f.lose === 'out' ? '<span>Loser out</span>' : ''}</span>` : '';
+    const inner = `<span class="bk-st"><span>${st}</span></span>${row(0)}${row(1)}${feed}`;
+    const label = esc(describe(n, o));
+    const cls = `bk-card${m.ready && !sc ? ' up' : ''}${bye ? ' bye' : ''}`;
+    const style = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
+    if (o.interactive && !bye) return `<li style="${style}"><button type="button" class="${cls}" data-ev="pick" data-m="${esc(m.id)}" aria-pressed="${o.sel === m.id}" aria-label="${label}">${inner}</button></li>`;
+    return `<li style="${style}"><div class="${cls}" role="group" aria-label="${label}">${inner}</div></li>`;
+  }
+  function champHTML(n, ev) {
+    const c = ev.champion;
+    const style = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
+    return `<li style="${style}"><div class="bk-champ${c ? ' won' : ''}" role="group" aria-label="${c ? 'Champions: ' + esc(names(c)) : 'Champion, to be decided'}">${c ? '<span class="ball"></span>' : ''}<span><small>${c ? 'Champions' : 'Champion'}</small><b>${c ? esc(names(c)) : 'To be decided'}</b></span></div></li>`;
+  }
+
+  // The scrollable, scalable bracket. opts: interactive (cards are buttons), sel (selected match id), scoreOf(m), saving(m).
+  function bracketHTML(ev, opts = {}) {
+    const L = layout(ev.tree);
+    const o = Object.assign({}, opts, { titleOf: m => (ev.tree.rounds.find(r => r.key === m.stage + m.round) || {}).title });
+    const groups = L.headers.map(h => {
+      const items = L.nodes.filter(n => (h.key === 'champion' ? n.kind === 'champion' : n.kind === 'match' && n.m.stage + n.m.round === h.key));
+      const id = `bk-${h.key}`;
+      return `<div role="group" aria-labelledby="${id}"><h3 class="bk-head" id="${id}" style="left:${h.x}px;top:${h.y}px;width:${h.w}px">${esc(h.title)}</h3><ol class="bk-col">${items.map(n => (n.kind === 'champion' ? champHTML(n, ev) : cardHTML(n, o))).join('')}</ol></div>`;
+    }).join('');
+    const paths = L.links.map(l => `<path class="${l.done ? '' : 'todo'}" d="${l.d}"/>`).join('');
+    const snaps = L.snaps.map(x => `<i class="bk-snap" style="left:${x}px" aria-hidden="true"></i>`).join('');
+    return `<div class="bk-host"><p class="bk-hint">Swipe or scroll sideways to move between rounds.</p>
+      <div class="bk-scroll" tabindex="0" role="region" aria-label="${esc(ev.tree.kind === 'double' ? 'Double elimination bracket' : 'Bracket')}, one column per round" data-bk-w="${L.width}" data-bk-h="${L.height}">
+      <div class="bk-fit" style="width:${L.width}px;height:${L.height}px"><div class="bk-canvas" style="width:${L.width}px;height:${L.height}px">
+      <svg class="bk-links" width="${L.width}" height="${L.height}" viewBox="0 0 ${L.width} ${L.height}" aria-hidden="true">${paths}</svg>${snaps}${groups}</div></div></div></div>`;
+  }
+
+  // Sizes every bracket under root to its container. Call after rendering and when the window resizes.
+  function fitAll(root, { tv = false, max } = {}) {
+    for (const el of root.querySelectorAll('.bk-scroll')) {
+      const w = +el.dataset.bkW, h = +el.dataset.bkH, host = el.parentElement;
+      const cs = getComputedStyle(el), pad = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const cw = el.clientWidth - pad;
+      const ch = tv ? host.clientHeight - 8 : 0;
+      const r = scale({ cw, ch, w, h, tv, max: max || (tv ? 3 : 1.35) });
+      const fit = el.firstElementChild, canvas = fit.firstElementChild;
+      fit.style.width = w * r.s + 'px'; fit.style.height = h * r.s + 'px';
+      canvas.style.transform = r.s === 1 ? '' : `scale(${r.s})`;
+      el.classList.toggle('scrolling', r.scroll); host.classList.toggle('scrolling', r.scroll);
+    }
+  }
+
+  // Pool or round robin table. ev.standings rows: { rank, name, played, wins, losses, diff }.
+  function standingsHTML(ev) {
+    const cut = ev.format === 'pool_knockout' ? (ev.partners === 'fixed' ? ev.advance : ev.advance * 2) : 0;
+    const rows = ev.standings.map((r, i) => `<tr${cut && i === cut ? ' class="cut"' : ''}><td class="who"><span class="bk-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${esc(r.name)}${cut && i < cut ? ` <span class="bk-tag">${ev.tree ? 'In the knockout' : 'Advances'}</span>` : ''}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('');
+    return `<table class="bk-table"><caption class="vh">Wins, losses and point difference</caption><thead><tr><th scope="col" class="who">${ev.partners === 'fixed' ? 'Team' : 'Player'}</th><th scope="col">W–L</th><th scope="col">+/−</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  // One match as a plain line, for schedules on the public page.
+  function lineHTML(m) {
+    const sc = m.score, win = sc ? (sc[0] > sc[1] ? 0 : 1) : null;
+    const r = i => `<div class="r${win === i ? ' win' : ''}"><span>${esc(names(m.teams[i]) || 'To be decided')}${win === i ? '<span class="vh">, winner</span>' : ''}</span><span class="num">${sc ? sc[i] : ''}</span></div>`;
+    return `<li class="bk-mline">${r(0)}${r(1)}<div class="c">${sc ? 'Final' : m.court ? `Court ${m.court}` : 'Up next'}</div></li>`;
+  }
+
+  return { layout, scale, bracketHTML, fitAll, standingsHTML, lineHTML, describe, esc, CW, CH, GX, ROW };
+})();
+
+(() => {
+  const FORMAT = { roundrobin: 'Round robin', pool_knockout: 'Pool play + knockout', single_elim: 'Single elimination', double_elim: 'Double elimination' };
+  const $ = s => document.querySelector(s);
+  const esc = BK.esc;
+  const root = document.documentElement;
+  const q = new URLSearchParams(location.search);
+  const token = (location.pathname.match(/^\/b\/([A-Za-z0-9_-]{32})\/?$/) || [])[1];
+  if (q.get('theme') === 'dark' || q.get('theme') === 'light') root.dataset.theme = q.get('theme');
+  let tv = q.get('tv') === '1', data = null, json = '', dead = false, failed = 0, lastCheck = 0, timer = 0;
+  const POLL = 8000;
+
+  const time = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+  const names = t => (t ? t.join(' & ') : '');
+
+  function setTv(on, fullscreen) {
+    tv = on; root.classList.toggle('tv', on);
+    const b = $('#pub-tv'); b.textContent = on ? 'Exit TV mode' : 'TV mode'; b.setAttribute('aria-pressed', String(on));
+    if (fullscreen) {
+      try { if (on && !document.fullscreenElement && root.requestFullscreen) root.requestFullscreen().catch(() => {}); else if (!on && document.fullscreenElement) document.exitFullscreen(); } catch {}
+    }
+    fit();
+  }
+  function fit() { BK.fitAll($('#pub-body'), { tv, max: tv ? 3 : 1.6 }); }
+
+  function status() {
+    const el = $('#pub-status');
+    if (dead) { el.textContent = ''; return; }
+    el.classList.toggle('warn', failed > 1);
+    el.textContent = failed > 1 ? `Can't reach the server. Showing the last update; trying again.` : lastCheck ? `Checked ${time(lastCheck)}. Updates by itself every few seconds.` : '';
+  }
+
+  function render() {
+    const d = data;
+    document.title = `${d.name} · Dink Score`;
+    $('#pub-name').textContent = d.name;
+    const live = d.status === 'live';
+    $('#pub-meta').innerHTML = `<span class="badge ${live ? 'hot' : ''}">${live ? 'Live' : 'Finished'}</span><span>${esc(FORMAT[d.format] || '')}</span>${d.courts ? `<span>${d.courts} court${d.courts === 1 ? '' : 's'}</span>` : ''}${d.updatedAt ? `<span>Last change <time datetime="${new Date(d.updatedAt).toISOString()}">${esc(time(d.updatedAt))}</time></span>` : ''}`;
+    $('#pub-tv').hidden = false;
+    const pool = d.format === 'pool_knockout', main = $('#pub-body');
+    const sx = [...main.querySelectorAll('.bk-scroll')].map(e => e.scrollLeft);
+    const parts = [];
+    if (d.status === 'done' && d.champion) parts.push(`<div class="pub-champ" role="status"><span class="ball"></span><div><small>${d.tree ? 'Champions' : d.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(names(d.champion))}</b></div></div>`);
+    const standings = () => `<section class="pub-sec" aria-labelledby="pub-st"><h2 id="pub-st">${pool ? 'Pool standings' : 'Standings'}</h2><div class="card" style="--rows:${d.standings.length}">${BK.standingsHTML(d)}</div>${pool ? `<p class="pub-note" style="margin-top:8px">The top ${d.advance} ${d.partners === 'fixed' ? 'teams' : 'teams of players'} go into the knockout.</p>` : ''}</section>`;
+    const bracket = () => `<section class="pub-sec" aria-labelledby="pub-br"><h2 id="pub-br">${pool ? 'Knockout' : 'Bracket'}</h2>${BK.bracketHTML(d, {})}</section>`;
+    if (d.tree && pool) parts.push(`<div class="pub-grid pool">${standings()}${bracket()}</div>`);
+    else if (d.tree) parts.push(`<div class="pub-grid">${bracket()}</div>`);
+    else if (pool) parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec"><div class="card"><h2>Knockout</h2><p class="pub-note">The bracket appears here when pool play ends: the top ${d.advance} ${d.partners === 'fixed' ? 'teams' : 'teams of players'} play single elimination.</p></div></section></div>`);
+    else if (tv && d.rounds.length) {
+      const cur = d.rounds.find(r => r.status !== 'done') || d.rounds[d.rounds.length - 1];
+      parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${esc(cur.title)}${d.status === 'live' ? ' · now' : ''}</h2><div class="card"><ul class="pub-rounds">${cur.matches.map(BK.lineHTML).join('')}</ul></div></section></div>`);
+    } else parts.push(`<div class="pub-grid">${standings()}</div>`);
+    // Round by round results, for events that are played in rounds.
+    if (d.rounds.length && !tv) {
+      const cur = d.rounds.find(r => r.status !== 'done') || d.rounds[d.rounds.length - 1];
+      parts.push(`<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${pool ? 'Pool rounds' : 'Rounds'}</h2><ol class="pub-rounds">${d.rounds.slice().reverse().map(r => `<li><div class="card"><h2>${esc(r.title)}${r === cur && d.status === 'live' ? ' · now' : ''}</h2><ul>${r.matches.map(BK.lineHTML).join('')}</ul>${r.byes.length ? `<p class="pub-note">Sitting out: ${esc(r.byes.join(', '))}</p>` : ''}</div></li>`).join('')}</ol></section>`);
+    }
+    main.innerHTML = parts.join('');
+    fit();
+    main.querySelectorAll('.bk-scroll').forEach((e, i) => { if (sx[i]) e.scrollLeft = sx[i]; });
+  }
+
+  function showDead() {
+    dead = true; clearTimeout(timer);
+    root.classList.remove('tv');
+    $('#pub-tv').hidden = true; $('#pub-meta').textContent = ''; $('#pub-name').textContent = '';
+    document.title = 'Bracket link not active · Dink Score';
+    $('#pub-body').innerHTML = `<div class="pub-dead card" role="alert"><h1>This bracket link is not active</h1><p class="pub-note">It may have been turned off or replaced. Ask the organizer for the current link.</p></div>`;
+    status();
+  }
+
+  async function load() {
+    if (dead) return;
+    try {
+      const r = await fetch('/api/bracket?token=' + encodeURIComponent(token), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      if (r.status === 404) return showDead();
+      if (!r.ok) throw new Error('bad status');
+      const text = await r.text();
+      failed = 0; lastCheck = Date.now();
+      if (text !== json) { json = text; data = JSON.parse(text); render(); }
+    } catch { failed++; }
+    status();
+  }
+  // Poll every few seconds while the page is on screen; stop while it is hidden and catch up the moment it is shown.
+  function loop() { clearTimeout(timer); if (dead || document.hidden) return; timer = setTimeout(async () => { await load(); loop(); }, POLL + Math.floor(Math.random() * 1500)); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(timer); else { load().then(loop); } });
+  window.addEventListener('resize', () => { if (data) requestAnimationFrame(fit); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && tv && root.dataset.fs) { delete root.dataset.fs; setTv(false); } else if (document.fullscreenElement) root.dataset.fs = '1'; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && tv && !document.fullscreenElement) setTv(false); if ((e.key === 't' || e.key === 'T') && !e.metaKey && !e.ctrlKey && data) setTv(!tv, true); });
+  $('#pub-tv').addEventListener('click', () => setTv(!tv, true));
+
+  if (!token) showDead();
+  else { setTv(tv, false); load().then(loop); }
+})();
+</script>
+</body>
+</html>
