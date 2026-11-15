@@ -250,7 +250,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; pointer-events: none;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 14px));
 }
 .tabs nav {
   pointer-events: auto; max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding: 6px;
