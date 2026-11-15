@@ -6,7 +6,7 @@ A pickleball scorekeeper you can install on your phone: **https://dinkscore.verc
 - Tracks server 1 and 2, which side to serve from, and when to change ends
 - Log results from other courts, even mid-game
 - Saved players, so you can pick names with a tap
-- Dink Rating: the app's own 2.00–8.00 player rating with score forecasts and a leaderboard
+- Dink Rating: the app's own 2.00–8.00 player rating (new players start at 2.00) with score forecasts and a leaderboard
 - Clubs: one shared record of games, players and rankings across everyone's phones, with no accounts
 - Offline support and a first-visit tour
 

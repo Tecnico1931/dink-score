@@ -948,7 +948,7 @@ const PB = (() => {
 })();
 
 /* Dink Rating: our own performance rating, inspired by how DUPR is publicly described.
-   - Scale 2.00 to 8.00. New players start at 3.50. Doubles and singles are rated separately.
+   - Scale 2.00 to 8.00. New players start at 2.00. Doubles and singles are rated separately.
    - A team's rating is the average of its players.
    - Each game has an expected share of points: share = 1 / (1 + 10^(-gap / 2.8)).
      A 0.50 rating gap expects roughly 11-7.
@@ -957,7 +957,7 @@ const PB = (() => {
    - Reliability = min(1, games / 20), fading after 30 days without a game (never below 40% of its value).
    Ratings are always recomputed by replaying saved games in order, so deleting a game corrects everything after it. */
 const DR = (() => {
-  const START = 3.5, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20;
+  const START = 2, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20;
   const DAY = 864e5;
   const key = n => String(n).trim().toLowerCase();
   const expShare = gap => 1 / (1 + Math.pow(10, -gap / SCALE));
@@ -1887,7 +1887,7 @@ function leadersView() {
   const games = season ? allGames().filter(g => g.scoredBy && (g.receivedAt || g.endedAt) >= season.start && (g.receivedAt || g.endedAt) < season.end) : allGames();
   const rows = leaderStats(games, ratingMode);
   const scope = info ? seg('data-lbscope', [['season', esc(info.season.name)], ['all', 'All time']], lbScope, 'sm') : '';
-  const sub = season ? `${esc(season.name)} ends in ${daysLeft(season.end)} day${daysLeft(season.end) === 1 ? '' : 's'}. Everyone starts at 3.50 and only games sent from a club player's phone count. The top 3 with ${season.minGames}+ games win a trophy and ${season.prizes.join('/')} Dinks.` : `Ranked by Dink Rating from every saved ${ratingMode} game.`;
+  const sub = season ? `${esc(season.name)} ends in ${daysLeft(season.end)} day${daysLeft(season.end) === 1 ? '' : 's'}. Everyone starts at 2.00 and only games sent from a club player's phone count. The top 3 with ${season.minGames}+ games win a trophy and ${season.prizes.join('/')} Dinks.` : `Ranked by Dink Rating from every saved ${ratingMode} game.`;
   const head = `<section><div class="sec-head"><h2>Leaderboard</h2>${seg('data-rmode', [['doubles', 'Doubles'], ['singles', 'Singles']], ratingMode, 'sm')}</div>${scope ? `<div style="margin-top:10px">${scope}</div>` : ''}<p class="sub">${sub}</p></section>`;
   if (!rows.length) return head + `<div class="empty"><p>${season ? `No ${ratingMode} games from a club player's phone yet this season.` : `No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.`}</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>` + (info ? pastChampionsHTML(ratingMode) : '');
   if (!rows.length) return head + `<div class="empty"><p>No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>`;
@@ -1920,12 +1920,12 @@ function rulesView() {
     <div class="rule"><h3>Two-bounce rule</h3><p>The return of serve must bounce, and so must the third shot. After that, volleys are open.</p></div>
     <div class="rule"><h3>The kitchen</h3><p>The non-volley zone runs 7 feet from the net on each side. No volleys while you're in it or touching its line, including momentum carrying you in after the shot. Step in any time to play a ball that has bounced.</p></div>
     <div class="rule"><h3>How Dink Rating works</h3>
-      <p>Dink Rating is this app's own skill rating, built on the same ideas as the big rating systems. It runs from 2.00 to 8.00, and everyone starts at 3.50. Doubles and singles are rated separately.</p>
+      <p>Dink Rating is this app's own skill rating, built on the same ideas as the big rating systems. It runs from 2.00 to 8.00, and everyone starts at 2.00. Doubles and singles are rated separately.</p>
       <ul><li>Before each game, the app forecasts the score from the players' ratings. A team's rating is the average of its two players.</li>
         <li>After the game, your rating moves by how far you beat or missed that forecast. Losing 9–11 to a much stronger team can raise your rating. Winning 11–9 when you were expected to win 11–4 can lower it.</li>
         <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Below 60% your rating is provisional and moves faster.</li>
         <li>Logged results count the same as games scored live.</li></ul></div>
-    <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer, each paying bonus Dinks. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 3.50. The top 3 with 5 or more games win a permanent trophy and 100, 60 or 40 Dinks.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
+    <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer, each paying bonus Dinks. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy and 100, 60 or 40 Dinks.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
     <div class="rule"><h3>Earning Dinks</h3><p>In a club, every game earns each named player Dinks to spend in the shop.</p>
       <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the same as games scored live. Games need to be sent from a club player's own phone (it doesn't have to be theirs) to earn more than the +2 for playing. Each player can earn up to 120 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li><li>Linked players get one free spin a day in the shop for a few extra Dinks.</li></ul></div>
     <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
@@ -2752,7 +2752,7 @@ function rivalriesHTML(name, mode) {
   }).join('')}</div></div>`;
 }
 
-// Season leaderboard: the current quarter's verified games only, everyone starting at 3.50 (same as the server).
+// Season leaderboard: the current quarter's verified games only, everyone starting at 2.00 (same as the server).
 function seasonRows(mode) {
   const info = progressInfo();
   if (!info) return [];
