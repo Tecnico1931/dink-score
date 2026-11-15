@@ -1406,10 +1406,21 @@ async function pinSet(oldPin, pin, again) {
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
 }
 
+// Replace a sheet's HTML only when it changed. A re-render of the same open sheet keeps its scroll position
+// and doesn't replay the slide-up animation (the club refresh re-renders every 15 seconds).
+function setSheet(root, html, key) {
+  if (root._html === html) return false;
+  const old = root._key === key ? root.querySelector('.sheet') : null;
+  const y = old ? old.scrollTop : 0;
+  root.innerHTML = html; root._html = html; root._key = key;
+  const sh = root.querySelector('.sheet');
+  if (old && sh) { sh.style.animation = 'none'; sh.scrollTop = y; }
+  return true;
+}
 function renderClub() {
   const root = $('#sheet3');
   if (!root) return;
-  if (!clubSheet) { root.innerHTML = ''; return; }
+  if (!clubSheet) { root.innerHTML = ''; root._html = root._key = ''; return; }
   const c = clubSheet;
   const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
   let body;
@@ -1474,8 +1485,8 @@ function renderClub() {
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
         <button class="btn btn-line-danger" data-act="club-leave">Leave club on this phone</button></div>`;
   }
-  root.innerHTML = `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
-    <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`;
+  setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
+    <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
 }
 async function clubJoinByCode(raw) {
   const code = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -2849,7 +2860,7 @@ function wireChart() {
 }
 function renderProfile() {
   const root = $('#sheet4');
-  if (!profile) { root.innerHTML = ''; return; }
+  if (!profile) { root.innerHTML = ''; root._html = root._key = ''; return; }
   const pr = playerProfile(profile.name, profile.mode, allGames());
   const games = pr.w + pr.l;
   const diff = pr.pf - pr.pa;
@@ -2870,14 +2881,14 @@ function renderProfile() {
       ${pr.opps.length ? `<div class="field" style="margin:0"><span class="lab">Head to head</span><div class="pf-list">${pr.opps.slice(0, 8).map(e => row(e)).join('')}</div></div>` : ''}
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
   }
-  root.innerHTML = `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
+  const changed = setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
     <div class="pf-head"><span class="av${frameClass(pr.name)}">${avatarInner(pr.name)}</span><h2 id="pf-h">${styledName(pr.name)}${youTag(pr.name)}${club && clubData ? `<span class="pf-dinks">${wallet(pr.name).balance} Dinks</span>` : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}
-    ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`;
-  wireChart();
+    ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`, profile.name + '|' + profile.mode);
+  if (changed) wireChart();
 }
 
 /* ---------- first-visit tutorial ---------- */
