@@ -36,7 +36,7 @@ neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}
 process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
-const [club, roster, games, events, bracket] = await Promise.all(['club', 'roster', 'games', 'events', 'bracket'].map(load));
+const [club, roster, games, events, shop, bracket] = await Promise.all(['club', 'roster', 'games', 'events', 'shop', 'bracket'].map(load));
 let ip = 0;
 async function call(handler, method, { query = '', body, headers = {} } = {}) {
   const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.0.0.' + (++ip % 200), ...headers }, body };
@@ -215,6 +215,57 @@ await step('the existing club data still loads with event games in it (ratings, 
   assert.ok(c.games.length >= 5);
   assert.ok(c.progress && c.progress.players);
 });
+
+// Self-reported DUPR rating: set by the name's own phone or an organizer, never a stranger; display only.
+const PIN = '4821';
+ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: PIN, ownerToken: owner } }));
+const sh = (body) => call(shop, 'POST', { body: { code, ...body } });
+const dupr = async name => (ok(await call(club, 'GET', { query: '?code=' + code })).players.find(p => p.name === name) || {}).dupr;
+let anaToken;
+await step('DUPR: a name has none until set, and its phone can set, change and clear it', async () => {
+  anaToken = ok(await sh({ action: 'claim', name: 'Ana', ownerToken: owner })).playerToken;
+  assert.equal(await dupr('Ana'), null);
+  assert.equal(ok(await sh({ action: 'dupr', name: 'Ana', playerToken: anaToken, rating: '3.52' })).dupr, 3.52);
+  assert.equal(await dupr('Ana'), 3.52);
+  ok(await sh({ action: 'dupr', name: 'Ana', playerToken: anaToken, rating: 4.125 }));
+  assert.equal(await dupr('Ana'), 4.125);
+  assert.equal(ok(await sh({ action: 'dupr', name: 'Ana', playerToken: anaToken, rating: '' })).dupr, null);
+  assert.equal(await dupr('Ana'), null);
+});
+await step('DUPR: out of range, extra decimals and non-numbers are refused and change nothing', async () => {
+  ok(await sh({ action: 'dupr', name: 'Ana', playerToken: anaToken, rating: '3.5' }));
+  for (const rating of ['1.99', '8.001', '3.5217', 'abc', '-4', '1e1']) assert.equal((await sh({ action: 'dupr', name: 'Ana', playerToken: anaToken, rating })).status, 400, rating);
+  assert.equal(await dupr('Ana'), 3.5);
+});
+await step('DUPR: a stranger, another player or a wrong PIN cannot set or clear it', async () => {
+  assert.equal((await sh({ action: 'dupr', name: 'Ana', rating: '6' })).status, 403);
+  assert.equal((await sh({ action: 'dupr', name: 'Ana', playerToken: 'f'.repeat(48), rating: '6' })).status, 403);
+  assert.equal((await sh({ action: 'dupr', name: 'Ana', pin: '0000', rating: '6' })).status, 403);
+  assert.equal((await sh({ action: 'dupr', name: 'Ana', rating: '' })).status, 403);
+  const benToken = ok(await sh({ action: 'claim', name: 'Ben', ownerToken: owner })).playerToken;
+  assert.equal((await sh({ action: 'dupr', name: 'Ana', playerToken: benToken, rating: '6' })).status, 403);
+  assert.equal(await dupr('Ana'), 3.5);
+});
+await step('DUPR: an organizer (PIN or creator phone) can set it, including on a guest name', async () => {
+  ok(await sh({ action: 'dupr', name: 'Ana', pin: PIN, rating: '5' }));
+  assert.equal(await dupr('Ana'), 5);
+  ok(await call(roster, 'POST', { body: { code, name: 'Guesty' } }));
+  assert.equal((await sh({ action: 'dupr', name: 'Guesty', rating: '3' })).status, 403);
+  ok(await sh({ action: 'dupr', name: 'Guesty', ownerToken: owner, rating: '3.1' }));
+  assert.equal(await dupr('Guesty'), 3.1);
+  assert.equal((await sh({ action: 'dupr', name: 'Nobody', ownerToken: owner, rating: '3' })).status, 404);
+});
+await step('DUPR: releasing a name clears it, and it never changes ratings or the club record', async () => {
+  const before = JSON.stringify(ok(await call(club, 'GET', { query: '?code=' + code })).games);
+  ok(await sh({ action: 'release', name: 'Ana', pin: PIN }));
+  assert.equal(await dupr('Ana'), null);
+  assert.equal(JSON.stringify(ok(await call(club, 'GET', { query: '?code=' + code })).games), before);
+});
+await step('DUPR: it is not in event responses', async () => {
+  const list = JSON.stringify(ok(await call(events, 'GET', { query: '?code=' + code })));
+  assert.ok(!/dupr/i.test(list));
+});
+
 
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

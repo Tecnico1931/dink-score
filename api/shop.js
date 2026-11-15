@@ -7,11 +7,14 @@
 //   prestige {name, playerToken}                     -> a maxed-out player starts their level again for a star and Dinks
 //   avatar   {name, playerToken, avatar}              -> sets your picture: {type: emoji|icon|photo, value} or {type: initials}
 //   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
+//   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
+//                                                       name's phone or an organizer only. Display only.
 //   settings {pin|ownerToken, rewardsEnabled?, prices?, rewards?} -> organizer: change prices, toggle and edit rewards
 //   given    {pin|ownerToken, purchaseId}            -> organizer: mark a club reward as handed over
 //   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp } from './_db.js';
+import { cleanDupr } from './_dupr.js';
 import { computeDinks, computeProgress, CATALOG, SLOTS, shopSettings, SPIN_ID, SPIN_WHEEL, SPIN_WEIGHTS, computeXP, levelFrom, PRESTIGE_ID, PRESTIGE_DINKS } from './_dinks.js';
 
 const MAX_CLAIMS_PER_DAY = 3; // names one network can link to phones per club per day without an organizer
@@ -168,6 +171,19 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true, avatar });
   }
 
+  if (body.action === 'dupr') {
+    // The phone that linked this name, or an organizer (the only way to set one on a guest name). Nobody else.
+    const k = cleanName(body.name).toLowerCase();
+    const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
+    if (!row) throw fail(404, 'No saved player has that name.');
+    const own = !!row.claim_hash && tokenMatches(row.claim_hash, body.playerToken);
+    if (!own) await requireOrganizer(club, body.pin, req, body.ownerToken);
+    let rating;
+    try { rating = cleanDupr(body.rating); } catch (e) { throw fail(400, e.message); }
+    await sql`UPDATE roster SET dupr_rating = ${rating}, dupr_set_at = ${rating === null ? null : new Date().toISOString()} WHERE club = ${code} AND name_key = ${k}`;
+    return send(res, 200, { ok: true, dupr: rating });
+  }
+
   if (body.action === 'equip') {
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     const slot = String(body.slot || '');
@@ -236,7 +252,7 @@ export default handler(async (req, res) => {
 
   if (body.action === 'release') {
     const k = cleanName(body.name).toLowerCase();
-    const rows = await sql`UPDATE roster SET claim_hash = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NOT NULL RETURNING name`;
+    const rows = await sql`UPDATE roster SET claim_hash = NULL, dupr_rating = NULL, dupr_set_at = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NOT NULL RETURNING name`;
     if (!rows.length) throw fail(404, 'That name isn\'t linked to a phone.');
     return send(res, 200, { ok: true });
   }
