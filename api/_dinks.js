@@ -3,7 +3,7 @@
 // The server's copy is the one that counts when someone buys something.
 
 // --- Dink Rating forecast (same maths as DR in dink-score.html), only what earning needs ---
-const START = 3.5, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20, DAY = 864e5;
+export const START = 2, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20, DAY = 864e5;
 const key = n => String(n).trim().toLowerCase();
 const expShare = gap => 1 / (1 + Math.pow(10, -gap / SCALE));
 function reliability(p, now) {
@@ -13,7 +13,7 @@ function reliability(p, now) {
   return volume * (days <= 30 ? 1 : Math.max(0.4, 1 - (days - 30) / 180));
 }
 // Replays games in order: the expected share for team 0 in each game, each player's rating after it, and final tables.
-function replay(sorted) {
+export function replay(sorted) {
   const tables = { doubles: new Map(), singles: new Map() };
   const pA = {}, after = {};
   for (const g of sorted) {
@@ -187,8 +187,8 @@ export const ACHIEVEMENTS = [
   { id: 'marathon', name: 'Marathon', desc: 'Win a game that goes past the target, like 13-11', dinks: 15 },
   { id: 'giant-killer', name: 'Giant killer', desc: 'Win when the forecast gave you 35% or less', dinks: 20 },
   { id: 'partners-5', name: 'Social butterfly', desc: 'Win with 5 different partners', dinks: 20 },
-  { id: 'rating-4', name: 'Four point oh', desc: 'Reach a 4.00 Dink Rating', dinks: 30 },
-  { id: 'rating-45', name: 'Elite', desc: 'Reach a 4.50 Dink Rating', dinks: 60 }
+  { id: 'rating-4', name: 'Two point five', desc: 'Reach a 2.50 Dink Rating', dinks: 30 },
+  { id: 'rating-45', name: 'Elite', desc: 'Reach a 3.00 Dink Rating', dinks: 60 }
 ];
 
 // Weekly challenges: three per week, the same for everyone, picked from this pool by the week id.
@@ -229,7 +229,7 @@ export function seasonOf(ts) {
 }
 export const SEASON_PRIZES = [100, 60, 40];
 export const SEASON_MIN_GAMES = 5;
-// Final standings of a season for one format: everyone starts at 3.50 and only that season's verified games count
+// Final standings of a season for one format: everyone starts at 2.00 and only that season's verified games count
 // (sent from a linked player's phone), so made-up results can't win a season. The app's season table uses the same rule.
 export function seasonStandings(games, season, mode) {
   const inSeason = games.filter(g => verified(g) && when(g) >= season.start && when(g) < season.end && (g.mode === 'singles' ? 'singles' : 'doubles') === mode)
@@ -243,7 +243,7 @@ export function seasonStandings(games, season, mode) {
 export function computeProgress(games, now = Date.now()) {
   const base = computeDinks(games);
   const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
-  // Forecasts and ratings used to judge achievements and challenges (Giant killer, upsets, Four point oh) come from
+  // Forecasts and ratings used to judge achievements and challenges (Giant killer, upsets, Two point five) come from
   // verified games only, so results sent from other phones can't be used to set them up.
   const { pA, after } = replay(sorted.filter(verified));
   const people = new Map();
@@ -282,8 +282,8 @@ export function computeProgress(games, now = Date.now()) {
         if (won && expected <= 0.35) award(p, 'giant-killer', ts);
         if (s.wonWith.size >= 5) award(p, 'partners-5', ts);
         const r = after[g.id] && after[g.id][k];
-        if (r >= 4) award(p, 'rating-4', ts);
-        if (r >= 4.5) award(p, 'rating-45', ts);
+        if (r >= 2.5) award(p, 'rating-4', ts);
+        if (r >= 3) award(p, 'rating-45', ts);
         if (!weekState.has(k)) weekState.set(k, new Map());
         const weeks = weekState.get(k);
         const w = weeks.get(wk) || { wins: 0, games: 0, bigWin: 0, upset: 0, newPartner: 0, partners: new Set(), run: 0, bestRun: 0, singles: 0 };

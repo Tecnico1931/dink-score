@@ -948,7 +948,7 @@ const PB = (() => {
 })();
 
 /* Dink Rating: our own performance rating, inspired by how DUPR is publicly described.
-   - Scale 2.00 to 8.00. New players start at 3.50. Doubles and singles are rated separately.
+   - Scale 2.00 to 8.00. New players start at 2.00. Doubles and singles are rated separately.
    - A team's rating is the average of its players.
    - Each game has an expected share of points: share = 1 / (1 + 10^(-gap / 2.8)).
      A 0.50 rating gap expects roughly 11-7.
@@ -957,7 +957,7 @@ const PB = (() => {
    - Reliability = min(1, games / 20), fading after 30 days without a game (never below 40% of its value).
    Ratings are always recomputed by replaying saved games in order, so deleting a game corrects everything after it. */
 const DR = (() => {
-  const START = 3.5, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20;
+  const START = 2, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20;
   const DAY = 864e5;
   const key = n => String(n).trim().toLowerCase();
   const expShare = gap => 1 / (1 + Math.pow(10, -gap / SCALE));
@@ -1920,7 +1920,7 @@ function rulesView() {
     <div class="rule"><h3>Two-bounce rule</h3><p>The return of serve must bounce, and so must the third shot. After that, volleys are open.</p></div>
     <div class="rule"><h3>The kitchen</h3><p>The non-volley zone runs 7 feet from the net on each side. No volleys while you're in it or touching its line, including momentum carrying you in after the shot. Step in any time to play a ball that has bounced.</p></div>
     <div class="rule"><h3>How Dink Rating works</h3>
-      <p>Dink Rating is this app's own skill rating, built on the same ideas as the big rating systems. It runs from 2.00 to 8.00, and everyone starts at 3.50. Doubles and singles are rated separately.</p>
+      <p>Dink Rating is this app's own skill rating, built on the same ideas as the big rating systems. It runs from 2.00 to 8.00, and everyone starts at 2.00. Doubles and singles are rated separately.</p>
       <ul><li>Before each game, the app forecasts the score from the players' ratings. A team's rating is the average of its two players.</li>
         <li>After the game, your rating moves by how far you beat or missed that forecast. Losing 9–11 to a much stronger team can raise your rating. Winning 11–9 when you were expected to win 11–4 can lower it.</li>
         <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Below 60% your rating is provisional and moves faster.</li>
@@ -2752,7 +2752,7 @@ function rivalriesHTML(name, mode) {
   }).join('')}</div></div>`;
 }
 
-// Season leaderboard: the current quarter's verified games only, everyone starting at 3.50 (same as the server).
+// Season leaderboard: the current quarter's verified games only, everyone starting at 2.00 (same as the server).
 function seasonRows(mode) {
   const info = progressInfo();
   if (!info) return [];
