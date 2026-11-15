@@ -22,6 +22,13 @@ Open **Events** from the Play tab (in a club). An organizer starts an event; any
 - **Record:** each finished match is saved once to the club's games (its id comes from the event and match), so ratings, the leaderboard and history count it exactly once. Fixing a score in the event fixes the game too.
 - **Organizers only:** creating an event, planning rounds, changing pairings, starting the knockout and fixing scores need the creating phone or the organizer PIN, like the shop settings. Everyone else can watch and score.
 
+### Brackets page and the public link
+
+- **Brackets** (a button on every event) draws the knockout as a real bracket: one column per round, matches as cards joined by lines, byes shown, where each winner (and, in double elimination, each loser) goes next, and the champion at the end. Double elimination shows the winners and losers brackets and the grand final; pool play shows the standings with the cut line and a jump into the knockout; a round robin explains it has no bracket and points to the schedule and standings. Tap a match to score it with the same entry the event page uses; results appear in the next round without a reload.
+- **Phone, laptop, TV:** one layout. On a phone the rounds scroll sideways and snap; where the whole bracket fits at a readable size (text is never drawn below 93% of its design size) it is scaled to fit instead.
+- **Share bracket** (organizers) makes an unguessable public link, `https://dinkscore.vercel.app/b/<token>`, that shows the bracket, standings and champion with no editing, no club and no way into the rest of the app. It refreshes by itself every few seconds (paused while the tab is hidden) and shows when it last changed. `?tv=1`, or the TV mode button (or the T key), hides everything but the bracket and fits it to the screen. Organizers can replace the link (the old one stops working) or stop sharing, and deleting the event ends it.
+- The link is a 192-bit random token stored in `events.share_token`. `GET /api/bracket?token=...` answers only from `publicView()` in `api/_share.js`, a field-by-field allow-list, so nothing private (club code, PIN, owner token, draw seed, game ids) can be added to the response by accident. Bad, revoked and deleted tokens all get the same 404, and good answers are cached for 5 seconds at the edge so a screen that polls is cheap.
+
 ## Tests
 
 ```bash

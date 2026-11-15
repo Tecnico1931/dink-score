@@ -11,10 +11,10 @@ let securityHeaders = [];
 try { securityHeaders = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers[0].headers; } catch {}
 // Stand-in events for the preview: kept in memory and run by the same pure modules as api/events.js, with no
 // organizer checks. Finished matches also land in the stand-in club's games, like the real API does.
-const preview = { games: [], events: new Map(), roster: new Set() };
+const preview = { games: [], events: new Map(), roster: new Set(), shares: new Map() }; // shares: token -> event id
 function previewEvents(req, url, res) {
   const send = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
-  import('../api/_events.js').then(E => {
+  Promise.all([import('../api/_events.js'), import('../api/_share.js')]).then(([E, S]) => {
     const fail = err => send(err.status || 500, { error: err.message });
     if (req.method === 'GET') {
       const id = url.searchParams.get('id');
@@ -34,7 +34,7 @@ function previewEvents(req, url, res) {
           return send(201, { event: E.view(ev) });
         }
         const ev = preview.events.get(b.id);
-        if (b.action === 'delete') { preview.events.delete(b.id); return send(200, { ok: true }); }
+        if (b.action === 'delete') { preview.events.delete(b.id); for (const [t, id] of preview.shares) if (id === b.id) preview.shares.delete(t); return send(200, { ok: true }); }
         if (!ev) return send(404, { error: 'That event no longer exists.' });
         if (b.action === 'result') { const out = E.recordResult(ev, b.matchId, b, now); keep(out); }
         else if (b.action === 'correct') keep(E.correctResult(ev, b.matchId, b.score, now));
@@ -43,6 +43,12 @@ function previewEvents(req, url, res) {
         else if (b.action === 'publish-round') E.publishRound(ev, b.round, now);
         else if (b.action === 'start-knockout') E.startKnockout(ev, b.advance, now);
         else if (b.action === 'end') E.endEvent(ev, now);
+        else if (b.action === 'share' || b.action === 'share-new' || b.action === 'share-off') {
+          let tok = [...preview.shares].find(([, id]) => id === ev.id);
+          if (tok && b.action !== 'share') { preview.shares.delete(tok[0]); tok = null; }
+          if (!tok && b.action !== 'share-off') { tok = [S.newShareToken(), ev.id]; preview.shares.set(tok[0], ev.id); }
+          return send(200, { shareToken: tok ? tok[0] : null });
+        }
         else return send(400, { error: 'Unknown action.' });
         send(200, { event: E.view(ev) });
       } catch (err) { fail(err); }
@@ -60,6 +66,19 @@ http.createServer((req, res) => {
     return;
   }
   if (url.pathname === '/api/events') return previewEvents(req, url, res);
+  if (url.pathname === '/api/bracket') {
+    // The public, read-only view: the same publicView() as api/bracket.js, with the preview's in-memory events.
+    Promise.all([import('../api/_share.js')]).then(([S]) => {
+      const t = url.searchParams.get('token'), id = S.isShareToken(t) && preview.shares.get(t), ev = id && preview.events.get(id);
+      if (!ev) { res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end('{"error":"This bracket link is not active."}'); }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, s-maxage=5, stale-while-revalidate=20' });
+      res.end(JSON.stringify(S.publicView(ev)));
+    });
+    return;
+  }
+  if (/^\/b\/[^/]+\/?$/.test(url.pathname)) { // same rewrite as vercel.json
+    return fs.readFile(path.join(root, 'b.html'), (err, data) => { res.writeHead(err ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' }); res.end(data); });
+  }
   if (url.pathname.startsWith('/api/')) {
     // Stand-in club so the app can be previewed without the real server.
     const code = (url.searchParams.get('code') || 'K7P2QX').toUpperCase();

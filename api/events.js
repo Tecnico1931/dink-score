@@ -10,9 +10,11 @@
 //   start-knockout {id, advance?}                           -> organizer: pool play is over, start the bracket
 //   correct       {id, matchId, score}                      -> organizer: fix a played match's score
 //   end           {id}                                      -> organizer: finish the event now
+//   share / share-new / share-off  {id}                     -> organizer: make, replace or remove the public read-only link; answers {shareToken}
 //   delete        {id}                                      -> organizer: hide the event (its games stay in the record)
 // Organizer actions need the creating phone's token or the organizer PIN, like the shop settings.
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, cleanGame, cleanName, reserveGames, releaseGames, verifiedSender } from './_db.js';
+import { newShareToken } from './_share.js';
 import { createEvent, startNextRound, setRound, publishRound, recordResult, correctResult, startKnockout, endEvent, view } from './_events.js';
 
 const MAX_EVENTS = 100; // per club, not counting deleted ones
@@ -127,8 +129,22 @@ export default handler(async (req, res) => {
     const { event } = await mutate(sql, code, id, actions[action]);
     return send(res, 200, { event: view(event) });
   }
+  if (action === 'share' || action === 'share-new' || action === 'share-off') {
+    // The public link: 'share' makes it (or returns the one that exists), 'share-new' replaces it (the old link stops
+    // working), 'share-off' removes it. Only organizers ever get to see the token.
+    const [cur] = await sql`SELECT share_token FROM events WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL`;
+    if (!cur) throw fail(404, 'That event no longer exists.');
+    if (action === 'share-off') {
+      await sql`UPDATE events SET share_token = NULL WHERE club = ${code} AND id = ${id}`;
+      return send(res, 200, { shareToken: null });
+    }
+    if (cur.share_token && action === 'share') return send(res, 200, { shareToken: cur.share_token });
+    const token = newShareToken();
+    await sql`UPDATE events SET share_token = ${token} WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL`;
+    return send(res, 200, { shareToken: token });
+  }
   if (action === 'delete') {
-    const rows = await sql`UPDATE events SET deleted_at = now() WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id`;
+    const rows = await sql`UPDATE events SET deleted_at = now(), share_token = NULL WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That event was already deleted.');
     return send(res, 200, { ok: true });
   }

@@ -269,6 +269,9 @@ export function view(ev) {
   out.standings = standingsFor(ev);
   if (ev.bracket) {
     out.knockout = B.rounds(ev.bracket).map(r => ({ key: r.key, title: r.title, matches: r.matches.filter(m => m.status !== 'bye' && m.status !== 'skipped').map(mv) }));
+    // The whole bracket tree (byes and later rounds included, with where each match's winner and loser go), for drawing it.
+    out.tree = { kind: ev.bracket.kind, rounds: B.rounds(ev.bracket).map(r => ({ key: r.key, title: r.title })),
+      matches: ev.bracket.matches.map(m => Object.assign(mv(m), { stage: m.stage, round: m.round, pos: m.pos, slots: m.slots.slice(), winnerTo: m.winnerTo ? m.winnerTo.id : null, loserTo: m.loserTo ? m.loserTo.id : null })) };
     delete out.bracket;
   }
   return out;
