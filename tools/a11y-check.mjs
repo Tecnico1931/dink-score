@@ -80,6 +80,11 @@ for (const [mode, opt] of states) {
   }
   await ctx.close();
 }
+{ // The public bracket page's shell (its data needs a live share token, so only the page chrome is checked here).
+  const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+  await page.setViewport({ width: 390, height: 780, isMobile: true, hasTouch: true });
+  await page.goto(base + 'b.html', { waitUntil: 'networkidle0' }); await sleep(300); await audit(page, 'public bracket page (shell)', report); await ctx.close();
+}
 await browser.close(); srv.kill();
 let bad = 0;
 for (const r of report) {
