@@ -37,7 +37,20 @@ img { max-width: 100%; }
 const tail = `
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  // A new service worker takes over at once; reload so the page and its files come from the same version, but not
+  // while a game is open or someone is typing (that waits until the page is put away). Games in progress are saved, so a reload keeps them.
+  const had = !!navigator.serviceWorker.controller; let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!had || reloading) return;
+    const go = () => { reloading = true; location.reload(); };
+    let busy = false; try { busy = !!(live && live.open) || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName); } catch (e) {}
+    if (!busy) go(); else document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') go(); }, { once: true });
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {});
+  });
 }
 </script>
 </body>

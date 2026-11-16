@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached on install; fonts are same-origin and cached the first time they load.
 // Bump VERSION whenever index.html changes so phones pick up the new copy.
-const VERSION = 'dink-score-v69';
+const VERSION = 'dink-score-v70';
 const SHELL = ['./', 'index.html', 'dupr-export.js', 'sheet-import.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -20,13 +20,14 @@ self.addEventListener('fetch', e => {
   if (url.origin === location.origin && /^\/(b\/|privacy|terms)/.test(url.pathname)) return; // the public bracket page is its own page, never the app shell
   if (req.mode === 'navigate') {
     // Network first for the page, so updates arrive; fall back to the cached copy offline.
-    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put('index.html', copy)); return res; })
-      .catch(() => caches.match('index.html')));
+    // Only a good page is kept: an error page must never become the offline copy.
+    e.respondWith(fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put('index.html', copy)); } return res; })
+      .catch(() => caches.match('index.html').then(hit => hit || caches.match('./'))));
     return;
   }
   if (url.origin === location.origin) {
     e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
-      if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
+      if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
       return res;
     })));
   }

@@ -924,6 +924,140 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 })();
 </script>
 
+<script id="recovery">
+/*RECOVERY-START*/
+// Stored state is untrusted: it may come from an older build, a newer one, or be damaged. Everything read from
+// localStorage passes through Heal before the app touches it, a failed render shows a recovery screen instead of
+// a blank page, and nothing here ever drops an unsent change (anything it cannot use is kept in pb.quarantine).
+const Heal = (() => {
+  const SCHEMA = 3; // bump when the shape of the cached club data (pb.clubCache, pb.clubCaches) changes
+  const isObj = v => !!v && typeof v === 'object' && !Array.isArray(v);
+  const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const str = (v, max) => (typeof v === 'string' ? v.slice(0, max || 200) : '');
+  const strs = a => (Array.isArray(a) ? a.filter(x => typeof x === 'string') : []);
+  const map = v => (isObj(v) ? v : {});
+  // One finished game: id, two teams of player names, two scores, a finish time. Anything else is carried along untouched.
+  function game(g) {
+    if (!isObj(g) || typeof g.id !== 'string' || !g.id) return null;
+    if (!Array.isArray(g.teams) || g.teams.length !== 2 || g.teams.some(t => !Array.isArray(t) || !t.length || t.some(n => typeof n !== 'string'))) return null;
+    if (!Array.isArray(g.score) || g.score.length !== 2 || g.score.some(s => num(s) === null)) return null;
+    const endedAt = num(g.endedAt);
+    if (endedAt === null) return null;
+    return Object.assign({}, g, { startedAt: num(g.startedAt) === null ? endedAt : g.startedAt, rallies: num(g.rallies) === null ? 0 : g.rallies, mode: g.mode === 'singles' ? 'singles' : 'doubles' });
+  }
+  function list(arr, fn) {
+    const ok = [], bad = [];
+    for (const x of Array.isArray(arr) ? arr : []) { const y = fn(x); if (y) ok.push(y); else bad.push(x); }
+    return { ok, bad };
+  }
+  const games = arr => list(arr, game);
+  // A queued change. Needs a type; a game or an edit also needs a usable game. A club code, when present, must be text.
+  function op(o) {
+    if (!isObj(o) || typeof o.type !== 'string' || !o.type) return null;
+    if (o.code !== undefined && typeof o.code !== 'string') return null;
+    if (o.type === 'game' || o.type === 'edit') { const g = game(o.game); if (!g) return null; return Object.assign({}, o, { game: g }); }
+    return o;
+  }
+  const outbox = arr => list(arr, op);
+  function club(c) { return isObj(c) && typeof c.code === 'string' && c.code ? Object.assign({}, c, { name: str(c.name, 80) || c.code }) : null; }
+  const clubs = arr => list(arr, club).ok;
+  function player(p) { return isObj(p) && typeof p.name === 'string' && p.name ? p : null; }
+  // The cached copy of a club. It is only a copy, so a shape from the future (or the wrong club) is dropped and fetched again;
+  // an older shape is migrated by rebuilding each field from checked values.
+  function clubData(d, code) {
+    if (!isObj(d) || typeof d.code !== 'string' || (code && d.code !== code)) return null;
+    if (num(d.v) !== null && d.v > SCHEMA) return null;
+    return Object.assign({}, d, { v: SCHEMA, games: games(d.games).ok, deleted: games(d.deleted).ok, roster: strs(d.roster), players: list(d.players, player).ok, progress: isObj(d.progress) ? d.progress : null, at: num(d.at) === null ? 0 : d.at });
+  }
+  const names = () => [['', ''], ['', '']];
+  function setup(s, defaults) {
+    const o = Object.assign({}, defaults, isObj(s) ? s : {});
+    if (!['doubles', 'singles'].includes(o.mode)) o.mode = defaults.mode;
+    if (!['sideout', 'rally'].includes(o.scoring)) o.scoring = defaults.scoring;
+    if (![11, 15, 21].includes(o.target)) o.target = defaults.target;
+    if (![1, 2].includes(o.winBy)) o.winBy = defaults.winBy;
+    if (o.first !== 0 && o.first !== 1) o.first = 0;
+    const n = Array.isArray(o.names) ? o.names : [];
+    o.names = [0, 1].map(t => [0, 1].map(i => (Array.isArray(n[t]) && typeof n[t][i] === 'string' ? n[t][i] : '')));
+    return o;
+  }
+  // A game in progress: the engine state has to be whole, or the app cannot draw the court.
+  function state(s) {
+    return isObj(s) && isObj(s.cfg) && Array.isArray(s.cfg.teams) && s.cfg.teams.length === 2 && s.cfg.teams.every(t => Array.isArray(t) && t.length > 0 && t.every(n => typeof n === 'string')) &&
+      Array.isArray(s.score) && s.score.length === 2 && s.score.every(x => num(x) !== null) && num(s.rallies) !== null &&
+      Array.isArray(s.right) && s.right.length === 2 && num(s.serving) !== null && num(s.server) !== null && num(s.serverNum) !== null &&
+      (s.winner === null || s.winner === 0 || s.winner === 1);
+  }
+  function live(l) {
+    if (!isObj(l) || !state(l.state)) return null;
+    return Object.assign({}, l, { stack: (Array.isArray(l.stack) ? l.stack : []).filter(state) });
+  }
+  // Where unusable records go instead of being deleted.
+  function quarantine(key, items) {
+    if (!items || !items.length) return;
+    try {
+      let q = []; try { q = JSON.parse(localStorage.getItem('pb.quarantine') || '[]'); } catch {}
+      if (!Array.isArray(q)) q = [];
+      q.push({ key, at: Date.now(), items: items.slice(0, 50) });
+      localStorage.setItem('pb.quarantine', JSON.stringify(q.slice(-20)));
+    } catch {}
+  }
+  // Recovery actions. They take the storage so tests can run them on a fake one.
+  const KEEP = ['pb.outbox', 'pb.games', 'pb.quarantine', 'pb.live'];
+  function clearClub(st) {
+    let code = null;
+    try { const c = JSON.parse(st.getItem('pb.club') || 'null'); code = isObj(c) && typeof c.code === 'string' ? c.code : null; } catch {}
+    st.removeItem('pb.clubCache');
+    try { const all = JSON.parse(st.getItem('pb.clubCaches') || '{}'); if (isObj(all) && code) { delete all[code]; st.setItem('pb.clubCaches', JSON.stringify(all)); } else st.removeItem('pb.clubCaches'); } catch { st.removeItem('pb.clubCaches'); }
+    st.removeItem('pb.tab'); st.removeItem('pb.setup'); st.removeItem('pb.lbScope'); st.removeItem('pb.rmode');
+  }
+  function resetAll(st) {
+    const keys = []; for (let i = 0; i < st.length; i++) keys.push(st.key(i));
+    for (const k of keys) if (/^pb\./.test(k) && !KEEP.includes(k) && !/^pb\.(club|clubs|pins|owners|me)$/.test(k)) st.removeItem(k);
+    st.removeItem('pb.clubCache');
+  }
+  const ack = (st, key) => { try { st.setItem('pb.schema', String(SCHEMA)); } catch {} };
+  const panel = (err, inline) => {
+    const msg = String(err && err.message || err || 'Unknown error').slice(0, 300).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    return `<div class="heal-box" role="alert" style="max-width:420px;margin:${inline ? '24px auto' : '0 auto'};padding:20px;border-radius:16px;background:#fff;color:#14221d;font:15px/1.45 system-ui,sans-serif;box-shadow:0 6px 30px rgba(0,0,0,.25)">
+      <h2 style="margin:0 0 8px;font-size:20px">Something went wrong showing this page</h2>
+      <p style="margin:0 0 14px">Your games are safe. Games waiting to be sent to the club stay on this phone. Try reloading first.</p>
+      <button type="button" data-heal="reload" style="display:block;width:100%;margin:0 0 10px;padding:13px;border:0;border-radius:12px;background:#14221d;color:#fff;font:600 16px system-ui,sans-serif">Reload</button>
+      <button type="button" data-heal="clear" style="display:block;width:100%;margin:0 0 10px;padding:13px;border:2px solid #14221d;border-radius:12px;background:#fff;color:#14221d;font:600 16px system-ui,sans-serif">Clear saved club data on this phone</button>
+      <p style="margin:0 0 10px;font-size:13px;color:#4a5a54">This only removes the saved copy of the club. It is fetched again from the club. Unsent games and games saved on this phone are kept.</p>
+      <details style="font-size:13px;color:#4a5a54"><summary>Details</summary><p style="margin:6px 0 0;word-break:break-word">${msg}</p><button type="button" data-heal="reset" style="margin-top:8px;padding:9px 12px;border:1px solid #888;border-radius:10px;background:#fff;color:#14221d;font:14px system-ui,sans-serif">Still stuck? Reset settings (keeps unsent games)</button></details></div>`;
+  };
+  let shown = false;
+  function show(err) {
+    if (typeof document === 'undefined' || !document.body) return;
+    let el = document.getElementById('heal');
+    if (!el) { el = document.createElement('div'); el.id = 'heal'; el.style.cssText = 'position:fixed;inset:0;z-index:2147483000;overflow:auto;background:rgba(15,36,30,.96);padding:max(20px,env(safe-area-inset-top)) 16px 20px;box-sizing:border-box'; document.body.appendChild(el); }
+    el.innerHTML = panel(err, false); el.hidden = false; shown = true;
+  }
+  function hide() { if (!shown) return; shown = false; const el = document.getElementById('heal'); if (el) el.hidden = true; }
+  // Reload for real: drop the service worker and its caches so the next load comes from the network.
+  async function hardReload() {
+    try { if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch {}
+    try { if (window.caches) for (const k of await caches.keys()) await caches.delete(k); } catch {}
+    location.reload();
+  }
+  function act(a) {
+    if (a === 'reload') return hardReload();
+    try { if (a === 'clear') clearClub(localStorage); else if (a === 'reset') resetAll(localStorage); } catch {}
+    return hardReload();
+  }
+  return { SCHEMA, isObj, map, strs, str, game, games, op, outbox, club, clubs, clubData, setup, state, live, quarantine, clearClub, resetAll, ack, panel, show, hide, act, hardReload,
+    // Wrap one piece of drawing: if it throws, the rest of the screen still works and this part shows the recovery panel.
+    guard(fn, label) { try { return fn(); } catch (err) { setTimeout(() => { throw err; }); return `<section class="card">${panel(err, true)}</section>`; } } };
+})();
+/*RECOVERY-END*/
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-heal]'); if (b) { b.disabled = true; Heal.act(b.dataset.heal); } });
+  // A crash while the app is starting (before it has drawn once) would otherwise leave a blank page.
+  window.addEventListener('error', e => { if (!window.__drawn) Heal.show(e.error || e.message); });
+}
+</script>
+
 <script id="engine">
 /*ENGINE-START*/
 const PB = (() => {
@@ -1342,7 +1476,14 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const store = {
-  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  // A stored value of the wrong kind (a null or a string where an object or list belongs) counts as missing.
+  get(k, d) {
+    try {
+      const v = localStorage.getItem(k); if (!v) return d;
+      const x = JSON.parse(v), kind = a => Array.isArray(a) ? 'array' : a === null ? 'null' : typeof a;
+      return d !== null && d !== undefined && kind(x) !== kind(d) ? d : x;
+    } catch { return d; }
+  },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch {} };
@@ -1417,19 +1558,19 @@ if (location.hash.startsWith('#import=')) {
 
 /* ---------- state ---------- */
 const defaults = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, names: [['', ''], ['', '']] };
-let setup = Object.assign({}, defaults, store.get('pb.setup', {}));
+let setup = Heal.setup(store.get('pb.setup', {}), defaults);
 let tab = store.get('pb.tab', 'play');
 if (!['play', 'leaders', 'events', 'history', 'rules'].includes(tab)) tab = 'play';
-let live = store.get('pb.live', null); // { state, stack, open }
-if (live) { live.stack = live.stack || []; Scoring.restore(live); }
-let localGames = store.get('pb.games', []);
+let live = Heal.live(store.get('pb.live', null)); // { state, stack, open }; a damaged game in progress is dropped, not allowed to blank the app
+if (live) Scoring.restore(live);
+let localGames = (() => { const r = Heal.games(store.get('pb.games', [])); if (r.bad.length) { Heal.quarantine('pb.games', r.bad); store.set('pb.games', r.ok); } return r.ok; })();
 let cloudGames = null;
 let gamesCol = null;
 let syncOn = false;
 let syncNote = 'On this device';
 let armedDelete = null;
 let bumpTeam = null;
-let ratingMode = store.get('pb.rmode', 'doubles');
+let ratingMode = store.get('pb.rmode', 'doubles') === 'singles' ? 'singles' : 'doubles';
 let logForm = null; // the "log a result" sheet when open
 let shareSheet = null; // the "share result" sheet when open: { data, theme, url, file, token }
 
@@ -1458,7 +1599,7 @@ function allGames() {
 const minutes = g => Math.max(1, Math.round((g.endedAt - g.startedAt) / 60000));
 
 /* ---------- saved players ---------- */
-let roster = store.get('pb.roster', []);
+let roster = Heal.strs(store.get('pb.roster', []));
 let rosterEdit = false;
 let profileDoc = null;
 let rosterWriting = Promise.resolve();
@@ -1579,12 +1720,12 @@ const Outbox = {
   exportJson: (ops, code) => JSON.stringify({ app: 'dink-score', kind: 'unsent-changes', club: code || null, changes: ops.map(o => Object.assign({}, o, { ownerToken: undefined, pin: undefined })) }, null, 2)
 };
 /*OUTBOX-END*/
-let club = API_OK ? store.get('pb.club', null) : null;
-let clubData = store.get('pb.clubCache', null); // { code, games, roster, deleted, at }
-let outbox = store.get('pb.outbox', []); // changes for every club this phone is in; each op carries its club's code
+let club = API_OK ? Heal.club(store.get('pb.club', null)) : null;
+let clubData = Heal.clubData(store.get('pb.clubCache', null), club && club.code); // { code, games, roster, deleted, players, progress, at, v }: only a copy, fetched again when unusable
+// changes for every club this phone is in; each op carries its club's code. A change that can't be read is set aside, never deleted.
+let outbox = (() => { const r = Heal.outbox(store.get('pb.outbox', [])); if (r.bad.length) { Heal.quarantine('pb.outbox', r.bad); store.set('pb.outbox', r.ok); } return r.ok; })();
 // Every club this phone has joined. One is open at a time (club); the others keep their cached data until you switch back.
-let clubs = API_OK ? store.get('pb.clubs', null) : [];
-if (!Array.isArray(clubs)) clubs = club ? [club] : [];
+let clubs = API_OK ? Heal.clubs(store.get('pb.clubs', null)) : [];
 if (club && !clubs.some(c => c.code === club.code)) clubs.unshift(club);
 for (const op of outbox) if (!op.code && club) op.code = club.code; // ops saved before multiple clubs belong to the open one
 const clubOps = () => (club ? Outbox.active(outbox, club.code) : []);
@@ -1607,7 +1748,7 @@ function stashClubCache() {
   if (!club || !clubData || clubData.code !== club.code) return;
   const all = store.get('pb.clubCaches', {}); all[club.code] = clubData; store.set('pb.clubCaches', all);
 }
-function cachedClub(code) { const d = store.get('pb.clubCaches', {})[code]; return d && d.code === code ? d : null; }
+function cachedClub(code) { return Heal.clubData(Heal.map(store.get('pb.clubCaches', {}))[code], code); }
 let clubState = 'idle'; // idle | syncing | offline | error
 let clubSheet = null;   // the club sheet when open: { view, error, joinCode, joinName, busy, msg }
 let uploading = false;
@@ -1733,7 +1874,7 @@ async function refreshClub() {
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
     club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
-    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, at: Date.now() };
+    clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
     if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
@@ -1916,9 +2057,9 @@ async function uploadLocalGames(ids) {
 }
 
 /* Organizer PIN: a phone that has entered the right PIN remembers it, per club, until it's locked again. */
-let pins = store.get('pb.pins', {});
+let pins = Heal.map(store.get('pb.pins', {}));
 // The phone that creates a club gets a private creator token; only it can set the club's first PIN.
-let owners = store.get('pb.owners', {});
+let owners = Heal.map(store.get('pb.owners', {}));
 function rememberOwner(code, token) { if (token) { owners[code] = token; store.set('pb.owners', owners); } }
 const canSetFirstPin = () => !!club && !club.hasPin && (!!owners[club.code] || !!club.openClaim);
 function rememberPin(code, pin) { pins[code] = pin; store.set('pb.pins', pins); }
@@ -2366,13 +2507,18 @@ function eventsTabView() {
   return `<section><div class="sec-head"><h2>Events</h2></div><button class="tile wide" data-ev="open-list" style="min-height:0;margin-top:10px"><span class="t-k">Events</span>${liveEv ? `<span class="t-name">${esc(liveEv.name)}</span><span class="t-foot">Live · ${esc(evProgress(liveEv))}</span>` : `<span class="t-name">Tournaments and rotating doubles</span><span class="t-foot">Round robins, brackets and several courts at once</span>`}</button></section>`;
 }
 
+// The error boundary: if drawing throws, show the recovery screen (and report the error) instead of leaving a blank page.
 function render() {
+  try { renderApp(); window.__drawn = true; Heal.hide(); }
+  catch (err) { Heal.show(err); setTimeout(() => { throw err; }); }
+}
+function renderApp() {
   syncUrl();
   const y = document.body.scrollTop;
   if (!club && tab === 'events') tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
   const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${API_OK ? '<button class="dupr-btn" data-act="dupr-open" aria-label="Your DUPR">DUPR</button>' : ''}${profileButtonHTML()}</div></header>`;
-  $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
+  $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
   renderClub();
@@ -3425,7 +3571,7 @@ function saveShareImage() {
 
 /* ---------- who you are ---------- */
 // Each phone can be linked to one player name per club. The server keeps the link; the phone keeps a private key.
-let me = store.get('pb.me', {}); // { [clubCode]: { name, token } }
+let me = Heal.map(store.get('pb.me', {})); // { [clubCode]: { name, token } }
 const myName = () => (club && me[club.code] ? me[club.code].name : null);
 const myToken = () => (club && me[club.code] ? me[club.code].token : null);
 const isMe = n => !!myName() && sameName(n, myName());
@@ -5181,7 +5327,20 @@ checkInvite().finally(() => { urlReady = true; syncUrl(); });
 
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  // A new service worker takes over at once; reload so the page and its files come from the same version, but not
+  // while a game is open or someone is typing (that waits until the page is put away). Games in progress are saved, so a reload keeps them.
+  const had = !!navigator.serviceWorker.controller; let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!had || reloading) return;
+    const go = () => { reloading = true; location.reload(); };
+    let busy = false; try { busy = !!(live && live.open) || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName); } catch (e) {}
+    if (!busy) go(); else document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') go(); }, { once: true });
+  });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {});
+  });
 }
 </script>
 </body>
