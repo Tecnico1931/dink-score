@@ -27,16 +27,16 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'GET') {
     const url = new URL(req.url, 'http://x');
-    const code = cleanCode(url.searchParams.get('code'));
-    await requireClub(code, req);
+    const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
+    const code = club.code; // the club's permanent key, even when an old club code was used
     const id = String(url.searchParams.get('id') || '');
     const [row] = await sql`SELECT state, intents FROM live_games WHERE club = ${code} AND id = ${id}`;
     return send(res, 200, row ? { state: row.state, intents: row.intents } : { state: null, intents: [] });
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
-  const code = cleanCode(body.code);
-  await requireClub(code, req);
+  const club = await requireClub(cleanCode(body.code), req);
+  const code = club.code; // the club's permanent key, even when an old club code was used
 
   if (body.action === 'state') {
     const id = String(body.id || ''), st = body.state;

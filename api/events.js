@@ -85,8 +85,8 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'GET') {
     const url = new URL(req.url, 'http://x');
-    const code = cleanCode(url.searchParams.get('code'));
-    await requireClub(code, req);
+    const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
+    const code = club.code; // the club's permanent key, even when an old club code was used
     const id = url.searchParams.get('id');
     if (id) {
       const [row] = await sql`SELECT data FROM events WHERE club = ${code} AND id = ${String(id)} AND deleted_at IS NULL`;
@@ -98,8 +98,8 @@ export default handler(async (req, res) => {
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
-  const code = cleanCode(body.code);
-  const club = await requireClub(code, req);
+  const club = await requireClub(cleanCode(body.code), req);
+  const code = club.code; // the club's permanent key, even when an old club code was used
   const now = Date.now();
   const action = String(body.action || '');
 

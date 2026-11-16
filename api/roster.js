@@ -7,8 +7,8 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'DELETE') {
     const url = new URL(req.url, 'http://x');
-    const code = cleanCode(url.searchParams.get('code'));
-    const club = await requireClub(code, req);
+    const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
+    const code = club.code; // the club's permanent key, even when an old club code was used
     await requirePin(club, pinFrom(req), req, ownerFrom(req));
     const name = cleanName(url.searchParams.get('name'));
     // A name someone has claimed holds their shop items and equipped looks, so it stays until an organizer releases it.
@@ -21,8 +21,8 @@ export default handler(async (req, res) => {
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
-  const code = cleanCode(body.code);
-  await requireClub(code, req);
+  const club = await requireClub(cleanCode(body.code), req);
+  const code = club.code; // the club's permanent key, even when an old club code was used
   const name = cleanName(body.name);
   if (!name) throw fail(400, 'Enter a name.');
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM roster WHERE club = ${code}`;

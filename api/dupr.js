@@ -206,8 +206,8 @@ export default handler(async (req, res) => {
   await ensureDuprSchema();
 
   if (req.method === 'GET') {
-    const code = cleanCode(new URL(req.url, 'http://x').searchParams.get('code'));
-    await requireClub(code, req);
+    const club = await requireClub(cleanCode(new URL(req.url, 'http://x').searchParams.get('code')), req);
+    const code = club.code; // the club's permanent key, even when an old club code was used
     const rows = await sql`SELECT name_key, dupr_snapshot FROM roster WHERE club = ${code} AND dupr_id IS NOT NULL`;
     const pause = await getPause(sql);
     return send(res, 200, Object.assign({ enabled: true }, publicConfig(cfg), {
@@ -217,8 +217,8 @@ export default handler(async (req, res) => {
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
-  const code = cleanCode(body.code);
-  const club = await requireClub(code, req);
+  const club = await requireClub(cleanCode(body.code), req);
+  const code = club.code; // the club's permanent key, even when an old club code was used
   const action = String(body.action || '');
 
   if (action === 'link') {

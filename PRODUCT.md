@@ -10,7 +10,7 @@ Installable PWA (manifest + service worker), used almost entirely on phones. Mob
 
 ## Users
 
-A single friend group that plays pickleball together (the club "Pickle Crew"). Whoever is holding a phone keeps score courtside, during and between games, then the group checks results, ratings and standings afterwards.
+A single friend group that plays pickleball together. Whoever is holding a phone keeps score courtside, during and between games, then the group checks results, ratings and standings afterwards.
 
 ## Product Purpose
 
@@ -47,7 +47,7 @@ A scorekeeper and a club record in one, built for one real group rather than a l
 
 ## Evidence on Hand
 
-- Real club data exists for Pickle Crew (GMA6KP) in the production database. It must never be modified or deleted during work or testing.
+- Real club data exists in the production database. It must never be modified or deleted during work or testing.
 - No testimonials, user counts, press, or other clubs. Do not fabricate any.
 
 ## Product Principles

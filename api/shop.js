@@ -58,8 +58,8 @@ export default handler(async (req, res) => {
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const sql = db();
   const body = await readBody(req);
-  const code = cleanCode(body.code);
-  const club = await requireClub(code, req);
+  const club = await requireClub(cleanCode(body.code), req);
+  const code = club.code; // the club's permanent key, even when an old club code was used
   const [{ shop: rawShop }] = await sql`SELECT shop FROM clubs WHERE code = ${code}`;
   const settings = shopSettings(rawShop);
 

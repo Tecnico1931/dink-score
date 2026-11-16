@@ -107,6 +107,16 @@ export function ensureSchema() {
       // Private reference data typed into an imported sheet: { "player name": "DUPR ID" }. Kept out of `data` on purpose, so no
       // event view, spectator page or export can include it. Only an organizer can read it (events.js, action 'refs').
       await q`ALTER TABLE events ADD COLUMN IF NOT EXISTS refs jsonb`;
+
+      // Club code rotation. A club keeps its original `code` as a permanent internal key; the code people type is
+      // `public_code` once one has been generated. Retired codes stay in club_aliases until `expires_at`, then stop working.
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS public_code text`;
+      await q`CREATE UNIQUE INDEX IF NOT EXISTS clubs_public_code ON clubs (public_code) WHERE public_code IS NOT NULL`;
+      await q`CREATE TABLE IF NOT EXISTS club_aliases (
+        code text PRIMARY KEY,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        expires_at timestamptz NOT NULL
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -170,7 +180,13 @@ export async function requireClub(code, req) {
   const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ip}) RETURNING id`;
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`;
   if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
-  const rows = await sql`SELECT code, name, pin_hash, owner_hash FROM clubs WHERE code = ${code}`;
+  // The code people type is the current public code (or, for a club never rotated, its original code), or a retired
+  // code still inside its overlap. `code` on the returned row is always the permanent key: use it for every query.
+  let rows = await sql`SELECT code, name, pin_hash, owner_hash, public_code FROM clubs WHERE coalesce(public_code, code) = ${code}`;
+  if (!rows.length) {
+    rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, a.expires_at AS old_code_until
+      FROM club_aliases a JOIN clubs c ON c.code = a.club WHERE a.code = ${code} AND a.expires_at > now()`;
+  }
   if (!rows.length) {
     if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
     throw fail(404, 'No club has that code. Check it and try again.');
@@ -179,7 +195,15 @@ export async function requireClub(code, req) {
   return rows[0]; // includes pin_hash: use publicClub() before sending a club to the app
 }
 // openClaim: an older club with no creator on record and no PIN yet, where any member may set the first PIN.
-export const publicClub = c => ({ code: c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash });
+// `code` is the one people use now; oldCodeUntil (ms) is set when the request came in on a retired code that is about to stop working.
+export const publicClub = c => ({ code: c.public_code || c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash,
+  ...(c.old_code_until ? { oldCodeUntil: new Date(c.old_code_until).getTime() } : {}) });
+
+// True when `code` is already a club's key, current code, or a retired code (retired codes are never reused).
+export async function codeTaken(sql, code) {
+  const [r] = await sql`SELECT (EXISTS (SELECT 1 FROM clubs WHERE code = ${code} OR public_code = ${code}) OR EXISTS (SELECT 1 FROM club_aliases WHERE code = ${code})) AS taken`;
+  return !!r.taken;
+}
 
 // Organizer PIN: 4 to 8 digits. Only its salted scrypt hash is stored.
 export function cleanPin(raw) {
