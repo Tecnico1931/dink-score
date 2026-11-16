@@ -1374,5 +1374,131 @@ await step('court board: the new table is additive and goes with the club', asyn
   assert.equal(fk[0].confdeltype, 'c', 'cascades from clubs');
 });
 
+// ---- public result pages (X11): a game or session shared as a read-only link ----
+const [results, resultApi] = await Promise.all(['results', 'result'].map(load));
+const sc = await (async () => { const c = ok(await call(club, 'POST', { body: { name: 'Share check club' } }), 201); return { code: c.club.code, owner: c.ownerToken, name: 'Share check club' }; })();
+const scPost = (h, body) => call(h, 'POST', { body: { code: sc.code, ...body } });
+const scOrg = { ownerToken: sc.owner };
+const scGame = (id, extra = {}) => ({ id, mode: 'doubles', teams: [['Ann', 'Bo'], ['Cat', 'Dee']], score: [11, 6], endedAt: now - 3600000, startedAt: now - 3700000, ...extra });
+const scLog = playLog(dcfg, 0.6, 11);
+const pubGet = (token, fmt, headers) => call(resultApi, 'GET', { query: `?token=${token}${fmt ? '&fmt=' + fmt : ''}`, headers });
+const pubRaw = async (token, fmt) => { // the page and the image are not JSON
+  const req = { method: 'GET', url: `/api/result?token=${token}&fmt=${fmt}`, headers: { 'x-real-ip': '10.9.9.' + (++ip % 200), host: 'dink.example' } };
+  const out = { headers: {} }; const res = { statusCode: 0, setHeader(k, v) { out.headers[k.toLowerCase()] = v; }, end(b) { out.status = res.statusCode; out.body = b; } };
+  await resultApi(req, res); return out;
+};
+const NOTFOUND = 'This link is not active.';
+const sc404 = r => { assert.equal(r.status, 404); assert.equal(r.json.error, NOTFOUND); };
+let scTok = {}, scSession;
+await step('public results: off by default, so nobody can make a link and unknown tokens are a uniform 404', async () => {
+  ok(await scPost(games, { games: [scGame('sc-live', { rallyLog: scLog.raw, ...dcfg, score: scLog.score, rallies: scLog.wins.length, teams: [['Ann', 'Bo'], ['Cat', 'Dee']] }), scGame('sc-hand', { logged: true })] }));
+  assert.equal((await scPost(results, { action: 'create', game: 'sc-live' })).status, 403);
+  sc404(await pubGet('A'.repeat(32))); sc404(await pubGet('short')); sc404(await pubGet(''));
+  assert.equal((await call(club, 'GET', { query: `?code=${sc.code}` })).json.club.publicResults, false);
+});
+await step('public results: only an organizer turns them on; members and strangers cannot', async () => {
+  assert.equal((await scPost(results, { action: 'set', enabled: true })).status, 403);
+  assert.equal((await scPost(results, { action: 'set', enabled: true, pin: '000000' })).status, 403);
+  assert.equal((await scPost(results, { action: 'set', enabled: 'yes', ...scOrg })).status, 400);
+  ok(await scPost(results, { action: 'set', enabled: true, ...scOrg }));
+  assert.equal((await call(club, 'GET', { query: `?code=${sc.code}` })).json.club.publicResults, true);
+});
+await step('public results: a member makes one link per game (same link again), and it needs a real, shareable game', async () => {
+  const a = ok(await scPost(results, { action: 'create', game: 'sc-live' })), b = ok(await scPost(results, { action: 'create', game: 'sc-live' }));
+  assert.match(a.token, /^[A-Za-z0-9_-]{32}$/); assert.equal(a.token, b.token); assert.equal(a.path, '/r/' + a.token);
+  scTok.live = a.token; scTok.hand = ok(await scPost(results, { action: 'create', game: 'sc-hand' })).token;
+  assert.notEqual(scTok.live, scTok.hand);
+  assert.equal((await scPost(results, { action: 'create', game: 'nope' })).status, 404);
+  assert.equal((await call(results, 'POST', { body: { code: 'ZZZZZ2', action: 'create', game: 'sc-live' } })).status, 404);
+});
+await step('public results: the public JSON is the allow-list, with the chart numbers, and no club identity', async () => {
+  const r = await pubGet(scTok.live), text = JSON.stringify(r.json);
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.json.teams, [['Ann', 'Bo'], ['Cat', 'Dee']]);
+  assert.deepEqual(r.json.score, scLog.score);
+  assert.equal(r.json.flow.n, scLog.wins.length);
+  for (const leak of [sc.code, sc.name, sc.owner, 'sc-live', 'rallyLog', 'receivedAt', 'scoredBy', 'ownerToken', 'pin']) assert.ok(!text.includes(leak), 'leaked ' + leak);
+  assert.equal((await pubGet(scTok.hand)).json.flow, null, 'a hand-logged game has no chart');
+});
+await step('public results: the page has preview tags and no inline script; the card is a PNG; both are cached briefly and noindex', async () => {
+  const h = await pubRaw(scTok.live, 'html');
+  assert.equal(h.status, 200); assert.match(h.headers['content-type'], /text\/html/);
+  assert.match(h.body, new RegExp(`og:image" content="https://dink.example/r/${scTok.live}/card.png"`));
+  assert.ok(!h.body.includes(sc.code) && !h.body.includes(sc.name));
+  assert.match(h.headers['cache-control'], /s-maxage=20/); assert.match(h.headers['x-robots-tag'], /noindex/);
+  const p = await pubRaw(scTok.live, 'png');
+  assert.equal(p.headers['content-type'], 'image/png'); assert.deepEqual([...p.body.subarray(1, 4)], [80, 78, 71]);
+  const dead = await pubRaw('B'.repeat(32), 'html'); assert.equal(dead.status, 404); assert.match(dead.body, /not active/);
+});
+await step('public results: a session link covers one day of games; the span is limited and it must hold a game', async () => {
+  const from = now - 86400000, to = now;
+  scSession = ok(await scPost(results, { action: 'create', from, to }));
+  assert.equal(ok(await scPost(results, { action: 'create', from, to })).token, scSession.token);
+  const s = await pubGet(scSession.token);
+  assert.equal(s.json.kind, 'session'); assert.equal(s.json.games.length, 2);
+  assert.ok(!JSON.stringify(s.json).includes('sc-live'));
+  assert.equal((await scPost(results, { action: 'create', from, to: from + 40 * 3600000 })).status, 400);
+  assert.equal((await scPost(results, { action: 'create', from: from - 5 * 86400000, to: from - 4 * 86400000 })).status, 404);
+  assert.equal((await pubRaw(scSession.token, 'png')).headers['content-type'], 'image/png');
+});
+await step('public results: only organizers list or revoke; revoking ends that link at once and no other', async () => {
+  assert.equal((await call(results, 'GET', { query: `?code=${sc.code}&list=1` })).status, 403);
+  assert.equal((await scPost(results, { action: 'revoke', token: scTok.live })).status, 403);
+  assert.equal((await pubGet(scTok.live)).status, 200, 'a refused revoke changes nothing');
+  const list = ok(await call(results, 'GET', { query: `?code=${sc.code}&list=1`, headers: { 'x-club-owner': sc.owner } }));
+  assert.equal(list.links.length, 3); assert.equal(list.enabled, true);
+  ok(await scPost(results, { action: 'revoke', token: scTok.live, ...scOrg }));
+  sc404(await pubGet(scTok.live)); assert.equal((await pubRaw(scTok.live, 'png')).status, 404);
+  assert.equal((await pubGet(scTok.hand)).status, 200);
+  assert.equal((await scPost(results, { action: 'revoke', token: scTok.live, ...scOrg })).status, 404);
+  const again = ok(await scPost(results, { action: 'create', game: 'sc-live' }));
+  assert.notEqual(again.token, scTok.live, 'a revoked link is never reissued'); sc404(await pubGet(scTok.live)); scTok.live = again.token;
+});
+await step('public results: a deleted game, an edit and the history are respected', async () => {
+  ok(await call(games, 'DELETE', { query: `?code=${sc.code}&id=sc-hand`, headers: { 'x-club-owner': sc.owner } }));
+  sc404(await pubGet(scTok.hand));
+  assert.equal((await pubGet(scSession.token)).json.games.length, 1, 'a deleted game leaves the session page too');
+  const audit = ok(await call(games, 'GET', { query: `?code=${sc.code}&audit=1`, headers: { 'x-club-owner': sc.owner } })).audit;
+  assert.ok(audit.some(a => a.action === 'share') && audit.some(a => a.action === 'unshare') && audit.some(a => a.action === 'setting'));
+});
+await step('public results: a game held for confirmation is not shared; anonymised names stay anonymous', async () => {
+  ok(await scPost(club, { action: 'set-confirmation', required: true, ...scOrg }));
+  assert.equal((await scPost(results, { action: 'create', game: 'sc-live' })).json.token, undefined);
+  sc404(await pubGet(scTok.live)); sc404(await pubGet(scSession.token));
+  ok(await scPost(club, { action: 'set-confirmation', required: false, ...scOrg }));
+  assert.equal((await pubGet(scTok.live)).status, 200);
+  const claim = ok(await scPost(playersApi, { action: 'claim', name: 'Ann', ...scOrg })).playerToken;
+  ok(await scPost(playersApi, { action: 'anonymise', name: 'Ann', playerToken: claim }));
+  const r = (await pubGet(scTok.live)).json, text = JSON.stringify(r);
+  assert.ok(!text.includes('Ann'), 'the old name is gone'); assert.match(r.teams[0][0], /^Former player [A-Z0-9]{5}$/);
+});
+await step('public results: a club waiting to be deleted shows nothing; undoing brings its links back', async () => {
+  ok(await scPost(club, { action: 'delete-club', confirm: sc.name, ...scOrg }));
+  sc404(await pubGet(scTok.live)); sc404(await pubGet(scSession.token));
+  ok(await scPost(club, { action: 'cancel-delete-club', ...scOrg }));
+  assert.equal((await pubGet(scTok.live)).status, 200);
+});
+await step('public results: turning the feature off ends every link for good, and on again starts empty', async () => {
+  ok(await scPost(results, { action: 'set', enabled: false, ...scOrg }));
+  sc404(await pubGet(scTok.live)); sc404(await pubGet(scSession.token));
+  assert.equal((await scPost(results, { action: 'create', game: 'sc-live' })).status, 403);
+  ok(await scPost(results, { action: 'set', enabled: true, ...scOrg }));
+  sc404(await pubGet(scTok.live));
+  assert.equal(ok(await call(results, 'GET', { query: `?code=${sc.code}&list=1`, headers: { 'x-club-owner': sc.owner } })).links.length, 0);
+});
+await step('public results: the public endpoint is rate limited per network and only reads', async () => {
+  const same = { 'x-real-ip': '10.77.0.1' };
+  let last;
+  for (let i = 0; i < 61; i++) last = await pubGet('C'.repeat(32), '', same);
+  assert.equal(last.status, 429);
+  assert.equal((await pubGet('C'.repeat(32), '', { 'x-real-ip': '10.77.0.2' })).status, 404, 'another network is not affected');
+  assert.equal((await call(resultApi, 'POST', { body: {} })).status, 405);
+});
+await step('public results: the new column and table are additive and cascade from the club', async () => {
+  assert.equal((await pg.query("SELECT count(*)::int AS n FROM information_schema.columns WHERE table_name = 'clubs' AND column_name = 'public_results' AND column_default = 'false'")).rows[0].n, 1);
+  const fk = (await pg.query("SELECT rc.delete_rule FROM information_schema.referential_constraints rc JOIN information_schema.table_constraints tc ON tc.constraint_name = rc.constraint_name WHERE tc.table_name = 'result_shares'")).rows;
+  assert.ok(fk.length && fk.every(r => r.delete_rule === 'CASCADE'));
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
