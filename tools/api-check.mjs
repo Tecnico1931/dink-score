@@ -218,7 +218,7 @@ await step('the existing club data still loads with event games in it (ratings, 
 });
 
 // Self-reported DUPR rating: set by the name's own phone or an organizer, never a stranger; display only.
-const PIN = '4821';
+const PIN = '482159';
 ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: PIN, ownerToken: owner } }));
 const sh = (body) => call(shop, 'POST', { body: { code, ...body } });
 const dupr = async name => (ok(await call(club, 'GET', { query: '?code=' + code })).players.find(p => p.name === name) || {}).dupr;
@@ -270,14 +270,14 @@ await step('DUPR: it is not in event responses', async () => {
 
 await step('event results: players in the match and organizers by default, any member when the organizer allows it', async () => {
   const sh = body => call(shop, 'POST', { body: { code, ...body } });
-  const pinSet = ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: '4821', ownerToken: owner } }));
+  const pinSet = ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: PIN, ownerToken: owner } }));
   const e = ok(await create({ name: 'Who scores', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph'], seed: 'perm' }), 201).event;
   assert.equal(e.resultsBy, 'players', 'the default');
   const [m] = e.rounds[0].matches, playing = m.teams.flat().map(x => x.toLowerCase());
   const sitting = ['Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph'].find(n => !playing.includes(n.toLowerCase()));
   const inMatch = m.teams[0][0], inMatch2 = m.teams[1][1];
   const tok = {};
-  for (const n of [inMatch, inMatch2, sitting]) tok[n] = ok(await sh({ action: 'claim', name: n, ownerToken: owner, pin: '4821' })).playerToken;
+  for (const n of [inMatch, inMatch2, sitting]) tok[n] = ok(await sh({ action: 'claim', name: n, ownerToken: owner, pin: PIN })).playerToken;
   const res = (extra, matchId = m.id, score = [11, 5]) => call(events, 'POST', { body: { code, action: 'result', id: e.id, matchId, score, endedAt: Date.now(), ...extra } });
   let r = await res({});
   assert.equal(r.status, 403, 'a stranger with only the club code'); assert.match(r.json.error || r.json.message || '', /players in this match or an organizer/);
@@ -292,7 +292,7 @@ await step('event results: players in the match and organizers by default, any m
   ok(await res({ playerName: inMatch, playerToken: tok[inMatch] }));
   assert.equal((await clubGames()).filter(g => g.event && g.event.id === e.id).length, 1, 'a player in the match');
   const m2 = e.rounds[0].matches[1];
-  ok(await res({ pin: '4821' }, m2 ? m2.id : m.id)); // organizer by PIN (or a retry of the same score when there is one court)
+  ok(await res({ pin: PIN }, m2 ? m2.id : m.id)); // organizer by PIN (or a retry of the same score when there is one court)
   // Organizer toggle: refused for members, allowed for organizers.
   assert.equal((await act('results-by', { id: e.id, who: 'club' }, { playerName: sitting, playerToken: tok[sitting] })).status, 403);
   assert.equal((await act('results-by', { id: e.id, who: 'nobody' })).status, 400);
@@ -445,7 +445,7 @@ await step('sheet import: with rotating partners only the players are added (tea
 const mk = async (extra = {}) => ok(await call(club, 'POST', { body: { name: 'Rot club', ...extra } }), 201);
 const gm = id => ({ id, mode: 'singles', teams: [['Ann'], ['Bo']], score: [11, 5], endedAt: Date.now() - 1000 });
 await step('new clubs always get an organizer credential: the PIN given, or a generated code shown once', async () => {
-  const withPin = await mk({ pin: '5566' });
+  const withPin = await mk({ pin: '556677' });
   assert.equal(withPin.organizerCode, undefined);
   assert.equal(withPin.club.hasPin, true);
   const gen = await mk();
@@ -468,26 +468,26 @@ await step('a legacy club without a PIN is reported as unprotected and has no or
   ok(await rot({ ownerToken: c.ownerToken })); // the creating phone can
 });
 await step('rotate-code: who may do it', async () => {
-  const c = await mk({ pin: '7788' });
+  const c = await mk({ pin: '778899' });
   const rot = body => call(club, 'POST', { body: { code: c.club.code, action: 'rotate-code', ...body } });
   assert.equal((await rot({})).status, 403, 'no credential');
   assert.equal((await rot({ pin: '1111' })).status, 403, 'wrong PIN');
   assert.equal((await rot({ ownerToken: '0'.repeat(48) })).status, 403, 'wrong creator token');
-  assert.equal((await rot({ pin: '7788', graceMinutes: -1 })).status, 400);
-  assert.equal((await rot({ pin: '7788', graceMinutes: 99999 })).status, 400);
-  assert.equal((await call(club, 'POST', { body: { code: 'ZZZZZZ', action: 'rotate-code', pin: '7788' } })).status, 404);
+  assert.equal((await rot({ pin: '778899', graceMinutes: -1 })).status, 400);
+  assert.equal((await rot({ pin: '778899', graceMinutes: 99999 })).status, 400);
+  assert.equal((await call(club, 'POST', { body: { code: 'ZZZZZZ', action: 'rotate-code', pin: '778899' } })).status, 404);
   assert.equal((await call(club, 'GET', { query: '?code=' + c.club.code })).status, 200, 'nothing changed after refusals');
-  const r1 = ok(await rot({ pin: '7788' }));
+  const r1 = ok(await rot({ pin: '778899' }));
   assert.notEqual(r1.club.code, c.club.code);
   assert.equal(r1.oldCode, c.club.code);
   const r2 = ok(await call(club, 'POST', { body: { code: r1.club.code, action: 'rotate-code', ownerToken: c.ownerToken, graceMinutes: 0 } }));
   assert.notEqual(r2.club.code, r1.club.code, 'the creating phone can rotate too');
 });
 await step('rotation: new code works, old code works during the overlap and says when it stops, then 404; data and roles carry over', async () => {
-  const c = await mk({ pin: '2468' });
+  const c = await mk({ pin: '246802' });
   const oldCode = c.club.code;
   ok(await call(games, 'POST', { body: { code: oldCode, games: [gm('rot-g1')] } }));
-  const r = ok(await call(club, 'POST', { body: { code: oldCode, action: 'rotate-code', pin: '2468', graceMinutes: 30 } }));
+  const r = ok(await call(club, 'POST', { body: { code: oldCode, action: 'rotate-code', pin: '246802', graceMinutes: 30 } }));
   const newCode = r.club.code;
   const viaNew = ok(await call(club, 'GET', { query: '?code=' + newCode }));
   assert.equal(viaNew.club.code, newCode);
@@ -500,7 +500,7 @@ await step('rotation: new code works, old code works during the overlap and says
   ok(await call(roster, 'POST', { body: { code: newCode, name: 'Cy' } }));
   assert.equal(ok(await call(club, 'GET', { query: '?code=' + newCode })).games.length, 2);
   assert.equal((await call(games, 'DELETE', { query: `?code=${newCode}&id=rot-g1` })).status, 403, 'roles are unchanged: delete still needs the organizer');
-  ok(await call(games, 'DELETE', { query: `?code=${oldCode}&id=rot-g1`, headers: { 'x-club-pin': '2468' } }));
+  ok(await call(games, 'DELETE', { query: `?code=${oldCode}&id=rot-g1`, headers: { 'x-club-pin': '246802' } }));
   await pg.query("UPDATE club_aliases SET expires_at = now() - interval '1 second' WHERE code = $1", [oldCode]); // the overlap ends
   for (const call_ of [() => call(club, 'GET', { query: '?code=' + oldCode }), () => call(games, 'POST', { body: { code: oldCode, games: [gm('rot-g3')] } }), () => call(live, 'POST', { body: { code: oldCode, action: 'point', side: 0 } })]) {
     assert.equal((await call_()).status, 404, 'the old code stops working');
@@ -508,8 +508,8 @@ await step('rotation: new code works, old code works during the overlap and says
   assert.equal((await call(club, 'GET', { query: '?code=' + newCode })).status, 200);
 });
 await step('rotation with no overlap cuts the old code at once; retired codes are never handed to another club', async () => {
-  const c = await mk({ pin: '1357' });
-  const r = ok(await call(club, 'POST', { body: { code: c.club.code, action: 'rotate-code', pin: '1357', graceMinutes: 0 } }));
+  const c = await mk({ pin: '135790' });
+  const r = ok(await call(club, 'POST', { body: { code: c.club.code, action: 'rotate-code', pin: '135790', graceMinutes: 0 } }));
   assert.equal((await call(club, 'GET', { query: '?code=' + c.club.code })).status, 404);
   assert.equal(ok(await call(club, 'GET', { query: '?code=' + r.club.code })).club.code, r.club.code);
   await pg.query("INSERT INTO club_aliases (code, club, expires_at) VALUES ('AAAAAA', $1, now() - interval '1 day')", [c.club.code]);
@@ -517,10 +517,10 @@ await step('rotation with no overlap cuts the old code at once; retired codes ar
   assert.equal(await codeTaken(neon.neon(process.env.DATABASE_URL), 'AAAAAA'), true);
 });
 await step('a stranger on a rotated club still needs the organizer for organizer actions; players of one club cannot use another club\'s code', async () => {
-  const a = await mk({ pin: '9999' }), b = await mk({ pin: '8888' });
-  const ra = ok(await call(club, 'POST', { body: { code: a.club.code, action: 'rotate-code', pin: '9999', graceMinutes: 5 } }));
-  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'rotate-code', pin: '8888' } })).status, 403, "another club's PIN does not work");
-  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'set-pin', pin: '1212', oldPin: '0000' } })).status, 403);
+  const a = await mk({ pin: '999999' }), b = await mk({ pin: '888888' });
+  const ra = ok(await call(club, 'POST', { body: { code: a.club.code, action: 'rotate-code', pin: '999999', graceMinutes: 5 } }));
+  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'rotate-code', pin: '888888' } })).status, 403, "another club's PIN does not work");
+  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'set-pin', pin: '121212', oldPin: '0000' } })).status, 403);
   assert.equal((await call(club, 'GET', { query: '?code=' + b.club.code })).json.club.code, b.club.code);
 });
 await step('the event list pages through every event the club keeps (60 and up to the 100 limit)', async () => {
@@ -601,6 +601,101 @@ await step('recovery code: only the creator makes one; single use; expires; stor
   const rot = ok(await call(club, 'POST', { body: { code: cc, action: 'rotate-code', graceMinutes: 0, ownerToken: got.ownerToken } }));
   const back = ok(await xfer({ action: 'recovery-redeem', code: rot.club.code, recovery: again2.recovery }));
   assert.equal(back.club.code, rot.club.code);
+});
+
+// N3 / N3b: resource limits and organizer PIN hardening
+await step('PINs: 6 to 8 digits for new or changed PINs; an older 4-digit PIN still unlocks and is flagged', async () => {
+  const c2 = ok(await call(club, 'POST', { body: { name: 'PIN club' } }), 201);
+  assert.equal((await call(club, 'POST', { body: { name: 'Short', pin: '1234' } })).status, 400);
+  assert.equal((await call(club, 'POST', { body: { code: c2.club.code, action: 'set-pin', pin: '12345', ownerToken: c2.ownerToken } })).status, 400);
+  ok(await call(club, 'POST', { body: { code: c2.club.code, action: 'set-pin', pin: '654321', ownerToken: c2.ownerToken } }));
+  assert.equal(ok(await call(club, 'POST', { body: { code: c2.club.code, action: 'verify-pin', pin: '654321' } })).shortPin, false);
+  // An old club: a 4-digit hash written straight to the table, as before the minimum existed.
+  const { hashPin } = await import(pathToFileURL(path.join(root, 'api', '_db.js')).href);
+  await pg.query('UPDATE clubs SET pin_hash = $1 WHERE code = $2', [hashPin('4821'), c2.club.code]);
+  assert.equal(ok(await call(club, 'POST', { body: { code: c2.club.code, action: 'verify-pin', pin: '4821' } })).shortPin, true);
+});
+await step('PIN backoff: escalates per network, locks right guesses out too, spares a device already unlocked', async () => {
+  const c3 = ok(await call(club, 'POST', { body: { name: 'Backoff club' } }), 201);
+  ok(await call(club, 'POST', { body: { code: c3.club.code, action: 'set-pin', pin: '135790', ownerToken: c3.ownerToken } }));
+  const h = { 'x-real-ip': '203.0.113.9' };
+  const verify = pin => call(club, 'POST', { headers: h, body: { code: c3.club.code, action: 'verify-pin', pin } });
+  const good = ok(await verify('135790'));
+  assert.match(good.deviceKey, /^[0-9a-f]{64}$/);
+  for (let i = 0; i < 5; i++) assert.equal((await verify('000000')).status, 403);
+  const locked = await verify('000000');
+  assert.equal(locked.status, 429);
+  assert.equal((await verify('135790')).status, 429, 'a locked network refuses the right PIN too');
+  // An unlocked phone sends its device key and keeps working from the same locked network.
+  ok(await verify('000000:' + good.deviceKey));
+  assert.equal((await verify('000000:' + '0'.repeat(64))).status, 429);
+  // Another network is unaffected.
+  ok(await call(club, 'POST', { headers: { 'x-real-ip': '203.0.113.77' }, body: { code: c3.club.code, action: 'verify-pin', pin: '135790' } }));
+  // The device key stops working when the PIN changes.
+  const changed = ok(await call(club, 'POST', { headers: { 'x-real-ip': '203.0.113.78' }, body: { code: c3.club.code, action: 'set-pin', pin: '246801', oldPin: '135790' } }));
+  assert.notEqual(changed.deviceKey, good.deviceKey);
+});
+await step('address limits: an IPv6 caller is limited as a whole /64', async () => {
+  const c4 = ok(await call(club, 'POST', { body: { name: 'v6 club' } }), 201);
+  let last;
+  for (let i = 0; i < 22; i++) last = await call(club, 'GET', { query: '?code=ZZZZZZ', headers: { 'x-real-ip': '2001:db8:1:2:' + (i + 1).toString(16) + '::' + i } });
+  assert.equal(last.status, 429);
+  ok(await call(club, 'GET', { query: '?code=' + c4.club.code, headers: { 'x-real-ip': '2001:db8:9:9::1' } }));
+});
+await step('club creation is throttled per network, and a bad PIN does not use up a creation', async () => {
+  const h = { 'x-real-ip': '198.51.100.5' };
+  for (let i = 0; i < 5; i++) assert.equal((await call(club, 'POST', { headers: h, body: { name: 'Bad', pin: '12' } })).status, 400);
+  for (let i = 0; i < 10; i++) ok(await call(club, 'POST', { headers: h, body: { name: 'Club ' + i } }), 201);
+  assert.equal((await call(club, 'POST', { headers: h, body: { name: 'One too many' } })).status, 429);
+  ok(await call(club, 'POST', { headers: { 'x-real-ip': '198.51.100.6' }, body: { name: 'Elsewhere' } }), 201);
+});
+await step('game allowance counts only games that are not deleted, and an organizer can reset the pause', async () => {
+  const c5 = ok(await call(club, 'POST', { body: { name: 'Allowance club' } }), 201);
+  const mk = n => Array.from({ length: n }, (_, i) => gm('a' + i + '-' + Math.random().toString(36).slice(2)));
+  const send = (n, extra = {}) => call(games, 'POST', { body: { code: c5.club.code, games: mk(n), ownerToken: c5.ownerToken, ...extra } });
+  const r1 = await send(3);
+  assert.ok(r1.status < 300, JSON.stringify(r1.json));
+  const live = (await pg.query('SELECT count(*)::int AS n FROM games WHERE club = $1', [c5.club.code])).rows[0].n;
+  assert.equal(live, 3);
+  // Pretend a long history: total_count used to cap a club for good; it no longer matters.
+  await pg.query('UPDATE clubs SET total_count = 999999 WHERE code = $1', [c5.club.code]);
+  assert.ok((await send(1)).status < 300, 'a lifetime counter must not block new games');
+  // Fill the 10-minute window, then an organizer resets it.
+  await pg.query('UPDATE clubs SET window_count = 1200, window_start = now() WHERE code = $1', [c5.club.code]);
+  assert.equal((await send(1)).status, 429);
+  assert.equal((await call(club, 'POST', { body: { code: c5.club.code, action: 'reset-allowance' } })).status, 403);
+  ok(await call(club, 'POST', { body: { code: c5.club.code, action: 'reset-allowance', ownerToken: c5.ownerToken } }));
+  assert.ok((await send(1)).status < 300);
+});
+await step('live games: each club keeps at most 20 open at once, stale ones expire', async () => {
+  const c6 = ok(await call(club, 'POST', { body: { name: 'Live club' } }), 201);
+  const st = { score: [0, 0], serving: 0, cfg: { mode: 'singles' }, winner: null };
+  const put = id => call(live, 'POST', { body: { code: c6.club.code, action: 'state', id, state: st, secret: 'secret123' } });
+  for (let i = 0; i < 20; i++) ok(await put('g' + i));
+  assert.equal((await put('overflow')).status, 429);
+  ok(await put('g3')); // updating one that exists is always fine
+  await pg.query("UPDATE live_games SET updated_at = now() - interval '2 days' WHERE club = $1 AND id = 'g0'", [c6.club.code]);
+  ok(await put('overflow'));
+});
+await step('photo avatars: kept out of the club payload, served lazily, capped per club', async () => {
+  const c7 = ok(await call(club, 'POST', { body: { name: 'Photo club' } }), 201);
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(500);
+  const toks = {};
+  const setAv = async name => {
+    if (!toks[name]) toks[name] = ok(await call(shop, 'POST', { body: { code: c7.club.code, action: 'claim', name, ownerToken: c7.ownerToken } })).playerToken;
+    return call(shop, 'POST', { body: { code: c7.club.code, action: 'avatar', name, avatar: { type: 'photo', value: photo }, playerToken: toks[name] } });
+  };
+  const first = await setAv('Ana');
+  assert.ok(first.status < 300, JSON.stringify(first.json));
+  const main = ok(await call(club, 'GET', { query: '?code=' + c7.club.code }));
+  assert.ok(!JSON.stringify(main).includes('AAAAAAAAAA'), 'the photo bytes are not in the main payload');
+  assert.equal(main.players.find(p => p.name === 'Ana').avatar.type, 'photo');
+  const lazy = ok(await call(club, 'GET', { query: '?code=' + c7.club.code + '&avatars=1' }));
+  assert.equal(lazy.photos.Ana.value, photo);
+  assert.equal(lazy.photos.Ana.v, main.players.find(p => p.name === 'Ana').avatar.v);
+  for (let i = 1; i < 50; i++) await pg.query("INSERT INTO roster (club, name, name_key, avatar) VALUES ($1, $2, $3, $4::jsonb)", [c7.club.code, 'P' + i, 'p' + i, JSON.stringify({ type: 'photo', value: photo })]);
+  assert.equal((await setAv('Zed')).status, 409);
+  assert.ok((await setAv('Ana')).status < 300, 'replacing your own photo is fine');
 });
 
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);

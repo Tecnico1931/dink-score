@@ -13,7 +13,7 @@
 //   given    {pin|ownerToken, purchaseId}            -> organizer: mark a club reward as handed over
 //   refund   {pin|ownerToken, purchaseId}            -> organizer: undo a purchase and return the Dinks
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp, MAX_PHOTOS } from './_db.js';
 import { cleanDupr } from './_dupr.js';
 import { computeDinks, computeProgress, CATALOG, SLOTS, shopSettings, SPIN_ID, SPIN_WHEEL, SPIN_WEIGHTS, computeXP, levelFrom, PRESTIGE_ID, PRESTIGE_DINKS } from './_dinks.js';
 
@@ -167,6 +167,11 @@ export default handler(async (req, res) => {
     // A player sets their own picture: an emoji, one of the app's pickleball icons, a small photo, or back to initials.
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     const avatar = cleanAvatar(body.avatar);
+    if (avatar && avatar.type === 'photo') {
+      // A club keeps at most MAX_PHOTOS photos; replacing your own photo is always fine.
+      const [{ photos, mine }] = await sql`SELECT count(*)::int AS photos, count(*) FILTER (WHERE name_key = ${player.name_key})::int AS mine FROM roster WHERE club = ${code} AND avatar->>'type' = 'photo'`;
+      if (!Number(mine) && Number(photos) >= MAX_PHOTOS) throw fail(409, `This club already has ${MAX_PHOTOS} photo pictures. Pick an emoji or icon instead, or ask an organizer to remove an old photo.`);
+    }
     await sql`UPDATE roster SET avatar = ${avatar ? JSON.stringify(avatar) : null}::jsonb WHERE club = ${code} AND name_key = ${player.name_key}`;
     return send(res, 200, { ok: true, avatar });
   }
