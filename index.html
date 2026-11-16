@@ -1978,6 +1978,110 @@ async function recoverClub(clubCode, raw) {
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
   afterJoin();
 }
+// Optional account (see api/account.js): a passkey keeps your clubs and history across phones. Nothing else depends on it.
+let acct = null; // the last answer from /api/account: { account, identities } once loaded
+const passkeysOk = () => !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+const toBuf = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0)).buffer;
+const fromBuf = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const acctPost = body => api('account', { method: 'POST', body: JSON.stringify(body) });
+function credJson(c) {
+  const r = c.response, response = { clientDataJSON: fromBuf(r.clientDataJSON) };
+  if (r.attestationObject) { response.attestationObject = fromBuf(r.attestationObject); response.transports = r.getTransports ? r.getTransports() : []; }
+  else { response.authenticatorData = fromBuf(r.authenticatorData); response.signature = fromBuf(r.signature); if (r.userHandle) response.userHandle = fromBuf(r.userHandle); }
+  return { id: c.id, rawId: fromBuf(c.rawId), type: c.type, response };
+}
+async function passkeyCreate(o) {
+  const pk = Object.assign({}, o, { challenge: toBuf(o.challenge), user: Object.assign({}, o.user, { id: toBuf(o.user.id) }), excludeCredentials: (o.excludeCredentials || []).map(x => Object.assign({}, x, { id: toBuf(x.id) })) });
+  return credJson(await navigator.credentials.create({ publicKey: pk }));
+}
+async function passkeyGet(o) { return credJson(await navigator.credentials.get({ publicKey: Object.assign({}, o, { challenge: toBuf(o.challenge) }) })); }
+async function acctLoad() { try { acct = await api('account'); } catch { acct = null; } }
+const acctMsg = err => err && (err.name === 'NotAllowedError' || err.name === 'AbortError') ? 'The passkey step was cancelled. Try again when you are ready.' : err.message;
+// Hands the server this phone's own tokens, once, so the account can bring the same clubs and names to another phone.
+async function acctClaim() {
+  const items = clubs.map(c => ({ code: c.code, ownerToken: owners[c.code] || '', playerName: (me[c.code] || {}).name || '', playerToken: (me[c.code] || {}).token || '' })).filter(i => i.ownerToken || i.playerToken);
+  let linked = 0;
+  for (let i = 0; i < items.length; i += 30) { const d = await acctPost({ action: 'claim', items: items.slice(i, i + 30) }); linked += d.linked.length; acct = d; }
+  return linked;
+}
+// Brings back identities the account holds that this phone does not (a new phone). A phone that already holds one keeps it.
+async function acctRestore() {
+  const want = ((acct && acct.identities) || []).filter(i => !i.stale && (i.kind === 'organizer' ? !owners[i.code] : !(me[i.code] && me[i.code].token)));
+  let n = 0;
+  for (let i = 0; i < want.length; i += 30) {
+    const d = await acctPost({ action: 'restore', items: want.slice(i, i + 30).map(w => ({ code: w.code, kind: w.kind, name: w.name })) });
+    for (const r of d.restored) {
+      if (!clubs.some(c => c.code === r.code)) clubs.push({ code: r.code, name: String(r.club || r.code).slice(0, 60) });
+      if (r.kind === 'organizer') owners[r.code] = r.token; else me[r.code] = { name: r.name, token: r.token };
+      n++;
+    }
+  }
+  if (n) { adoptMoved(); const first = club || clubs[0]; if (first) await joinClub(first.code, first.name); }
+  return n;
+}
+async function acctRun(fn, done) {
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try { const msg = await fn(); clubSheet = { view: 'account', msg: msg || done || '' }; }
+  catch (err) { clubSheet.busy = false; clubSheet.error = acctMsg(err); }
+  renderClub();
+}
+const acctSyncMsg = (restored, linked) => `Signed in. ${restored ? `Brought ${restored} club name${restored === 1 ? '' : 's'} to this phone. ` : ''}${linked ? `Linked ${linked} from this phone.` : ''}`.trim();
+function acctSignUp(name) {
+  return acctRun(async () => {
+    const o = await acctPost({ action: 'register-options', name });
+    const d = await acctPost({ action: 'register', challengeId: o.challengeId, credential: await passkeyCreate(o.options), name });
+    acct = d;
+    const linked = await acctClaim();
+    return `Account created. ${linked ? `Linked ${linked} club name${linked === 1 ? '' : 's'} from this phone.` : 'Nothing on this phone to link yet.'}`;
+  });
+}
+function acctSignIn() {
+  return acctRun(async () => {
+    const o = await acctPost({ action: 'login-options' });
+    acct = await acctPost({ action: 'login', challengeId: o.challengeId, credential: await passkeyGet(o.options) });
+    const restored = await acctRestore();
+    return acctSyncMsg(restored, await acctClaim());
+  });
+}
+function acctOut() { return acctRun(async () => { await acctPost({ action: 'logout' }); acct = null; return 'Signed out. Your clubs on this phone still work.'; }); }
+function acctAddPasskey() {
+  return acctRun(async () => {
+    const o = await acctPost({ action: 'passkey-options' });
+    acct = await acctPost({ action: 'passkey-add', challengeId: o.challengeId, credential: await passkeyCreate(o.options) });
+    return 'Passkey added.';
+  });
+}
+function acctDelete() { return acctRun(async () => { await acctPost({ action: 'delete-account' }); acct = null; return 'Account deleted. Your clubs and games were not touched.'; }); }
+async function acctOpen() {
+  clubSheet = { view: 'account', busy: true }; renderClub();
+  await acctLoad();
+  if (clubSheet && clubSheet.view === 'account') { clubSheet.busy = false; renderClub(); }
+}
+function accountHTML(c) {
+  const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
+  const back = `<div class="btns"><button class="btn btn-soft" data-act="acct-close">Done</button></div>`;
+  const what = `<p>An account is optional. Without one, Dink Score works exactly as before. With one, you keep your clubs, player names and organizer access across phones, and a lost phone no longer loses them. There is no password: you sign in with a passkey, the fingerprint, face or screen lock you already use on this phone.</p>`;
+  const note = c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : '';
+  if (!passkeysOk()) return `<h2 id="club-h">Account (optional)</h2>${what}<p class="err">This browser can't make passkeys, so accounts aren't available here. Everything else works.</p>${back}`;
+  if (acct && acct.account) {
+    const ids = acct.identities || [];
+    return `<h2 id="club-h">Your account</h2>${note}${err}
+      <p>Signed in as <b>${esc(acct.account.name)}</b>. ${acct.account.passkeys} passkey${acct.account.passkeys === 1 ? '' : 's'}.</p>
+      <div class="field"><span class="lab">Linked to your account</span>${ids.length ? `<ul class="deleted">${ids.map(i => `<li><span>${esc(i.club)}: ${i.kind === 'organizer' ? 'organizer access (club creator)' : esc(i.name || 'player name')}${i.stale ? ' (no longer valid)' : ''}</span></li>`).join('')}</ul>` : '<p class="note">Nothing yet.</p>'}
+        <button class="btn btn-ink block" data-act="acct-claim" ${c.busy ? 'disabled' : ''}>Link this phone's clubs</button>
+        <p class="note">Links the club names and organizer access this phone already holds, so they come back on a new phone when you sign in.</p></div>
+      <button class="btn btn-soft block" data-act="acct-passkey" ${c.busy ? 'disabled' : ''}>Add another passkey</button>
+      <button class="btn btn-soft block" data-act="acct-out" ${c.busy ? 'disabled' : ''}>Sign out</button>
+      <button class="btn btn-line-danger block" data-act="acct-delete" ${c.busy ? 'disabled' : ''}>${c.confirmDelete ? 'Tap again to delete the account' : 'Delete account'}</button>
+      <p class="note">Deleting removes the account and its passkeys. Clubs, games and ratings stay where they are.</p>${back}`;
+  }
+  return `<h2 id="club-h">Account (optional)</h2>${what}${note}${err}
+    <form class="club-form" data-form="acct-up"><label class="lab" for="acct-name">Create an account</label>
+      <div class="add-player"><input id="acct-name" placeholder="Your name" autocomplete="name" maxlength="40"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
+      <p class="note">Your clubs and names on this phone are linked to it.</p></form>
+    <div class="or"><span>or</span></div>
+    <button class="btn btn-ink block" data-act="acct-in" ${c.busy ? 'disabled' : ''}>Sign in with a passkey</button>${back}`;
+}
 async function pinSet(oldPin, pin, again) {
   pin = String(pin || '').trim();
   if (!/^\d{6,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 6 to 8 digits.'; renderClub(); return; }
@@ -2028,6 +2132,8 @@ function renderClub() {
     body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
       <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
+  } else if (c.view === 'account') {
+    body = accountHTML(c);
   } else if (c.view === 'move-out') {
     body = `<h2 id="club-h">Move to a new phone</h2>
       <p>This copies your clubs, player claims and organizer access to another phone. No account needed. The code works once, for 10 minutes, then it is gone. Your clubs stay on this phone too.</p>
@@ -2064,6 +2170,7 @@ function renderClub() {
         <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="Leave blank to get a code"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
         <p class="note">Every club has an organizer. Only people with the PIN can delete or restore games, change the code or run events. Choose 6 to 8 digits, or leave it blank and we'll make an organizer code for you.</p></form>${err}
       <button class="link" data-act="move-in-open">Moving from another phone?</button>
+      <button class="link" data-act="acct-open">Account (optional): keep your clubs across phones</button>
       ${club ? '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button></div>' : ''}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
@@ -2114,6 +2221,7 @@ function renderClub() {
       ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
       ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
+      <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
@@ -4473,6 +4581,13 @@ document.addEventListener('click', e => {
   if (ds.edit) { openEdit(ds.edit); return; }
   if (ds.restore) { withPin({ type: 'restore', id: ds.restore }); return; }
   if (ds.act === 'code-rotate-open') { clubSheet = { view: 'rotate' }; renderClub(); return; }
+  if (ds.act === 'acct-open') { acctOpen(); return; }
+  if (ds.act === 'acct-close') { clubSheet = club ? { view: 'club' } : { view: 'add' }; renderClub(); return; }
+  if (ds.act === 'acct-in') { acctSignIn(); return; }
+  if (ds.act === 'acct-out') { acctOut(); return; }
+  if (ds.act === 'acct-passkey') { acctAddPasskey(); return; }
+  if (ds.act === 'acct-claim') { acctRun(async () => { const n = await acctClaim(); return n ? `Linked ${n} club name${n === 1 ? '' : 's'} from this phone.` : 'Nothing new to link on this phone.'; }); return; }
+  if (ds.act === 'acct-delete') { if (!clubSheet.confirmDelete) { clubSheet.confirmDelete = true; renderClub(); return; } acctDelete(); return; }
   if (ds.act === 'move-out-open') { clubSheet = { view: 'move-out' }; renderClub(); return; }
   if (ds.act === 'move-in-open') { clubSheet = { view: 'move-in' }; renderClub(); return; }
   if (ds.act === 'recovery-open') { clubSheet = { view: 'recovery' }; renderClub(); return; }
@@ -4605,6 +4720,7 @@ document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
+  if (form.matches('[data-form="acct-up"]')) { e.preventDefault(); acctSignUp($('#acct-name').value); return; }
   if (form.matches('[data-form="move-out"]')) { e.preventDefault(); moveOut(); return; }
   if (form.matches('[data-form="move-in"]')) { e.preventDefault(); moveIn($('#move-code').value); return; }
   if (form.matches('[data-form="recover"]')) { e.preventDefault(); recoverClub($('#rec-club').value, $('#rec-code').value); return; }
