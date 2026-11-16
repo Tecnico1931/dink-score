@@ -42,6 +42,13 @@
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
   color-scheme: dark;
 }
+/* Outdoor display (a per-device setting): maximum contrast in direct sun, whatever the phone's own theme. */
+:root[data-outdoor] {
+  --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #E8E8E8; --ink: #000000; --muted: #2B2B2B; --line: #5A5A5A;
+  --blue: #0A28B8; --green: #00593F; --up: #00593F; --down: #A80000; --danger: #A80000; --focus: #0A28B8;
+  --shadow: none;
+  color-scheme: light;
+}
 /*TOKENS-END*/
 html { height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); }
 body { height: 100%; height: 100dvh; margin: 0; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
@@ -97,7 +104,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .tile.live .t-name { grid-column: 1; font-weight: 500; opacity: .8; font-size: 14px; }
 .tile.live .go { grid-column: 2; grid-row: 1 / span 3; background: var(--ball); color: var(--ball-ink); border-radius: 999px; padding: 12px 18px; font-weight: 700; }
 .tile.log { background: var(--blue); color: #fff; }
-.tile.log .t-k { color: rgb(255 255 255 / .8); }
+.tile.log .t-k { color: #fff; }
 .tile.log .plus { width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / .18); display: grid; place-items: center; font-size: 22px; line-height: 1; }
 .tile.log .t-name { margin-top: auto; font-size: 17px; }
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 58px; margin-top: 4px; }
@@ -105,7 +112,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .week i { display: block; width: 100%; max-width: 26px; border-radius: 6px; background: var(--surface-2); min-height: 4px; }
 .week i.has { background: var(--green); }
 .week i.today { outline: 2px solid var(--ball); outline-offset: 1px; }
-.week span { font-size: 11px; color: var(--muted); }
+.week span { font-size: 12px; color: var(--muted); }
 
 /* Setup */
 .field { display: flex; flex-direction: column; gap: 8px; }
@@ -141,7 +148,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .chip-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .chip-btn[aria-pressed="true"] .r { color: inherit; opacity: .65; }
 .chip-btn.editing { border-style: dashed; }
-.chip-btn.editing::after { content: "✕"; font-size: 11px; color: var(--danger); }
+.chip-btn.editing::after { content: "✕"; font-size: 12px; color: var(--danger); }
 .add-player { display: flex; gap: 8px; }
 .add-player input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; }
 .new-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -225,7 +232,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .prow .rel i b { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 2px; }
 .prow .pr { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .prow .rating { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
-.badge { font-size: 11px; font-weight: 700; border-radius: 999px; padding: 2px 8px; }
+.badge { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px; }
 .badge.prov { background: var(--surface-2); color: var(--muted); }
 .badge.hot { background: var(--ball); color: var(--ball-ink); }
 .delta { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -261,7 +268,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
   background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
   border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 12px 34px -12px rgb(0 0 0 / .35);
 }
-.tabs button { border: 0; background: transparent; padding: 8px 4px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
+.tabs button { border: 0; background: transparent; padding: 8px 4px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
 .tabs button[hidden] { display: none; }
 .tabs button svg { width: 22px; height: 22px; }
 .tabs button[aria-current="page"] { background: var(--ink); color: var(--bg); }
@@ -338,7 +345,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .call { position: relative; display: flex; gap: 4px; padding: 5px; border-radius: 22px; background: rgb(15 22 34 / .86); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12), 0 14px 34px -12px rgb(0 0 0 / .9); }
 .call div { width: 60px; display: flex; flex-direction: column; align-items: center; padding: 7px 0 6px; border-radius: 17px; }
 .call b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
-.call small { font-size: 10px; font-weight: 600; color: rgb(255 255 255 / .55); margin-top: 3px; }
+.call small { font-size: 12px; font-weight: 600; color: rgb(255 255 255 / .55); margin-top: 3px; }
 .call div:first-child { background: var(--ball); color: var(--ball-ink); }
 .call div:first-child small { color: rgb(27 33 4 / .7); }
 .net .who { font-size: 13px; color: rgb(255 255 255 / .72); text-align: center; }
@@ -357,7 +364,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
   .net .who, .net .first-hint { max-width: 150px; text-align: center; position: relative; background: #0A111B; border-radius: 10px; padding: 4px 8px; }
   .court .big { font-size: min(44vh, 17vw); }
 }
-@media (max-height: 640px) { .big { font-size: clamp(84px, 22vh, 200px); } .avs i { width: 28px; height: 28px; font-size: 11px; } }
+@media (max-height: 640px) { .big { font-size: clamp(84px, 22vh, 200px); } .avs i { width: 28px; height: 28px; font-size: 12px; } }
 
 .toast { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 95; background: var(--ball); color: var(--ball-ink); font-weight: 700; font-size: 15px; padding: 11px 18px; border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / .35); max-width: calc(100% - 32px); text-align: center; animation: drop .3s ease-out; }
 @keyframes drop { from { transform: translate(-50%, -10px); opacity: 0; } }
@@ -368,7 +375,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 /*REPLAYCHART-CSS-START*/
 .rp-svg { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: pointer; }
 .rp-zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
-.rp-ax { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.rp-ax { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 .rp-line { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; opacity: .6; }
 .rp-run { fill: none; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
 .rp-run.t0 { stroke: var(--blue); }
@@ -500,13 +507,13 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .badge.you { background: var(--ink); color: var(--bg); margin-left: 6px; }
 .avatar-mini { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--bg); display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
 .dupr { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
-.dupr small { font-size: 10px; font-weight: 500; opacity: .8; }
+.dupr small { font-size: 12px; font-weight: 500; opacity: .8; }
 .dupr-box { display: flex; flex-direction: column; gap: 8px; }
 .dupr-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .dupr-form { display: flex; gap: 8px; align-items: stretch; }
 .dupr-form input { flex: 1; min-width: 0; border: 1px solid var(--line, #d6d6d6); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; color: var(--ink); }
 .dsso-chip { display: inline-flex; align-items: baseline; gap: 6px; font-size: 14px; font-weight: 700; background: var(--surface-2); border-radius: 999px; padding: 4px 12px; }
-.dsso-chip small { font-size: 11px; font-weight: 500; color: var(--muted); }
+.dsso-chip small { font-size: 12px; font-weight: 500; color: var(--muted); }
 .dsso-frame { width: 100%; height: min(62vh, 480px); border: 0; border-radius: 14px; background: #fff; }
 .dsso-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .dsso-item { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
@@ -517,7 +524,7 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .dsso-check input { width: 22px; height: 22px; flex: none; margin: 0; }
 .dupr-form .btn { padding: 10px 16px; font-size: 15px; border-radius: 12px; }
 .dupr-entry { display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); border-radius: 14px; padding: 12px; }
-.dupr-entry .test { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--ink); background: var(--yellow, #f5c542); border-radius: 999px; padding: 2px 8px; }
+.dupr-entry .test { align-self: flex-start; font-size: 12px; font-weight: 700; letter-spacing: .02em; color: var(--ink); background: var(--yellow, #f5c542); border-radius: 999px; padding: 2px 8px; }
 button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; min-height: 32px; padding: 0 10px; cursor: pointer; flex: none; }
 .mem-dupr { display: inline-flex; gap: 8px; align-items: center; }
 .me-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
@@ -537,7 +544,7 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .ach { position: relative; background: var(--surface-2); border-radius: 14px; padding: 10px 8px 9px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; min-width: 0; }
 .ach .ach-ic { font-size: 26px; line-height: 1.1; filter: grayscale(1); opacity: .35; }
 .ach b { font-size: 12px; line-height: 1.2; color: var(--muted); }
-.ach small { font-size: 10px; color: var(--muted); line-height: 1.25; }
+.ach small { font-size: 12px; color: var(--muted); line-height: 1.25; }
 .ach.got { background: color-mix(in srgb, var(--ball) 16%, var(--surface-2)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ball) 60%, transparent); }
 .ach.got .ach-ic { filter: none; opacity: 1; }
 .ach.got b { color: var(--ink); }
@@ -568,7 +575,7 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .avs i .av-emoji { font-size: 17px; } .avs i .av-img { width: 100%; height: 100%; }
 .avs i { overflow: visible; }
 .av-btn { border: 0; background: transparent; padding: 0; position: relative; display: inline-flex; flex: none; cursor: pointer; }
-.av-btn .av-edit { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 800; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 1px 5px; box-shadow: 0 0 0 2px var(--surface); }
+.av-btn .av-edit { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 800; background: var(--ink); color: var(--bg); border-radius: 999px; padding: 1px 5px; box-shadow: 0 0 0 2px var(--surface); }
 .av-preview { display: flex; align-items: center; gap: 14px; padding: 6px 2px; }
 .av-preview .av { width: 64px; height: 64px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 22px; --r: 38px; flex: none; }
 .av-preview .av .av-emoji { font-size: 36px; }
@@ -579,7 +586,7 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .av-grid.icons .av-pick { aspect-ratio: auto; padding: 10px 4px 6px; }
 .av-pick .av-emoji { font-size: 24px; }
 .av-pick .av-icon { width: 30px; height: 30px; }
-.av-pick small { font-size: 10px; color: var(--muted); font-weight: 600; text-align: center; line-height: 1.1; }
+.av-pick small { font-size: 12px; color: var(--muted); font-weight: 600; text-align: center; line-height: 1.1; }
 .av-pick.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink); background: var(--surface); }
 .photo-drop { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; border: 2px dashed var(--line); border-radius: 18px; padding: 22px 16px; cursor: pointer; font-weight: 700; }
 .photo-drop small { font-weight: 500; color: var(--muted); max-width: 32ch; }
@@ -601,7 +608,7 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .chart-card { background: var(--surface-2); border-radius: 18px; padding: 12px 12px 6px; position: relative; }
 .chart-card h3 { font-size: 16px; margin: 0 0 4px 2px; }
 .chart-card svg { display: block; width: 100%; height: auto; overflow: visible; touch-action: pan-y; }
-.chart-card .axis { font-size: 10px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.chart-card .axis { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 .chart-card .grid { stroke: var(--line); stroke-width: 1; }
 .chart-card .base { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; opacity: .7; }
 .chart-card .area { fill: var(--blue); opacity: .12; }
@@ -886,10 +893,63 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 #club-display.dsp-has-board .dsp-qr { width: min(18vh, 24vw); padding: 1.4vmin; border-radius: 1.6vmin; }
 #club-display.dsp-has-board .dsp-code { font-size: 3.4vmin; margin-top: 0; }
 #club-display.dsp-has-board .dsp-inner { justify-content: flex-start; }
+/*A11Y-START*/
+h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
+/* Targets: 44 px for everything you press (WCAG 2.5.5; 2.5.8 asks only 24). Text: 12 px at the least. */
+.seg button, .chip-btn, .serve-pick, .sync.club-btn, button.dupr-btn, .tour-skip, .link, .stepper .sb button { min-height: 44px; }
+.sync.club-btn, button.dupr-btn { min-width: 44px; padding-inline: 14px; }
+.swap, .me-btn { width: 44px; height: 44px; }
+.stepper .sb button { min-width: 44px; }
+.tabs button { min-height: 48px; font-size: 12px; }
+.tile.log .t-k, .tile.live .t-k { opacity: 1; }
+.tile.live .t-name { opacity: 1; }
+/* Court contrast: white text on the team colours is 4.5:1 or better along the whole gradient. */
+.half { --c1: #3452EE; --c2: #1A2BA6; }
+.half[data-k="b"] { --c1: #0C8663; --c2: #065A43; }
+.names span { color: rgb(255 255 255 / .92); }
+.match span { color: rgb(255 255 255 / .8); }
+.side-mini { color: rgb(255 255 255 / .94); }
+.call small { font-size: 12px; color: rgb(255 255 255 / .8); }
+.net .who { color: rgb(255 255 255 / .9); }
+.court :focus-visible { outline: 3px solid var(--ball); outline-offset: -5px; }
+.court .icon-btn:focus-visible { outline-offset: 2px; }
+.icon-btn[aria-pressed="true"] { background: var(--ball); color: var(--ball-ink); }
+/* Outdoor display: solid colours, no gradients, glass or see-through text. */
+:root[data-outdoor] .court { background: #000; }
+:root[data-outdoor] .half { background: var(--c1); box-shadow: none; --c1: #0A28B8; --c2: #0A28B8; }
+:root[data-outdoor] .half[data-k="b"] { --c1: #00593F; --c2: #00593F; }
+:root[data-outdoor] .half .glow { display: none; }
+:root[data-outdoor] .half.idle::before { background: rgb(0 0 0 / .35); }
+:root[data-outdoor] .half.idle .big { color: #fff; }
+:root[data-outdoor] .big { text-shadow: none; }
+:root[data-outdoor] .names span, :root[data-outdoor] .match span, :root[data-outdoor] .side-mini, :root[data-outdoor] .call small, :root[data-outdoor] .net .who { color: #fff; opacity: 1; }
+:root[data-outdoor] .names span { font-weight: 700; }
+:root[data-outdoor] .pill { background: #fff; color: #000; }
+:root[data-outdoor] .pill.serve { background: var(--ball); color: var(--ball-ink); }
+:root[data-outdoor] .call { background: #000; box-shadow: inset 0 0 0 2px #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-outdoor] .call div:first-child small { color: var(--ball-ink); }
+:root[data-outdoor] .icon-btn { background: #000; box-shadow: inset 0 0 0 2px #fff; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-outdoor] .icon-btn[aria-pressed="true"] { background: var(--ball); box-shadow: inset 0 0 0 2px #000; }
+:root[data-outdoor] .side-mini .boxes, :root[data-outdoor] .side-mini .boxes i + i { border-color: #fff; }
+:root[data-outdoor] .progress { background: rgb(255 255 255 / .4); }
+:root[data-outdoor] .btn-soft { box-shadow: inset 0 0 0 2px var(--ink); }
+:root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+/* Large scores: the numbers fill the court, the names and call grow with them. */
+:root[data-large] .big { font-size: clamp(150px, 33vh, 340px); }
+:root[data-large] .names span { font-size: 19px; }
+:root[data-large] .pill, :root[data-large] .side-mini, :root[data-large] .match span, :root[data-large] .net .who { font-size: 15px; }
+:root[data-large] .call { padding: 7px; }
+:root[data-large] .call div { width: 74px; }
+:root[data-large] .call b { font-size: 40px; }
+:root[data-large] .call small { font-size: 13px; }
+:root[data-large] .match b { font-size: 30px; }
+@media (orientation: landscape) and (min-width: 640px) { :root[data-large] .court .big { font-size: min(52vh, 21vw); } }
+@media (max-height: 640px) { :root[data-large] .big { font-size: clamp(110px, 30vh, 260px); } }
+/*A11Y-END*/
 
 </style>
 
-<div class="app" id="app"></div>
+<main class="app" id="app"></main>
 <div id="club-display" hidden>
   <div class="dsp-inner">
     <div class="dsp-brand">DINK SCORE</div>
@@ -914,6 +974,7 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
   </nav>
 </div>
 
+<div id="a11y-live" class="vh" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="events"></div>
 <div id="overlay"></div>
 <div id="sheet2"></div>
@@ -1549,6 +1610,20 @@ const store = {
   },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
+// Display options live on this phone only (nothing is sent to the club): outdoor = high contrast, large = bigger court numbers.
+let display = (() => { const d = store.get('pb.display', {}); return { outdoor: d.outdoor ? 1 : 0, large: d.large ? 1 : 0 }; })();
+function applyDisplay() {
+  const r = document.documentElement;
+  r.toggleAttribute('data-outdoor', !!display.outdoor); r.toggleAttribute('data-large', !!display.large);
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = display.outdoor ? '#000000' : '#0F241E';
+}
+function setDisplay(patch) { display = Object.assign({}, display, patch); store.set('pb.display', display); applyDisplay(); }
+// Screen readers: one live region that is never rebuilt (the court redraws itself every rally, which would drop its own announcements).
+function announce(msg) {
+  const el = document.getElementById('a11y-live'); if (!el) return;
+  el.textContent = ''; clearTimeout(announce.t);
+  announce.t = setTimeout(() => { el.textContent = msg; }, 60);
+}
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch {} };
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];
 const TEAM_NAME = ['Blue', 'Green'];
@@ -2710,7 +2785,7 @@ function monthCard(games) {
   const month = now.toLocaleDateString(undefined, { month: 'long' });
   const mine = games.filter(g => g.endedAt >= start);
   const title = club ? `${esc(club.name)} in ${esc(month)}` : `This month`;
-  if (!mine.length) return `<section class="card month"><div class="sec-head"><h3>${title}</h3></div><p class="note">No games yet in ${esc(month)}. Finished and logged games will show up here.</p></section>`;
+  if (!mine.length) return `<section class="card month"><div class="sec-head"><h2 class="h-sub">${title}</h2></div><p class="note">No games yet in ${esc(month)}. Finished and logged games will show up here.</p></section>`;
   const players = new Map();
   let points = 0;
   for (const g of mine) {
@@ -2737,7 +2812,7 @@ function monthCard(games) {
     `<li><span class="mk">Biggest win</span><span class="mv">${res(biggest)}</span></li>`,
     mine.length > 1 ? `<li><span class="mk">Closest game</span><span class="mv">${res(closest)}</span></li>` : ''
   ].join('');
-  return `<section class="card month"><div class="sec-head"><h3>${title}</h3>${club ? '' : '<span class="note">On this phone</span>'}</div>
+  return `<section class="card month"><div class="sec-head"><h2 class="h-sub">${title}</h2>${club ? '' : '<span class="note">On this phone</span>'}</div>
     <div class="month-stats"><div><b>${mine.length}</b><span>Games</span></div><div><b>${list.length}</b><span>Players</span></div><div><b>${points}</b><span>Points</span></div></div>
     <ul class="month-facts">${facts}</ul></section>`;
 }
@@ -2877,6 +2952,9 @@ let lbScope = store.get('pb.lbScope', 'all');
 
 function rulesView() {
   return `<section><h2>Rules</h2><p class="sub">The essentials, for settling it at the kitchen line.</p></section>
+  <div class="rule" role="group" aria-labelledby="disp-h"><h3 id="disp-h">Display on this phone</h3><p>For bright sun: the court and the whole app switch to black, white and solid colours. Large scores make the numbers fill the court. Only this phone changes. You can also switch it from the sun button while you score.</p>
+    <div class="seg-row"><div><span class="lab" id="disp-o">Contrast</span>${seg('data-disp', [['outdoor-0', 'Standard'], ['outdoor-1', 'Sunlight']], 'outdoor-' + display.outdoor).replace('role="group"', 'role="group" aria-labelledby="disp-o"')}</div>
+    <div><span class="lab" id="disp-l">Scores</span>${seg('data-disp', [['large-0', 'Normal'], ['large-1', 'Large']], 'large-' + display.large).replace('role="group"', 'role="group" aria-labelledby="disp-l"')}</div></div></div>
   <div class="rule"><h3>New to Dink Score?</h3><p>Take the quick tour of how to set up games, keep score, log results and read the leaderboard.</p><button class="btn btn-ink replay" data-tour="open" style="padding:11px 16px;border-radius:12px;font-size:15px">Show the tour</button></div>
   <div class="rules">
     <div class="rule"><h3>Calling the score</h3><p>In doubles, say three numbers before each serve.</p>
@@ -2935,6 +3013,7 @@ const ICON = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v7h14v-7"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>'
 };
@@ -2942,8 +3021,10 @@ let lastTap = null; // where the last rally tap landed, for the ripple
 
 function renderCourt() {
   const root = $('#overlay');
-  if (!live || !live.open) { root.innerHTML = ''; lockBody(!!logForm); return; }
-  lockBody(true);
+  const behind = off => { for (const sel of ['#app', '#tabs']) { const el = $(sel); if (el) el.inert = off || !!(evScreen && club); } }; // the page behind is out of reach while the court is up
+  const ae = document.activeElement, keep = root.contains(ae) && root.querySelector('.court') && root.querySelector('.court').contains(ae) ? (ae.dataset.rally != null ? `[data-rally="${ae.dataset.rally}"]` : ae.dataset.act ? `[data-act="${ae.dataset.act}"]` : '') : null;
+  if (!live || !live.open) { root.innerHTML = ''; behind(false); lockBody(!!logForm); return; }
+  behind(true); lockBody(true);
   const s = live.state, cfg = s.cfg;
   const callParts = PB.call(s);
   const callLabels = callParts.length === 3 ? ['Serving', 'Receiving', 'Server'] : ['Serving', 'Receiving'];
@@ -2961,13 +3042,13 @@ function renderCourt() {
     ].join('');
     const sideMini = serving ? `<div class="side-mini"><span>From the ${side}</span><div class="boxes" aria-hidden="true">${t === 0 ? `<i class="${side === 'left' ? 'on' : ''}"></i><i class="${side === 'right' ? 'on' : ''}"></i>` : `<i class="${side === 'right' ? 'on' : ''}"></i><i class="${side === 'left' ? 'on' : ''}"></i>`}</div></div>` : '<span></span>';
     const pct = Math.min(100, Math.round(100 * s.score[t] / cfg.target));
-    return `<button class="half ${serving ? '' : 'idle'}" data-k="${k}" data-rally="${t}" aria-label="${esc(teamLabel(cfg.teams[t]))} won the rally. Their score is ${s.score[t]}${serving ? ', serving' : ''}">
+    return `<button class="half ${serving ? '' : 'idle'}" data-k="${k}" data-rally="${t}">
       <span class="glow"></span>
       <span class="inner">
-        <span class="team-row"><span class="avs">${avs}</span><span class="names">${names}</span><span class="badges">${badges}</span></span>
+        <span class="team-row"><span class="avs" aria-hidden="true">${avs}</span><span class="names">${names}</span><span class="badges">${badges}</span></span>
         <span class="score-row"><span class="big ${bumpTeam === t ? 'bump' : ''}">${s.score[t]}</span>${sideMini}</span>
         <span class="progress" aria-hidden="true"><b style="width:${pct}%"></b></span>
-      </span></button>`;
+      </span><span class="vh">. Press when ${esc(teamLabel(cfg.teams[t]))} wins the rally</span></button>`;
   };
   let sheet = '';
   if (s.winner !== null) {
@@ -2991,20 +3072,24 @@ function renderCourt() {
         <button class="btn btn-danger" data-act="discard">End without saving</button></div></div></div>`;
   }
   const fresh = s.rallies === 0;
-  root.innerHTML = `<div class="court">
+  const hadSheet = !!root.querySelector('.sheet');
+  root.innerHTML = `<div class="court" role="group" aria-label="Scoring"${sheet ? ' inert' : ''}>
     <div class="court-top">
       <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
       <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${live.event ? esc(live.event.name) + ': ' : ''}${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
-      <div class="cright"><button class="icon-btn" data-act="club-share" aria-label="Share this game: join code and QR">${ICON.share}</button><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
+      <div class="cright"><button class="icon-btn" data-act="display" aria-pressed="${display.outdoor ? 'true' : 'false'}" aria-label="Sunlight display: high contrast and large scores">${ICON.sun}</button><button class="icon-btn" data-act="club-share" aria-label="Share this game: join code and QR">${ICON.share}</button><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
     </div>
     ${half(0)}
-    <div class="net" aria-live="polite">
-      <div class="call" aria-label="Score call ${callParts.join(' ')}">${callParts.map((n, i) => `<div><b>${n}</b><small>${callLabels[i]}</small></div>`).join('')}</div>
+    <div class="net">
+      <div class="call" role="group" aria-label="Score call ${callParts.join(' ')}">${callParts.map((n, i) => `<div><b>${n}</b><small>${callLabels[i]}</small></div>`).join('')}</div>
       ${fresh ? '<div class="first-hint">Tap the side that wins each rally</div>' : `<div class="who"><b>${esc(serverName)}</b> serves from the ${side}</div>`}
     </div>
     ${half(1)}
-  </div>${live.toast ? `<div class="toast" role="status">${esc(live.toast)}</div>` : ''}${sheet}`;
+  </div>${live.toast ? `<div class="toast">${esc(live.toast)}</div>` : ''}${sheet}`;
   bumpTeam = null;
+  // The court is rebuilt on every rally, so put focus back where it was; a sheet that has just opened takes it.
+  if (sheet && !hadSheet) { const h = root.querySelector('.sheet h2'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
+  else if (!sheet && keep) { const b = root.querySelector(keep); if (b && !b.disabled) b.focus({ preventScroll: true }); else if (hadSheet) { const g = root.querySelector('.half'); if (g) g.focus({ preventScroll: true }); } }
   if (lastTap) {
     const el = root.querySelector(`.half[data-rally="${lastTap.t}"]`);
     if (el) { const r = document.createElement('span'); r.className = 'ripple'; r.style.left = lastTap.x + 'px'; r.style.top = lastTap.y + 'px'; el.appendChild(r); }
@@ -3169,8 +3254,9 @@ setInterval(async () => {
 function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), log: live.log, open: live.open, event: live.event || null, secret: live.secret || null, shared: live.shared || false, id: live.id || null, version: live.version === undefined ? null : live.version, stale: live.stale || false } : null); schedulePublishLive(); }
 let toastTimer;
 function showToast(msg, inCourt = true) {
-  if (inCourt && live) { live.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (live) { live.toast = null; renderCourt(); } }, 3500); return; }
-  const el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); el.textContent = msg;
+  if (inCourt && live) { announce(msg); live.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (live) { live.toast = null; renderCourt(); } }, 3500); return; }
+  announce(msg);
+  const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
   document.body.appendChild(el); setTimeout(() => el.remove(), 3000);
 }
 function startGame(cfgOverride) {
@@ -5463,6 +5549,7 @@ document.addEventListener('click', e => {
     render(); return;
   }
   if (ds.lbscope) { lbScope = ds.lbscope; store.set('pb.lbScope', lbScope); render(); return; }
+  if (ds.disp) { const [k, v] = ds.disp.split('-'); if (k === 'outdoor' || k === 'large') { setDisplay({ [k]: v === '1' ? 1 : 0 }); render(); announce(`${k === 'outdoor' ? 'Sunlight contrast' : 'Large scores'} ${v === '1' ? 'on' : 'off'}`); } return; }
   if (ds.rmode) { ratingMode = ds.rmode; store.set('pb.rmode', ratingMode); render(); return; }
   if (ds.first) { setup.first = +ds.first; store.set('pb.setup', setup); render(); return; }
   if (ds.confirm) { confirmGame(ds.confirm); return; }
@@ -5479,9 +5566,13 @@ document.addEventListener('click', e => {
     Scoring.rally(live, +ds.rally);
     bumpTeam = live.state.score[0] !== before[0] ? 0 : live.state.score[1] !== before[1] ? 1 : null;
     if (live.state.justSwitched && live.state.winner === null) showToast(`Change ends. A team reached ${PB.switchAt(live.state.cfg.target)}.`);
-    persistLive(); renderCourt(); return;
+    persistLive(); renderCourt();
+    { const st = live.state, c = PB.call(st), t = TEAM_NAME;
+      announce(st.winner !== null ? `${teamLabel(st.cfg.teams[st.winner])} won ${st.score[st.winner]} to ${st.score[1 - st.winner]}.` : `${t[0]} ${st.score[0]}, ${t[1]} ${st.score[1]}. Score call ${c.join(' ')}. ${st.cfg.teams[st.serving][st.server]} serves.`); }
+    return;
   }
   const act = ds.act;
+  if (act === 'display') { const on = !display.outdoor; setDisplay({ outdoor: on ? 1 : 0, large: on ? 1 : 0 }); renderCourt(); announce(on ? 'Sunlight display on' : 'Sunlight display off'); return; }
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
@@ -5769,6 +5860,7 @@ document.addEventListener('change', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && dssoUI) { e.stopImmediatePropagation(); dssoClose(); } }, true);
 
 if (live && live.state.winner === null && live.open) keepAwake(true);
+applyDisplay();
 render();
 if (importedCount) showToast(`Moved ${importedCount} game${importedCount === 1 ? '' : 's'} from the old site`, false);
 if (club) { flush(); refreshClub(); }

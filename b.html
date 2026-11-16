@@ -48,6 +48,13 @@
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
   color-scheme: dark;
 }
+/* Outdoor display (a per-device setting): maximum contrast in direct sun, whatever the phone's own theme. */
+:root[data-outdoor] {
+  --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #E8E8E8; --ink: #000000; --muted: #2B2B2B; --line: #5A5A5A;
+  --blue: #0A28B8; --green: #00593F; --up: #00593F; --down: #A80000; --danger: #A80000; --focus: #0A28B8;
+  --shadow: none;
+  color-scheme: light;
+}
 
 * { box-sizing: border-box; }
 html { background: var(--bg); color-scheme: light dark; }
