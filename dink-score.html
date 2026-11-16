@@ -29,7 +29,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
-    --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
+    --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
     --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
     --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
     color-scheme: dark;
@@ -37,7 +37,7 @@
 }
 :root[data-theme="dark"] {
   --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
-  --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
+  --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
   --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
   color-scheme: dark;
@@ -905,12 +905,14 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 .tile.live .t-name { opacity: 1; }
 /* Court contrast: white text on the team colours is 4.5:1 or better along the whole gradient. */
 .half { --c1: #3452EE; --c2: #1A2BA6; }
-.half[data-k="b"] { --c1: #0C8663; --c2: #065A43; }
+.half[data-k="b"] { --c1: #0A7656; --c2: #065A43; }
 .names span { color: rgb(255 255 255 / .92); }
 .match span { color: rgb(255 255 255 / .8); }
 .side-mini { color: rgb(255 255 255 / .94); }
 .call small { font-size: 12px; color: rgb(255 255 255 / .8); }
 .net .who { color: rgb(255 255 255 / .9); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn-danger { color: var(--bg); } }
+:root[data-theme="dark"] .btn-danger { color: var(--bg); }
 .court :focus-visible { outline: 3px solid var(--ball); outline-offset: -5px; }
 .court .icon-btn:focus-visible { outline-offset: 2px; }
 .icon-btn[aria-pressed="true"] { background: var(--ball); color: var(--ball-ink); }
