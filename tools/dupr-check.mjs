@@ -157,7 +157,7 @@ await step('refresh: cached for 15 minutes, then reads DUPR; a lost connection a
 });
 
 // ---------- sending ----------
-const score = async (event, matchId, s, extra = {}) => ok(await call(events, 'POST', { body: { code, action: 'result', id: event.id, matchId, score: s, endedAt: Date.now(), ...extra } })).event;
+const score = async (event, matchId, s, extra = {}) => ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: event.id, matchId, score: s, endedAt: Date.now(), ...extra } })).event;
 const fresh = async () => ok(await call(events, 'GET', { query: `?code=${code}&id=${ev.id}` })).event;
 let gameCount;
 
@@ -256,8 +256,8 @@ let ev2;
 await step('partial batch failure: DUPR refuses one match, the rest go through, the refused one is failed with the reason', async () => {
   ev2 = ok(await call(events, 'POST', { body: { code, action: 'create', ownerToken: owner, event: { name: 'Second', format: 'roundrobin', rotation: 'auto', courts: 2, players: names, seed: 'two' } } }), 201).event;
   const ms = ev2.rounds[0].matches;
-  ev2 = ok(await call(events, 'POST', { body: { code, action: 'result', id: ev2.id, matchId: ms[0].id, score: [11, 5], endedAt: Date.now() } })).event;
-  ev2 = ok(await call(events, 'POST', { body: { code, action: 'result', id: ev2.id, matchId: ms[1].id, score: [11, 3], endedAt: Date.now() } })).event;
+  ev2 = ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: ev2.id, matchId: ms[0].id, score: [11, 5], endedAt: Date.now() } })).event;
+  ev2 = ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: ev2.id, matchId: ms[1].id, score: [11, 3], endedAt: Date.now() } })).event;
   const lost = ev2.rounds[0].matches[1].teams.flat()[0];
   st.ratings.delete(id(lost)); // DUPR no longer knows this player
   const r = ok(await D('send', { id: ev2.id, confirm: true }));
@@ -274,7 +274,7 @@ await step('partial batch failure: DUPR refuses one match, the rest go through, 
 let ev3;
 const newEvent = async (name, seed, n = 2) => {
   let e = ok(await call(events, 'POST', { body: { code, action: 'create', ownerToken: owner, event: { name, format: 'roundrobin', rotation: 'auto', courts: 2, players: names, seed } } }), 201).event;
-  for (const m of e.rounds[0].matches.slice(0, n)) e = ok(await call(events, 'POST', { body: { code, action: 'result', id: e.id, matchId: m.id, score: [11, 4], endedAt: Date.now() } })).event;
+  for (const m of e.rounds[0].matches.slice(0, n)) e = ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: e.id, matchId: m.id, score: [11, 4], endedAt: Date.now() } })).event;
   return e;
 };
 await step('retryable failures (500, 429, dropped connection) keep the match pending and retry with the same identifier, once', async () => {
