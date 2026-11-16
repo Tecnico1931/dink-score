@@ -624,21 +624,6 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .club-list li small { color: var(--muted); font-size: 12px; }
 .club-list li.cur { box-shadow: inset 0 0 0 2px var(--ink); }
 .club-list .btn { padding: 8px 14px; border-radius: 12px; font-size: 14px; flex: none; }
-/* Levels */
-.badge.lv { background: var(--surface-2); color: var(--ink); font-variant-numeric: tabular-nums; }
-.badge.lv.max { background: var(--ball); color: var(--ball-ink); }
-.lv-stars { color: #E0A800; margin-right: 3px; letter-spacing: -1px; }
-.badge.lv.max .lv-stars { color: var(--ball-ink); }
-.lv-card { background: var(--surface-2); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
-.lv-card .note { margin: 0; }
-.lv-top { display: flex; align-items: center; gap: 12px; }
-.lv-num { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 22px; font-variant-numeric: tabular-nums; }
-.club-lv .lv-num { background: var(--blue); color: #fff; }
-.lv-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.lv-txt small { color: var(--muted); font-size: 12px; }
-.lv-bar { display: block; height: 8px; border-radius: 4px; background: var(--surface); overflow: hidden; }
-.lv-bar i { display: block; height: 100%; background: var(--ink); border-radius: 4px; transition: width .4s ease; }
-.club-lv .lv-bar i { background: var(--blue); }
 @media (max-width: 380px) { .pf-stats { grid-template-columns: repeat(2, 1fr); } }
 
 /* First-visit tutorial */
@@ -2222,7 +2207,6 @@ function renderClub() {
     const local = store.get('pb.games', []).length;
     const deleted = clubData ? (clubData.deleted || []).filter(g => !clubOps().some(o => o.type === 'restore' && o.id === g.id)) : [];
     body = `<h2 id="club-h">${esc(club.name)}</h2>
-      ${clubLevelCard()}
       ${clubSwitcherHTML()}
       <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
       ${yourDuprHTML()}
@@ -2545,7 +2529,7 @@ function leadersView() {
       <span class="avatar">${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
   const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini">${avatarInner(p.name)}</span>
-      <span class="pinfo"><span class="pname">${esc(p.name)}${youTag(p.name)}${levelChip(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
+      <span class="pinfo"><span class="pname">${esc(p.name)}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
@@ -3428,7 +3412,7 @@ const youTag = n => (isMe(n) ? '<span class="badge you">You</span>' : '');
 async function playerCall(body) {
   return api('players', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
 }
-// What this phone tells the server about who is sending a game, so it counts toward achievements and levels.
+// What this phone tells the server about who is sending a game, so it counts toward achievements, challenges and seasons.
 function senderCreds(code = club && club.code) {
   if (!code) return {};
   const m = me[code] || {};
@@ -3466,7 +3450,7 @@ function whoamiHTML(c) {
   const players = clubPlayers().length ? clubPlayers() : roster.map(n => ({ name: n, claimed: false }));
   const free = players.filter(p => !p.claimed), taken = players.filter(p => p.claimed);
   return `<h2 id="club-h">Who are you?</h2>
-    <p>Pick your name so your games count toward your level, achievements and weekly challenges. Only this phone can use it.</p>
+    <p>Pick your name so your games count toward your achievements and weekly challenges. Only this phone can use it.</p>
     ${free.length ? `<div class="field" style="margin:0"><span class="lab">Tap your name</span><div class="chips">${free.map(p => `<button type="button" class="chip-btn" data-claim="${esc(p.name)}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
     ${taken.length ? `<p class="note">Already linked to a phone: ${taken.map(p => esc(p.name)).join(', ')}. Ask an organizer if one of these is you.</p>` : ''}
     <form class="club-form" data-form="whoami"><label class="lab" for="whoami-name">${free.length ? 'Not listed? Add your name' : 'Your name'}</label>
@@ -3515,62 +3499,16 @@ function announceUnlocks() {
   const seenKey = club.code + '|' + myName().toLowerCase();
   const seen = seenAll[seenKey];
   const now = { ach: p.achievements.map(a => a.id), ch: (p.week || []).filter(x => x.done).map(x => info.week.id + ':' + x.id), tr: p.trophies.map(t => t.season + t.mode) };
-  const lv = levelUnlockMsgs(seen);
-  Object.assign(now, lv.now);
   seenAll[seenKey] = now; store.set('pb.seenProgress', seenAll);
   if (!seen) return; // first time on this phone: don't replay old unlocks
-  const msgs = lv.msgs.slice();
+  const msgs = [];
   for (const id of now.ach) if (!seen.ach.includes(id)) { const a = info.achievements.find(x => x.id === id); if (a) msgs.push(`${ACH_ICON[id] || '🏅'} Achievement: ${a.name}!`); }
   for (const k of now.ch) if (!(seen.ch || []).includes(k)) { const c = info.week.challenges.find(x => k.endsWith(':' + x.id)); if (c) msgs.push(`✓ Challenge done: ${c.name}`); }
   for (const k of now.tr) if (!(seen.tr || []).includes(k)) { const t = p.trophies.find(x => x.season + x.mode === k); if (t) msgs.push(`${MEDAL[t.place - 1]} ${t.name} ${t.mode} ${PLACE[t.place - 1]}!`); }
   msgs.slice(0, 3).forEach((m, i) => setTimeout(() => showToast(m, false), i * 3200));
 }
 
-/* ---------- levels: one for each player (with prestige) and one for the whole club ---------- */
-// Same rules as api/_progress.js: only games sent from a club player's phone count, 10 XP a game and 5 more for a win,
-// at most 300 XP a player a day. Personal levels stop at
-// LEVEL_MAX; a maxed player can prestige to start again from level 1 with a star. The club level adds up
-// every game the club has played and never stops.
-const XP = { game: 10, win: 5, dailyCap: 300 }, LEVEL_MAX = 25;
-const levelNeed = n => 40 + 8 * (n - 1);
-function levelFrom(xp) {
-  let level = 1, left = Math.max(0, Math.floor(xp));
-  while (level < LEVEL_MAX && left >= levelNeed(level)) { left -= levelNeed(level); level++; }
-  return { level, into: level < LEVEL_MAX ? left : 0, need: level < LEVEL_MAX ? levelNeed(level) : 0, maxed: level >= LEVEL_MAX };
-}
-let xpCache = { sig: null, map: null };
-function xpMap() {
-  const games = allGames();
-  const sig = games.length + ':' + games.map(g => g.id + g.winner + (g.scoredBy ? 1 : 0)).join('').length + ':' + (games[0] ? games[0].id : '');
-  if (xpCache.sig === sig) return xpCache.map;
-  const map = new Map(), daily = new Map();
-  for (const g of games) {
-    if (!g.scoredBy) continue;
-    const day = new Date(g.receivedAt || g.endedAt).toISOString().slice(0, 10);
-    for (const t of [0, 1]) for (const raw of g.teams[t]) {
-      const nm = String(raw).trim();
-      if (!nm || isDefaultName(nm)) continue;
-      const k = nm.toLowerCase(), dk = k + '|' + day, used = daily.get(dk) || 0;
-      const n = Math.max(0, Math.min(XP.game + (g.winner === t ? XP.win : 0), XP.dailyCap - used));
-      daily.set(dk, used + n);
-      map.set(k, (map.get(k) || 0) + n);
-    }
-  }
-  xpCache = { sig, map };
-  return map;
-}
-function prestigeOf(name) {
-  const p = clubPlayers().find(x => sameName(x.name, name));
-  const pr = (p && p.prestige) || {};
-  return { count: Math.max(0, Number(pr.count) || 0), xpAt: Math.max(0, Number(pr.xpAt) || 0) };
-}
-function playerLevel(name) {
-  const xp = xpMap().get(String(name || '').trim().toLowerCase()) || 0;
-  const pr = prestigeOf(name);
-  return Object.assign(levelFrom(xp - pr.xpAt), { xp, prestige: pr.count });
-}
-const stars = n => n ? `<span class="lv-stars" aria-hidden="true">${n > 3 ? '★×' + n : '★'.repeat(n)}</span>` : '';
-// Self-reported DUPR rating (display only, never used for the Dink Rating, XP or order). Everyone in the club sees it.
+// Self-reported DUPR rating (display only, never used for the Dink Rating or order). Everyone in the club sees it.
 const DUPR_TIP = 'Self-reported by the player or an organizer. Not verified by DUPR.';
 const duprOf = name => { const p = club && clubPlayers().find(x => sameName(x.name, name)); return p && p.dupr ? p.dupr : null; };
 const duprChip = name => { const v = duprOf(name); return v ? `<span class="dupr" title="${DUPR_TIP}" aria-label="DUPR ${v.toFixed(2)}, self-reported, not verified">DUPR ${v.toFixed(2)}<small>self-reported</small></span>` : ''; };
@@ -3598,50 +3536,6 @@ async function saveDupr(clear) {
     duprEdit = null; showToast(d.dupr ? 'DUPR rating saved' : 'DUPR rating cleared', false); refreshDupr(); render();
   } catch (err) { e.busy = false; e.error = err.message; refreshDupr(); }
 }
-const levelChip = name => { if (!club) return ''; const L = playerLevel(name); return `<span class="badge lv${L.maxed ? ' max' : ''}" aria-label="Level ${L.level}${L.prestige ? ', prestige ' + L.prestige : ''}">${stars(L.prestige)}Lv ${L.level}</span>`; };
-// Club level: 10 XP for every game; level n needs 50 x n XP to reach the next.
-const CLUB_XP = 10, clubNeed = n => 50 * n;
-function clubLevel() {
-  let level = 1, left = clubGames().length * CLUB_XP;
-  while (left >= clubNeed(level)) { left -= clubNeed(level); level++; }
-  return { level, into: left, need: clubNeed(level), games: Math.ceil((clubNeed(level) - left) / CLUB_XP) };
-}
-function clubLevelCard() {
-  if (!club || !clubData) return '';
-  const L = clubLevel();
-  return `<div class="lv-card club-lv"><div class="lv-top"><span class="lv-num">${L.level}</span><span class="lv-txt"><b>Club level ${L.level}</b><small>${L.games} more game${L.games === 1 ? '' : 's'} to level ${L.level + 1}. Every game anyone plays counts.</small></span></div>
-    <span class="lv-bar"><i style="width:${Math.round(100 * L.into / L.need)}%"></i></span></div>`;
-}
-function levelCardHTML(name) {
-  if (!club || !clubData) return '';
-  const L = playerLevel(name), mine = isMe(name);
-  const foot = L.maxed
-    ? (mine ? `<p class="note">You're at the top level. Prestige to start again from level 1, and keep a star by your level for good.</p>
-      <button class="btn ${prestigeArmed ? 'btn-blue' : 'btn-ink'}" data-act="prestige" ${prestigeBusy ? 'disabled' : ''}>${prestigeBusy ? 'Prestiging…' : prestigeArmed ? 'Tap again to prestige' : 'Prestige'}</button>` : `<p class="note">Top level reached. ${esc(name)} can prestige from their phone.</p>`)
-    : `<span class="lv-bar"><i style="width:${Math.round(100 * L.into / L.need)}%"></i></span><p class="note">${L.need - L.into} XP to level ${L.level + 1}. Games sent from a club player's phone give ${XP.game} XP, ${XP.game + XP.win} for a win, up to ${XP.dailyCap} a day.</p>`;
-  return `<div class="lv-card"><div class="lv-top"><span class="lv-num">${L.level}</span><span class="lv-txt"><b>Level ${L.level}${L.maxed ? ' (max)' : ` of ${LEVEL_MAX}`}</b><small>${L.prestige ? `${stars(L.prestige)}Prestige ${L.prestige} · ` : ''}${L.xp} XP all time</small></span></div>${foot}</div>`;
-}
-let prestigeArmed = false, prestigeBusy = false;
-async function doPrestige() {
-  if (prestigeBusy) return;
-  if (!prestigeArmed) { prestigeArmed = true; renderProfile(); setTimeout(() => { if (prestigeArmed && !prestigeBusy) { prestigeArmed = false; renderProfile(); } }, 4000); return; }
-  prestigeBusy = true; renderProfile();
-  try {
-    const data = await playerCall({ action: 'prestige', name: myName(), playerToken: myToken() });
-    showToast(`★ Prestige ${data.prestige.count}! Back to level 1`, false);
-  } catch (err) { showToast(err.message, false); }
-  prestigeBusy = false; prestigeArmed = false;
-  await refreshClub(); renderProfile();
-}
-// Level-up toasts, checked with the other unlocks after each refresh.
-function levelUnlockMsgs(seen) {
-  const L = playerLevel(myName()), C = clubLevel(), msgs = [];
-  const now = { lv: L.level + L.prestige * 1000, club: C.level };
-  if (seen && seen.lv != null && now.lv > seen.lv && L.level > 1) msgs.push(`⬆️ Level up! You're level ${L.level}${L.maxed ? '. Prestige is ready on your profile' : ''}`);
-  if (seen && seen.club != null && now.club > seen.club) msgs.push(`🏟️ ${club.name} reached club level ${C.level}!`);
-  return { now, msgs };
-}
-
 // Profile: achievements, trophies and rivalries.
 function achievementsHTML(name) {
   const info = progressInfo(), p = progressOf(name);
@@ -3973,7 +3867,6 @@ function renderProfile() {
     <div class="pf-head"><span class="av">${avatarInner(pr.name)}</span><h2 id="pf-h">${esc(pr.name)}${youTag(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
-    ${levelCardHTML(pr.name)}
     ${selfDuprHTML(pr.name)}
     ${dssoProfileHTML(pr.name)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
@@ -4003,8 +3896,8 @@ function tourSteps() {
   ];
   if (API_OK) steps.push({ title: 'Play alone or with a club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
     body: `<p>You can start scoring right now, no club needed. Games stay on your phone, and after a game you can <b>Share</b> the result or <b>Save to a club</b>. To share one record with your friends, tap <b>Join a club</b> at the top and join with a code: everyone sees the same games, saved players and leaderboard. No accounts needed.</p>` });
-  if (API_OK) steps.push({ title: 'Pick your name', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>Levels</span><span>Challenges</span></div>`,
-    body: `<p>When you join a club, pick your name. Games sent from your phone count toward your <b>level</b>, <b>achievements</b> and the weekly <b>challenges</b>, and you can set your own picture.</p>` });
+  if (API_OK) steps.push({ title: 'Pick your name', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>Achievements</span><span>Challenges</span></div>`,
+    body: `<p>When you join a club, pick your name. Games sent from your phone count toward your <b>achievements</b> and the weekly <b>challenges</b>, and you can set your own picture.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
     body: isIOS
       ? `<p>In Safari, tap the <b>Share</b> button, then <b>Add to Home Screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>`
@@ -4876,7 +4769,6 @@ document.addEventListener('click', e => {
   if (ds.claim) { claimName(ds.claim); return; }
   if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (ds.act === 'whoami-skip') { const after = clubSheet && clubSheet.afterJoin; skipWhoami(); clubSheet = null; if (after) afterJoin(); else { renderClub(); render(); } return; }
-  if (ds.act === 'prestige') { doPrestige(); return; }
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); return; }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }

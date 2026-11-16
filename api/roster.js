@@ -11,7 +11,7 @@ export default handler(async (req, res) => {
     const code = club.code; // the club's permanent key, even when an old club code was used
     await requirePin(club, pinFrom(req), req, ownerFrom(req));
     const name = cleanName(url.searchParams.get('name'));
-    // A name someone has claimed holds their picture, level and DUPR number, so it stays until an organizer releases it.
+    // A name someone has claimed holds their picture and DUPR number, so it stays until an organizer releases it.
     const rows = await sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${name.toLowerCase()} AND claim_hash IS NULL RETURNING name`;
     if (!rows.length) {
       const [claimed] = await sql`SELECT 1 FROM roster WHERE club = ${code} AND name_key = ${name.toLowerCase()}`;

@@ -63,13 +63,13 @@ export function ensureSchema() {
       )`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_hash text`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_expires timestamptz`;
-      // UNUSED LEGACY (Dinks and the shop were removed): clubs.shop, roster.equipped and the purchases table are no longer
-      // read or written. Kept, with their data, for a possible later cleanup. roster.claim_hash/avatar/prestige/dupr are live.
+      // UNUSED LEGACY (Dinks, the shop, levels and prestige were removed): clubs.shop, roster.equipped, roster.prestige and the
+      // purchases table are no longer read or written. Kept, with their data, for a possible later cleanup. roster.claim_hash/avatar/dupr are live.
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS shop jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS claim_hash text`; // hash of the token on the phone that claimed this name
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS equipped jsonb NOT NULL DEFAULT '{}'::jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS avatar jsonb`; // {type: emoji|icon|photo, value}; none means initials
-      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS prestige jsonb`; // {count, xpAt}: times prestiged and lifetime XP at the last one
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS prestige jsonb`; // unused legacy: {count, xpAt}
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS dupr_rating numeric(4,3)`; // self-reported, display only (see _dupr.js)
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS dupr_set_at timestamptz`;
       await q`CREATE TABLE IF NOT EXISTS purchases (

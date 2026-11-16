@@ -1,5 +1,5 @@
 // Self-reported DUPR rating: one optional number per saved player, shown for reference only. Never used for the
-// Dink Rating, XP, achievements, leaderboard order or event seeding, and never sent to DUPR.
+// Dink Rating, achievements, leaderboard order or event seeding, and never sent to DUPR.
 export const DUPR_MIN = 2, DUPR_MAX = 8;
 
 // Returns the rating as a Number with at most 3 decimals, or null to clear it (empty input). Throws a plain

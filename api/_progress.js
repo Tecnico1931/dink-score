@@ -1,4 +1,4 @@
-// Dink Rating replay, achievements, weekly challenges, seasons and levels, worked out on the server from the club's games.
+// Dink Rating replay, achievements, weekly challenges, and seasons, worked out on the server from the club's games.
 // Not a route (files starting with "_"). The app's copies of these rules live in dink-score.html.
 
 // --- Dink Rating forecast (same maths as DR in dink-score.html) ---
@@ -179,33 +179,4 @@ export function computeProgress(games, now = Date.now()) {
   }
   for (const p of people.values()) delete p._s;
   return people;
-}
-
-// --- Levels. XP comes only from verified games (sent from a club player's phone): XP.game per game and XP.win more
-// for a win, at most XP.dailyCap per player per UTC day of the server's receivedAt, so made-up or backdated results
-// can't farm it. The app works out the same numbers in dink-score.html.
-// Personal levels stop at LEVEL_MAX. A maxed player can prestige: their level starts again from 1 and they keep a prestige star.
-export const XP = { game: 10, win: 5, dailyCap: 300 };
-export const LEVEL_MAX = 25;
-export const levelNeed = n => 40 + 8 * (n - 1); // XP to go from level n to n + 1
-export function levelFrom(xp) {
-  let level = 1, left = Math.max(0, Math.floor(xp));
-  while (level < LEVEL_MAX && left >= levelNeed(level)) { left -= levelNeed(level); level++; }
-  return { level, into: level < LEVEL_MAX ? left : 0, need: level < LEVEL_MAX ? levelNeed(level) : 0, maxed: level >= LEVEL_MAX };
-}
-// Map(name key -> lifetime XP)
-export function computeXP(games) {
-  const out = new Map(), daily = new Map();
-  for (const g of games) {
-    if (!verified(g)) continue;
-    const day = new Date(when(g)).toISOString().slice(0, 10);
-    for (const t of [0, 1]) for (const raw of g.teams[t]) {
-      if (!isNamed(raw)) continue;
-      const k = key(raw), dk = k + '|' + day, used = daily.get(dk) || 0;
-      const n = Math.max(0, Math.min(XP.game + (g.winner === t ? XP.win : 0), XP.dailyCap - used));
-      daily.set(dk, used + n);
-      out.set(k, (out.get(k) || 0) + n);
-    }
-  }
-  return out;
 }

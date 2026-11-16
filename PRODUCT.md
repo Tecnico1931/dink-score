@@ -18,7 +18,7 @@ Dink Score keeps pickleball score correctly on court and turns the group's games
 
 ## Positioning
 
-A scorekeeper and a club record in one, built for one real group rather than a league or a marketplace. Clubs are shared across everyone's phones with a 6-character code and no accounts. It has its own rating system (Dink Rating, 2.00–8.00) with score forecasts, plus a light game layer (achievements, challenges, levels, seasons, club honors) that exists to make a friend group's rivalry fun.
+A scorekeeper and a club record in one, built for one real group rather than a league or a marketplace. Clubs are shared across everyone's phones with a 6-character code and no accounts. It has its own rating system (Dink Rating, 2.00–8.00) with score forecasts, plus a light game layer (achievements, challenges, seasons, club honors) that exists to make a friend group's rivalry fun.
 
 ## Operating Context
 

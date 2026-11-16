@@ -1,7 +1,6 @@
-// POST /api/players — a club's saved players: linking a name to a phone, pictures, levels and self-reported DUPR numbers.
+// POST /api/players — a club's saved players: linking a name to a phone, pictures and self-reported DUPR numbers.
 // Body: {code, action, ...}
 //   claim    {name, pin?|ownerToken?}                 -> links a player name to this phone, returns {playerToken}
-//   prestige {name, playerToken}                     -> a maxed-out player starts their level again and keeps a star
 //   avatar   {name, playerToken, avatar}              -> sets your picture: {type: emoji|icon|photo, value} or {type: initials}
 //   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
@@ -9,7 +8,6 @@
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp, MAX_PHOTOS } from './_db.js';
 import { cleanDupr } from './_dupr.js';
-import { computeXP, levelFrom } from './_progress.js';
 
 const MAX_CLAIMS_PER_DAY = 3; // names one network can link to phones per club per day without an organizer
 
@@ -44,9 +42,6 @@ function cleanAvatar(a) {
   }
   throw fail(400, 'Unknown avatar type.');
 }
-async function clubGames(sql, code) {
-  return (await sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL`).map(r => r.data);
-}
 
 export default handler(async (req, res) => {
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
@@ -79,25 +74,6 @@ export default handler(async (req, res) => {
     if (!rows.length) throw fail(409, `${name} was just claimed by another phone.`);
     await sql`INSERT INTO lookup_fails (ip) VALUES (${claimKey})`;
     return send(res, 200, { ok: true, name: rows[0].name, playerToken: token });
-  }
-
-  if (body.action === 'prestige') {
-    const player = await requirePlayer(sql, code, body.name, body.playerToken);
-    const xp = computeXP(await clubGames(sql, code)).get(player.name_key) || 0;
-    const [row] = await sql`SELECT prestige FROM roster WHERE club = ${code} AND name_key = ${player.name_key}`;
-    const cur = (row && row.prestige) || {};
-    const count = Math.max(0, Math.trunc(Number(cur.count)) || 0), xpAt = Math.max(0, Math.trunc(Number(cur.xpAt)) || 0);
-    if (!levelFrom(xp - xpAt).maxed) throw fail(409, 'Reach the top level first.');
-    const next = { count: count + 1, xpAt: xp };
-    // Moves on only from the prestige this check read, so a double tap can't prestige twice.
-    const [, updated] = await sql.transaction([
-      sql`SELECT pg_advisory_xact_lock(hashtext(${code + ':' + player.name_key}))`,
-      sql`UPDATE roster SET prestige = ${JSON.stringify(next)}::jsonb
-          WHERE club = ${code} AND name_key = ${player.name_key} AND coalesce((prestige ->> 'count')::int, 0) = ${count}
-          RETURNING name`
-    ]);
-    if (!updated.length) throw fail(409, 'You just prestiged. Refresh to see it.');
-    return send(res, 200, { ok: true, prestige: next });
   }
 
   if (body.action === 'avatar') {

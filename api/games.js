@@ -47,7 +47,7 @@ export default handler(async (req, res) => {
     const g = Object.assign(cleanGame(body.edit), { editedAt: Date.now() });
     const [old] = await sql`SELECT data, rally_log FROM games WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
     if (!old) throw fail(404, 'That game no longer exists, so it could not be changed.');
-    // Keep the server's own record of when the game arrived. Whether it still counts as verified (for achievements, levels and seasons):
+    // Keep the server's own record of when the game arrived. Whether it still counts as verified (for achievements, challenges and seasons):
     // - An edit that changes who played, the score, or whether it was scored live keeps verification only when an
     //   organizer has proved it: the club creator's phone, or the PIN in a club that has one. (In a club without a
     //   PIN anyone can edit, so their changes can't keep a game's verified status.)
@@ -81,8 +81,8 @@ export default handler(async (req, res) => {
   const logs = list.map((raw, i) => (raw && raw.rallyLog != null ? checkLog(games[i], raw.rallyLog) : null));
   const rejectedLogs = games.filter((g, i) => list[i].rallyLog != null && !logs[i]).map(g => g.id);
   // Server-side facts (the app can't set these; cleanGame drops them):
-  // - receivedAt: when the server got the game. Weeks, seasons and daily XP caps count by this, so backdating doesn't help.
-  // - scoredBy: who sent it. Achievements, levels and seasons count only games sent from the phone linked to one of
+  // - receivedAt: when the server got the game. Weeks and seasons count by this, so backdating doesn't help.
+  // - scoredBy: who sent it. Achievements, challenges and seasons count only games sent from the phone linked to one of
   //   any club player (the game can be for other people), or from the club creator's phone.
   const sender = await verifiedSender(sql, club, code, body);
   const now = Date.now();

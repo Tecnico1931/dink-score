@@ -794,7 +794,20 @@ await step('Dinks and the shop are gone: no routes, and recording, editing and d
   for (const k of ['shop', 'purchases']) assert.ok(!(k in data), k + ' is no longer sent');
   assert.ok(data.players.every(p => !('equipped' in p)));
   for (const p of Object.values(data.progress.players)) for (const k of ['earned', 'base', 'bonus']) assert.ok(!(k in p), k);
-  assert.ok(!('prizes' in data.progress.season) && !('prestigeDinks' in data.progress.levels));
+  assert.ok(!('prizes' in data.progress.season));
+});
+
+await step('levels, XP and prestige are gone: no fields in the club payload, the prestige action is refused, the rest of progress stays', async () => {
+  const data = ok(await call(club, 'GET', { query: '?code=' + code }));
+  assert.ok(!('levels' in data.progress), 'no levels block');
+  for (const p of Object.values(data.progress.players)) for (const k of ['xp', 'level', 'levels']) assert.ok(!(k in p), k);
+  assert.ok(data.players.every(p => !('prestige' in p)), 'no prestige on saved players');
+  assert.ok(!/\b(xp|level|prestige)/i.test(JSON.stringify(data)), 'no XP, level or prestige anywhere in the payload');
+  await pg.query('DELETE FROM lookup_fails'); // earlier steps used up this address's wrong-code allowance
+  const r = await sh({ action: 'prestige', name: 'Ana', playerToken: anaToken, ownerToken: owner });
+  assert.equal(r.status, 400, 'prestige is an unknown action now');
+  assert.ok(data.progress.achievements.length && data.progress.challenges.length && data.progress.week.challenges.length === 3 && data.progress.season.id);
+  assert.ok(Object.values(data.progress.players).some(p => p.achievements.length), 'achievements still computed');
 });
 
 // Rally logs: a game scored live carries who won each rally so it can be replayed (api/_rallylog.js).
