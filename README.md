@@ -10,6 +10,7 @@ A pickleball scorekeeper you can install on your phone: **https://dinkscore.verc
 - Clubs: one shared record of games, players and rankings across everyone's phones, with no accounts
 - Club display page: open `/?display=CODE` on a TV or monitor at the courts for a full-screen sign with the club's name, a big QR code (the invite link) and the club code, so new players can join by scanning. There's a link to it in the club sheet, under the invite link
 - Watch scoring (prototype): while a game is scored on a phone, an Apple Watch can send points through Shortcuts. The phone publishes the live game to `api/live.js`; the watch appends point and undo intents; the phone polls every few seconds, applies them with the same scoring rules as a screen tap and republishes. The phone stays the referee, and the setup steps live in the club sheet (Score from your Apple Watch)
+- Shared scoring: a club game is held by the server (`api/live.js` actions `rally`/`unrally`, rules ported to `api/_pb.js` and parity-tested against the client's PB in `tools/api-check.mjs`). Any phone or watch holding the game's secret can score; every screen follows the server state, and a version check keeps simultaneous taps in order. The club sheet's **Games going on** view lists the club's live games with players and scores for anyone with the club code, and opens one for scoring with its secret. Older point/undo intents still work: a phone with the game open forwards them as rallies.
 - Offline support and a first-visit tour
 
 ## Events: tournaments and rotating doubles
