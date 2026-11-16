@@ -69,7 +69,7 @@ const csp = [
   `script-src 'self' ${hashes.join(' ')}`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // the app uses inline styles throughout
   "font-src https://fonts.gstatic.com",
-  "img-src 'self' data: blob:",                                    // photo avatars (data:) and the photo picker (blob:)
+  "img-src 'self' data: blob: https:",                             // photo avatars (data:), the photo picker (blob:), and imported team logos (any https image: the viewer's browser contacts the logo's website)
   "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com", // the service worker caches the fonts
   "manifest-src 'self'",
   "worker-src 'self'",
@@ -103,6 +103,6 @@ console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)
 const out = path.join(__dirname, 'public');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-for (const f of ['index.html', 'b.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of ['index.html', 'b.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
 console.log('Copied the site into public/');

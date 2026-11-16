@@ -12,12 +12,23 @@
 //   end           {id}                                      -> organizer: finish the event now
 //   share / share-new / share-off  {id}                     -> organizer: make, replace or remove the public read-only link; answers {shareToken}
 //   delete        {id}                                      -> organizer: hide the event (its games stay in the record)
+//   sheet-fetch   {url}                                     -> organizer: reads a shared Google Sheet as CSV text (see _gsheet.js); answers {csv}. Creates nothing.
+//   refs          {id}                                      -> organizer: the private DUPR reference IDs typed in the imported sheet: {refs}
+//   public-logos  {id, on}                                  -> organizer: show or hide team logos on the public bracket page
+// create may carry teamMeta ([{name, logo}] for each of its manual teams), publicLogos and refs ({player: DUPR ID}, reference only).
 // Organizer actions need the creating phone's token or the organizer PIN, like the shop settings.
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, cleanGame, cleanName, reserveGames, releaseGames, verifiedSender } from './_db.js';
 import { newShareToken } from './_share.js';
-import { createEvent, startNextRound, setRound, publishRound, recordResult, correctResult, startKnockout, endEvent, view } from './_events.js';
+import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
+import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, correctResult, startKnockout, endEvent, view } from './_events.js';
 
 const MAX_EVENTS = 100; // per club, not counting deleted ones
+const sheetCalls = new Map(); // club -> times of recent sheet reads; a small brake on top of the organizer check
+const throttleSheet = code => {
+  const now = Date.now(), recent = (sheetCalls.get(code) || []).filter(t => now - t < 60000);
+  if (recent.length >= 20) throw fail(429, 'That is a lot of sheet reads. Wait a minute and try again.');
+  recent.push(now); sheetCalls.set(code, recent);
+};
 
 function summary(row) {
   const e = row.data;
@@ -97,7 +108,8 @@ export default handler(async (req, res) => {
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM events WHERE club = ${code} AND deleted_at IS NULL`;
     if (n >= MAX_EVENTS) throw fail(400, `A club can keep up to ${MAX_EVENTS} events. Delete an old one first.`);
     const event = createEvent(body.event, now);
-    await sql`INSERT INTO events (club, id, data, status) VALUES (${code}, ${event.id}, ${JSON.stringify(event)}::jsonb, ${event.status})`;
+    const refs = cleanRefs(body.event && body.event.refs, event.players);
+    await sql`INSERT INTO events (club, id, data, status, refs) VALUES (${code}, ${event.id}, ${JSON.stringify(event)}::jsonb, ${event.status}, ${Object.keys(refs).length ? JSON.stringify(refs) : null}::jsonb)`;
     await addToRoster(sql, code, event.players);
     return send(res, 201, { event: view(event) });
   }
@@ -111,6 +123,20 @@ export default handler(async (req, res) => {
   }
 
   await requireOrganizer(club, body.pin, req, body.ownerToken);
+  if (action === 'sheet-fetch') {
+    sheetCsvUrl(body.url); // a bad link is refused before it counts against the limit
+    throttleSheet(code);
+    return send(res, 200, { csv: await fetchSheetCsv(body.url, (u, o) => globalThis.fetch(u, o)) });
+  }
+  if (action === 'refs') {
+    const [row] = await sql`SELECT refs FROM events WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL`;
+    if (!row) throw fail(404, 'That event no longer exists.');
+    return send(res, 200, { refs: row.refs || {} });
+  }
+  if (action === 'public-logos') {
+    const { event } = await mutate(sql, code, id, ev => { ev.publicLogos = body.on === true; ev.updatedAt = now; });
+    return send(res, 200, { event: view(event) });
+  }
   if (action === 'correct') {
     const { event, out } = await mutate(sql, code, id, ev => correctResult(ev, String(body.matchId || ''), body.score, now));
     // Same game id, new score. Keeps who sent it and when it arrived; does nothing if the game was deleted from the record.

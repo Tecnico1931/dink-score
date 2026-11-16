@@ -7,13 +7,16 @@
 //   roundsPlanned, advance,                               // how many rounds, and how many teams a knockout takes
 //   rounds: [{ n, title, status, matches: [match], byes: [names] }],   // round robin / pool play
 //   bracket: null | { kind, size, count, teams, matches },              // knockout / elimination (see _bracket.js)
-//   champion: null | [names], createdAt, updatedAt
+//   champion: null | [names], createdAt, updatedAt,
+//   teamInfo: [{ players: [a, b], name, logo }], publicLogos   // optional team names and logos (from a sheet import); logos only reach the public page when publicLogos is true
 // }
+// A DUPR ID typed in a sheet is NOT part of the event: it is a private reference kept in its own column (events.refs).
 // match = { id, court, teams: [[a, b], [c, d]], score: null | [x, y], status: 'pending' | 'done', winner, startedAt, endedAt, rallies, live, gameId }
 import { cleanName } from './_names.js';
 import { planRound, validateRound } from './_rotation.js';
 import { pairTeams, roundRobin, standings, teamId } from './_schedule.js';
 import * as B from './_bracket.js';
+import { cleanLogoUrl, cleanDupr } from '../sheet-import.js';
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 export const FORMATS = ['roundrobin', 'pool_knockout', 'single_elim', 'double_elim'];
@@ -56,6 +59,11 @@ export function createEvent(input, now = Date.now(), rand = Math.random) {
   if (partners === 'fixed') {
     ev.teams = pairTeams(players, { how: rotation, seed: ev.seed, ratings: input.ratings, teams: input.teams });
     if (elimination && ev.teams.length < (format === 'double_elim' ? 3 : 2)) throw bad('Double elimination needs at least 3 teams (6 players).');
+    // Names and logos only make sense for the organizer's own pairs: they are matched to the teams one for one.
+    if (rotation === 'manual' && Array.isArray(input.teamMeta)) {
+      ev.teamInfo = buildTeamInfo(ev.teams, input.teamMeta);
+      ev.publicLogos = input.publicLogos !== false;
+    }
   }
   if (elimination) {
     startBracket(ev, ev.teams, format === 'double_elim' ? 'double' : 'single');
@@ -76,6 +84,39 @@ export function createEvent(input, now = Date.now(), rand = Math.random) {
   if (partners === 'rotating') startNextRound(ev, now);
   return ev;
 }
+
+// Team names and logos, one entry per team in the same order as teams. Returns [] when nothing was named.
+function buildTeamInfo(teams, meta) {
+  if (meta.length !== teams.length) throw bad('The team names do not match the teams.');
+  const out = [];
+  meta.forEach((m, i) => {
+    const name = cleanName(m && m.name);
+    const logo = cleanLogoUrl(m && m.logo);
+    if (logo.error) throw bad(`${name || teams[i].join(' & ')}: ${logo.error}`);
+    if (name || logo.value) out.push({ players: teams[i].slice(), name, logo: logo.value });
+  });
+  return out;
+}
+
+// Reference DUPR IDs from an import: { player name: ID } for players of this event only. Kept out of the event itself
+// (see events.refs in api/events.js) so no event view, spectator page or export can include them.
+export function cleanRefs(input, players) {
+  const out = {};
+  if (!input || typeof input !== 'object') return out;
+  const byLower = new Map(players.map(p => [p.toLowerCase(), p]));
+  for (const [name, raw] of Object.entries(input)) {
+    const p = byLower.get(cleanName(name).toLowerCase());
+    if (!p) continue;
+    const d = cleanDupr(raw);
+    if (d.error) throw bad(`${p}: ${d.error}`);
+    if (d.value) out[p] = d.value;
+  }
+  return out;
+}
+
+// Looks a team up by its players (order does not matter); { name, logo } or null.
+export const teamKey = t => t.slice().sort().join('|');
+const infoMap = ev => new Map((ev.teamInfo || []).map(i => [teamKey(i.players), i]));
 
 const makeRound = (n, status, matches, players) => {
   const ms = matches.map((m, i) => ({ id: `r${n}m${i + 1}`, court: m.court || i + 1, teams: m.teams, score: null, status: 'pending' }));
@@ -242,7 +283,11 @@ export function standingsFor(ev) {
   if (ev.partners === 'fixed') {
     const rows = (ev.teams || []).map(t => ({ id: teamId(t), name: t.join(' & '), members: t }));
     const byId = new Map(rows.map(r => [r.id, r.members]));
-    return standings(rows, matches, { by: 'team' }).map(r => ({ ...r, members: byId.get(r.id) }));
+    const info = infoMap(ev);
+    return standings(rows, matches, { by: 'team' }).map(r => {
+      const i = info.get(teamKey(byId.get(r.id)));
+      return { ...r, members: byId.get(r.id), ...(i ? { name: i.name || r.name, logo: i.logo || '' } : {}) };
+    });
   }
   return standings(ev.players, matches).map(r => ({ ...r, members: [r.id] }));
 }

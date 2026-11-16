@@ -115,7 +115,7 @@ html.tv .pub-top .pub-btn { position: fixed; }
   const POLL = 8000;
 
   const time = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-  const names = t => (t ? t.join(' & ') : '');
+  BK.watchLogos();
 
   function setTv(on, fullscreen) {
     tv = on; root.classList.toggle('tv', on);
@@ -144,7 +144,7 @@ html.tv .pub-top .pub-btn { position: fixed; }
     const pool = d.format === 'pool_knockout', main = $('#pub-body');
     const sx = [...main.querySelectorAll('.bk-scroll')].map(e => e.scrollLeft);
     const parts = [];
-    if (d.status === 'done' && d.champion) parts.push(`<div class="pub-champ" role="status"><span class="ball"></span><div><small>${d.tree ? 'Champions' : d.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(names(d.champion))}</b></div></div>`);
+    if (d.status === 'done' && d.champion) parts.push(`<div class="pub-champ" role="status">${BK.logoHTML(d, d.champion, true) || '<span class="ball"></span>'}<div><small>${d.tree ? 'Champions' : d.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(BK.teamName(d, d.champion))}</b></div></div>`);
     const standings = () => `<section class="pub-sec" aria-labelledby="pub-st"><h2 id="pub-st">${pool ? 'Pool standings' : 'Standings'}</h2><div class="card" style="--rows:${d.standings.length}">${BK.standingsHTML(d)}</div>${pool ? `<p class="pub-note" style="margin-top:8px">The top ${d.advance} ${d.partners === 'fixed' ? 'teams' : 'teams of players'} go into the knockout.</p>` : ''}</section>`;
     const bracket = () => `<section class="pub-sec" aria-labelledby="pub-br"><h2 id="pub-br">${pool ? 'Knockout' : 'Bracket'}</h2>${BK.bracketHTML(d, {})}</section>`;
     if (d.tree && pool) parts.push(`<div class="pub-grid pool">${standings()}${bracket()}</div>`);
@@ -152,12 +152,12 @@ html.tv .pub-top .pub-btn { position: fixed; }
     else if (pool) parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec"><div class="card"><h2>Knockout</h2><p class="pub-note">The bracket appears here when pool play ends: the top ${d.advance} ${d.partners === 'fixed' ? 'teams' : 'teams of players'} play single elimination.</p></div></section></div>`);
     else if (tv && d.rounds.length) {
       const cur = d.rounds.find(r => r.status !== 'done') || d.rounds[d.rounds.length - 1];
-      parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${esc(cur.title)}${d.status === 'live' ? ' · now' : ''}</h2><div class="card"><ul class="pub-rounds">${cur.matches.map(BK.lineHTML).join('')}</ul></div></section></div>`);
+      parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${esc(cur.title)}${d.status === 'live' ? ' · now' : ''}</h2><div class="card"><ul class="pub-rounds">${cur.matches.map(m => BK.lineHTML(m, d)).join('')}</ul></div></section></div>`);
     } else parts.push(`<div class="pub-grid">${standings()}</div>`);
     // Round by round results, for events that are played in rounds.
     if (d.rounds.length && !tv) {
       const cur = d.rounds.find(r => r.status !== 'done') || d.rounds[d.rounds.length - 1];
-      parts.push(`<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${pool ? 'Pool rounds' : 'Rounds'}</h2><ol class="pub-rounds">${d.rounds.slice().reverse().map(r => `<li><div class="card"><h2>${esc(r.title)}${r === cur && d.status === 'live' ? ' · now' : ''}</h2><ul>${r.matches.map(BK.lineHTML).join('')}</ul>${r.byes.length ? `<p class="pub-note">Sitting out: ${esc(r.byes.join(', '))}</p>` : ''}</div></li>`).join('')}</ol></section>`);
+      parts.push(`<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${pool ? 'Pool rounds' : 'Rounds'}</h2><ol class="pub-rounds">${d.rounds.slice().reverse().map(r => `<li><div class="card"><h2>${esc(r.title)}${r === cur && d.status === 'live' ? ' · now' : ''}</h2><ul>${r.matches.map(m => BK.lineHTML(m, d)).join('')}</ul>${r.byes.length ? `<p class="pub-note">Sitting out: ${esc(r.byes.join(', '))}</p>` : ''}</div></li>`).join('')}</ol></section>`);
     }
     main.innerHTML = parts.join('');
     fit();

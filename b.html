@@ -90,6 +90,14 @@ body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--u
 .bk-row.tbd .bk-name { font-weight: 400; }
 .bk-champ { display: flex; align-items: center; gap: 12px; width: 100%; height: 100%; padding: 0 16px; border-radius: 18px; background: var(--surface-2); color: var(--muted); box-sizing: border-box; font-size: 14px; line-height: 17px; }
 .bk-champ.won { background: var(--ink); color: var(--bg); box-shadow: var(--shadow); }
+/* Team logo: a fixed box, the whole image shown (never cropped or stretched). The initials only appear when the image fails to load (BK.watchLogos marks the box .bad). */
+.tlogo { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 7px; vertical-align: -6px; border-radius: 6px; overflow: hidden; background: color-mix(in srgb, var(--ink) 6%, var(--surface)); flex: none; }
+.tlogo.big { width: 40px; height: 40px; margin: 0; border-radius: 10px; }
+.tlogo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tlogo .tl-i { display: none; font: 700 12px/1 var(--ui); color: var(--ink); letter-spacing: .02em; }
+.tlogo.big .tl-i { font-size: 15px; }
+.tlogo.bad img { display: none; }
+.tlogo.bad .tl-i { display: block; }
 .bk-champ small { display: block; font-size: 13px; opacity: .8; }
 .bk-champ b { display: block; font-size: 17px; overflow-wrap: anywhere; }
 .bk-champ .ball { width: 24px; height: 24px; flex: none; }
@@ -195,7 +203,32 @@ const BK = (() => {
   const CW = 240, CH = 112, GX = 48, ROW = 128, HEAD = 36, SECT = 40; // card, gap between rounds, row pitch, header and section space (logical px)
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const TEAM = ['var(--blue)', 'var(--green)'];
-  const names = t => (t ? t.join(' & ') : '');
+  // Team names and logos (from a sheet import): ev.teamInfo is [{ players: [a, b], name, logo }]. A team is found by its
+  // players, whichever way round they are listed. Without a name a team is shown as its players, as before.
+  const tkey = t => t.slice().sort().join('|');
+  const TI = new WeakMap();
+  const infoOf = (ev, t) => {
+    const l = ev && ev.teamInfo;
+    if (!t || !l || !l.length) return null;
+    let m = TI.get(l);
+    if (!m) { m = new Map(l.map(i => [tkey(i.players || []), i])); TI.set(l, m); }
+    return m.get(tkey(t)) || null;
+  };
+  const teamName = (ev, t) => { if (!t) return ''; const i = infoOf(ev, t); return (i && i.name) || t.join(' & '); };
+  const initials = s => { const w = String(s || '').split(/\s+/).filter(Boolean); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '?').slice(0, 2)).toUpperCase(); };
+  // The logo is the viewer's browser loading the organizer's https link (never fetched by the server). If it fails, the
+  // initials show instead: the page's error listener (watchLogos) marks the box, because inline handlers are not allowed.
+  const logoHTML = (ev, t, big) => {
+    const i = infoOf(ev, t), u = i && i.logo;
+    return u ? `<span class="tlogo${big ? ' big' : ''}" aria-hidden="true"><img src="${esc(u)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async"><span class="tl-i">${esc(initials(teamName(ev, t)))}</span></span>` : '';
+  };
+  const logoOfUrl = (u, label) => (u ? `<span class="tlogo" aria-hidden="true"><img src="${esc(u)}" alt="" referrerpolicy="no-referrer" loading="lazy" decoding="async"><span class="tl-i">${esc(initials(label))}</span></span>` : '');
+  let watching = false;
+  function watchLogos() {
+    if (watching || typeof document === 'undefined') return;
+    watching = true;
+    document.addEventListener('error', e => { const el = e.target; if (el && el.tagName === 'IMG' && el.parentNode && el.parentNode.classList && el.parentNode.classList.contains('tlogo')) el.parentNode.classList.add('bad'); }, true);
+  }
   const CHECK = '<svg class="bk-ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 
   // Where everything goes. tree is event.tree: { kind, rounds: [{key, title}] (the rounds worth showing), matches: [...] }.
@@ -289,12 +322,13 @@ const BK = (() => {
   const scoreText = s => `${s[0]} to ${s[1]}`;
   function describe(n, o) {
     const m = n.m, sc = o.scoreOf ? o.scoreOf(m) : m.score;
-    const side = t => (m.slots[t] === -1 ? 'a bye' : names(m.teams[t]) || 'to be decided');
+    const ev = o.ev, nm = t => { const i = infoOf(ev, t); return teamName(ev, t) + (i && i.name ? ` (${t.join(' and ')})` : ''); };
+    const side = t => (m.slots[t] === -1 ? 'a bye' : nm(m.teams[t]) || 'to be decided');
     const win = sc ? (sc[0] > sc[1] ? 0 : 1) : m.status === 'bye' ? m.winner : null;
     const title = (o.titleOf && o.titleOf(m)) || '';
     let state;
-    if (m.status === 'bye') state = `${names(m.teams[win])} has a bye and moves on`;
-    else if (sc) state = `Final, ${scoreText(sc)}. ${names(m.teams[win])} won`;
+    if (m.status === 'bye') state = `${teamName(ev, m.teams[win])} has a bye and moves on`;
+    else if (sc) state = `Final, ${scoreText(sc)}. ${teamName(ev, m.teams[win])} won`;
     else if (m.ready) state = m.court ? `Ready to play on court ${m.court}` : 'Ready to play, waiting for a court';
     else state = m.id === 'F2' ? 'Only played if the losers bracket team wins the grand final' : 'Waiting for earlier matches';
     const f = n.feed;
@@ -309,9 +343,9 @@ const BK = (() => {
     const win = sc ? (sc[0] > sc[1] ? 0 : 1) : bye ? m.winner : null;
     const row = t => {
       const isBye = m.slots[t] === -1, tbd = !isBye && !m.teams[t];
-      const label = isBye ? 'Bye' : tbd ? 'To be decided' : names(m.teams[t]);
+      const label = isBye ? 'Bye' : tbd ? 'To be decided' : teamName(o.ev, m.teams[t]);
       const won = win === t && !bye;
-      return `<span class="bk-row${won ? ' win' : ''}${tbd ? ' tbd' : ''}" style="--c:${TEAM[t]}"><span class="bk-name">${esc(label)}${won ? '<span class="vh">, winner</span>' : ''}</span>${won ? CHECK : '<span></span>'}<span class="bk-pts">${sc ? sc[t] : ''}</span></span>`;
+      return `<span class="bk-row${won ? ' win' : ''}${tbd ? ' tbd' : ''}" style="--c:${TEAM[t]}"><span class="bk-name">${isBye || tbd ? '' : logoHTML(o.ev, m.teams[t])}${esc(label)}${won ? '<span class="vh">, winner</span>' : ''}</span>${won ? CHECK : '<span></span>'}<span class="bk-pts">${sc ? sc[t] : ''}</span></span>`;
     };
     const st = bye ? 'Bye, moves on' : saving ? 'Saving…' : sc ? 'Final' : m.ready ? `<b>Up next${m.court ? ` · Court ${m.court}` : ''}</b>` : m.id === 'F2' ? 'Only if the losers team wins' : 'Waiting for earlier matches';
     const f = n.feed, short = t => esc(String(t).replace(/^(Winners|Losers) round (\d+)$/, '$1 $2')); // the full name stays in the label
@@ -326,13 +360,13 @@ const BK = (() => {
   function champHTML(n, ev) {
     const c = ev.champion;
     const style = `left:${n.x}px;top:${n.y}px;width:${n.w}px;height:${n.h}px`;
-    return `<li style="${style}"><div class="bk-champ${c ? ' won' : ''}" role="group" aria-label="${c ? 'Champions: ' + esc(names(c)) : 'Champion, to be decided'}">${c ? '<span class="ball"></span>' : ''}<span><small>${c ? 'Champions' : 'Champion'}</small><b>${c ? esc(names(c)) : 'To be decided'}</b></span></div></li>`;
+    return `<li style="${style}"><div class="bk-champ${c ? ' won' : ''}" role="group" aria-label="${c ? 'Champions: ' + esc(teamName(ev, c)) : 'Champion, to be decided'}">${c ? (logoHTML(ev, c, true) || '<span class="ball"></span>') : ''}<span><small>${c ? 'Champions' : 'Champion'}</small><b>${c ? esc(teamName(ev, c)) : 'To be decided'}</b></span></div></li>`;
   }
 
   // The scrollable, scalable bracket. opts: interactive (cards are buttons), sel (selected match id), scoreOf(m), saving(m).
   function bracketHTML(ev, opts = {}) {
     const L = layout(ev.tree);
-    const o = Object.assign({}, opts, { titleOf: m => (ev.tree.rounds.find(r => r.key === m.stage + m.round) || {}).title });
+    const o = Object.assign({}, opts, { ev, titleOf: m => (ev.tree.rounds.find(r => r.key === m.stage + m.round) || {}).title });
     const groups = L.headers.map(h => {
       const items = L.nodes.filter(n => (h.key === 'champion' ? n.kind === 'champion' : n.kind === 'match' && n.m.stage + n.m.round === h.key));
       const id = `bk-${h.key}`;
@@ -364,18 +398,18 @@ const BK = (() => {
   // Pool or round robin table. ev.standings rows: { rank, name, played, wins, losses, diff }.
   function standingsHTML(ev) {
     const cut = ev.format === 'pool_knockout' ? (ev.partners === 'fixed' ? ev.advance : ev.advance * 2) : 0;
-    const rows = ev.standings.map((r, i) => `<tr${cut && i === cut ? ' class="cut"' : ''}><td class="who"><span class="bk-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${esc(r.name)}${cut && i < cut ? ` <span class="bk-tag">${ev.tree ? 'In the knockout' : 'Advances'}</span>` : ''}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('');
+    const rows = ev.standings.map((r, i) => `<tr${cut && i === cut ? ' class="cut"' : ''}><td class="who"><span class="bk-rank ${r.rank === 1 && r.played ? 'first' : ''}">${r.rank}</span> ${logoOfUrl(r.logo, r.name)}${esc(r.name)}${cut && i < cut ? ` <span class="bk-tag">${ev.tree ? 'In the knockout' : 'Advances'}</span>` : ''}</td><td class="num">${r.wins}–${r.losses}</td><td class="num">${r.diff > 0 ? '+' : r.diff < 0 ? '−' : ''}${Math.abs(r.diff)}</td></tr>`).join('');
     return `<table class="bk-table"><caption class="vh">Wins, losses and point difference</caption><thead><tr><th scope="col" class="who">${ev.partners === 'fixed' ? 'Team' : 'Player'}</th><th scope="col">W–L</th><th scope="col">+/−</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   // One match as a plain line, for schedules on the public page.
-  function lineHTML(m) {
+  function lineHTML(m, ev) {
     const sc = m.score, win = sc ? (sc[0] > sc[1] ? 0 : 1) : null;
-    const r = i => `<div class="r${win === i ? ' win' : ''}"><span>${esc(names(m.teams[i]) || 'To be decided')}${win === i ? '<span class="vh">, winner</span>' : ''}</span><span class="num">${sc ? sc[i] : ''}</span></div>`;
+    const r = i => `<div class="r${win === i ? ' win' : ''}"><span>${m.teams[i] ? logoHTML(ev, m.teams[i]) : ''}${esc(teamName(ev, m.teams[i]) || 'To be decided')}${win === i ? '<span class="vh">, winner</span>' : ''}</span><span class="num">${sc ? sc[i] : ''}</span></div>`;
     return `<li class="bk-mline">${r(0)}${r(1)}<div class="c">${sc ? 'Final' : m.court ? `Court ${m.court}` : 'Up next'}</div></li>`;
   }
 
-  return { layout, scale, bracketHTML, fitAll, standingsHTML, lineHTML, describe, esc, CW, CH, GX, ROW };
+  return { layout, scale, bracketHTML, fitAll, standingsHTML, lineHTML, describe, esc, teamName, logoHTML, logoOfUrl, initials, watchLogos, CW, CH, GX, ROW };
 })();
 
 (() => {
@@ -390,7 +424,7 @@ const BK = (() => {
   const POLL = 8000;
 
   const time = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-  const names = t => (t ? t.join(' & ') : '');
+  BK.watchLogos();
 
   function setTv(on, fullscreen) {
     tv = on; root.classList.toggle('tv', on);
@@ -419,7 +453,7 @@ const BK = (() => {
     const pool = d.format === 'pool_knockout', main = $('#pub-body');
     const sx = [...main.querySelectorAll('.bk-scroll')].map(e => e.scrollLeft);
     const parts = [];
-    if (d.status === 'done' && d.champion) parts.push(`<div class="pub-champ" role="status"><span class="ball"></span><div><small>${d.tree ? 'Champions' : d.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(names(d.champion))}</b></div></div>`);
+    if (d.status === 'done' && d.champion) parts.push(`<div class="pub-champ" role="status">${BK.logoHTML(d, d.champion, true) || '<span class="ball"></span>'}<div><small>${d.tree ? 'Champions' : d.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(BK.teamName(d, d.champion))}</b></div></div>`);
     const standings = () => `<section class="pub-sec" aria-labelledby="pub-st"><h2 id="pub-st">${pool ? 'Pool standings' : 'Standings'}</h2><div class="card" style="--rows:${d.standings.length}">${BK.standingsHTML(d)}</div>${pool ? `<p class="pub-note" style="margin-top:8px">The top ${d.advance} ${d.partners === 'fixed' ? 'teams' : 'teams of players'} go into the knockout.</p>` : ''}</section>`;
     const bracket = () => `<section class="pub-sec" aria-labelledby="pub-br"><h2 id="pub-br">${pool ? 'Knockout' : 'Bracket'}</h2>${BK.bracketHTML(d, {})}</section>`;
     if (d.tree && pool) parts.push(`<div class="pub-grid pool">${standings()}${bracket()}</div>`);
@@ -427,12 +461,12 @@ const BK = (() => {
     else if (pool) parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec"><div class="card"><h2>Knockout</h2><p class="pub-note">The bracket appears here when pool play ends: the top ${d.advance} ${d.partners === 'fixed' ? 'teams' : 'teams of players'} play single elimination.</p></div></section></div>`);
     else if (tv && d.rounds.length) {
       const cur = d.rounds.find(r => r.status !== 'done') || d.rounds[d.rounds.length - 1];
-      parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${esc(cur.title)}${d.status === 'live' ? ' · now' : ''}</h2><div class="card"><ul class="pub-rounds">${cur.matches.map(BK.lineHTML).join('')}</ul></div></section></div>`);
+      parts.push(`<div class="pub-grid pool">${standings()}<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${esc(cur.title)}${d.status === 'live' ? ' · now' : ''}</h2><div class="card"><ul class="pub-rounds">${cur.matches.map(m => BK.lineHTML(m, d)).join('')}</ul></div></section></div>`);
     } else parts.push(`<div class="pub-grid">${standings()}</div>`);
     // Round by round results, for events that are played in rounds.
     if (d.rounds.length && !tv) {
       const cur = d.rounds.find(r => r.status !== 'done') || d.rounds[d.rounds.length - 1];
-      parts.push(`<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${pool ? 'Pool rounds' : 'Rounds'}</h2><ol class="pub-rounds">${d.rounds.slice().reverse().map(r => `<li><div class="card"><h2>${esc(r.title)}${r === cur && d.status === 'live' ? ' · now' : ''}</h2><ul>${r.matches.map(BK.lineHTML).join('')}</ul>${r.byes.length ? `<p class="pub-note">Sitting out: ${esc(r.byes.join(', '))}</p>` : ''}</div></li>`).join('')}</ol></section>`);
+      parts.push(`<section class="pub-sec" aria-labelledby="pub-rd"><h2 id="pub-rd">${pool ? 'Pool rounds' : 'Rounds'}</h2><ol class="pub-rounds">${d.rounds.slice().reverse().map(r => `<li><div class="card"><h2>${esc(r.title)}${r === cur && d.status === 'live' ? ' · now' : ''}</h2><ul>${r.matches.map(m => BK.lineHTML(m, d)).join('')}</ul>${r.byes.length ? `<p class="pub-note">Sitting out: ${esc(r.byes.join(', '))}</p>` : ''}</div></li>`).join('')}</ol></section>`);
     }
     main.innerHTML = parts.join('');
     fit();

@@ -102,6 +102,10 @@ export function ensureSchema() {
         updated_at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (club, id)
       )`;
+
+      // Private reference data typed into an imported sheet: { "player name": "DUPR ID" }. Kept out of `data` on purpose, so no
+      // event view, spectator page or export can include it. Only an organizer can read it (events.js, action 'refs').
+      await q`ALTER TABLE events ADD COLUMN IF NOT EXISTS refs jsonb`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
