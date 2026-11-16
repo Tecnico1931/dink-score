@@ -31,11 +31,10 @@ function signature(g) {
 }
 
 // Pairs of games that look like one game recorded twice (scored live on one phone and logged on another, say):
-// same players, same score, finished within the window. Games an organizer has marked "keep both" are left out.
+// same players, same score, finished within the window. Two games an organizer has marked "keep both" are not paired with each other, but a new record still is.
 export function findDuplicates(games, windowMs = DUP_WINDOW_MS) {
   const groups = new Map();
   for (const g of games) {
-    if (g.dupOk) continue;
     const s = signature(g);
     if (!groups.has(s)) groups.set(s, []);
     groups.get(s).push(g);
@@ -44,7 +43,7 @@ export function findDuplicates(games, windowMs = DUP_WINDOW_MS) {
   for (const list of groups.values()) {
     if (list.length < 2) continue;
     list.sort((a, b) => a.endedAt - b.endedAt);
-    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length && list[j].endedAt - list[i].endedAt <= windowMs; j++) pairs.push([list[i].id, list[j].id]);
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length && list[j].endedAt - list[i].endedAt <= windowMs; j++) if (!(list[i].dupOk && list[j].dupOk)) pairs.push([list[i].id, list[j].id]);
   }
   return pairs;
 }

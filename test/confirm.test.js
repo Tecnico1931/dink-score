@@ -46,9 +46,10 @@ test('duplicates: a different score, partner, format or a long gap is not a dupl
   assert.deepEqual(findDuplicates([g('s1', [['Ana'], ['Ben']], [11, 7], T), a]), []);
 });
 
-test('duplicates: games an organizer marked "keep both" are left out; three records give every close pair', () => {
+test('duplicates: two games marked "keep both" are not paired with each other; three records give every close pair', () => {
   const mk = (id, at, extra) => g(id, [['Ana', 'Ben'], ['Cy', 'Di']], [11, 7], T + at * MIN, extra);
-  assert.deepEqual(findDuplicates([mk('a', 0, { dupOk: true }), mk('b', 5)]), []);
+  assert.deepEqual(findDuplicates([mk('a', 0, { dupOk: true }), mk('b', 5, { dupOk: true })]), []);
+  assert.deepEqual(findDuplicates([mk('a', 0, { dupOk: true }), mk('b', 5)]), [['a', 'b']]);
   assert.deepEqual(findDuplicates([mk('a', 0), mk('b', 5), mk('c', 10)]), [['a', 'b'], ['a', 'c'], ['b', 'c']]);
   assert.deepEqual(findDuplicates([mk('a', 0), mk('b', 5), mk('c', 400)]), [['a', 'b']]);
 });
