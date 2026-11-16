@@ -1,0 +1,19 @@
+name: Uptime check
+on:
+  schedule: [{ cron: '*/30 * * * *' }]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: ${{ vars.SITE_URL || 'https://dinkscore.vercel.app' }}
+    steps:
+      - name: GET / and /api/dupr (read-only)
+        run: |
+          curl -fsS --retry 2 --max-time 20 -o /dev/null "$SITE_URL/"
+          # Without a club code the DUPR route answers 200 (off) or 400 (on): anything but a 5xx means the API and its database are up.
+          code=$(curl -sS --retry 2 --max-time 20 -o /dev/null -w '%{http_code}' "$SITE_URL/api/dupr")
+          echo "/api/dupr -> $code"
+          [ "$code" -lt 500 ]

@@ -2,6 +2,7 @@
 import { neon } from '@neondatabase/serverless';
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { cleanName } from './_names.js';
+import { reportError } from './_report.js';
 
 let sql = null;
 let ready = null;
@@ -326,7 +327,7 @@ export function handler(fn) {
       await fn(req, res);
     } catch (err) {
       const status = err.status || 500;
-      if (status === 500) console.error(err);
+      if (status === 500) { console.error(err); await reportError('server', { message: err && err.message, stack: err && err.stack }); }
       send(res, status, { error: status === 500 ? 'Something went wrong on the server. Try again in a moment.' : err.message });
     }
   };
