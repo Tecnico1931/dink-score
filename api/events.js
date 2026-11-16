@@ -20,6 +20,7 @@
 // Organizer actions need the creating phone's token or the organizer PIN, like the club's other organizer settings.
 import { checkLog } from './_rallylog.js';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, nameKey, reserveGames, releaseGames, verifiedSender } from './_db.js';
+import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 import { newShareToken } from './_share.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
 import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, checkResultActor, setResultsBy, correctResult, startKnockout, endEvent, view } from './_events.js';
@@ -66,9 +67,13 @@ async function recordGame(sql, club, code, event, game, body, now, rallyLog) {
   const windowStart = await reserveGames(code, 1);
   let inserted = 0;
   try {
-    const rows = await sql`INSERT INTO games (club, id, data, ended_at, rally_log) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt}, ${checkLog(g, rallyLog)})
+    // Event matches count without a separate confirmation (the event's organizer controls who may enter results), and an
+    // organizer's own entry is marked confirmed like any other game.
+    const confirmedBy = sender === 'organizer' ? 'organizer' : null;
+    const rows = await sql`INSERT INTO games (club, id, data, ended_at, rally_log, confirmed_by, confirmed_at) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt}, ${checkLog(g, rallyLog)}, ${confirmedBy}::text, CASE WHEN ${confirmedBy}::text IS NULL THEN NULL ELSE now() END)
       ON CONFLICT (club, id) DO NOTHING RETURNING id`;
     inserted = rows.length;
+    if (inserted) await audit(sql, code, g.id, 'create', senderActor(sender), null, snapshot(g), 'event match');
   } finally {
     await releaseGames(code, 1 - inserted, windowStart);
   }
@@ -156,7 +161,9 @@ export default handler(async (req, res) => {
     const { event, out } = await mutate(sql, code, id, ev => correctResult(ev, String(body.matchId || ''), body.score, now));
     // Same game id, new score. Keeps who sent it and when it arrived; does nothing if the game was deleted from the record.
     const g = cleanGame(out.game);
+    const [old] = await sql`SELECT data FROM games WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
     await sql`UPDATE games SET data = data || ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}, rally_log = NULL WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
+    if (old) await audit(sql, code, g.id, 'edit', await organizerActor(club, body.ownerToken), snapshot(old.data), snapshot(Object.assign({}, old.data, g)), 'event score corrected');
     return send(res, 200, { event: view(event) });
   }
   const actions = {

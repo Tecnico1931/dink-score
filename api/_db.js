@@ -198,6 +198,23 @@ export function ensureSchema() {
         detail jsonb
       )`;
       await q`CREATE INDEX IF NOT EXISTS club_audit_club_at ON club_audit (club, at DESC)`;
+      // Game confirmation, duplicate marks and the audit trail (see _confirm.js and _audit.js). All additive.
+      await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_by text`; // 'organizer' or the confirming player's name key
+      await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_at timestamptz`;
+      await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS dup_ok boolean NOT NULL DEFAULT false`; // an organizer said "these are two different games"
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS require_confirmation boolean NOT NULL DEFAULT false`; // true: unconfirmed games don't count toward ratings and achievements
+      await q`CREATE TABLE IF NOT EXISTS game_audit (
+        id bigserial PRIMARY KEY,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        game text NOT NULL DEFAULT '',
+        action text NOT NULL,
+        actor text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now(),
+        before jsonb,
+        after jsonb,
+        note text
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS game_audit_club_at ON game_audit (club, at DESC)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -282,9 +299,9 @@ export async function requireClub(code, req) {
   if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
   // The code people type is the current public code (or, for a club never rotated, its original code), or a retired
   // code still inside its overlap. `code` on the returned row is always the permanent key: use it for every query.
-  let rows = await sql`SELECT code, name, pin_hash, owner_hash, public_code FROM clubs WHERE coalesce(public_code, code) = ${code}`;
+  let rows = await sql`SELECT code, name, pin_hash, owner_hash, public_code, require_confirmation FROM clubs WHERE coalesce(public_code, code) = ${code}`;
   if (!rows.length) {
-    rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, a.expires_at AS old_code_until
+    rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, c.require_confirmation, a.expires_at AS old_code_until
       FROM club_aliases a JOIN clubs c ON c.code = a.club WHERE a.code = ${code} AND a.expires_at > now()`;
   }
   await purgeMarks(sql);
@@ -296,7 +313,7 @@ export async function requireClub(code, req) {
 }
 // openClaim: an older club with no creator on record and no PIN yet, where any member may set the first PIN.
 // `code` is the one people use now; oldCodeUntil (ms) is set when the request came in on a retired code that is about to stop working.
-export const publicClub = c => ({ code: c.public_code || c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash,
+export const publicClub = c => ({ code: c.public_code || c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash, requireConfirmation: !!c.require_confirmation,
   ...(c.old_code_until ? { oldCodeUntil: new Date(c.old_code_until).getTime() } : {}) });
 
 // True when `code` is already a club's key, current code, or a retired code (retired codes are never reused).

@@ -1086,5 +1086,163 @@ await step('roles: co-organizers, removal, leaving, blocking, audit, per-role au
   assert.equal(cols.length, 2);
 });
 
+// ---- Game confirmation, duplicates and the audit trail ----
+const cf = await (async () => {
+  const c = ok(await call(club, 'POST', { body: { name: 'Confirm club', pin: '731942' } }), 201);
+  return { code: c.club.code, owner: c.ownerToken, pin: '731942' };
+})();
+const cfPost = (h, body) => call(h, 'POST', { body: { code: cf.code, ...body } });
+const cfGet = async () => ok(await call(club, 'GET', { query: '?code=' + cf.code }));
+const cfAudit = async (creds = { headers: { 'x-club-owner': cf.owner } }, id) => call(games, 'GET', { query: `?code=${cf.code}&audit=1${id ? '&id=' + id : ''}`, ...creds });
+const now = Date.now();
+const cfGame = (id, extra = {}) => ({ id, mode: 'doubles', teams: [['Ann', 'Bo'], ['Cat', 'Dee']], score: [11, 6], endedAt: now - 3600000, startedAt: now - 3700000, ...extra });
+const cfTok = {};
+await step('confirmation: players link their phones, a phone with a player token records a game, it starts unconfirmed', async () => {
+  for (const n of ['Ann', 'Bo', 'Cat', 'Dee', 'Eve']) cfTok[n] = ok(await cfPost(playersApi, { action: 'claim', name: n, ownerToken: cf.owner })).playerToken;
+  ok(await cfPost(games, { games: [cfGame('conf-1', { logged: true })], playerName: 'Ann', playerToken: cfTok.Ann }));
+  const g = (await cfGet()).games.find(x => x.id === 'conf-1');
+  assert.equal(g.scoredBy, 'ann'); assert.equal(g.confirmed, undefined); assert.ok(!g.hold, 'with the setting off it still counts');
+});
+await step('confirmation: the recorder, their partner, a bystander, a stranger and a wrong PIN cannot confirm', async () => {
+  const conf = extra => cfPost(games, { confirm: 'conf-1', ...extra });
+  assert.equal((await conf({})).status, 403, 'only the club code');
+  assert.equal((await conf({ playerName: 'Ann', playerToken: cfTok.Ann })).status, 403, 'the recorder');
+  assert.equal((await conf({ playerName: 'Bo', playerToken: cfTok.Bo })).status, 403, 'the recorder\'s partner');
+  assert.equal((await conf({ playerName: 'Eve', playerToken: cfTok.Eve })).status, 403, 'a member who did not play');
+  assert.equal((await conf({ playerName: 'Cat', playerToken: cfTok.Dee })).status, 403, 'someone else\'s token');
+  assert.equal((await conf({ playerName: 'Cat', playerToken: 'f'.repeat(48) })).status, 403, 'a guessed token');
+  assert.equal((await conf({ pin: '000000' })).status, 403, 'a wrong PIN');
+  assert.equal((await cfGet()).games.find(x => x.id === 'conf-1').confirmed, undefined);
+});
+await step('confirmation: a player on the other team confirms; confirming again changes nothing', async () => {
+  const r = ok(await cfPost(games, { confirm: 'conf-1', playerName: 'Cat', playerToken: cfTok.Cat }));
+  assert.equal(r.confirmed.by, 'cat');
+  assert.equal(ok(await cfPost(games, { confirm: 'conf-1', playerName: 'Dee', playerToken: cfTok.Dee })).alreadyConfirmed, true);
+  const g = (await cfGet()).games.find(x => x.id === 'conf-1');
+  assert.equal(g.confirmed.by, 'cat'); assert.ok(g.confirmed.at > 0);
+  assert.equal(ok(await cfAudit()).json, undefined);
+});
+await step('confirmation: an organizer (PIN or creating phone) can confirm any game; the creating phone\'s own games start confirmed', async () => {
+  ok(await cfPost(games, { games: [cfGame('conf-2', { endedAt: now - 7200000 })] }));
+  assert.equal((await cfGet()).games.find(x => x.id === 'conf-2').confirmed, undefined, 'a phone with only the club code');
+  ok(await cfPost(games, { confirm: 'conf-2', pin: cf.pin }));
+  assert.equal((await cfGet()).games.find(x => x.id === 'conf-2').confirmed.by, 'organizer');
+  ok(await cfPost(games, { games: [cfGame('conf-3', { teams: [['Ann', 'Eve'], ['Bo', 'Dee']], endedAt: now - 9000000 })], ownerToken: cf.owner }));
+  assert.equal((await cfGet()).games.find(x => x.id === 'conf-3').confirmed.by, 'organizer');
+  assert.equal((await cfPost(games, { confirm: 'nope-id', pin: cf.pin })).status, 404);
+});
+await step('setting: only an organizer can require confirmation; unconfirmed games are held out of achievements and flagged', async () => {
+  assert.equal((await cfPost(club, { action: 'set-confirmation', required: true })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-confirmation', required: true, pin: '000000' })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-confirmation', required: 'yes', ownerToken: cf.owner })).status, 400);
+  ok(await cfPost(games, { games: [cfGame('conf-4', { teams: [['Ann', 'Bo'], ['Zed', 'Dee']], endedAt: now - 5400000 })], playerName: 'Ann', playerToken: cfTok.Ann }));
+  const before = await cfGet();
+  assert.equal(before.club.requireConfirmation, false);
+  ok(await cfPost(club, { action: 'set-confirmation', required: true, pin: cf.pin }));
+  const after = await cfGet();
+  assert.equal(after.club.requireConfirmation, true);
+  const held = id => after.games.find(x => x.id === id).hold;
+  assert.equal(held('conf-4'), true); assert.ok(!held('conf-1')); assert.ok(!held('conf-2'));
+  const has = (d, p) => !!(d.progress.players[p] && d.progress.players[p].achievements.length);
+  assert.ok(has(before, 'ann') && !has(after, 'zed') && !has(before, 'zed'), 'Zed only played the held game, which never scored an achievement');
+  assert.ok(has(after, 'ann'), 'confirmed games still count');
+  ok(await cfPost(games, { confirm: 'conf-4', pin: cf.pin }));
+  const cleared = await cfGet();
+  assert.ok(!cleared.games.find(x => x.id === 'conf-4').hold);
+  ok(await cfPost(club, { action: 'set-confirmation', required: false, ownerToken: cf.owner }));
+});
+await step('duplicates: a live game and a logged copy are flagged; keep both clears the flag; deleting one clears it too', async () => {
+  const live = cfGame('dup-live', { teams: [['Fay', 'Gil'], ['Hal', 'Ivy']], score: [11, 9], endedAt: now - 1800000 });
+  const logged = cfGame('dup-logged', { teams: [['Hal', 'Ivy'], ['Gil', 'Fay']], score: [9, 11], endedAt: now - 1500000, logged: true });
+  ok(await cfPost(games, { games: [live, logged] }));
+  assert.deepEqual((await cfGet()).dupes, [['dup-live', 'dup-logged']]);
+  assert.equal((await cfPost(games, { keepBoth: ['dup-live', 'dup-logged'], pin: '000000' })).status, 403);
+  assert.equal((await cfPost(games, { keepBoth: ['dup-live', 'dup-live'], pin: cf.pin })).status, 400);
+  ok(await cfPost(games, { keepBoth: ['dup-live', 'dup-logged'], pin: cf.pin }));
+  assert.deepEqual((await cfGet()).dupes, []);
+  const again = cfGame('dup-again', { teams: [['Fay', 'Gil'], ['Hal', 'Ivy']], score: [11, 9], endedAt: now - 1700000 });
+  ok(await cfPost(games, { games: [again] }));
+  assert.deepEqual((await cfGet()).dupes.length, 2, 'a third record is flagged against the ones not yet cleared');
+  const del = await call(games, 'DELETE', { query: `?code=${cf.code}&id=dup-again`, headers: { 'x-club-pin': cf.pin } });
+  ok(del);
+  assert.deepEqual((await cfGet()).dupes, []);
+});
+await step('audit: create, edit, confirm, delete and restore are on the record with who and before/after; the replay note is kept', async () => {
+  const log = (await cfAudit()).json.audit;
+  const of = id => log.filter(e => e.game === id).map(e => e.action).reverse();
+  assert.deepEqual(of('conf-1'), ['create', 'confirm']);
+  assert.equal(log.find(e => e.game === 'conf-1' && e.action === 'create').actor, 'player:ann');
+  assert.equal(log.find(e => e.game === 'conf-1' && e.action === 'confirm').actor, 'player:cat');
+  assert.equal(log.find(e => e.game === 'conf-3' && e.action === 'create').actor, 'creator');
+  assert.equal(log.find(e => e.game === 'conf-2' && e.action === 'create').actor, 'anonymous');
+  assert.equal(log.find(e => e.game === 'conf-2' && e.action === 'confirm').actor, 'organizer-pin');
+  assert.ok(log.some(e => e.action === 'setting' && e.after.requireConfirmation === true && e.actor === 'organizer-pin'));
+  assert.ok(log.some(e => e.action === 'keep-both'));
+  const edit = await cfPost(games, { edit: cfGame('conf-1', { score: [11, 8], logged: true }), pin: cf.pin });
+  ok(edit);
+  const g = (await cfGet()).games.find(x => x.id === 'conf-1');
+  assert.equal(g.confirmed.by, 'organizer', 'an organizer changing the result vouches for the new one');
+  ok(await cfPost(games, { edit: cfGame('conf-4', { teams: [['Ann', 'Bo'], ['Zed', 'Dee']], score: [11, 4], endedAt: now - 5400000 }), pin: cf.pin }));
+  ok(await call(games, 'DELETE', { query: `?code=${cf.code}&id=conf-2`, headers: { 'x-club-owner': cf.owner } }));
+  ok(await cfPost(games, { restore: 'conf-2', pin: cf.pin }));
+  const one = (await cfAudit(undefined, 'conf-1')).json.audit;
+  const e = one.find(x => x.action === 'edit');
+  assert.deepEqual(e.before.score, [11, 6]); assert.deepEqual(e.after.score, [11, 8]); assert.equal(e.actor, 'organizer-pin'); assert.ok(e.at > 0);
+  const two = (await cfAudit(undefined, 'conf-2')).json.audit.map(x => [x.action, x.actor]).reverse();
+  assert.deepEqual(two, [['create', 'anonymous'], ['confirm', 'organizer-pin'], ['delete', 'creator'], ['restore', 'organizer-pin']]);
+  assert.deepEqual((await cfAudit(undefined, 'conf-2')).json.audit.find(x => x.action === 'delete').before.score, [11, 6]);
+});
+await step('audit: an edit that changes the result by a non-organizer does not keep the confirmation (no PIN club)', async () => {
+  const c2 = ok(await call(club, 'POST', { body: { name: 'Open edit', pin: '551234' } }), 201);
+  await pg.query('UPDATE clubs SET pin_hash = NULL WHERE code = $1', [c2.club.code]);
+  const p2 = b => call(games, 'POST', { body: { code: c2.club.code, ...b } });
+  ok(await p2({ games: [cfGame('open-1')] }));
+  ok(await p2({ confirm: 'open-1', ownerToken: c2.ownerToken }));
+  assert.equal((await pg.query("SELECT confirmed_by FROM games WHERE id = 'open-1'")).rows[0].confirmed_by, 'organizer');
+  ok(await p2({ edit: cfGame('open-1', { score: [11, 2] }) }));
+  assert.equal((await pg.query("SELECT confirmed_by FROM games WHERE id = 'open-1'")).rows[0].confirmed_by, null, 'anyone can edit here, so the old confirmation no longer stands');
+  ok(await p2({ edit: cfGame('open-1', { score: [11, 2], endedAt: now - 3000000 }) }));
+  const a = await call(games, 'GET', { query: `?code=${c2.club.code}&audit=1` });
+  assert.equal(a.status, 403, 'a club without a PIN shows its history only to the creating phone');
+  assert.equal((await call(games, 'GET', { query: `?code=${c2.club.code}&audit=1`, headers: { 'x-club-owner': c2.ownerToken } })).status, 200);
+});
+await step('audit: the history is organizer-only and never reveals itself to the club code alone', async () => {
+  assert.equal((await cfAudit({})).status, 403, 'club code only');
+  assert.equal((await cfAudit({ headers: { 'x-club-pin': '000000' } })).status, 403, 'wrong PIN');
+  assert.equal((await cfAudit({ headers: { 'x-club-owner': 'f'.repeat(48) } })).status, 403, 'wrong creator token');
+  assert.equal((await cfAudit({ headers: { 'x-club-pin': cf.pin } })).status, 200, 'the PIN');
+  const player = await cfAudit({ headers: { 'x-club-pin': 'x' } });
+  assert.equal(player.status, 403);
+  const text = JSON.stringify((await cfGet()));
+  assert.ok(!text.includes('game_audit') && !text.includes('"actor"'), 'the club payload carries no history');
+});
+await step('audit: event matches are recorded too, event games count even when confirmation is required', async () => {
+  ok(await cfPost(club, { action: 'set-confirmation', required: true, ownerToken: cf.owner }));
+  const e = ok(await cfPost(events, { action: 'create', event: { name: 'Cf cup', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Pa', 'Pb', 'Pc', 'Pd'], seed: 'cf' }, ownerToken: cf.owner }), 201).event;
+  const m = e.rounds[0].matches[0];
+  ok(await cfPost(events, { action: 'result', id: e.id, matchId: m.id, score: [11, 3], endedAt: Date.now(), ownerToken: cf.owner }));
+  const gid = `${e.id}-${m.id}`;
+  const g = (await cfGet()).games.find(x => x.id === gid);
+  assert.ok(g.event && !g.hold);
+  ok(await cfPost(events, { action: 'correct', id: e.id, matchId: m.id, score: [11, 5], ownerToken: cf.owner }));
+  const log = (await cfAudit(undefined, gid)).json.audit.map(x => [x.action, x.note]).reverse();
+  assert.deepEqual(log, [['create', 'event match'], ['edit', 'event score corrected']]);
+  ok(await cfPost(club, { action: 'set-confirmation', required: false, ownerToken: cf.owner }));
+});
+await step('confirmation: a co-organizer can confirm and read the history, and is named in it', async () => {
+  ok(await cfPost(playersApi, { action: 'set-role', name: 'Eve', role: 'organizer', ownerToken: cf.owner }));
+  const co = `${cfTok.Eve}:Eve`;
+  ok(await cfPost(games, { games: [cfGame('conf-co', { endedAt: now - 11000000 })], playerName: 'Ann', playerToken: cfTok.Ann }));
+  assert.equal((await cfPost(games, { confirm: 'conf-co', playerName: 'Bo', playerToken: cfTok.Bo })).status, 403); // a teammate of the scorer still can't
+  ok(await cfPost(games, { confirm: 'conf-co', ownerToken: co }));
+  const h = ok(await cfAudit({ headers: { 'x-club-owner': co } }, 'conf-co'));
+  assert.ok(JSON.stringify(h).includes('co-organizer:eve'));
+});
+await step('confirmation: the new columns and table are additive', async () => {
+  const cols = (await pg.query("SELECT table_name, column_name, is_nullable FROM information_schema.columns WHERE (table_name = 'games' AND column_name IN ('confirmed_by','confirmed_at','dup_ok')) OR (table_name = 'clubs' AND column_name = 'require_confirmation')")).rows;
+  assert.equal(cols.length, 4);
+  assert.equal((await pg.query("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_name = 'game_audit'")).rows[0].n, 1);
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

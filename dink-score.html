@@ -188,6 +188,8 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .pl-link { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
 .g-actions { display: flex; gap: 12px; align-self: start; }
 .g-actions .link { font-size: 13px; padding: 2px 0; }
+.tag.warn { background: color-mix(in srgb, var(--down) 14%, transparent); color: var(--down); }
+.tag.confirmed { background: color-mix(in srgb, var(--up, #1f9d55) 14%, transparent); color: var(--up, #1f9d55); }
 .tag.logged { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue); }
 
 .empty { background: var(--surface); border-radius: 22px; padding: 24px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
@@ -1572,6 +1574,8 @@ function allGames() {
   if (cloudGames) for (const g of cloudGames) map.set(g.id, g);
   return [...map.values()].sort((a, b) => b.endedAt - a.endedAt);
 }
+// Games that count toward ratings, the leaderboard and profiles: with the club's "confirmed games only" setting on, unconfirmed ones are held out.
+const ratedGames = () => allGames().filter(g => !g.hold);
 const minutes = g => Math.max(1, Math.round((g.endedAt - g.startedAt) / 60000));
 
 /* ---------- saved players ---------- */
@@ -1607,7 +1611,7 @@ function pickInto(names, mode, name) {
   for (const t of [0, 1]) for (let i = 0; i < n; i++) if (!(names[t][i] || '').trim()) { names[t][i] = name; return; }
 }
 function chipsHTML(names, mode, scope) {
-  const { tables } = DR.compute(allGames());
+  const { tables } = DR.compute(ratedGames());
   const n = mode === 'doubles' ? 2 : 1;
   const inUse = name => [0, 1].some(t => names[t].slice(0, n).some(v => sameName(v || '', name)));
   const editing = scope === 'setup' && rosterEdit;
@@ -1848,9 +1852,9 @@ async function refreshClub() {
     const data = await api('club?code=' + asked);
     if (!club || club.code !== asked) return;
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; saveClubs();
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
-    clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, at: Date.now() }, club.code);
+    clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, dupes: data.dupes || [], at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
     followRenames(data.renamed);
@@ -2282,6 +2286,8 @@ function renderClub() {
     body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   } else if (c.view === 'whoami' && club) {
     body = whoamiHTML(c);
+  } else if (c.view === 'audit' && club) {
+    body = auditHTML(c);
   } else if (c.view === 'members' && club) {
     body = membersHTML(c);
   } else if (c.view === 'watch' && club) {
@@ -2384,6 +2390,7 @@ function renderClub() {
       ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
       <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
+      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
@@ -2587,7 +2594,7 @@ function monthCard(games) {
 }
 
 function forecastHTML() {
-  const { tables } = DR.compute(allGames());
+  const { tables } = DR.compute(ratedGames());
   const teams = [teamPlayers(0), teamPlayers(1)];
   const known = teams.flat().filter(n => !isDefaultName(n) && (DR.lookup(tables, setup.mode, n) || {}).games);
   if (!known.length) return `<div class="forecast"><span class="fc-k">Forecast</span><span class="fc-who">No ratings yet</span><p class="fc-note">Every saved game builds each player's Dink Rating. New players start at ${r2(DR.START)}.</p></div>`;
@@ -2609,7 +2616,7 @@ function teamCard(t) {
 
 function playView() {
   const games = allGames();
-  return `${homeTiles(games)}
+  return `${homeTiles(ratedGames())}
   <section class="card" aria-labelledby="new-h">
     <div class="new-head"><h2 id="new-h">New game</h2><button type="button" class="link" data-act="clear-names" ${setup.names.flat().some(n => n && n.trim()) ? '' : 'hidden'}>Clear names</button></div>
     <div class="field" style="margin-top:14px"><span class="lab">Format</span>${seg('data-set-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], setup.mode)}</div>
@@ -2630,14 +2637,36 @@ function playView() {
   ${games.length ? `<section><div class="sec-head"><h2>Recent</h2><button class="link" data-tab-go="history">See all</button></div><ul class="games" style="margin-top:10px">${games.slice(0, 3).map(gameItem).join('')}</ul></section>` : ''}`;
 }
 
+// Confirmation and duplicates (club games). The server decides who may confirm; the button only shows where it can work.
+const isDupe = id => !!club && !!clubData && (clubData.dupes || []).some(p => p.includes(id));
+const canConfirmGame = g => !!club && !g.event && !g.confirmed && !outbox.some(o => o.type === 'game' && o.game.id === g.id) && (hasOrganizer() || (!!myName() && g.teams.some(t => t.some(n => sameName(n, myName())))));
+async function confirmGame(id) {
+  try { await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, confirm: id }, senderCreds(), adminCreds())) }); showToast('Confirmed', false); await refreshClub(); }
+  catch (err) { showToast(err.message, false); }
+}
+async function keepBoth(a, b) {
+  try { await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, keepBoth: [a, b] }, adminCreds())) }); showToast('Both games kept', false); await refreshClub(); }
+  catch (err) { showToast(err.message, false); }
+}
+// Organizer-only list of likely duplicates above the record: keep both, or delete the one that shouldn't be there.
+function dupesHTML() {
+  if (!club || !clubData || !hasOrganizer()) return '';
+  const by = new Map(allGames().map(g => [g.id, g]));
+  const pairs = (clubData.dupes || []).filter(p => p.every(id => by.has(id))).slice(0, 5);
+  if (!pairs.length) return '';
+  const one = g => `${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}, ${new Date(g.endedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}${g.logged ? ' (logged)' : ' (scored live)'}`;
+  return `<section><div class="upload-card"><b>These look like the same game recorded twice</b>${pairs.map(([a, b]) => `<p style="margin:10px 0 0">${one(by.get(a))}<br>${one(by.get(b))}</p>
+    <span class="g-actions" style="margin-top:6px"><button class="link" data-keepboth="${esc(a)}|${esc(b)}">Keep both</button><button class="link" data-del-dup="${esc(a)}">Delete the first</button><button class="link" data-del-dup="${esc(b)}">Delete the second</button></span>`).join('')}</div></section>`;
+}
 function gameItem(g) {
   const d = new Date(g.endedAt);
   const date = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
   const line = t => `<div class="line ${g.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(g.teams[t]))}</span><span class="pts">${Number(g.score[t])}</span></div>`;
   const armed = armedDelete === g.id;
+  const dupe = isDupe(g.id), canConfirm = canConfirmGame(g);
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
-    <span class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button><button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
-    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
+    <span class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button>${canConfirm ? `<button class="link" data-confirm="${esc(g.id)}">Confirm</button>` : ''}<button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
+    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${club && !g.event ? (g.confirmed ? '<span class="tag confirmed">Confirmed</span>' : `<span class="tag warn">${g.hold ? 'Not counted: unconfirmed' : 'Unconfirmed'}</span>`) : ''}${dupe ? '<span class="tag warn">Possible duplicate</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
 }
 
 function historyView() {
@@ -2648,7 +2677,7 @@ function historyView() {
   const totalRallies = games.reduce((s, g) => s + (g.rallies || 0), 0);
   const timed = games.filter(g => !g.logged);
   const totalMin = timed.reduce((s, g) => s + minutes(g), 0);
-  return head + onPhone + `<section class="totals"><div><b>${games.length}</b><span>Games</span></div><div><b>${totalRallies}</b><span>Rallies scored</span></div><div><b>${totalMin}</b><span>Minutes</span></div></section>
+  return head + onPhone + dupesHTML() + `<section class="totals"><div><b>${games.length}</b><span>Games</span></div><div><b>${totalRallies}</b><span>Rallies scored</span></div><div><b>${totalMin}</b><span>Minutes</span></div></section>
     <section><ul class="games">${games.map(gameItem).join('')}</ul></section>`;
 }
 
@@ -2674,7 +2703,7 @@ function leaderStats(games, mode) {
 function leadersView() {
   const info = club ? progressInfo() : null;
   const season = info && lbScope === 'season' ? info.season : null;
-  const games = season ? allGames().filter(g => g.scoredBy && (g.receivedAt || g.endedAt) >= season.start && (g.receivedAt || g.endedAt) < season.end) : allGames();
+  const games = season ? ratedGames().filter(g => g.scoredBy && (g.receivedAt || g.endedAt) >= season.start && (g.receivedAt || g.endedAt) < season.end) : ratedGames();
   const rows = leaderStats(games, ratingMode);
   const scope = info ? seg('data-lbscope', [['season', esc(info.season.name)], ['all', 'All time']], lbScope, 'sm') : '';
   const sub = season ? `${esc(season.name)} ends in ${daysLeft(season.end)} day${daysLeft(season.end) === 1 ? '' : 's'}. Everyone starts at 2.00 and only games sent from a club player's phone count. The top 3 with ${season.minGames}+ games win a trophy.` : `Ranked by Dink Rating from every saved ${ratingMode} game.`;
@@ -2847,7 +2876,7 @@ document.addEventListener('pointerdown', e => {
 let askedWhoami = false;
 function ratingPreview(s) {
   const rec = Object.assign(record(s), { id: '__pending' });
-  const { changes } = DR.compute([...allGames(), rec]);
+  const { changes } = DR.compute([...ratedGames(), rec]);
   const c = changes.__pending;
   if (!c) return '';
   const named = c.list.filter(x => !isDefaultName(x.name));
@@ -3771,7 +3800,7 @@ function seasonRows(mode) {
   const info = progressInfo();
   if (!info) return [];
   const s = info.season;
-  const games = allGames().filter(g => g.scoredBy && (g.receivedAt || g.endedAt) >= s.start && (g.receivedAt || g.endedAt) < s.end && (g.mode === 'singles' ? 'singles' : 'doubles') === mode);
+  const games = ratedGames().filter(g => g.scoredBy && (g.receivedAt || g.endedAt) >= s.start && (g.receivedAt || g.endedAt) < s.end && (g.mode === 'singles' ? 'singles' : 'doubles') === mode);
   const { tables } = DR.compute(games);
   return [...tables[mode].values()].filter(p => !isDefaultName(p.name)).sort((a, b) => b.rating - a.rating || b.games - a.games);
 }
@@ -3957,6 +3986,25 @@ function membersHTML(c) {
     ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></span></li>`).join('')}</ul>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
+async function setConfirmation(required) {
+  try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-confirmation', required }, adminCreds())) }); await refreshClub(); renderClub(); }
+  catch (err) { showToast(err.message, false); }
+}
+const AUDIT_WORDS = { create: 'Recorded', edit: 'Edited', delete: 'Deleted', restore: 'Restored', confirm: 'Confirmed', 'keep-both': 'Kept as two games', setting: 'Setting changed' };
+const auditWho = a => (a === 'creator' ? 'the club creator' : a === 'organizer-pin' ? 'an organizer (PIN)' : a === 'member' ? 'a club member' : /^player:/.test(a) ? a.slice(7) : 'someone with the club code');
+async function loadAudit() {
+  const c = clubSheet;
+  try {
+    const d = await api('games?code=' + encodeURIComponent(club.code) + '&audit=1', { headers: { 'Content-Type': 'application/json', 'x-club-pin': pins[club.code] || '', 'x-club-owner': owners[club.code] || '' } });
+    if (clubSheet === c) { c.rows = d.audit; renderClub(); }
+  } catch (err) { if (clubSheet === c) { c.error = err.message; c.rows = []; renderClub(); } }
+}
+function auditHTML(c) {
+  const res = g => g ? `${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}` : '';
+  const rows = !c.rows ? '<p class="note">Loading\u2026</p>' : !c.rows.length ? '<p>Nothing recorded yet. Changes to games from now on show up here.</p>'
+    : `<ul class="deleted">${c.rows.map(r => `<li style="display:block"><b>${esc(AUDIT_WORDS[r.action] || r.action)}</b> ${esc(res(r.after || r.before))}${r.before && r.after && r.action === 'edit' ? ` <span class="note">(was ${esc(res(r.before))})</span>` : ''}<br><span class="note">${esc(new Date(r.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))} by ${esc(auditWho(r.actor))}${r.note ? ', ' + esc(r.note) : ''}</span></li>`).join('')}</ul>`;
+  return `<h2 id="club-h">Game history</h2><p class="note">Newest first: who recorded, edited, deleted or confirmed each game. Only organizers see this.</p>${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}${rows}<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
 async function adminAction(body, okMsg) {
   try { await playerCall(Object.assign(body, adminCreds())); showToast(okMsg, false); await refreshClub(); await loadMembers(); renderClub(); }
   catch (err) { showToast(err.message, false); }
@@ -4066,7 +4114,7 @@ function wireChart() {
 function renderProfile() {
   const root = $('#sheet4');
   if (!profile) { duprEdit = null; root.innerHTML = ''; root._html = root._key = ''; return; }
-  const pr = playerProfile(profile.name, profile.mode, allGames());
+  const pr = playerProfile(profile.name, profile.mode, ratedGames());
   const games = pr.w + pr.l;
   const diff = pr.pf - pr.pa;
   const row = (e, extra = '') => `<div class="pf-row"><span class="who"><button data-player="${esc(e.name)}">${esc(e.name)}</button>${extra}</span><span class="n">${e.w}–${e.g - e.w}</span><span class="pct">${Math.round(100 * e.w / e.g)}%</span></div>`;
@@ -4773,7 +4821,7 @@ async function evCreate() {
   if (imp && imp.teams) { Object.assign(body.event, { teams: imp.teams, teamMeta: imp.teamMeta, publicLogos: !!f.imp.publicLogos }); }
   else if (!rotating && f.rotation === 'manual') body.event.teams = Array.from({ length: Math.floor(players.length / 2) }, (_, i) => [players[2 * i], players[2 * i + 1]]);
   if (imp && Object.keys(imp.refs).length) body.event.refs = imp.refs; // private reference only; the server keeps it apart from the event
-  if (!rotating && !(imp && imp.teams) && f.rotation === 'auto') body.event.ratings = Object.fromEntries(leaderStats(allGames(), 'doubles').map(p => [p.name, p.rating]));
+  if (!rotating && !(imp && imp.teams) && f.rotation === 'auto') body.event.ratings = Object.fromEntries(leaderStats(ratedGames(), 'doubles').map(p => [p.name, p.rating]));
   f.busy = true; f.error = ''; renderEvents(true);
   try {
     const data = await evCall(body);
@@ -5003,6 +5051,8 @@ document.addEventListener('click', e => {
     clubSheet.confirmRemove = null;
     adminAction({ action: 'remove', name, block: !!ds.removeBlock }, `${name} was removed`); return;
   }
+  if (ds.act === 'audit-open') { clubSheet = { view: 'audit', rows: null }; renderClub(); loadAudit(); return; }
+  if (ds.act === 'confirm-setting') { setConfirmation(!club.requireConfirmation); return; }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }
   if (ds.fail) { failAct(ds.fail, ds.uid, el); return; }
@@ -5094,6 +5144,9 @@ document.addEventListener('click', e => {
   if (ds.lbscope) { lbScope = ds.lbscope; store.set('pb.lbScope', lbScope); render(); return; }
   if (ds.rmode) { ratingMode = ds.rmode; store.set('pb.rmode', ratingMode); render(); return; }
   if (ds.first) { setup.first = +ds.first; store.set('pb.setup', setup); render(); return; }
+  if (ds.confirm) { confirmGame(ds.confirm); return; }
+  if (ds.keepboth) { const [a, b] = ds.keepboth.split('|'); keepBoth(a, b); return; }
+  if (ds.delDup) { deleteGame(ds.delDup); return; }
   if (ds.del) {
     if (armedDelete === ds.del) { armedDelete = null; deleteGame(ds.del); } else { armedDelete = ds.del; render(); }
     return;

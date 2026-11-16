@@ -4,10 +4,14 @@
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'reset-allowance', pin|ownerToken} -> organizer: ends a "too many games just now" pause
 // GET  /api/club?code=ABC123&avatars=1               -> the photo avatars, kept out of the main response: {photos: {name: {v, value}}}
+// POST /api/club {code, action: 'set-confirmation', required, pin|ownerToken} -> organizer: whether games without a confirmation count toward ratings, achievements and seasons (default: they count)
+// GET answers also carry, for each game, confirmed {by, at} and hold (true: left out of ratings until confirmed), plus dupes: pairs of game ids that look like one game recorded twice.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
+import { audit, organizerActor } from './_audit.js';
+import { counts, findDuplicates } from './_confirm.js';
 import { computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_MIN_GAMES } from './_progress.js';
 
 // Achievements, this week's challenges, and trophies for every player, as the server counts them.
@@ -37,6 +41,14 @@ export default handler(async (req, res) => {
       const [n] = await sql`SELECT count(*)::int AS live FROM games WHERE club = ${club.code} AND deleted_at IS NULL`;
       return send(res, 200, { ok: true, games: Number(n.live), limit: MAX_LIVE_GAMES });
     }
+    if (body.action === 'set-confirmation') {
+      const club = await requireClub(cleanCode(body.code), req);
+      await requireOrganizer(club, body.pin, req, body.ownerToken);
+      if (typeof body.required !== 'boolean') throw fail(400, 'Say whether confirmation is required.');
+      await sql`UPDATE clubs SET require_confirmation = ${body.required} WHERE code = ${club.code}`;
+      if (!!club.require_confirmation !== body.required) await audit(sql, club.code, '', 'setting', await organizerActor(club, body.ownerToken), { requireConfirmation: !!club.require_confirmation }, { requireConfirmation: body.required });
+      return send(res, 200, { ok: true, requireConfirmation: body.required });
+    }
     if (body.action === 'verify-pin' || body.action === 'set-pin' || body.action === 'rotate-code') {
       const club = await requireClub(cleanCode(body.code), req);
       const code = club.code; // permanent key
@@ -57,7 +69,7 @@ export default handler(async (req, res) => {
         if (!fresh) throw fail(500, 'Could not create a club code.');
         // Retire the old code first, then switch: a failure in between leaves the club on its old code.
         const until = await sql`INSERT INTO club_aliases (code, club, expires_at) VALUES (${current}, ${code}, now() + ${grace + ' minutes'}::interval) ON CONFLICT (code) DO UPDATE SET expires_at = EXCLUDED.expires_at RETURNING expires_at`;
-        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code`;
+        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code, require_confirmation`;
         if (!rows.length) throw fail(409, 'The club code was just changed by someone else. Reload and check the new code.');
         return send(res, 200, { ok: true, club: publicClub(rows[0]), oldCode: current, oldCodeUntil: new Date(until[0].expires_at).getTime() });
       }
@@ -113,20 +125,26 @@ export default handler(async (req, res) => {
   }
   const [games, deleted, roster, renamed] = await Promise.all([
     // rally_log itself stays out of this payload (GET /api/games?id= has it); a game just says whether it can be replayed.
-    sql`SELECT data, rally_log IS NOT NULL AS replay FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
+    sql`SELECT data, rally_log IS NOT NULL AS replay, confirmed_by, confirmed_at, dup_ok FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
     sql`SELECT name, claim_hash IS NOT NULL AS claimed, role, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
     sql`SELECT old_key, new_name FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC LIMIT 100`,
   ]);
+  // Confirmation lives beside the game, never inside its data. With the club setting on, games nobody has confirmed are
+  // marked `hold` and left out of achievements here and of ratings in the app.
+  const required = !!club.require_confirmation;
+  const gamesIn = games.map(r => ({ ...r.data, ...(r.confirmed_by ? { confirmed: { by: r.confirmed_by, at: new Date(r.confirmed_at).getTime() } } : {}), ...(r.dup_ok ? { dupOk: true } : {}) }));
+  const gamesOut = gamesIn.map((g, i) => { const o = { ...g }; if (games[i].replay) o.replay = true; if (!counts(g, required)) o.hold = true; return o; });
   send(res, 200, {
     club: publicClub(club),
-    games: games.map(r => (r.replay ? { ...r.data, replay: true } : r.data)),
+    games: gamesOut,
+    dupes: findDuplicates(gamesIn).slice(0, 100),
     deleted: deleted.map(r => Object.assign({}, r.data, { deletedAt: new Date(r.deleted_at).getTime() })),
     roster: roster.map(r => r.name),
     // Players renamed or merged in the last 90 days: { old name key: new name }, so a phone holding the old name can follow.
     renamed: Object.fromEntries(renamed.map(r => [r.old_key, r.new_name])),
     // Who has claimed a name (never the claim itself), plus pictures and self-reported DUPR numbers.
     players: roster.map(r => ({ name: r.name, claimed: r.claimed, ...(r.role ? { role: r.role } : {}), avatar: r.avatar || null, dupr: duprFrom(r.dupr_rating) })),
-    progress: progressFor(games.map(r => r.data))
+    progress: progressFor(gamesIn.filter(g => counts(g, required)))
   });
 });
