@@ -54,6 +54,7 @@ export function createEvent(input, now = Date.now(), rand = Math.random) {
     status: 'live', stage: 'pool',
     players, teams: null, roundsPlanned: 0, advance: 0,
     rounds: [], bracket: null, champion: null, poolDone: false,
+    resultsBy: input.resultsBy === 'club' ? 'club' : 'players', // who may enter results: the players in the match (and organizers), or any club member
     createdAt: now, updatedAt: now
   };
   if (partners === 'fixed') {
@@ -183,6 +184,26 @@ export function findMatch(ev, id) {
 export function matchTeams(ev, m) {
   if (m.teams) return m.teams;
   return m.slots.map(s => (s >= 0 ? ev.bracket.teams[s] : null));
+}
+
+// Who may enter a result. actor: { organizer: bool, name: lower-cased claimed player name or null }. Organizers always may; a
+// player may for a match they are in; any club member may only if the organizer allowed it. Events from before this setting
+// count as 'players'. Throws a 403 with text for the person.
+export function checkResultActor(ev, matchId, actor) {
+  if (actor && actor.organizer) return;
+  if (ev.resultsBy === 'club') return;
+  const found = findMatch(ev, matchId);
+  if (!found) throw bad('That match is not in this event.', 404);
+  const mine = actor && actor.name && matchTeams(ev, found.match).some(t => t && t.some(p => p.toLowerCase() === actor.name));
+  if (mine) return;
+  throw bad(actor && actor.name
+    ? 'Only the players in this match or an organizer can enter its result. Ask an organizer, or ask them to let any club member score.'
+    : "Only the players in this match or an organizer can enter its result, and this phone hasn't proved which player it belongs to. Join the club as that player on this phone, or ask an organizer.", 403);
+}
+
+export function setResultsBy(ev, who, now = Date.now()) {
+  if (who !== 'players' && who !== 'club') throw bad('Pick who can enter results: the players in the match, or any club member.', 400);
+  ev.resultsBy = who; ev.updatedAt = now;
 }
 
 // Records a finished match. payload: { score: [a, b], startedAt?, endedAt?, rallies?, live? }.

@@ -104,6 +104,7 @@ export function ensureSchema() {
         PRIMARY KEY (club, id)
       )`;
 
+      await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS secret_hash text`; // sha256 of the per-game secret that watch intents must carry
       // Private reference data typed into an imported sheet: { "player name": "DUPR ID" }. Kept out of `data` on purpose, so no
       // event view, spectator page or export can include it. Only an organizer can read it (events.js, action 'refs').
       await q`ALTER TABLE events ADD COLUMN IF NOT EXISTS refs jsonb`;

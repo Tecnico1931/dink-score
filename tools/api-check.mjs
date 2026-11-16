@@ -6,6 +6,7 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { signIntent } from '../api/live.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let PGlite;
@@ -74,16 +75,16 @@ await step('create an 8 player rotating doubles round robin on 2 courts', async 
 await step('results feed the club record once, with the event named on the game', async () => {
   const m = ev.rounds[0].matches[0];
   const body = { id: ev.id, matchId: m.id, score: [11, 6], startedAt: Date.now() - 600000, endedAt: Date.now(), rallies: 33, live: true };
-  const r = ok(await call(events, 'POST', { body: { code, action: 'result', ...body } }));
+  const r = ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, ...body } }));
   assert.equal(r.event.rounds[0].matches[0].status, 'done');
   let g = await clubGames();
   assert.equal(g.length, 1);
   assert.equal(g[0].id, `${ev.id}-${m.id}`);
   assert.equal(g[0].event.id, ev.id);
   assert.equal(g[0].logged, false);
-  ok(await call(events, 'POST', { body: { code, action: 'result', ...body } })); // a phone retrying
+  ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, ...body } })); // a phone retrying
   assert.equal((await clubGames()).length, 1, 'a retry does not add a second game');
-  const other = await call(events, 'POST', { body: { code, action: 'result', ...body, score: [3, 11] } });
+  const other = await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, ...body, score: [3, 11] } });
   assert.equal(other.status, 409);
   assert.equal((await clubGames()).length, 1);
 });
@@ -91,8 +92,8 @@ await step('two phones scoring different courts at the same moment both land', a
   const [a, b] = ev.rounds[0].matches;
   const second = ev.rounds[0].matches[1];
   const [r1, r2] = await Promise.all([
-    call(events, 'POST', { body: { code, action: 'result', id: ev.id, matchId: second.id, score: [11, 9], endedAt: Date.now() } }),
-    call(events, 'POST', { body: { code, action: 'result', id: ev.id, matchId: a.id, score: [11, 6], endedAt: Date.now() } })
+    call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: ev.id, matchId: second.id, score: [11, 9], endedAt: Date.now() } }),
+    call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: ev.id, matchId: a.id, score: [11, 6], endedAt: Date.now() } })
   ]);
   assert.equal(r1.status, 200); assert.equal(r2.status, 200);
   const now = ok(await call(events, 'GET', { query: `?code=${code}&id=${ev.id}` })).event;
@@ -111,9 +112,9 @@ await step('a manual round: set the pairings, publish, then score', async () => 
   assert.equal(m.rounds[0].status, 'draft');
   const set = ok(await act('set-round', { id: m.id, round: 1, matches: [{ teams: [['Ana', 'Ben'], ['Cy', 'Di']] }] })).event;
   assert.deepEqual(set.rounds[0].matches[0].teams, [['Ana', 'Ben'], ['Cy', 'Di']]);
-  assert.equal((await call(events, 'POST', { body: { code, action: 'result', id: m.id, matchId: 'r1m1', score: [11, 1] } })).status, 409);
+  assert.equal((await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: m.id, matchId: 'r1m1', score: [11, 1] } })).status, 409);
   ok(await act('publish-round', { id: m.id, round: 1 }));
-  ok(await call(events, 'POST', { body: { code, action: 'result', id: m.id, matchId: 'r1m1', score: [11, 1], endedAt: Date.now() } }));
+  ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: m.id, matchId: 'r1m1', score: [11, 1], endedAt: Date.now() } }));
   const bad = await act('set-round', { id: m.id, round: 1, matches: [{ teams: [['Ana', 'Ben'], ['Cy', 'Di']] }] });
   assert.equal(bad.status, 409);
 });
@@ -134,17 +135,17 @@ await step('a single elimination bracket plays to a champion and every game is r
   const before = (await clubGames()).length;
   for (let guard = 0; guard < 10 && cur.status !== 'done'; guard++) {
     const next = cur.knockout.flatMap(r => r.matches).find(m => m.ready);
-    cur = ok(await call(events, 'POST', { body: { code, action: 'result', id: b.id, matchId: next.id, score: [11, 4], endedAt: Date.now() } })).event; played++;
+    cur = ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: b.id, matchId: next.id, score: [11, 4], endedAt: Date.now() } })).event; played++;
   }
   assert.equal(cur.status, 'done'); assert.equal(played, 3); assert.equal(cur.champion.length, 2);
   assert.equal((await clubGames()).length, before + 3);
-  assert.equal((await call(events, 'POST', { body: { code, action: 'result', id: b.id, matchId: 'W1-0', score: [1, 11] } })).status, 409);
+  assert.equal((await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: b.id, matchId: 'W1-0', score: [1, 11] } })).status, 409);
 });
 await step('pool play then knockout through the API', async () => {
   const p = ok(await create({ name: 'Pool', format: 'pool_knockout', rotation: 'auto', courts: 2, players, rounds: 3, advance: 2, seed: 'pool' }), 201).event;
   let cur = p;
   for (let r = 1; r <= 3; r++) {
-    for (const m of cur.rounds[r - 1].matches) cur = ok(await call(events, 'POST', { body: { code, action: 'result', id: p.id, matchId: m.id, score: [11, 7], endedAt: Date.now() } })).event;
+    for (const m of cur.rounds[r - 1].matches) cur = ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: p.id, matchId: m.id, score: [11, 7], endedAt: Date.now() } })).event;
     if (r < 3) cur = ok(await act('next-round', { id: p.id })).event;
   }
   assert.equal(cur.poolDone, true);
@@ -198,7 +199,7 @@ await step('the public bracket link: organizer makes it, a spectator sees only t
   assert.equal((await spectator(t2)).status, 200);
   // A score shows up for the spectator.
   const m = (await spectator(t2)).json.tree.matches.find(x => x.ready);
-  ok(await call(events, 'POST', { body: { code, action: 'result', id: e.id, matchId: m.id, score: [11, 2], endedAt: Date.now() } }));
+  ok(await call(events, 'POST', { body: { code, action: 'result', ownerToken: owner, id: e.id, matchId: m.id, score: [11, 2], endedAt: Date.now() } }));
   const after = (await spectator(t2)).json.tree.matches.find(x => x.id === m.id);
   assert.deepEqual(after.score, [11, 2]);
   // Removing the link, and deleting the event, both end it.
@@ -267,26 +268,85 @@ await step('DUPR: it is not in event responses', async () => {
 });
 
 
-await step('watch scoring: publish, point and undo intents, ack clears them, end removes the game', async () => {
+await step('event results: players in the match and organizers by default, any member when the organizer allows it', async () => {
+  const sh = body => call(shop, 'POST', { body: { code, ...body } });
+  const pinSet = ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: '4821', ownerToken: owner } }));
+  const e = ok(await create({ name: 'Who scores', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph'], seed: 'perm' }), 201).event;
+  assert.equal(e.resultsBy, 'players', 'the default');
+  const [m] = e.rounds[0].matches, playing = m.teams.flat().map(x => x.toLowerCase());
+  const sitting = ['Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph'].find(n => !playing.includes(n.toLowerCase()));
+  const inMatch = m.teams[0][0], inMatch2 = m.teams[1][1];
+  const tok = {};
+  for (const n of [inMatch, inMatch2, sitting]) tok[n] = ok(await sh({ action: 'claim', name: n, ownerToken: owner, pin: '4821' })).playerToken;
+  const res = (extra, matchId = m.id, score = [11, 5]) => call(events, 'POST', { body: { code, action: 'result', id: e.id, matchId, score, endedAt: Date.now(), ...extra } });
+  let r = await res({});
+  assert.equal(r.status, 403, 'a stranger with only the club code'); assert.match(r.json.error || r.json.message || '', /players in this match or an organizer/);
+  r = await res({ playerName: sitting, playerToken: tok[sitting] });
+  assert.equal(r.status, 403, 'a verified member who is not in the match');
+  r = await res({ playerName: inMatch, playerToken: tok[sitting] });
+  assert.equal(r.status, 403, 'a player name with someone else\'s token');
+  r = await res({ playerName: inMatch, playerToken: 'f'.repeat(48) });
+  assert.equal(r.status, 403, 'a guessed token');
+  assert.equal((await res({ pin: '0000' })).status, 403, 'a wrong PIN is not an organizer');
+  assert.equal((await clubGames()).filter(g => g.event && g.event.id === e.id).length, 0, 'nothing was saved by the refused tries');
+  ok(await res({ playerName: inMatch, playerToken: tok[inMatch] }));
+  assert.equal((await clubGames()).filter(g => g.event && g.event.id === e.id).length, 1, 'a player in the match');
+  const m2 = e.rounds[0].matches[1];
+  ok(await res({ pin: '4821' }, m2 ? m2.id : m.id)); // organizer by PIN (or a retry of the same score when there is one court)
+  // Organizer toggle: refused for members, allowed for organizers.
+  assert.equal((await act('results-by', { id: e.id, who: 'club' }, { playerName: sitting, playerToken: tok[sitting] })).status, 403);
+  assert.equal((await act('results-by', { id: e.id, who: 'nobody' })).status, 400);
+  assert.equal(ok(await act('results-by', { id: e.id, who: 'club' })).event.resultsBy, 'club');
+  const next = ok(await act('next-round', { id: e.id })).event;
+  const nm = next.rounds[1].matches[0];
+  ok(await call(events, 'POST', { body: { code, action: 'result', id: e.id, matchId: nm.id, score: [11, 3], endedAt: Date.now() } })); // any member, even with no proof
+  const e2 = ok(await act('results-by', { id: e.id, who: 'players' })).event;
+  assert.equal(e2.resultsBy, 'players');
+  assert.equal(ok(await call(events, 'GET', { query: `?code=${code}&id=${e.id}` })).event.resultsBy, 'players');
+  const e3 = ok(await create({ name: 'Open', format: 'roundrobin', players: ['Pa', 'Pb', 'Pc', 'Pd'], resultsBy: 'club' }), 201).event;
+  assert.equal(e3.resultsBy, 'club', 'an organizer can start an event open to any member');
+});
+await step('watch scoring: per-game secret; publish, point and undo intents, ack clears them, end removes the game', async () => {
   const st = { cfg: { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, teams: [['Ana', 'Ben'], ['Cy', 'Di']] }, score: [0, 0], serving: 0, serverNum: 2, server: 0, rallies: 0, winner: null, startedAt: 123 };
-  let r = await call(live, 'POST', { body: { code, action: 'point', side: 0 } });
+  const SA = 'secretAAA111', SB = 'secretBBB222';
+  const pub = (id, secret, state = st, ack = 0) => call(live, 'POST', { body: { code, action: 'state', id, secret, state, ack } });
+  let r = await call(live, 'POST', { body: { code, action: 'point', game: 'live-t1', secret: SA, side: 0 } });
   assert.equal(r.status, 404, 'no live game yet');
-  ok(await call(live, 'POST', { body: { code, action: 'state', id: 'live-t1', state: st, ack: 0 } }));
-  r = ok(await call(live, 'POST', { body: { code, action: 'point', side: 1 } }));
+  assert.equal((await pub('live-t1', '')).status, 400, 'publishing needs a secret');
+  ok(await pub('live-t1', SA));
+  ok(await pub('live-t2', SB, { ...st, score: [5, 5] }));
+  assert.equal((await pub('live-t1', SB)).status, 403, 'another secret cannot take over a game');
+  // A club-code-only intent (no game, no secret) is refused, and so is the wrong secret for a game.
+  assert.equal((await call(live, 'POST', { body: { code, action: 'point', side: 0 } })).status, 400);
+  assert.equal((await call(live, 'POST', { body: { code, action: 'point', game: 'live-t1', side: 0 } })).status, 403);
+  assert.equal((await call(live, 'POST', { body: { code, action: 'point', game: 'live-t1', secret: SB, side: 0 } })).status, 403, 'game 2 secret does not drive game 1');
+  r = ok(await call(live, 'POST', { body: { code, action: 'point', game: 'live-t1', secret: SA, side: 1 } }));
   assert.equal(r.pending, 1);
   assert.deepEqual(r.score, [0, 0], 'an intent does not change the published score by itself');
-  ok(await call(live, 'POST', { body: { code, action: 'undo' } }));
-  const got = ok(await call(live, 'GET', { query: '?code=' + code + '&id=live-t1' }));
-  assert.equal(got.intents.length, 2);
-  assert.equal(got.intents[0].kind, 'point'); assert.equal(got.intents[0].side, 1);
+  ok(await call(live, 'POST', { body: { code, action: 'undo', game: 'live-t1', secret: SA } }));
+  ok(await call(live, 'POST', { body: { code, action: 'point', game: 'live-t2', secret: SB, side: 0 } }));
+  const q = (id, secret) => '?code=' + code + '&id=' + id + (secret ? '&secret=' + secret : '');
+  assert.equal((await call(live, 'GET', { query: q('live-t1') })).status, 403, 'reading a game needs its secret');
+  assert.equal((await call(live, 'GET', { query: q('live-t1', SB) })).status, 403);
+  const got = ok(await call(live, 'GET', { query: q('live-t1', SA) }));
+  assert.equal(got.intents.length, 2, 'only game 1 taps are in game 1');
+  assert.equal(got.intents[0].kind, 'point'); assert.equal(got.intents[0].side, 1); assert.equal(got.intents[0].g, 'live-t1');
   assert.equal(got.intents[1].kind, 'undo');
-  ok(await call(live, 'POST', { body: { code, action: 'state', id: 'live-t1', state: { ...st, score: [0, 1] }, ack: got.intents[1].n } }));
-  const got2 = ok(await call(live, 'GET', { query: '?code=' + code + '&id=live-t1' }));
+  assert.equal(got.intents[0].sig, signIntent(SA, 'live-t1', got.intents[0].n, 'point', 1), 'each intent is signed with the secret');
+  const got2b = ok(await call(live, 'GET', { query: q('live-t2', SB) }));
+  assert.equal(got2b.intents.length, 1, 'game 2 has its own tap');
+  assert.equal(got2b.intents[0].g, 'live-t2'); assert.equal(got2b.intents[0].side, 0);
+  ok(await pub('live-t1', SA, { ...st, score: [0, 1] }, got.intents[1].n));
+  const got2 = ok(await call(live, 'GET', { query: q('live-t1', SA) }));
   assert.equal(got2.intents.length, 0, 'acked intents are gone');
   assert.deepEqual(got2.state.score, [0, 1]);
-  ok(await call(live, 'POST', { body: { code, action: 'end', id: 'live-t1' } }));
-  r = await call(live, 'POST', { body: { code, action: 'point', side: 0 } });
+  assert.equal(ok(await call(live, 'GET', { query: q('live-t2', SB) })).intents.length, 1, 'acking game 1 leaves game 2 alone');
+  assert.equal((await call(live, 'POST', { body: { code, action: 'end', id: 'live-t1', secret: SB } })).status, 403); // wrong secret: nothing removed
+  assert.equal((await call(live, 'GET', { query: q('live-t1', SA) })).status, 200, 'wrong secret did not end the game');
+  ok(await call(live, 'POST', { body: { code, action: 'end', id: 'live-t1', secret: SA } }));
+  r = await call(live, 'POST', { body: { code, action: 'point', game: 'live-t1', secret: SA, side: 0 } });
   assert.equal(r.status, 404, 'the game ended, so points bounce off');
+  ok(await call(live, 'POST', { body: { code, action: 'end', id: 'live-t2', secret: SB } }));
 });
 
 // Importing players and teams from a sheet. Google is never called: fetch is stubbed for docs.google.com (everything else, such as
