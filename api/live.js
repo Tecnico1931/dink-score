@@ -22,6 +22,7 @@ const MAX_BAD_SECRETS = 30; // wrong or missing secrets per network address per 
 
 const FRESH_MS = 6 * 60 * 60 * 1000; // a live game nobody has published for in 6 hours is not live any more
 const MAX_PENDING = 50;
+const MAX_LIVE_ROWS = 20; // live games one club can have at once; stale ones are purged first
 
 function callOf(s) {
   const parts = [s.score[s.serving], s.score[1 - s.serving]];
@@ -59,11 +60,16 @@ export default handler(async (req, res) => {
   const code = club.code; // the club's permanent key, even when an old club code was used
 
   if (body.action === 'state') {
-    const id = String(body.id || ''), st = body.state;
+    const id = String(body.id || '').slice(0, 64), st = body.state;
     if (!id || !st || typeof st !== 'object' || !Array.isArray(st.score) || !st.cfg) throw fail(400, 'That live game looks wrong.');
     if (JSON.stringify(st).length > 30000) throw fail(400, 'That live game is too big.');
     if (!secretOk(body.secret)) throw fail(400, 'A live game needs a secret of 6 to 32 letters and numbers.');
     const ack = Math.max(0, Math.trunc(Number(body.ack) || 0)), hash = hashSecret(body.secret);
+    // Expire rows nobody has published for a day (everywhere now and then), then cap what is left for this club.
+    await sql`DELETE FROM live_games WHERE club = ${code} AND updated_at < now() - interval '1 day'`;
+    if (Math.random() < 0.05) await sql`DELETE FROM live_games WHERE updated_at < now() - interval '1 day'`;
+    const [{ n, has }] = await sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE id = ${id})::int AS has FROM live_games WHERE club = ${code}`;
+    if (!Number(has) && Number(n) >= MAX_LIVE_ROWS) throw fail(429, 'This club has too many live games open. Finish or end one first.');
     // Only the phone holding the secret can publish to an existing game; a game from before secrets existed is claimed by its next publish.
     const rows = await sql`INSERT INTO live_games (club, id, state, secret_hash) VALUES (${code}, ${id}, ${JSON.stringify(st)}::jsonb, ${hash})
       ON CONFLICT (club, id) DO UPDATE SET state = EXCLUDED.state, updated_at = now(), secret_hash = EXCLUDED.secret_hash,

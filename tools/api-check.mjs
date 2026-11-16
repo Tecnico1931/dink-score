@@ -218,7 +218,7 @@ await step('the existing club data still loads with event games in it (ratings, 
 });
 
 // Self-reported DUPR rating: set by the name's own phone or an organizer, never a stranger; display only.
-const PIN = '4821';
+const PIN = '482159';
 ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: PIN, ownerToken: owner } }));
 const sh = (body) => call(shop, 'POST', { body: { code, ...body } });
 const dupr = async name => (ok(await call(club, 'GET', { query: '?code=' + code })).players.find(p => p.name === name) || {}).dupr;
@@ -601,6 +601,97 @@ await step('recovery code: only the creator makes one; single use; expires; stor
   const rot = ok(await call(club, 'POST', { body: { code: cc, action: 'rotate-code', graceMinutes: 0, ownerToken: got.ownerToken } }));
   const back = ok(await xfer({ action: 'recovery-redeem', code: rot.club.code, recovery: again2.recovery }));
   assert.equal(back.club.code, rot.club.code);
+});
+
+// N3 / N3b: resource limits and organizer PIN hardening
+await step('PINs: 6 to 8 digits for new or changed PINs; an older 4-digit PIN still unlocks and is flagged', async () => {
+  const c2 = ok(await call(club, 'POST', { body: { name: 'PIN club' } }), 201);
+  assert.equal((await call(club, 'POST', { body: { name: 'Short', pin: '1234' } })).status, 400);
+  assert.equal((await call(club, 'POST', { body: { code: c2.club.code, action: 'set-pin', pin: '12345', ownerToken: c2.ownerToken } })).status, 400);
+  ok(await call(club, 'POST', { body: { code: c2.club.code, action: 'set-pin', pin: '654321', ownerToken: c2.ownerToken } }));
+  assert.equal(ok(await call(club, 'POST', { body: { code: c2.club.code, action: 'verify-pin', pin: '654321' } })).shortPin, false);
+  // An old club: a 4-digit hash written straight to the table, as before the minimum existed.
+  const { hashPin } = await import(pathToFileURL(path.join(root, 'api', '_db.js')).href);
+  await pg.query('UPDATE clubs SET pin_hash = $1 WHERE code = $2', [hashPin('4821'), c2.club.code]);
+  assert.equal(ok(await call(club, 'POST', { body: { code: c2.club.code, action: 'verify-pin', pin: '4821' } })).shortPin, true);
+});
+await step('PIN backoff: escalates per network, locks right guesses out too, spares a device already unlocked', async () => {
+  const c3 = ok(await call(club, 'POST', { body: { name: 'Backoff club' } }), 201);
+  ok(await call(club, 'POST', { body: { code: c3.club.code, action: 'set-pin', pin: '135790', ownerToken: c3.ownerToken } }));
+  const h = { 'x-real-ip': '203.0.113.9' };
+  const verify = pin => call(club, 'POST', { headers: h, body: { code: c3.club.code, action: 'verify-pin', pin } });
+  const good = ok(await verify('135790'));
+  assert.match(good.deviceKey, /^[0-9a-f]{64}$/);
+  for (let i = 0; i < 5; i++) assert.equal((await verify('000000')).status, 403);
+  const locked = await verify('000000');
+  assert.equal(locked.status, 429);
+  assert.equal((await verify('135790')).status, 429, 'a locked network refuses the right PIN too');
+  // An unlocked phone sends its device key and keeps working from the same locked network.
+  ok(await verify('000000:' + good.deviceKey));
+  assert.equal((await verify('000000:' + '0'.repeat(64))).status, 429);
+  // Another network is unaffected.
+  ok(await call(club, 'POST', { headers: { 'x-real-ip': '203.0.113.77' }, body: { code: c3.club.code, action: 'verify-pin', pin: '135790' } }));
+  // The device key stops working when the PIN changes.
+  const changed = ok(await call(club, 'POST', { headers: { 'x-real-ip': '203.0.113.78' }, body: { code: c3.club.code, action: 'set-pin', pin: '246801', oldPin: '135790' } }));
+  assert.notEqual(changed.deviceKey, good.deviceKey);
+});
+await step('address limits: an IPv6 caller is limited as a whole /64', async () => {
+  const c4 = ok(await call(club, 'POST', { body: { name: 'v6 club' } }), 201);
+  let last;
+  for (let i = 0; i < 22; i++) last = await call(club, 'GET', { query: '?code=ZZZZZZ', headers: { 'x-real-ip': '2001:db8:1:2:' + (i + 1).toString(16) + '::' + i } });
+  assert.equal(last.status, 429);
+  ok(await call(club, 'GET', { query: '?code=' + c4.club.code, headers: { 'x-real-ip': '2001:db8:9:9::1' } }));
+});
+await step('club creation is throttled per network, and a bad PIN does not use up a creation', async () => {
+  const h = { 'x-real-ip': '198.51.100.5' };
+  for (let i = 0; i < 5; i++) assert.equal((await call(club, 'POST', { headers: h, body: { name: 'Bad', pin: '12' } })).status, 400);
+  for (let i = 0; i < 10; i++) ok(await call(club, 'POST', { headers: h, body: { name: 'Club ' + i } }), 201);
+  assert.equal((await call(club, 'POST', { headers: h, body: { name: 'One too many' } })).status, 429);
+  ok(await call(club, 'POST', { headers: { 'x-real-ip': '198.51.100.6' }, body: { name: 'Elsewhere' } }), 201);
+});
+await step('game allowance counts only games that are not deleted, and an organizer can reset the pause', async () => {
+  const c5 = ok(await call(club, 'POST', { body: { name: 'Allowance club' } }), 201);
+  const mk = n => Array.from({ length: n }, (_, i) => ({ id: 'a' + i + '-' + Math.random().toString(36).slice(2), t: Date.now() - i, at: Date.now(), mode: 'doubles', p: [['A', 'B'], ['C', 'D']], s: [11, 5], to: 11, ended: Date.now() }));
+  const send = (n, extra = {}) => call(games, 'POST', { body: { code: c5.club.code, games: mk(n), ownerToken: c5.ownerToken, ...extra } });
+  const r1 = await send(3);
+  assert.ok(r1.status < 300, JSON.stringify(r1.json));
+  const [{ n: live }] = (await pg.query('SELECT count(*)::int AS n FROM games WHERE club = $1', [c5.club.code])).rows.map(r => ({ n: r[0] }));
+  assert.equal(live, 3);
+  // Pretend a long history: total_count used to cap a club for good; it no longer matters.
+  await pg.query('UPDATE clubs SET total_count = 999999 WHERE code = $1', [c5.club.code]);
+  assert.ok((await send(1)).status < 300, 'a lifetime counter must not block new games');
+  // Fill the 10-minute window, then an organizer resets it.
+  await pg.query('UPDATE clubs SET window_count = 1200, window_start = now() WHERE code = $1', [c5.club.code]);
+  assert.equal((await send(1)).status, 429);
+  assert.equal((await call(club, 'POST', { body: { code: c5.club.code, action: 'reset-allowance' } })).status, 403);
+  ok(await call(club, 'POST', { body: { code: c5.club.code, action: 'reset-allowance', ownerToken: c5.ownerToken } }));
+  assert.ok((await send(1)).status < 300);
+});
+await step('live games: each club keeps at most 20 open at once, stale ones expire', async () => {
+  const c6 = ok(await call(club, 'POST', { body: { name: 'Live club' } }), 201);
+  const st = { score: [0, 0], serving: 0, cfg: { mode: 'singles' }, winner: null };
+  const put = id => call(live, 'POST', { body: { code: c6.club.code, action: 'state', id, state: st } });
+  for (let i = 0; i < 20; i++) ok(await put('g' + i));
+  assert.equal((await put('overflow')).status, 429);
+  ok(await put('g3')); // updating one that exists is always fine
+  await pg.query("UPDATE live_games SET updated_at = now() - interval '2 days' WHERE club = $1 AND id = 'g0'", [c6.club.code]);
+  ok(await put('overflow'));
+});
+await step('photo avatars: kept out of the club payload, served lazily, capped per club', async () => {
+  const c7 = ok(await call(club, 'POST', { body: { name: 'Photo club' } }), 201);
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(500);
+  const setAv = name => call(shop, 'POST', { body: { code: c7.club.code, action: 'avatar', name, avatar: { type: 'photo', value: photo }, ownerToken: c7.ownerToken } });
+  const first = await setAv('Ana');
+  assert.ok(first.status < 300, JSON.stringify(first.json));
+  const main = ok(await call(club, 'GET', { query: '?code=' + c7.club.code }));
+  assert.ok(!JSON.stringify(main).includes('AAAAAAAAAA'), 'the photo bytes are not in the main payload');
+  assert.equal(main.players.find(p => p.name === 'Ana').avatar.type, 'photo');
+  const lazy = ok(await call(club, 'GET', { query: '?code=' + c7.club.code + '&avatars=1' }));
+  assert.equal(lazy.photos.Ana.value, photo);
+  assert.equal(lazy.photos.Ana.v, main.players.find(p => p.name === 'Ana').avatar.v);
+  for (let i = 1; i < 50; i++) await pg.query("INSERT INTO roster (club, name, name_key, avatar) VALUES ($1, $2, $3, $4::jsonb)", [c7.club.code, 'P' + i, 'p' + i, JSON.stringify({ type: 'photo', value: photo })]);
+  assert.equal((await setAv('Zed')).status, 409);
+  assert.ok((await setAv('Ana')).status < 300, 'replacing your own photo is fine');
 });
 
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);

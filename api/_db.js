@@ -1,8 +1,9 @@
 // Shared helpers for the club API. Files starting with "_" are not routes.
 import { neon } from '@neondatabase/serverless';
-import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { scryptSync, randomBytes, timingSafeEqual, createHmac } from 'node:crypto';
 import { cleanName } from './_names.js';
 import { reportError } from './_report.js';
+import { netKey, lockSeconds, waitText } from './_limits.js';
 
 let sql = null;
 let ready = null;
@@ -178,7 +179,26 @@ export function cleanCode(raw) {
 export function clientIp(req) {
   const h = req.headers || {};
   const raw = h['x-vercel-forwarded-for'] || h['x-real-ip'] || String(h['x-forwarded-for'] || '').split(',').pop() || 'unknown';
-  return String(raw).split(',')[0].trim().slice(0, 64);
+  return netKey(String(raw).split(',')[0]); // an IPv6 caller is limited as a whole /64, not per address
+}
+// Rate-limit marks live in lookup_fails and only matter for a day, so old ones are dropped now and then.
+async function purgeMarks(sql) {
+  if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
+}
+// Club creation: at most 10 per network (per /64 for IPv6) per hour, and 300 per hour across the whole app.
+// Attempts are recorded before counting, and a refused one takes its own mark back off.
+const MAX_CREATES_PER_NET = 10, MAX_CREATES_GLOBAL = 300;
+export async function throttleClubCreate(req) {
+  const sql = db();
+  await purgeMarks(sql);
+  for (const [key, max] of [['mkclub:' + clientIp(req), MAX_CREATES_PER_NET], ['mkclub:*', MAX_CREATES_GLOBAL]]) {
+    const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${key}) RETURNING id`;
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${key} AND at > now() - interval '1 hour'`;
+    if (Number(n) > max) {
+      await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
+      throw fail(429, 'Too many clubs were created just now. Try again in an hour.');
+    }
+  }
 }
 const MAX_FAILS = 20; // wrong codes allowed per network address per 15 minutes
 export async function requireClub(code, req) {
@@ -196,8 +216,8 @@ export async function requireClub(code, req) {
     rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, a.expires_at AS old_code_until
       FROM club_aliases a JOIN clubs c ON c.code = a.club WHERE a.code = ${code} AND a.expires_at > now()`;
   }
+  await purgeMarks(sql);
   if (!rows.length) {
-    if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
     throw fail(404, 'No club has that code. Check it and try again.');
   }
   await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
@@ -214,11 +234,20 @@ export async function codeTaken(sql, code) {
   return !!r.taken;
 }
 
-// Organizer PIN: 4 to 8 digits. Only its salted scrypt hash is stored.
+// Organizer PIN: 6 to 8 digits for a new or changed PIN. Only its salted scrypt hash is stored.
+// PINs set before the 6-digit minimum (4 or 5 digits) still unlock; the app nudges their organizers to change them.
 export function cleanPin(raw) {
   const pin = String(raw ?? '').trim();
-  if (!/^\d{4,8}$/.test(pin)) throw fail(400, 'Organizer PINs are 4 to 8 digits.');
+  if (!/^\d{6,8}$/.test(pin)) throw fail(400, 'Organizer PINs are 6 to 8 digits.');
   return pin;
+}
+// A phone that has entered the right PIN is handed a device key (an HMAC of the stored hash, so it stops working when
+// the PIN changes). The app keeps it with the PIN as "123456:<key>", so every place that already sends the PIN carries it.
+// A phone with a valid key is never slowed down by other people's wrong guesses.
+export const deviceKey = club => createHmac('sha256', String(club.pin_hash)).update('device:' + club.code).digest('hex');
+function deviceKeyMatches(club, key) {
+  const want = Buffer.from(deviceKey(club), 'hex'), got = Buffer.from(/^[0-9a-f]{64}$/.test(key || '') ? key : '', 'hex');
+  return want.length === got.length && timingSafeEqual(want, got);
 }
 export function hashPin(pin) {
   const salt = randomBytes(16);
@@ -231,35 +260,41 @@ function pinMatches(stored, pin) {
   const got = scryptSync(String(pin), Buffer.from(salt, 'hex'), want.length);
   return want.length === got.length && timingSafeEqual(want, got);
 }
-const MAX_PIN_FAILS = 10;       // wrong PINs allowed per network address per 15 minutes
-const MAX_CLUB_PIN_FAILS = 30;  // wrong PINs allowed per club per 15 minutes, from all addresses together
 // Allows an organizer action. Clubs without a PIN let anyone through.
-// - The creating phone's private token always works: it can't be guessed (48 hex characters), so it is the
-//   recovery path when a PIN flood has locked the club, and it lets that phone reset a forgotten PIN.
-// - Otherwise the PIN is checked under two hard limits, per network address and per club. Both are checked before
-//   the PIN is, and a locked club refuses every PIN, right or wrong, so guessing gets no signal while it's locked.
-//   Attempts are recorded before counting (so simultaneous guesses see each other) and removed if the PIN is right.
-//   Only guesses that pass the per-address limit count toward the club's lock, and a request the club lock refuses
-//   takes its own mark back off, so one blocked address can't keep a club locked by spamming it.
+// - The creating phone's private token always works (48 hex characters, not guessable): it is the recovery path
+//   and lets that phone reset a forgotten PIN. A phone holding a valid device key (see deviceKey) works too.
+// - Anyone else is checked against the PIN under an escalating backoff, per network (per /64) and per club:
+//   the first few wrong tries are free, then each one doubles the wait (per network up to 24 hours, per club up to
+//   1 hour, so a flood can pause new organizers only briefly and never the phones above). A refused request takes
+//   its own mark back off, and a locked network or club refuses every PIN, right or wrong, so guessing learns nothing.
+//   Marks are recorded before counting, so simultaneous guesses see each other. A right PIN removes its marks.
+const PIN_LIMITS = [['pin:', 5, 30, 86400], ['pinclub:', 20, 60, 3600]]; // key prefix, free tries, base wait (s), longest wait (s)
 export async function requirePin(club, pin, req, ownerToken) {
   if (!club.pin_hash) return;
   if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return;
+  const [digits, key] = String(pin ?? '').split(':');
+  if (key && deviceKeyMatches(club, key)) return;
   const sql = db();
-  const ipKey = 'pin:' + clientIp(req), clubKey = 'pinclub:' + club.code;
-  // 1. Per address first.
-  const [{ id: ipId }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ipKey}) RETURNING id`;
-  const [{ byIp }] = await sql`SELECT count(*)::int AS "byIp" FROM lookup_fails WHERE ip = ${ipKey} AND at > now() - interval '15 minutes'`;
-  if (byIp > MAX_PIN_FAILS) throw fail(429, 'Too many wrong PINs. Wait 15 minutes and try again.');
-  // 2. Then the club, counting only guesses that got this far.
-  const [{ id: clubId }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${clubKey}) RETURNING id`;
-  const [{ byClub }] = await sql`SELECT count(*)::int AS "byClub" FROM lookup_fails WHERE ip = ${clubKey} AND at > now() - interval '15 minutes'`;
-  if (byClub > MAX_CLUB_PIN_FAILS) {
-    await sql`DELETE FROM lookup_fails WHERE id = ${clubId}`; // refused, so it doesn't extend the lock
-    throw fail(429, 'Too many wrong PINs have been tried for this club. Organizer actions are paused for 15 minutes, except on the phone that created the club.');
+  const keys = [PIN_LIMITS[0][0] + clientIp(req), PIN_LIMITS[1][0] + club.code];
+  const marks = [];
+  const drop = async ids => { for (const id of ids) await sql`DELETE FROM lookup_fails WHERE id = ${id}`; };
+  for (let i = 0; i < PIN_LIMITS.length; i++) {
+    const [, free, base, cap] = PIN_LIMITS[i];
+    const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${keys[i]}) RETURNING id`;
+    marks.push(id);
+    const [{ n, age }] = await sql`SELECT count(*)::int AS n, extract(epoch FROM now() - max(at)) AS age FROM lookup_fails
+      WHERE ip = ${keys[i]} AND at > now() - interval '24 hours' AND id <> ${id}`;
+    const wait = Number(n) ? lockSeconds(Number(n), free, base, cap) - Number(age) : 0;
+    if (wait > 0) {
+      await drop(marks);
+      throw fail(429, i === 0
+        ? `Too many wrong PINs from this network. Try again in ${waitText(wait)}.`
+        : `Too many wrong PINs have been tried for this club. Organizer PINs are paused for ${waitText(wait)}, except on phones that are already unlocked and the one that created the club.`);
+    }
   }
-  // 3. Only now check the PIN. A right PIN clears this attempt's marks; a wrong one keeps them.
-  if (!/^\d{4,8}$/.test(String(pin ?? '')) || !pinMatches(club.pin_hash, pin)) throw fail(403, 'That organizer PIN is wrong.');
-  await sql`DELETE FROM lookup_fails WHERE id IN (${ipId}, ${clubId})`;
+  if (!/^\d{4,8}$/.test(digits) || !pinMatches(club.pin_hash, digits)) throw fail(403, 'That organizer PIN is wrong.');
+  await drop(marks);
+  await sql`DELETE FROM lookup_fails WHERE ip = ${keys[0]}`; // this network proved it knows the PIN, so its earlier wrong tries are forgiven
 }
 export const ownerFrom = req => (req.headers || {})['x-club-owner'];
 
@@ -292,30 +327,39 @@ export async function verifiedSender(sql, club, code, body) {
 }
 
 // Reserves room for `count` new games in one atomic update: at most 1,200 per club per 10-minute window
-// (enough for a phone's whole history of up to 1,000 games) and 20,000 per club in total.
-// The row lock on the club makes simultaneous requests take turns, so they can't overshoot together.
+// (enough for a phone's whole history of up to 1,000 games), 20,000 games that are not deleted, and 40,000 stored
+// rows including deleted ones (so add-and-delete can't grow a club without end). Deleting games makes room again.
+// The row lock on the club makes simultaneous requests take turns on the window; the stored-games counts are read
+// at that moment, so at worst a few simultaneous requests overshoot by one window's worth.
+// Photo avatars are the big part of a player (up to 60,000 characters each), so a club keeps at most 50 of them.
+export const MAX_PHOTOS = 50;
+export const MAX_LIVE_GAMES = 20000, MAX_STORED_GAMES = 40000;
 export async function reserveGames(code, count) {
   const sql = db();
   const rows = await sql`UPDATE clubs SET
       window_count = CASE WHEN window_start < now() - interval '10 minutes' THEN ${count} ELSE window_count + ${count} END,
-      window_start = CASE WHEN window_start < now() - interval '10 minutes' THEN now() ELSE window_start END,
-      total_count = total_count + ${count}
+      window_start = CASE WHEN window_start < now() - interval '10 minutes' THEN now() ELSE window_start END
     WHERE code = ${code}
       AND (CASE WHEN window_start < now() - interval '10 minutes' THEN 0 ELSE window_count END) + ${count} <= 1200
-      AND total_count + ${count} <= 20000
+      AND (SELECT count(*) FROM games WHERE club = ${code} AND deleted_at IS NULL) + ${count} <= ${MAX_LIVE_GAMES}
+      AND (SELECT count(*) FROM games WHERE club = ${code}) + ${count} <= ${MAX_STORED_GAMES}
     RETURNING window_start::text AS window_key`;
   // The window this reservation was charged to, as exact text (a JS Date would drop the microseconds).
   if (rows.length) return rows[0].window_key;
-  const [club] = await sql`SELECT total_count FROM clubs WHERE code = ${code}`;
-  if (club && club.total_count + count > 20000) throw fail(400, 'This club has reached its limit of 20,000 games.');
+  const [n] = await sql`SELECT count(*) FILTER (WHERE deleted_at IS NULL)::int AS live, count(*)::int AS stored FROM games WHERE club = ${code}`;
+  if (n && Number(n.live) + count > MAX_LIVE_GAMES) throw fail(400, `This club has reached its limit of ${MAX_LIVE_GAMES.toLocaleString('en-US')} games. An organizer can delete old games to make room.`);
+  if (n && Number(n.stored) + count > MAX_STORED_GAMES) throw fail(400, 'This club has stored too many games, including deleted ones. Ask the app owner to clear them.');
   throw fail(429, 'Too many games were added just now. Wait a few minutes and try again.');
 }
-// Returns unused allowance, so the counters only ever reflect games actually stored.
+// An organizer's way out of a "too many games just now" pause: starts a fresh 10-minute window.
+export async function resetAllowance(code) {
+  await db()`UPDATE clubs SET window_count = 0, window_start = now(), total_count = 0 WHERE code = ${code}`;
+}
+// Returns unused window allowance, so the counter only ever reflects games actually stored.
 // The window refund only applies if the same 10-minute window is still open; a newer window keeps its own count.
 export async function releaseGames(code, count, windowStart) {
   if (count <= 0) return;
   await db()`UPDATE clubs SET
-      total_count = GREATEST(0, total_count - ${count}),
       window_count = CASE WHEN window_start::text = ${String(windowStart)} THEN GREATEST(0, window_count - ${count}) ELSE window_count END
     WHERE code = ${code}`;
 }

@@ -2,8 +2,10 @@
 // POST /api/club {name, pin?}                        -> creates a club with an organizer PIN (the one given, or a generated 8-digit organizer code returned once as organizerCode), returns its code
 // POST /api/club {code, action: 'rotate-code', pin?, ownerToken?, graceMinutes?} -> organizer only: gives the club a new code; the old one keeps working for graceMinutes (default 60, at most 1440), then stops
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
+// POST /api/club {code, action: 'reset-allowance', pin|ownerToken} -> organizer: ends a "too many games just now" pause
+// GET  /api/club?code=ABC123&avatars=1               -> the photo avatars, kept out of the main response: {photos: {name: {v, value}}}
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
-import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
+import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
 import { XP, LEVEL_MAX, PRESTIGE_DINKS, CATALOG, EARN, SPIN_WHEEL, shopSettings, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_PRIZES, SEASON_MIN_GAMES } from './_dinks.js';
@@ -29,13 +31,22 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'POST') {
     const body = await readBody(req);
+    if (body.action === 'reset-allowance') {
+      const club = await requireClub(cleanCode(body.code), req);
+      await requireOrganizer(club, body.pin, req, body.ownerToken);
+      await resetAllowance(club.code);
+      const [n] = await sql`SELECT count(*)::int AS live FROM games WHERE club = ${club.code} AND deleted_at IS NULL`;
+      return send(res, 200, { ok: true, games: Number(n.live), limit: MAX_LIVE_GAMES });
+    }
     if (body.action === 'verify-pin' || body.action === 'set-pin' || body.action === 'rotate-code') {
       const club = await requireClub(cleanCode(body.code), req);
       const code = club.code; // permanent key
       if (body.action === 'verify-pin') {
         if (!club.pin_hash) throw fail(400, "This club doesn't have an organizer PIN yet.");
         await requirePin(club, body.pin, req);
-        return send(res, 200, { ok: true });
+        // deviceKey: lets this phone keep working when others guess wrong (see requirePin). shortPin: this PIN predates
+        // the 6-digit minimum, so the app asks the organizer to change it.
+        return send(res, 200, { ok: true, deviceKey: deviceKey(club), shortPin: String(body.pin).split(':')[0].length < 6 });
       }
       if (body.action === 'rotate-code') {
         await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -55,8 +66,9 @@ export default handler(async (req, res) => {
       if (club.pin_hash) {
         // Changing a PIN needs the current one.
         await requirePin(club, body.oldPin, req, body.ownerToken); // the creating phone can reset a forgotten PIN
-        await sql`UPDATE clubs SET pin_hash = ${hashPin(pin)} WHERE code = ${code}`;
-        return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }) });
+        const pinHash = hashPin(pin);
+        await sql`UPDATE clubs SET pin_hash = ${pinHash} WHERE code = ${code}`;
+        return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), deviceKey: deviceKey({ code, pin_hash: pinHash }) });
       }
       // The first PIN: only the phone that created the club (it holds the creator token) may set it.
       // Older clubs made before creator tokens existed can be claimed once by any member, who then becomes the creator.
@@ -67,17 +79,20 @@ export default handler(async (req, res) => {
         ownerToken = newOwnerToken();
       }
       // Atomic: succeeds only while the club still has no PIN, so two people can't both set the first one.
+      const pinHash = hashPin(pin);
       const rows = ownerToken
-        ? await sql`UPDATE clubs SET pin_hash = ${hashPin(pin)}, owner_hash = ${hashToken(ownerToken)} WHERE code = ${code} AND pin_hash IS NULL AND owner_hash IS NULL RETURNING code`
-        : await sql`UPDATE clubs SET pin_hash = ${hashPin(pin)} WHERE code = ${code} AND pin_hash IS NULL RETURNING code`;
+        ? await sql`UPDATE clubs SET pin_hash = ${pinHash}, owner_hash = ${hashToken(ownerToken)} WHERE code = ${code} AND pin_hash IS NULL AND owner_hash IS NULL RETURNING code`
+        : await sql`UPDATE clubs SET pin_hash = ${pinHash} WHERE code = ${code} AND pin_hash IS NULL RETURNING code`;
       if (!rows.length) throw fail(409, 'Someone just set a PIN for this club. Ask your organizer for it.');
-      return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), ...(ownerToken ? { ownerToken } : {}) });
+      return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), deviceKey: deviceKey({ code, pin_hash: pinHash }), ...(ownerToken ? { ownerToken } : {}) });
     }
     const name = cleanName(body.name); // same cleanup as player names: no control or invisible characters
     if (!name) throw fail(400, 'Give your club a name.');
     // Every new club has an organizer credential: the PIN given, or a generated 8-digit organizer code shown once.
     const organizerCode = body.pin ? null : String(randomInt(0, 1e8)).padStart(8, '0');
-    const pinHash = hashPin(organizerCode || cleanPin(body.pin));
+    const pinPlain = organizerCode || cleanPin(body.pin); // a bad PIN is refused before it uses up a creation
+    await throttleClubCreate(req);
+    const pinHash = hashPin(pinPlain);
     const ownerToken = newOwnerToken();
     for (let i = 0; i < 5; i++) {
       const code = newCode();
@@ -91,10 +106,16 @@ export default handler(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
   const code = club.code;
+  if (url.searchParams.get('avatars')) {
+    // Photos are the only large part of a player, so they come separately; `v` is a short fingerprint the app compares
+    // with the one in the main response to know when a cached photo is stale.
+    const rows = await sql`SELECT name, left(md5(avatar->>'value'), 8) AS v, avatar->>'value' AS value FROM roster WHERE club = ${code} AND avatar->>'type' = 'photo' LIMIT ${MAX_PHOTOS}`;
+    return send(res, 200, { photos: Object.fromEntries(rows.map(r => [r.name, { v: r.v, value: r.value }])) });
+  }
   const [games, deleted, roster, purchases, [shopRow]] = await Promise.all([
     sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
-    sql`SELECT name, claim_hash IS NOT NULL AS claimed, equipped, avatar, prestige, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
+    sql`SELECT name, claim_hash IS NOT NULL AS claimed, equipped, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, prestige, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
     sql`SELECT id, name_key, item_id, item_name, price, is_reward, given_at, created_at FROM purchases WHERE club = ${code} ORDER BY id LIMIT 5000`,
     sql`SELECT shop FROM clubs WHERE code = ${code}`
   ]);
