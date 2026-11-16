@@ -1,4 +1,7 @@
 name: Nightly database backup
+# The repo is public and workflow artifacts are downloadable by any signed-in
+# GitHub user, so the dump is encrypted as it is written (plaintext never touches
+# disk or logs) and the job refuses to upload anything that is not encrypted.
 on:
   schedule: [{ cron: '17 3 * * *' }]
   workflow_dispatch:
@@ -9,30 +12,43 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
     steps:
-      - name: Skip when no secret is configured
+      - name: Skip unless both secrets are configured
         id: gate
         run: |
-          if [ -z "$DATABASE_URL" ]; then echo "DATABASE_URL secret not set; backup skipped (see docs/ops.md)."; echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+          if [ -z "$DATABASE_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "DATABASE_URL and BACKUP_PASSPHRASE secrets are both required; backup skipped (see docs/ops.md)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Install a pg_dump matching the server
         if: steps.gate.outputs.run == 'true'
         run: |
           sudo apt-get install -y curl ca-certificates >/dev/null
           sudo install -d /usr/share/postgresql-common/pgdg
           sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update >/dev/null && sudo apt-get install -y postgresql-client-17 >/dev/null
-      - name: pg_dump
+      - name: pg_dump, encrypted in the pipe
         if: steps.gate.outputs.run == 'true'
         run: |
           set -o pipefail
-          pg_dump --format=custom --no-owner --no-privileges "$DATABASE_URL" > dink-score-$(date -u +%F).dump
-          test -s dink-score-*.dump
-          ls -l dink-score-*.dump
+          mkdir -p out
+          f="out/dink-score-$(date -u +%F).dump.gpg"
+          pg_dump --format=custom --no-owner --no-privileges "$DATABASE_URL" 2>/dev/null \
+            | gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-fd 3 \
+                  --symmetric --cipher-algo AES256 -o "$f" 3<<<"$BACKUP_PASSPHRASE"
+          test -s "$f"
+          # Refuse to ship anything that is not a gpg-encrypted file.
+          gpg --batch --list-packets "$f" 2>/dev/null | grep -q 'symkey enc packet' \
+            || { echo "output is not encrypted; refusing to upload"; rm -f "$f"; exit 1; }
+          ls -l out | sed -n '2,$p' | awk '{print $5, $9}'
       - uses: actions/upload-artifact@v4
         if: steps.gate.outputs.run == 'true'
         with:
           name: dink-score-db-backup
-          path: dink-score-*.dump
+          path: out/*.dump.gpg
           retention-days: 14
           if-no-files-found: error
