@@ -360,6 +360,37 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .toast { position: fixed; left: 50%; top: calc(64px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 95; background: var(--ball); color: var(--ball-ink); font-weight: 700; font-size: 15px; padding: 11px 18px; border-radius: 999px; box-shadow: 0 10px 30px rgb(0 0 0 / .35); max-width: calc(100% - 32px); text-align: center; animation: drop .3s ease-out; }
 @keyframes drop { from { transform: translate(-50%, -10px); opacity: 0; } }
 
+/* Replay of a game scored live */
+.rp-title { font-weight: 600; color: var(--ink) !important; overflow-wrap: anywhere; }
+.rp-chart .rp-sum { font-size: 14px; margin: 6px 2px 0; color: var(--ink); }
+.rp-svg { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: pointer; }
+.rp-zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
+.rp-ax { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.rp-line { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; opacity: .6; }
+.rp-run { fill: none; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+.rp-run.t0 { stroke: var(--blue); }
+.rp-run.t1 { stroke: var(--green); }
+.rp-so { stroke: var(--muted); stroke-width: 2; }
+.rp-cur { stroke: var(--ink); stroke-width: 1; }
+.rp-dot { fill: var(--ball); stroke: var(--ink); stroke-width: 2.5; }
+.rp-key { display: flex; flex-direction: column; gap: 4px; margin: 8px 2px 6px; font-size: 13px; color: var(--muted); }
+.rp-key i { display: inline-block; width: 18px; margin-right: 8px; vertical-align: middle; }
+.rp-key .line-sw { height: 0; border-top: 2px solid var(--ink); opacity: .6; }
+.rp-key .run-sw { height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--blue) 50%, var(--green) 50%); }
+.rp-key .so-sw { height: 9px; width: 0; border-left: 2px solid var(--muted); margin-left: 8px; margin-right: 16px; }
+.rp-board { display: grid; gap: 6px; }
+.rp-team { display: grid; grid-template-columns: 8px 1fr auto; gap: 12px; align-items: center; background: var(--surface-2); border-radius: 14px; padding: 10px 14px; }
+.rp-team.on { box-shadow: inset 0 0 0 2px var(--c); }
+.rp-team .tick { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.rp-team .who { min-width: 0; overflow-wrap: anywhere; font-weight: 600; display: flex; flex-direction: column; }
+.rp-team .who small { font-weight: 500; font-size: 13px; color: var(--muted); }
+.rp-team .pts { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 40px; line-height: .95; font-variant-numeric: tabular-nums; }
+.sheet p.rp-say { color: var(--ink); font-size: 16px; min-height: 4.4em; }
+.rp-scrub { width: 100%; height: 32px; margin: 0; accent-color: var(--blue); }
+.rp-ctl { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 8px; }
+.rp-ctl .btn { min-height: 52px; padding: 12px 10px; justify-content: center; gap: 6px; }
+.rp-ctl .btn svg { width: 20px; height: 20px; flex: none; }
+
 /* Sheets */
 .sheet-bg { position: fixed; inset: 0; z-index: 70; background: rgb(5 9 15 / .55); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); display: flex; align-items: flex-end; justify-content: center; }
 .sheet-bg.top { z-index: 90; }
@@ -867,6 +898,7 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 <div id="sheet4"></div>
 <div id="sheet5"></div>
 <div id="sheet6"></div>
+<div id="sheet7"></div>
 <div id="tour"></div>
 
 <script>
@@ -938,6 +970,20 @@ const PB = (() => {
   }
   return { newGame, rally, call, serverSide, switchAt };
 })();
+
+/*SCORING-START*/
+// The live game's moves, in one place for taps, watch intents and undo. Beside live.stack (the states Undo steps back through)
+// the game keeps live.log: the team that won each rally, which is all a saved game needs to be replayed with PB.rally.
+// live.log is null for a game that was already under way before logs existed; such a game saves without one.
+const Scoring = {
+  rally(live, w) { live.stack.push(live.state); live.state = PB.rally(live.state, w); if (live.log) live.log.push(w); },
+  undo(live) { live.state = live.stack.pop(); if (live.log) live.log.pop(); },
+  // "<first server>:<winners>" as api/_rallylog.js reads it, or null when the log doesn't cover every rally.
+  logOf(live) { return live.log && live.log.length === live.state.rallies ? `${live.state.cfg.first ? 1 : 0}:${live.log.join('')}` : null; },
+  // The log of a live game read back from storage.
+  restore(live) { if (!Array.isArray(live.log) || live.log.length !== live.state.rallies) live.log = live.state.rallies === 0 ? [] : null; }
+};
+/*SCORING-END*/
 
 /* Dink Rating: our own performance rating, inspired by how DUPR is publicly described.
    - Scale 2.00 to 8.00. New players start at 2.00. Doubles and singles are rated separately.
@@ -1366,7 +1412,7 @@ let setup = Object.assign({}, defaults, store.get('pb.setup', {}));
 let tab = store.get('pb.tab', 'play');
 if (!['play', 'leaders', 'events', 'history', 'rules'].includes(tab)) tab = 'play';
 let live = store.get('pb.live', null); // { state, stack, open }
-if (live) live.stack = live.stack || [];
+if (live) { live.stack = live.stack || []; Scoring.restore(live); }
 let localGames = store.get('pb.games', []);
 let cloudGames = null;
 let gamesCol = null;
@@ -1632,7 +1678,7 @@ function flush() {
         else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
-        else if (op.type === 'event-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'result', id: op.eventId, matchId: op.matchId, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, live: op.live, pin: pins[code] || '' }, senderCreds(code))) });
+        else if (op.type === 'event-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'result', id: op.eventId, matchId: op.matchId, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, rallyLog: op.rallyLog || undefined, live: op.live, pin: pins[code] || '' }, senderCreds(code))) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
@@ -2444,7 +2490,7 @@ function gameItem(g) {
   const line = t => `<div class="line ${g.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(g.teams[t]))}</span><span class="pts">${Number(g.score[t])}</span></div>`;
   const armed = armedDelete === g.id;
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
-    <span class="g-actions"><button class="link" data-share="${esc(g.id)}">Share</button><button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
+    <span class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button><button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
     <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
 }
 
@@ -2643,6 +2689,8 @@ function renderCourt() {
 }
 // The game clock ticks without redrawing the court.
 setInterval(() => { const el = document.getElementById('court-clock'); if (el && live && live.open && live.state.winner === null) el.textContent = clock(Date.now() - live.state.startedAt); }, 1000);
+document.addEventListener('pointerdown', e => { replaySeek(e); });
+document.addEventListener('pointermove', e => { if (e.buttons) replaySeek(e); });
 document.addEventListener('pointerdown', e => {
   const h = e.target.closest && e.target.closest('.half[data-rally]');
   if (!h) return;
@@ -2709,11 +2757,10 @@ function applyWatchIntent(it) {
   if (!live || live.event) return;
   if (it.kind === 'point' && live.state.winner === null && !live.confirmEnd && !logForm) {
     buzz();
-    live.stack.push(live.state);
-    live.state = PB.rally(live.state, it.side === 1 ? 1 : 0);
+    Scoring.rally(live, it.side === 1 ? 1 : 0);
     persistLive(); renderCourt();
   } else if (it.kind === 'undo' && live.stack.length) {
-    live.state = live.stack.pop(); live.toast = null;
+    Scoring.undo(live); live.toast = null;
     persistLive(); renderCourt();
   }
 }
@@ -2728,7 +2775,7 @@ setInterval(async () => {
   } catch {}
 }, 4000);
 
-function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), open: live.open, event: live.event || null, secret: live.secret || null } : null); schedulePublishLive(); }
+function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), log: live.log, open: live.open, event: live.event || null, secret: live.secret || null } : null); schedulePublishLive(); }
 let toastTimer;
 function showToast(msg, inCourt = true) {
   if (inCourt && live) { live.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (live) { live.toast = null; renderCourt(); } }, 3500); return; }
@@ -2737,11 +2784,11 @@ function showToast(msg, inCourt = true) {
 }
 function startGame(cfgOverride) {
   const cfg = cfgOverride || { mode: setup.mode, scoring: setup.scoring, target: +setup.target, winBy: +setup.winBy, first: setup.first, teams: [teamPlayers(0), teamPlayers(1)] };
-  live = { state: PB.newGame(cfg), stack: [], open: true };
+  live = { state: PB.newGame(cfg), stack: [], log: [], open: true };
   persistLive(); keepAwake(true); render();
 }
-function record(s) {
-  return { id: newId(s.startedAt), startedAt: s.startedAt, endedAt: s.endedAt, mode: s.cfg.mode, scoring: s.cfg.scoring, target: s.cfg.target, winBy: s.cfg.winBy, teams: s.cfg.teams, score: s.score, winner: s.winner, rallies: s.rallies };
+function record(s, rallyLog) {
+  return { ...(rallyLog ? { rallyLog } : {}), id: newId(s.startedAt), startedAt: s.startedAt, endedAt: s.endedAt, mode: s.cfg.mode, scoring: s.cfg.scoring, target: s.cfg.target, winBy: s.cfg.winBy, teams: s.cfg.teams, score: s.score, winner: s.winner, rallies: s.rallies };
 }
 
 /* ---------- log a result from another court ---------- */
@@ -2809,6 +2856,8 @@ function submitLog() {
     // Keep how long the game took: if the finish time moved, move the start with it.
     const o = f.original;
     const updated = Object.assign({}, o, { mode: f.mode, target: f.target, teams, score, winner, endedAt, startedAt: endedAt - Math.max(0, o.endedAt - o.startedAt), editedAt: Date.now() });
+    // A rally log only describes the result it was scored to; a corrected score, format or target no longer matches it.
+    if (o.score[0] !== score[0] || o.score[1] !== score[1] || o.mode !== f.mode || o.target !== f.target) { delete updated.rallyLog; delete updated.replay; }
     logForm = null;
     editGame(updated);
     return;
@@ -2827,6 +2876,175 @@ function editGame(g) {
   if (gamesCol) { const { id, ...rest } = g; gamesCol.doc(id).set(rest).catch(() => {}); }
   render();
   showToast('Result updated', false);
+}
+
+/* ---------- replay a game that was scored live ---------- */
+// The saved game carries only who won each rally (see Scoring); every state is rebuilt here with PB.rally, so the replay
+// can't disagree with the rules the game was scored by. Club games say `replay: true` and fetch the log when opened.
+let replay = null; // { g, status: 'loading' | 'ready' | 'error', msg, wins, states, model, i, playing, timer, opener }
+const replayLogs = {}; // game id -> log string, kept for the visit
+const canReplay = g => !g.logged && !!(g.rallyLog || g.replay);
+function replayBuild(r, raw) {
+  const m = /^([01]):([01]{1,400})$/.exec(String(raw || ''));
+  const g = r.g;
+  if (m) {
+    const wins = Array.from(m[2], Number);
+    const states = [PB.newGame({ mode: g.mode, scoring: g.scoring, target: g.target, winBy: g.winBy, first: +m[1], teams: g.teams })];
+    for (const w of wins) states.push(PB.rally(states[states.length - 1], w));
+    const end = states[states.length - 1];
+    // A log that doesn't end on this game's own score (say, the score was corrected on another phone) is not shown.
+    if (end.winner === g.winner && end.score[0] === g.score[0] && end.score[1] === g.score[1] && states.slice(0, -1).every(s => s.winner === null)) {
+      r.wins = wins; r.states = states; r.model = replayModel(states, wins); r.status = 'ready';
+      return;
+    }
+  }
+  r.status = 'error'; r.msg = "The replay for this game doesn't match its saved score, so it isn't shown.";
+}
+// What the chart and its caption need: the lead after each rally, side-outs, and runs of 3+ unanswered points.
+function replayModel(st, wins) {
+  const lead = st.map(s => s.score[0] - s.score[1]);
+  const sideouts = [], runs = [];
+  let cur = null;
+  wins.forEach((w, k) => {
+    const a = st[k], b = st[k + 1];
+    if (b.serving !== a.serving) sideouts.push(k + 1);
+    if (b.score[0] + b.score[1] === a.score[0] + a.score[1]) return;
+    if (cur && cur.team === w) { cur.to = k + 1; cur.n++; } else { cur = { team: w, from: k + 1, to: k + 1, n: 1 }; runs.push(cur); }
+  });
+  const big = runs.filter(x => x.n >= 3);
+  return { lead, sideouts, runs: big, best: big.reduce((a, x) => (!a || x.n > a.n ? x : a), null), span: Math.max(3, ...lead.map(Math.abs)) };
+}
+function openReplay(id) {
+  const g = allGames().find(x => x.id === id);
+  if (!g || !canReplay(g)) return;
+  replayStop();
+  replay = { g, status: 'loading', i: 0, playing: false, timer: null, opener: document.activeElement };
+  const raw = g.rallyLog || replayLogs[id];
+  if (raw) replayBuild(replay, raw);
+  else if (club && API_OK) {
+    const r = replay;
+    api(`games?code=${encodeURIComponent(club.code)}&id=${encodeURIComponent(id)}`).then(d => {
+      if (replay !== r) return;
+      if (d.rallyLog) { replayLogs[id] = d.rallyLog; replayBuild(r, d.rallyLog); } else { r.status = 'error'; r.msg = 'This game has no replay.'; }
+      renderReplay();
+    }).catch(err => { if (replay !== r) return; r.status = 'error'; r.msg = err.offline ? "The replay can't load without a connection." : err.message; renderReplay(); });
+  } else { replay.status = 'error'; replay.msg = 'This game has no replay.'; }
+  renderReplay();
+}
+function replayStop() { if (replay && replay.timer) clearInterval(replay.timer); if (replay) { replay.timer = null; replay.playing = false; } }
+function closeReplay() {
+  const opener = replay && replay.opener;
+  replayStop(); replay = null; renderReplay();
+  if (opener && opener.isConnected) { try { opener.focus(); } catch {} }
+}
+function replayGo(i, keepPlaying) {
+  const r = replay;
+  if (!r || r.status !== 'ready') return;
+  r.i = Math.max(0, Math.min(r.wins.length, i));
+  if (!keepPlaying || r.i >= r.wins.length) replayStop();
+  updateReplay();
+}
+function replayPlay() {
+  const r = replay;
+  if (!r || r.status !== 'ready') return;
+  if (r.playing) { replayStop(); updateReplay(); return; }
+  if (r.i >= r.wins.length) r.i = 0;
+  r.playing = true;
+  r.timer = setInterval(() => replayGo(r.i + 1, true), 900);
+  updateReplay();
+}
+// The words for step i: who served, who won the rally, how it ended, and the score call after it.
+function replayStepText(r, i) {
+  const g = r.g, st = r.states, a = st[Math.max(0, i - 1)], b = st[i];
+  const who = s => `${esc(g.teams[s.serving][s.server])} (${TEAM_NAME[s.serving]})`;
+  const call = PB.call(b).join('-');
+  if (i === 0) return { head: 'Start', text: `${who(b)} serves first. The call is ${call}.`, call };
+  const w = r.wins[i - 1];
+  const pts = b.score[0] + b.score[1] > a.score[0] + a.score[1];
+  const how = pts ? 'point' : b.serving !== a.serving ? 'side-out' : 'second server up';
+  let text = `${who(a)} served. ${TEAM_NAME[w]} won the rally: ${how}. The call is ${call}.`;
+  if (i === r.wins.length) text += ` Game over: ${esc(teamLabel(g.teams[g.winner]))} won ${g.score[g.winner]}–${g.score[1 - g.winner]}.`;
+  return { head: `Rally ${i}`, text, call };
+}
+function replayChart(r) {
+  const W = 320, H = 150, L = 8, R = 8, T = 10, B = 20, n = r.wins.length, m = r.model, mid = (T + H - B) / 2;
+  const x = i => L + (i / n) * (W - L - R);
+  const y = v => mid - (v / m.span) * (mid - T - 2);
+  const pts = (from, to) => { const o = []; for (let i = from; i <= to; i++) o.push(`${x(i).toFixed(1)},${y(m.lead[i]).toFixed(1)}`); return o.join(' '); };
+  const label = `Score flow over ${n} rallies. ${m.best ? `Longest run: ${m.best.n} unanswered points by ${TEAM_NAME[m.best.team]}. ` : 'No run of 3 or more unanswered points. '}${m.sideouts.length} side-out${m.sideouts.length === 1 ? '' : 's'}. Use the replay controls to step through it.`;
+  return `<svg class="rp-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
+    <line class="rp-zero" x1="${L}" x2="${W - R}" y1="${mid}" y2="${mid}"/>
+    <text class="rp-ax" x="${L}" y="${T + 8}">+${m.span}</text><text class="rp-ax" x="${L}" y="${H - B - 3}">+${m.span}</text>
+    ${m.sideouts.map(k => `<line class="rp-so" x1="${x(k).toFixed(1)}" x2="${x(k).toFixed(1)}" y1="${H - B + 3}" y2="${H - B + 11}"/>`).join('')}
+    <polyline class="rp-line" points="${pts(0, n)}"/>
+    ${m.runs.map(u => `<polyline class="rp-run t${u.team}" points="${pts(u.from - 1, u.to)}"/>`).join('')}
+    <line class="rp-cur" x1="0" x2="0" y1="${T}" y2="${H - B + 11}"/><circle class="rp-dot" r="5" cx="0" cy="0"/>
+  </svg>`;
+}
+function renderReplay() {
+  const root = $('#sheet7');
+  if (!replay) { root.innerHTML = ''; lockBody(!!(logForm || shareSheet || (live && live.open))); return; }
+  lockBody(true);
+  const r = replay, g = r.g;
+  const head = `<div class="sheet-head"><h2 id="rp-h">Replay</h2><button type="button" class="x" data-act="replay-close" aria-label="Close replay">✕</button></div>`;
+  let body;
+  if (r.status === 'loading') body = `<p role="status">Loading the replay…</p>`;
+  else if (r.status === 'error') body = `<p class="err" role="alert">${esc(r.msg)}</p>`;
+  else {
+    const m = r.model, n = r.wins.length;
+    body = `<div class="chart-card rp-chart"><h3>Score flow</h3>${replayChart(r)}
+      <p class="rp-sum">${m.best ? `Longest run: ${m.best.n} unanswered points by ${esc(TEAM_NAME[m.best.team])}. ` : ''}${m.sideouts.length} side-out${m.sideouts.length === 1 ? '' : 's'} in ${n} rallies.</p>
+      <div class="rp-key"><span><i class="line-sw"></i>Above the line: Blue ahead. Below: Green ahead.</span><span><i class="run-sw"></i>Thick: 3 or more unanswered points</span><span><i class="so-sw"></i>Tick below: side-out</span></div></div>
+      <div id="rp-now"></div><p id="rp-say" class="rp-say" role="status"></p>
+      <label class="lab" for="rp-scrub">Rally</label>
+      <input type="range" id="rp-scrub" class="rp-scrub" min="0" max="${n}" step="1" value="0">
+      <div class="rp-ctl"><button type="button" class="btn btn-soft" data-act="replay-prev" aria-label="Previous rally">${ICON.back}Back</button>
+        <button type="button" class="btn btn-ink" data-act="replay-play"></button>
+        <button type="button" class="btn btn-soft" data-act="replay-next" aria-label="Next rally">Next<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button></div>`;
+  }
+  root.innerHTML = `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rp-h"><span class="grip"></span>${head}
+    <p class="rp-title">${esc(teamLabel(g.teams[0]))} vs ${esc(teamLabel(g.teams[1]))}, ${Number(g.score[0])}–${Number(g.score[1])}</p>${body}</div></div>`;
+  if (r.status === 'ready') updateReplay();
+  const first = root.querySelector('[data-act="replay-play"]') || root.querySelector('.x');
+  if (first) first.focus();
+}
+// Redraws only what changes between steps, so the buttons and the slider keep keyboard focus.
+function updateReplay() {
+  const root = $('#sheet7');
+  const r = replay;
+  if (!root || !r || r.status !== 'ready') return;
+  const g = r.g, n = r.wins.length, s = r.states[r.i], step = replayStepText(r, r.i);
+  const row = t => {
+    const on = s.serving === t && r.i < n;
+    return `<div class="rp-team${on ? ' on' : ''}${r.i === n && g.winner === t ? ' won' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(g.teams[t]))}${on ? `<small>Serving: ${esc(g.teams[t][s.server])}</small>` : ''}</span><span class="pts">${s.score[t]}</span></div>`;
+  };
+  const now = root.querySelector('#rp-now');
+  now.innerHTML = `<div class="rp-board">${row(0)}${row(1)}</div>`;
+  const say = root.querySelector('#rp-say'); // a steady live region: announced after a manual step, silent while playing
+  say.setAttribute('aria-live', r.playing ? 'off' : 'polite');
+  say.innerHTML = `<b>${step.head}.</b> ${step.text}`;
+  const scrub = root.querySelector('#rp-scrub');
+  scrub.value = r.i;
+  scrub.setAttribute('aria-valuetext', `Rally ${r.i} of ${n}, call ${step.call}`);
+  root.querySelector('[data-act="replay-prev"]').disabled = r.i === 0;
+  root.querySelector('[data-act="replay-next"]').disabled = r.i === n;
+  const play = root.querySelector('[data-act="replay-play"]');
+  const label = r.playing ? 'Pause' : r.i >= n ? 'Replay' : 'Play';
+  play.setAttribute('aria-label', `${label} the replay`);
+  play.innerHTML = (r.playing ? '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>' : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>') + label;
+  const svg = root.querySelector('.rp-svg'), W = 320, L = 8, R = 8, T = 10, H = 150, B = 20, mid = (T + H - B) / 2;
+  const cx = L + (r.i / n) * (W - L - R), cy = mid - (r.model.lead[r.i] / r.model.span) * (mid - T - 2);
+  const cur = svg.querySelector('.rp-cur'), dot = svg.querySelector('.rp-dot');
+  cur.setAttribute('x1', cx); cur.setAttribute('x2', cx); dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+}
+// Tapping or dragging on the chart moves the replay there.
+function replaySeek(e) {
+  const svg = e.target.closest && e.target.closest('.rp-svg');
+  if (!svg || !replay || replay.status !== 'ready') return false;
+  const box = svg.getBoundingClientRect();
+  const v = (e.clientX - box.left) / box.width * 320;
+  replayGo(Math.round((v - 8) / (320 - 16) * replay.wins.length));
+  return true;
 }
 
 /* ---------- share a result as an image ---------- */
@@ -4295,7 +4513,7 @@ function evScoreLive(id) {
 }
 function finishEventMatch(s) {
   const e = live.event;
-  queueOp({ type: 'event-result', eventId: e.id, matchId: e.matchId, score: s.score.slice(), startedAt: s.startedAt, endedAt: s.endedAt, rallies: s.rallies, live: true });
+  queueOp({ type: 'event-result', eventId: e.id, matchId: e.matchId, score: s.score.slice(), startedAt: s.startedAt, endedAt: s.endedAt, rallies: s.rallies, rallyLog: Scoring.logOf(live), live: true });
   live = null; persistLive(); keepAwake(false); render();
   showToast('Result saved', false);
   if (evScreen && evScreen.id === e.id) renderEvents(true); else evShow(e.id);
@@ -4500,6 +4718,11 @@ document.addEventListener('click', e => {
   }
   const ds = el.dataset;
   // Share a result
+  if (ds.replay) { openReplay(ds.replay); return; }
+  if (ds.act === 'replay-close') { closeReplay(); return; }
+  if (ds.act === 'replay-play') { replayPlay(); return; }
+  if (ds.act === 'replay-prev') { replayGo(replay.i - 1); return; }
+  if (ds.act === 'replay-next') { replayGo(replay.i + 1); return; }
   if (ds.share) { const g = allGames().find(x => x.id === ds.share); if (g) openShare(g); return; }
   if (ds.act === 'share-live') { if (live && live.state.winner !== null) openShare(Object.assign(record(live.state), { id: '__pending' }), true); return; }
   if (ds.shareTheme) { setShareTheme(ds.shareTheme); return; }
@@ -4635,8 +4858,7 @@ document.addEventListener('click', e => {
   if (ds.rally !== undefined && live && live.state.winner === null && !live.confirmEnd && !logForm) {
     buzz();
     const before = live.state.score.slice();
-    live.stack.push(live.state);
-    live.state = PB.rally(live.state, +ds.rally);
+    Scoring.rally(live, +ds.rally);
     bumpTeam = live.state.score[0] !== before[0] ? 0 : live.state.score[1] !== before[1] ? 1 : null;
     if (live.state.justSwitched && live.state.winner === null) showToast(`Change ends. A team reached ${PB.switchAt(live.state.cfg.target)}.`);
     persistLive(); renderCourt(); return;
@@ -4650,7 +4872,7 @@ document.addEventListener('click', e => {
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
   if (act === 'start') beginGame();
   if (act === 'resume') { live.open = true; persistLive(); keepAwake(true); render(); }
-  if (act === 'undo' && live && live.stack.length) { live.state = live.stack.pop(); live.toast = null; persistLive(); renderCourt(); }
+  if (act === 'undo' && live && live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); }
   if (act === 'end') { live.confirmEnd = true; renderCourt(); }
   if (act === 'keep') { live.confirmEnd = false; renderCourt(); }
   if (act === 'minimize') { live.confirmEnd = false; live.open = false; persistLive(); keepAwake(false); render(); }
@@ -4659,7 +4881,7 @@ document.addEventListener('click', e => {
   if (act === 'finish' || act === 'rematch' || act === 'finish-club') {
     const s = live.state;
     if (live.event) { finishEventMatch(s); return; } // an event match goes to the event; the server adds it to the club's games
-    const rec = record(s);
+    const rec = record(s, Scoring.logOf(live));
     saveGame(rec);
     if (act === 'finish-club') { live = null; persistLive(); keepAwake(false); tab = 'history'; store.set('pb.tab', tab); saveAfterJoin = [rec.id]; clubSheet = { view: 'add', reason: 'save' }; render(); renderClub(); return; }
     if (act === 'rematch') startGame(Object.assign({}, s.cfg, { first: 1 - (s.cfg.first || 0) }));
@@ -4677,6 +4899,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   const d = e.target.dataset || {};
+  if (e.target.id === 'rp-scrub') { replayGo(+e.target.value); return; }
   if (d.name) {
     const [t, i] = d.name.split('-').map(Number);
     setup.names[t][i] = e.target.value; store.set('pb.setup', setup);
@@ -4726,6 +4949,11 @@ document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeTour();
     else if (e.key === 'ArrowRight' && tourStep < tourSteps().length - 1) { tourStep++; renderTour(); }
     else if (e.key === 'ArrowLeft' && tourStep > 0) { tourStep--; renderTour(); }
+    return;
+  }
+  if (replay) { // the replay sheet is on top: Escape closes it, the arrows step it (the slider already handles its own)
+    if (e.key === 'Escape') closeReplay();
+    else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target.matches && e.target.matches('input'))) { e.preventDefault(); replayGo(replay.i + (e.key === 'ArrowRight' ? 1 : -1)); }
     return;
   }
   if (e.key === 'Escape' && shareSheet) { closeShare(); return; }

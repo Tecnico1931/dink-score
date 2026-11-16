@@ -717,5 +717,94 @@ await step('Dinks and the shop are gone: no routes, and recording, editing and d
   assert.ok(!('prizes' in data.progress.season) && !('prestigeDinks' in data.progress.levels));
 });
 
+// Rally logs: a game scored live carries who won each rally so it can be replayed (api/_rallylog.js).
+const { replay: replayLog, encode: encodeLog } = await import(pathToFileURL(path.join(root, 'api', '_rallylog.js')).href);
+const playLog = (cfg, bias, seed) => { // a whole game as a log, from a made-up but repeatable sequence of rally winners
+  let x = seed; const wins = [];
+  do { x = (x * 1664525 + 1013904223) >>> 0; wins.push(x / 2 ** 32 < bias ? 0 : 1); } while (replayLog(cfg, 0, wins).at(-1).winner === null);
+  const end = replayLog(cfg, 0, wins).at(-1);
+  return { wins, raw: encodeLog(0, wins), score: end.score, winner: end.winner };
+};
+const dcfg = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2 };
+const live1 = playLog(dcfg, 0.6, 5);
+const rg = (id, extra = {}) => ({ id, ...dcfg, teams: [['Ana', 'Ben'], ['Cy', 'Di']], score: live1.score, winner: live1.winner, rallies: live1.wins.length, startedAt: Date.now() - 900000, endedAt: Date.now() - 1000, rallyLog: live1.raw, ...extra });
+const logOf = async id => ok(await call(games, 'GET', { query: `?code=${code}&id=${id}` })).rallyLog;
+const inClub = async id => (await clubGames()).find(g => g.id === id);
+await step('rally log: a valid log is stored beside the game, the club list only says it can be replayed', async () => {
+  const r = ok(await call(games, 'POST', { body: { code, games: [rg('rl-ok')] } }));
+  assert.equal(r.saved, 1); assert.equal(r.rejectedLogs, undefined);
+  assert.equal(await logOf('rl-ok'), live1.raw);
+  const g = await inClub('rl-ok');
+  assert.equal(g.replay, true);
+  assert.ok(!('rallyLog' in g), 'the log itself is not in the club payload');
+  assert.ok(!JSON.stringify(g).includes(live1.raw));
+  const plain = ok(await call(games, 'POST', { body: { code, games: [gm('rl-none')] } }));
+  assert.equal(plain.saved, 1);
+  assert.equal(await logOf('rl-none'), null);
+  assert.ok(!('replay' in (await inClub('rl-none'))));
+  assert.equal((await call(games, 'GET', { query: `?code=${code}&id=nope-nope` })).status, 404);
+  assert.equal((await call(games, 'GET', { query: `?code=ZZZZZZ&id=rl-ok` })).status, 404);
+});
+await step('rally log: tampered, oversized or mismatched logs are dropped and the game is still saved', async () => {
+  const flip = live1.raw.slice(0, 4) + (live1.raw[4] === '0' ? '1' : '0') + live1.raw.slice(5);
+  const bad = {
+    'rl-flip': { rallyLog: flip },
+    'rl-extra': { rallyLog: live1.raw + '1' },
+    'rl-short': { rallyLog: live1.raw.slice(0, -1) },
+    'rl-score': { score: [live1.score[0], live1.score[1] + 1] },
+    'rl-big': { rallyLog: '0:' + '01'.repeat(500), rallies: 1000 },
+    'rl-junk': { rallyLog: '0:abc' },
+    'rl-type': { rallyLog: { x: 1 } },
+    'rl-hand': { logged: true },
+    'rl-count': { rallies: live1.wins.length + 3 },
+    'rl-rules': { scoring: 'rally' }
+  };
+  const r = ok(await call(games, 'POST', { body: { code, games: Object.entries(bad).map(([id, x]) => rg(id, x)) } }));
+  assert.equal(r.saved, Object.keys(bad).length, 'every game is still saved');
+  assert.deepEqual([...r.rejectedLogs].sort(), Object.keys(bad).sort());
+  for (const id of Object.keys(bad)) { assert.equal(await logOf(id), null, id); assert.ok(!(await inClub(id)).replay, id); }
+});
+await step('rally log: editing the score clears it; editing only the date or names keeps it', async () => {
+  const edit = (id, x) => call(games, 'POST', { body: { code, edit: rg(id, x), ownerToken: owner } });
+  ok(await call(games, 'POST', { body: { code, games: [rg('rl-edit1'), rg('rl-edit2')] } }));
+  ok(await edit('rl-edit1', { endedAt: Date.now() - 5000, teams: [['Ana', 'Eli'], ['Cy', 'Di']], rallyLog: undefined }));
+  assert.equal(await logOf('rl-edit1'), live1.raw, 'the date and a name changed, the result did not');
+  assert.equal((await inClub('rl-edit1')).replay, true);
+  ok(await edit('rl-edit2', { score: [live1.score[0], live1.score[1] - 1], rallyLog: live1.raw }));
+  assert.equal(await logOf('rl-edit2'), null, 'a corrected score clears the log, even when the edit sends it back');
+  assert.ok(!(await inClub('rl-edit2')).replay);
+  ok(await edit('rl-edit1', { target: 15, score: [15, 3], winner: 0 }));
+  assert.equal(await logOf('rl-edit1'), null, 'a changed target clears it too');
+});
+await step('rally log: event matches scored live keep their log; correcting the score clears it', async () => {
+  const c = await mk(), cc = c.club.code, co = c.ownerToken; // a fresh club: the main one is at its event limit by now
+  const ev_ = (action, extra) => call(events, 'POST', { body: { code: cc, action, ownerToken: co, ...extra } });
+  const logIn = async id => ok(await call(games, 'GET', { query: `?code=${cc}&id=${id}` })).rallyLog;
+  const gameIn = async id => ok(await call(club, 'GET', { query: '?code=' + cc })).games.find(g => g.id === id);
+  const e = ok(await ev_('create', { event: { name: 'Replay cup', format: 'roundrobin', rotation: 'auto', courts: 2, players, seed: 'rl' } }), 201).event;
+  const [m, m2] = e.rounds[0].matches;
+  const l = playLog({ mode: 'doubles', scoring: e.scoring, target: e.target, winBy: e.winBy }, 0.55, 9);
+  const body = { id: e.id, startedAt: Date.now() - 600000, endedAt: Date.now(), rallies: l.wins.length, live: true };
+  const gid = `${e.id}-${m.id}`;
+  ok(await ev_('result', { ...body, matchId: m.id, score: l.score, rallyLog: l.raw }));
+  assert.equal(await logIn(gid), l.raw);
+  assert.equal((await gameIn(gid)).replay, true);
+  assert.ok(!JSON.stringify(ok(await call(events, 'GET', { query: `?code=${cc}&id=${e.id}` }))).includes(l.raw), 'the event itself does not carry the log');
+  // a mismatched log is dropped without refusing the result
+  ok(await ev_('result', { ...body, matchId: m2.id, score: l.score, rallyLog: l.raw.slice(0, -1) }));
+  assert.equal(await logIn(`${e.id}-${m2.id}`), null);
+  assert.ok(await gameIn(`${e.id}-${m2.id}`), 'the game itself was saved');
+  ok(await ev_('correct', { id: e.id, matchId: m.id, score: [l.score[0], l.score[1] === 0 ? 1 : l.score[1] - 1] }));
+  assert.equal(await logIn(gid), null);
+  assert.ok(!(await gameIn(gid)).replay);
+});
+await step('rally log: the column is additive and nullable, so older rows and old clients are untouched', async () => {
+  const col = (await pg.query("SELECT is_nullable FROM information_schema.columns WHERE table_name = 'games' AND column_name = 'rally_log'")).rows;
+  assert.deepEqual(col.map(c => c.is_nullable), ['YES']);
+  const total = (await pg.query('SELECT count(*)::int AS n FROM games')).rows[0].n;
+  const withLog = (await pg.query('SELECT count(*)::int AS n FROM games WHERE rally_log IS NOT NULL')).rows[0].n;
+  assert.ok(withLog > 0 && withLog < total);
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

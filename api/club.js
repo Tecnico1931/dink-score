@@ -113,13 +113,14 @@ export default handler(async (req, res) => {
     return send(res, 200, { photos: Object.fromEntries(rows.map(r => [r.name, { v: r.v, value: r.value }])) });
   }
   const [games, deleted, roster] = await Promise.all([
-    sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
+    // rally_log itself stays out of this payload (GET /api/games?id= has it); a game just says whether it can be replayed.
+    sql`SELECT data, rally_log IS NOT NULL AS replay FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
     sql`SELECT name, claim_hash IS NOT NULL AS claimed, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, prestige, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
   ]);
   send(res, 200, {
     club: publicClub(club),
-    games: games.map(r => r.data),
+    games: games.map(r => (r.replay ? { ...r.data, replay: true } : r.data)),
     deleted: deleted.map(r => Object.assign({}, r.data, { deletedAt: new Date(r.deleted_at).getTime() })),
     roster: roster.map(r => r.name),
     // Who has claimed a name (never the claim itself), plus pictures, prestige and self-reported DUPR numbers.
