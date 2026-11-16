@@ -88,6 +88,11 @@ await step('anonymise: nobody without the name\'s phone or an organizer can do i
   assert.ok(text(await listGames()).includes('Ana'));
 });
 
+await step('seed: history rows that carry the name (game audit, member audit, a rename pointer)', async () => {
+  await pg.query(`INSERT INTO game_audit (club, game, action, actor, after, note) VALUES ($1, 'g1', 'edit', 'player:ana', '{"teams":[["Ana","Ben"],["Cy","Di"]]}', 'Ana')`, [code]);
+  await pg.query(`INSERT INTO club_audit (club, actor, actor_name, action, target, detail) VALUES ($1, 'organizer', 'Ana', 'promote', 'Ana', '{"who":"Ana"}')`, [code]);
+  await pg.query(`INSERT INTO name_changes (club, old_key, new_name) VALUES ($1, 'anna', 'Ana'), ($1, 'ana', 'Ana B')`, [code]);
+});
 let label, before;
 await step('anonymise: own phone replaces the name everywhere; others\' games and ratings inputs are unchanged', async () => {
   before = await listGames();
@@ -106,6 +111,12 @@ await step('anonymise: own phone replaces the name everywhere; others\' games an
   const shown = ok(await call(club, 'GET', { query: '?code=' + code }));
   assert.ok(!/\bAna\b/.test(text(shown)), 'the club view no longer shows the name');
   assert.ok(shown.games.some(g => g.teams.flat().includes(label)));
+});
+await step('anonymise: the history tables carry the label too, not the name', async () => {
+  const dump = text((await pg.query(`SELECT * FROM game_audit`)).rows) + text((await pg.query(`SELECT * FROM club_audit`)).rows) + text((await pg.query(`SELECT * FROM name_changes`)).rows);
+  assert.ok(!/\bAna\b/i.test(dump), dump);
+  assert.ok(dump.includes(label) && dump.includes(label.toLowerCase()), 'the label is there instead');
+  assert.equal((await pg.query(`SELECT 1 FROM name_changes WHERE old_key = 'ana'`)).rows.length, 0);
 });
 await step('anonymise: the phone no longer holds the name, so repeating it is refused; others are untouched', async () => {
   assert.equal((await P('anonymise', { name: 'Ana', playerToken: tok.Ana })).status, 403);
@@ -143,6 +154,21 @@ await step('club export as CSV: games, with spreadsheet formulas defused', async
   assert.match(lines[0], /^id,ended_at,mode,team1,team2,score1,score2/);
   assert.ok(r.text.includes("'=SUM(1+1)"));
   assert.equal((await raw(club, 'POST', { body: { code, action: 'export', format: 'csv', playerToken: tok.Ben } })).status, 403);
+});
+
+await step('co-organizer: may export the club, may not delete it or undo a deletion; the export lists roles and history without credentials', async () => {
+  ok(await P('set-role', { name: 'Ben', role: 'organizer', ...ORG }));
+  const CO = { ownerToken: `${tok.Ben}:Ben` };
+  const ex = ok(await C('export', CO));
+  assert.equal(ex.players.find(p => p.name === 'Ben').role, 'organizer');
+  assert.ok(Array.isArray(ex.memberLog) && ex.memberLog.some(r => r.action === 'promote') && Array.isArray(ex.gameLog));
+  assert.ok(!text(ex).includes(tok.Ben) && !text(ex).includes(PIN) && !text(ex).includes(owner), 'no tokens or PINs in the export');
+  assert.equal((await C('delete-club', { confirm: 'Rights check club', ...CO })).status, 403);
+  assert.ok(!ok(await call(club, 'GET', { query: '?code=' + code })).club.deleteAt);
+  ok(await C('delete-club', { confirm: 'Rights check club', ...ORG }));
+  assert.equal((await C('cancel-delete-club', CO)).status, 403);
+  ok(await C('cancel-delete-club', ORG));
+  ok(await P('set-role', { name: 'Ben', role: 'player', ...ORG }));
 });
 
 await step('delete club: organizers only, the name must be typed, and it can be undone', async () => {

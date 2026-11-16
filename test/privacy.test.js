@@ -21,3 +21,9 @@ test('gamesCsv quotes cells and defuses formulas', () => {
   assert.ok(csv.includes("'=1+1 & \"B, C\"") || csv.includes('"\'=1+1 & B, C"'));
   assert.equal(csv.split('\r\n').length, 3);
 });
+
+test('renameDeep uses the name key (spaces, accents) and relabels scoredBy with the label\'s key', () => {
+  assert.deepEqual(renameDeep({ teams: [['Ana  Lee', 'Zoë']], scoredBy: 'ana lee' }, 'ana lee', 'Former player ABCDE'),
+    { teams: [['Former player ABCDE', 'Zoë']], scoredBy: 'former player abcde' });
+  assert.equal(likeFor('ana lee'), '%ana%lee%');
+});
