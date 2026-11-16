@@ -19,6 +19,8 @@ jobs:
         run: npm i --no-save @electric-sql/pglite && node tools/api-check.mjs
       - name: Account (passkey) checks on in-memory Postgres
         run: node tools/account-check.mjs
+      - name: Data rights checks (export, anonymise, delete club)
+        run: node tools/rights-check.mjs
       - name: DUPR checks (mock only)
         run: node tools/dupr-check.mjs
       - name: Generated files are up to date

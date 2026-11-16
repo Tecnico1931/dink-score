@@ -215,6 +215,8 @@ export function ensureSchema() {
         note text
       )`;
       await q`CREATE INDEX IF NOT EXISTS game_audit_club_at ON game_audit (club, at DESC)`;
+      // Delete club (club.js): when set, the club and everything in it is removed once this time passes. Until then an organizer can undo it.
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS delete_at timestamptz`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -269,9 +271,13 @@ export function clientIp(req) {
   const raw = h['x-vercel-forwarded-for'] || h['x-real-ip'] || String(h['x-forwarded-for'] || '').split(',').pop() || 'unknown';
   return netKey(String(raw).split(',')[0]); // an IPv6 caller is limited as a whole /64, not per address
 }
-// Rate-limit marks live in lookup_fails and only matter for a day, so old ones are dropped now and then.
+// Rate-limit marks live in lookup_fails and only matter for a day, so old ones are dropped now and then. The same sweep
+// removes clubs whose delete-club undo window has run out (the rows that belong to a club go with it: ON DELETE CASCADE).
 async function purgeMarks(sql) {
-  if (Math.random() < 0.05) await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
+  if (Math.random() < 0.05) {
+    await sql`DELETE FROM lookup_fails WHERE at < now() - interval '1 day'`;
+    await sql`DELETE FROM clubs WHERE delete_at IS NOT NULL AND delete_at <= now()`;
+  }
 }
 // Club creation: at most 10 per network (per /64 for IPv6) per hour, and 300 per hour across the whole app.
 // Attempts are recorded before counting, and a refused one takes its own mark back off.
@@ -299,10 +305,15 @@ export async function requireClub(code, req) {
   if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
   // The code people type is the current public code (or, for a club never rotated, its original code), or a retired
   // code still inside its overlap. `code` on the returned row is always the permanent key: use it for every query.
-  let rows = await sql`SELECT code, name, pin_hash, owner_hash, public_code, require_confirmation FROM clubs WHERE coalesce(public_code, code) = ${code}`;
+  let rows = await sql`SELECT code, name, pin_hash, owner_hash, public_code, require_confirmation, delete_at FROM clubs WHERE coalesce(public_code, code) = ${code}`;
   if (!rows.length) {
-    rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, c.require_confirmation, a.expires_at AS old_code_until
+    rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, c.require_confirmation, c.delete_at, a.expires_at AS old_code_until
       FROM club_aliases a JOIN clubs c ON c.code = a.club WHERE a.code = ${code} AND a.expires_at > now()`;
+  }
+  // A club whose undo window has run out is gone: remove it now, and answer as for any unknown code.
+  if (rows.length && rows[0].delete_at && new Date(rows[0].delete_at).getTime() <= Date.now()) {
+    await sql`DELETE FROM clubs WHERE code = ${rows[0].code} AND delete_at <= now()`;
+    rows = [];
   }
   await purgeMarks(sql);
   if (!rows.length) {
@@ -314,7 +325,8 @@ export async function requireClub(code, req) {
 // openClaim: an older club with no creator on record and no PIN yet, where any member may set the first PIN.
 // `code` is the one people use now; oldCodeUntil (ms) is set when the request came in on a retired code that is about to stop working.
 export const publicClub = c => ({ code: c.public_code || c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash, requireConfirmation: !!c.require_confirmation,
-  ...(c.old_code_until ? { oldCodeUntil: new Date(c.old_code_until).getTime() } : {}) });
+  ...(c.old_code_until ? { oldCodeUntil: new Date(c.old_code_until).getTime() } : {}),
+  ...(c.delete_at ? { deleteAt: new Date(c.delete_at).getTime() } : {}) }); // deleteAt: the club is scheduled for deletion at that time
 
 // True when `code` is already a club's key, current code, or a retired code (retired codes are never reused).
 export async function codeTaken(sql, code) {

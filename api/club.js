@@ -1,6 +1,9 @@
 // GET  /api/club?code=ABC123                         -> club name, whether it has a PIN, games (newest first), saved players, recently deleted
 // POST /api/club {name, pin?}                        -> creates a club with an organizer PIN (the one given, or a generated 8-digit organizer code returned once as organizerCode), returns its code
 // POST /api/club {code, action: 'rotate-code', pin?, ownerToken?, graceMinutes?} -> organizer only: gives the club a new code; the old one keeps working for graceMinutes (default 60, at most 1440), then stops
+// POST /api/club {code, action: 'export', format?: 'csv', pin|ownerToken} -> organizer: the whole club as JSON, or its games as CSV
+// POST /api/club {code, action: 'delete-club', confirm, pin|ownerToken}     -> organizer: schedules the club for deletion in 24 hours (confirm = the club's name)
+// POST /api/club {code, action: 'cancel-delete-club', pin|ownerToken}       -> organizer: undoes that while the window is open
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'reset-allowance', pin|ownerToken} -> organizer: ends a "too many games just now" pause
 // GET  /api/club?code=ABC123&avatars=1               -> the photo avatars, kept out of the main response: {photos: {name: {v, value}}}
@@ -12,6 +15,7 @@ import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
 import { audit, organizerActor } from './_audit.js';
 import { counts, findDuplicates } from './_confirm.js';
+import { DELETE_UNDO_HOURS, gamesCsv } from './_privacy.js';
 import { computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_MIN_GAMES } from './_progress.js';
 
 // Achievements, this week's challenges, and trophies for every player, as the server counts them.
@@ -49,6 +53,48 @@ export default handler(async (req, res) => {
       if (!!club.require_confirmation !== body.required) await audit(sql, club.code, '', 'setting', await organizerActor(club, body.ownerToken), { requireConfirmation: !!club.require_confirmation }, { requireConfirmation: body.required });
       return send(res, 200, { ok: true, requireConfirmation: body.required });
     }
+    if (body.action === 'export' || body.action === 'delete-club' || body.action === 'cancel-delete-club') {
+      const club = await requireClub(cleanCode(body.code), req);
+      const who = await requireOrganizer(club, body.pin, req, body.ownerToken);
+      // Exporting is for any organizer. Deleting the club is for the creating phone or the PIN only: a co-organizer can't remove the club.
+      if (body.action !== 'export' && who.by === 'organizer') throw fail(403, 'Only the club creator or the organizer PIN can delete the club.');
+      const code = club.code;
+      if (body.action === 'export') {
+        const [games, roster, events, trail, gameTrail] = await Promise.all([
+          sql`SELECT data, deleted_at, rally_log FROM games WHERE club = ${code} ORDER BY ended_at DESC`,
+          sql`SELECT name, claim_hash IS NOT NULL AS claimed, avatar, dupr_rating, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name)`,
+          sql`SELECT id, data, status, created_at, updated_at, deleted_at FROM events WHERE club = ${code} ORDER BY created_at`,
+          sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id`,
+          sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`
+        ]);
+        // Not exported: the PIN and phone tokens, public bracket tokens, and DUPR links and IDs (those stay out of every club export).
+        if (body.format === 'csv') {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+          res.setHeader('Content-Disposition', 'attachment; filename="dink-score-games.csv"');
+          res.setHeader('Cache-Control', 'no-store');
+          return res.end(gamesCsv(games));
+        }
+        return send(res, 200, {
+          format: 'dink-score-club-export', version: 1, exportedAt: new Date().toISOString(),
+          club: { name: club.name, code: club.public_code || club.code },
+          players: roster.map(r => ({ name: r.name, linkedToPhone: r.claimed, avatar: r.avatar || null, duprSelfReported: duprFrom(r.dupr_rating), role: r.role || 'player', removed: !!r.blocked_at })),
+          games: games.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
+          events: events.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, event: r.data })),
+          // Who changed what. Actors are kinds of credential ('creator', 'organizer-pin', 'player:<name>'), never tokens or PINs.
+          memberLog: trail.map(r => ({ at: new Date(r.at).toISOString(), actor: r.actor, actorName: r.actor_name, action: r.action, target: r.target, detail: r.detail })),
+          gameLog: gameTrail.map(r => ({ game: r.game, at: new Date(r.at).toISOString(), action: r.action, actor: r.actor, before: r.before, after: r.after, note: r.note }))
+        });
+      }
+      if (body.action === 'delete-club') {
+        // Typing the club's name is the confirmation. The club keeps working during the undo window, then everything in it is removed.
+        if (cleanName(body.confirm) !== club.name) throw fail(400, 'Type the club name exactly to confirm.');
+        const rows = await sql`UPDATE clubs SET delete_at = coalesce(delete_at, now() + ${DELETE_UNDO_HOURS + ' hours'}::interval) WHERE code = ${code} RETURNING delete_at`;
+        return send(res, 200, { ok: true, deleteAt: new Date(rows[0].delete_at).getTime() });
+      }
+      await sql`UPDATE clubs SET delete_at = NULL WHERE code = ${code}`;
+      return send(res, 200, { ok: true });
+    }
     if (body.action === 'verify-pin' || body.action === 'set-pin' || body.action === 'rotate-code') {
       const club = await requireClub(cleanCode(body.code), req);
       const code = club.code; // permanent key
@@ -69,7 +115,7 @@ export default handler(async (req, res) => {
         if (!fresh) throw fail(500, 'Could not create a club code.');
         // Retire the old code first, then switch: a failure in between leaves the club on its old code.
         const until = await sql`INSERT INTO club_aliases (code, club, expires_at) VALUES (${current}, ${code}, now() + ${grace + ' minutes'}::interval) ON CONFLICT (code) DO UPDATE SET expires_at = EXCLUDED.expires_at RETURNING expires_at`;
-        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code, require_confirmation`;
+        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code, require_confirmation, delete_at`;
         if (!rows.length) throw fail(409, 'The club code was just changed by someone else. Reload and check the new code.');
         return send(res, 200, { ok: true, club: publicClub(rows[0]), oldCode: current, oldCodeUntil: new Date(until[0].expires_at).getTime() });
       }

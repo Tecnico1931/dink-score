@@ -5,13 +5,17 @@
 //   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
+//   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events you are in
+//   anonymise {name, playerToken | pin|ownerToken}    -> replaces the name everywhere in the club with "Former player XXXXX", removes the saved
+//                                                       player (picture, DUPR, phone link). Games stay, so other people's ratings don't change.
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 //   rename   {pin|ownerToken, name, newName}         -> organizer: changes a player's name everywhere (games, events, purchases, links)
 //   merge    {pin|ownerToken, name, into}            -> organizer: folds the player `name` into `into`; games, links, picture, DUPR follow
 // A claim for a new name that looks like a saved one ("Jose" / "José") answers 409 with a `similar` list of those names
 // until the caller repeats it with confirmNew: true. Rename does the same for its new name.
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, nameKey, similarNames, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp, MAX_PHOTOS } from './_db.js';
-import { cleanDupr } from './_dupr.js';
+import { cleanDupr, duprFrom } from './_dupr.js';
+import { newAnonLabel, renameDeep, likeFor } from './_privacy.js';
 import { renamePlayer, renameWrites } from './_rename.js';
 import { MEMBER_ACTIONS, memberAction, audit } from './_members.js';
 
@@ -115,6 +119,77 @@ export default handler(async (req, res) => {
     try { rating = cleanDupr(body.rating); } catch (e) { throw fail(400, e.message); }
     await sql`UPDATE roster SET dupr_rating = ${rating}, dupr_set_at = ${rating === null ? null : new Date().toISOString()} WHERE club = ${code} AND name_key = ${k}`;
     return send(res, 200, { ok: true, dupr: rating });
+  }
+
+  if (body.action === 'export' || body.action === 'anonymise') {
+    // Your own data: the phone that linked this name. An organizer may also anonymise a name (a guest who never linked one, or
+    // someone who asked in person); only the person themselves can export, because an organizer already has the club export.
+    const k = nameKey(body.name);
+    if (!k) throw fail(400, 'Enter the name.');
+    const [found] = await sql`SELECT to_jsonb(r) AS j FROM roster r WHERE club = ${code} AND name_key = ${k}`;
+    const row = found && found.j;
+    const own = !!(row && row.claim_hash && tokenMatches(row.claim_hash, body.playerToken));
+    if (body.action === 'export' && !own) throw fail(403, 'This phone isn\'t linked to that player. Pick your name in the club first.');
+    if (!own) await requireOrganizer(club, body.pin, req, body.ownerToken);
+    const like = likeFor(k);
+    const [games, events] = await Promise.all([
+      sql`SELECT id, data, deleted_at, rally_log FROM games WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
+      sql`SELECT id, data, refs FROM events WHERE club = ${code} AND lower(data::text) LIKE ${like}`
+    ]);
+    const mine = games.filter(r => ((r.data && r.data.teams) || []).flat().some(n => nameKey(n) === k));
+    if (body.action === 'export') {
+      return send(res, 200, {
+        format: 'dink-score-player-export', version: 1, exportedAt: new Date().toISOString(), club: { name: club.name },
+        player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, duprSelfReported: duprFrom(row.dupr_rating),
+          duprLink: row.dupr_id ? { duprId: row.dupr_id, linkedAt: row.dupr_linked_at, ratings: row.dupr_snapshot || null } : null } : { name: cleanName(body.name) },
+        games: mine.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
+        events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status }))
+      });
+    }
+    // Anonymise: one random label everywhere the name appears, so that person's games stay linked to each other and to the
+    // people they played with, and everyone else's ratings come out the same. Then the saved player (picture, DUPR number or
+    // link, phone link) and any account link to it are removed. All in one transaction.
+    const taken = new Set((await sql`SELECT lower(name) AS n FROM roster WHERE club = ${code}`).map(r => r.n));
+    let label = newAnonLabel();
+    while (taken.has(label.toLowerCase())) label = newAnonLabel();
+    const [live, dupr] = await Promise.all([
+      sql`SELECT id, state, stack FROM live_games WHERE club = ${code} AND lower(state::text || stack::text) LIKE ${like}`,
+      sql`SELECT to_regclass('dupr_matches') IS NOT NULL AS has`
+    ]);
+    const json = v => JSON.stringify(v);
+    const ops = [];
+    let touched = 0;
+    for (const r of games) { const d = renameDeep(r.data, k, label); if (json(d) !== json(r.data)) { touched++; ops.push(sql`UPDATE games SET data = ${json(d)}::jsonb WHERE club = ${code} AND id = ${r.id}`); } }
+    for (const r of events) {
+      const d = renameDeep(r.data, k, label), refs = r.refs && Object.fromEntries(Object.entries(r.refs).filter(([n]) => nameKey(n) !== k));
+      if (json(d) !== json(r.data) || json(refs) !== json(r.refs)) { touched++; ops.push(sql`UPDATE events SET data = ${json(d)}::jsonb, refs = ${refs ? json(refs) : null}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code} AND id = ${r.id}`); }
+    }
+    for (const r of live) ops.push(sql`UPDATE live_games SET state = ${json(renameDeep(r.state, k, label))}::jsonb, stack = ${json(renameDeep(r.stack, k, label))}::jsonb WHERE club = ${code} AND id = ${r.id}`);
+    if (dupr[0].has && row && row.dupr_id) ops.push(sql`UPDATE dupr_matches SET payload = NULL WHERE club = ${code} AND payload IS NOT NULL AND payload::text LIKE ${'%' + String(row.dupr_id).replace(/[\\%_]/g, '\\$&') + '%'}`);
+    // The history tables keep names too (game audit, club audit, "renamed" pointers), so they get the same label.
+    const [gaud, caud, chg] = await Promise.all([
+      sql`SELECT id, actor, before, after, note FROM game_audit WHERE club = ${code} AND (lower(coalesce(before::text, '') || coalesce(after::text, '') || coalesce(note, '')) LIKE ${like} OR actor LIKE '%:' || ${k})`,
+      sql`SELECT id, actor, actor_name, target, detail FROM club_audit WHERE club = ${code} AND (lower(coalesce(actor_name, '') || coalesce(target, '') || coalesce(detail::text, '')) LIKE ${like} OR actor LIKE '%:' || ${k})`,
+      sql`SELECT old_key, new_name FROM name_changes WHERE club = ${code}`
+    ]);
+    const lk = nameKey(label);
+    const actorTo = a => (a && a.endsWith(':' + k) ? a.slice(0, -k.length) + lk : a);
+    const noteTo = n => (n && nameKey(n) === k ? label : n);
+    for (const r of gaud) {
+      const b = renameDeep(r.before, k, label), a = renameDeep(r.after, k, label);
+      ops.push(sql`UPDATE game_audit SET actor = ${actorTo(r.actor)}, before = ${r.before ? json(b) : null}::jsonb, after = ${r.after ? json(a) : null}::jsonb, note = ${noteTo(r.note)} WHERE id = ${r.id}`);
+    }
+    for (const r of caud) {
+      ops.push(sql`UPDATE club_audit SET actor = ${actorTo(r.actor)}, actor_name = ${noteTo(r.actor_name)}, target = ${noteTo(r.target)}, detail = ${r.detail ? json(renameDeep(r.detail, k, label)) : null}::jsonb WHERE id = ${r.id}`);
+    }
+    ops.push(sql`DELETE FROM name_changes WHERE club = ${code} AND old_key = ${k}`);
+    for (const r of chg) if (nameKey(r.new_name) === k) ops.push(sql`UPDATE name_changes SET new_name = ${label} WHERE club = ${code} AND old_key = ${r.old_key}`);
+    ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
+    if (!row && !touched) throw fail(404, 'No player has that name in this club.');
+    ops.push(sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${k}`);
+    ops.push(sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${k}`);
+    await sql.transaction(ops);
+    return send(res, 200, { ok: true, label, games: mine.length });
   }
 
   // Everything below is for organizers.
