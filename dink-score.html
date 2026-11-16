@@ -2148,6 +2148,8 @@ function renderClub() {
     body = membersHTML(c);
   } else if (c.view === 'watch' && club) {
     body = watchHTML(c);
+  } else if (c.view === 'games' && club) {
+    body = gamesHTML(c);
   } else if (c.view === 'share') {
     body = shareSheetHTML(c);
   } else if (c.view === 'invite') {
@@ -2227,6 +2229,7 @@ function renderClub() {
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
+      <button class="btn btn-soft block" data-act="club-games" style="margin-top:10px">Games going on \u2014 live scores</button>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
@@ -2722,6 +2725,7 @@ function ratingPreview(s) {
    rules live in exactly one place and a watch tap changes nothing until this phone takes it.
    Event matches are not watch-scored: they already report to the event. */
 let watchAck = 0, publishedLiveId = null, publishedSecret = null, publishTimer = null;
+let sharedChain = Promise.resolve(), sharedInFlight = 0;
 const liveGameId = () => 'live-' + live.state.startedAt.toString(36);
 // Each live game has its own short-lived secret, made here and shown on the watch page. A watch must name the game and carry it,
 // and this phone drops any intent whose signature does not match, so a tap meant for one court can never score another.
@@ -2736,6 +2740,8 @@ async function intentOk(it, game, secret) {
     return Array.from(new Uint8Array(h), x => x.toString(16).padStart(2, '0')).join('') === it.sig;
   } catch { return false; }
 }
+const isShared = () => !!(live && live.shared && club && API_OK);
+function markShared() { if (live && club && API_OK && !live.event) { live.shared = true; live.id = liveGameId(); if (live.version === undefined) live.version = 0; } }
 function schedulePublishLive() {
   if (!API_OK || !club) return;
   clearTimeout(publishTimer);
@@ -2745,16 +2751,77 @@ async function publishLive() {
   if (!API_OK || !club) return;
   try {
     if (live && !live.event) {
-      publishedLiveId = liveGameId(); publishedSecret = liveSecret();
-      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'state', id: publishedLiveId, secret: publishedSecret, state: live.state, ack: watchAck }) });
+      const id = liveGameId();
+      // In shared mode the server holds the game once it is published; republishing this phone's state
+      // would clobber rallies other people scored. Publish once, at the start — or again only when this
+      // phone scored offline and has to resync (live.stale), which takes the game back over.
+      if (live.shared && publishedLiveId === id && !live.stale) return;
+      publishedLiveId = id; publishedSecret = liveSecret();
+      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'state', id, secret: publishedSecret, state: live.state, ack: watchAck }) });
+      if (live && live.shared && liveGameId() === id) { live.stale = false; live.version = null; } // the next poll adopts the server's version
     } else if (publishedLiveId) {
       const id = publishedLiveId, secret = publishedSecret; publishedLiveId = null; publishedSecret = null; watchAck = 0;
       await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'end', id, secret }) });
     }
   } catch {}
 }
+function queueShared(fn) { sharedInFlight++; sharedChain = sharedChain.then(fn).catch(() => {}).finally(() => { sharedInFlight--; }); }
+// Shared scoring: this phone shows the tap at once, then the server referees it. If someone else
+// scored first, the server answers with a conflict and the latest state; this rally goes on top.
+function adoptShared(state, version) {
+  live.state = state; live.version = version; live.stale = false;
+  if (live.log && live.log.length !== state.rallies) live.log = null; // rallies scored on other phones are not in this phone's log; such a game saves without a replay
+  persistLive(); renderCourt();
+}
+function serverRally(side, fromIntent) {
+  if (!isShared()) return false;
+  const id = live.id || liveGameId(), secret = liveSecret();
+  if (!fromIntent) {
+    buzz();
+    const before = live.state.score.slice();
+    Scoring.rally(live, side);
+    bumpTeam = live.state.score[0] !== before[0] ? 0 : live.state.score[1] !== before[1] ? 1 : null;
+    if (live.state.justSwitched && live.state.winner === null) showToast(`Change ends. A team reached ${PB.switchAt(live.state.cfg.target)}.`);
+    persistLive(); renderCourt();
+  }
+  queueShared(async () => {
+    if (!live || (live.id || liveGameId()) !== id) return;
+    try {
+      let r = await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'rally', game: id, secret, side, base: live.version }) });
+      if (r && r.conflict) {
+        adoptShared(r.state, r.version);
+        r = await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'rally', game: id, secret, side, base: live.version }) });
+      }
+      if (!live || (live.id || liveGameId()) !== id) return;
+      if (r && r.state) adoptShared(r.state, r.version);
+    } catch { if (live && (live.id || liveGameId()) === id) { live.stale = true; schedulePublishLive(); } }
+  });
+  return true;
+}
+function serverUnrally() {
+  if (!isShared()) return false;
+  const id = live.id || liveGameId(), secret = liveSecret();
+  queueShared(async () => {
+    if (!live || (live.id || liveGameId()) !== id) return;
+    try {
+      let r = await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'unrally', game: id, secret, base: live.version }) });
+      if (r && r.conflict) {
+        adoptShared(r.state, r.version);
+        r = await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'unrally', game: id, secret, base: live.version }) });
+      }
+      if (!live || (live.id || liveGameId()) !== id) return;
+      if (r && r.state) { live.toast = null; adoptShared(r.state, r.version); }
+    } catch { showToast("Couldn't reach the server to undo."); }
+  });
+  return true;
+}
 function applyWatchIntent(it) {
   if (!live || live.event) return;
+  if (isShared()) { // the server referees now: forward the tap as a rally instead of applying it here
+    if (it.kind === 'point' && live.state.winner === null) serverRally(it.side === 1 ? 1 : 0, true);
+    else if (it.kind === 'undo') serverUnrally();
+    return;
+  }
   if (it.kind === 'point' && live.state.winner === null && !live.confirmEnd && !logForm) {
     buzz();
     Scoring.rally(live, it.side === 1 ? 1 : 0);
@@ -2767,15 +2834,18 @@ function applyWatchIntent(it) {
 setInterval(async () => {
   if (!API_OK || !club || !live || live.event || !live.open || document.hidden) return;
   try {
-    const game = liveGameId(), secret = liveSecret();
+    const game = live.id || liveGameId(), secret = liveSecret();
     const d = await api('live?code=' + club.code + '&id=' + encodeURIComponent(game) + '&secret=' + encodeURIComponent(secret));
+    if (!live || (live.id || liveGameId()) !== game) return;
+    // Follow the server: a newer version means someone else scored (or this phone's tap landed).
+    if (live.shared && d.state && !sharedInFlight && (live.version === null || live.version === undefined || (d.version || 0) > live.version)) adoptShared(d.state, d.version);
     const fresh = (d.intents || []).filter(i => i.n > watchAck).sort((a, b) => a.n - b.n);
     for (const it of fresh) { if (await intentOk(it, game, secret)) applyWatchIntent(it); watchAck = Math.max(watchAck, it.n); } // unsigned or foreign intents are skipped, never applied
-    if (fresh.length) schedulePublishLive();
+    if (fresh.length) { try { await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'ack', game, secret, ack: watchAck }) }); } catch {} }
   } catch {}
-}, 4000);
+}, 2500);
 
-function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), log: live.log, open: live.open, event: live.event || null, secret: live.secret || null } : null); schedulePublishLive(); }
+function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), log: live.log, open: live.open, event: live.event || null, secret: live.secret || null, shared: live.shared || false, id: live.id || null, version: live.version === undefined ? null : live.version, stale: live.stale || false } : null); schedulePublishLive(); }
 let toastTimer;
 function showToast(msg, inCourt = true) {
   if (inCourt && live) { live.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (live) { live.toast = null; renderCourt(); } }, 3500); return; }
@@ -2785,6 +2855,7 @@ function showToast(msg, inCourt = true) {
 function startGame(cfgOverride) {
   const cfg = cfgOverride || { mode: setup.mode, scoring: setup.scoring, target: +setup.target, winBy: +setup.winBy, first: setup.first, teams: [teamPlayers(0), teamPlayers(1)] };
   live = { state: PB.newGame(cfg), stack: [], log: [], open: true };
+  markShared();
   persistLive(); keepAwake(true); render();
 }
 function record(s, rallyLog) {
@@ -3709,19 +3780,56 @@ async function saveAvatar() {
 
 // Organizer: releasing linked names and removing pictures.
 function adminCreds() { return { pin: pins[club.code] || '', ownerToken: owners[club.code] || '' }; }
+function gamesHTML(c) {
+  const mine = live && !live.event ? (live.id || liveGameId()) : null;
+  const line = (teams, score, winner, serving, t) => `<div class="line ${winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(teams[t]))}</span>${serving === t ? '<span class="tag">serving</span>' : ''}<span class="pts">${Number(score[t])}</span></div>`;
+  let rows;
+  if (!c.games) rows = '<p class="note">Loading\u2026</p>';
+  else if (!c.games.length) rows = '<p>No games are being scored right now. Start one from the Play tab and it shows up here, on every phone in the club.</p>';
+  else rows = c.games.map(g => {
+    const ago = Math.max(0, Math.round((Date.now() - (g.updatedAt || Date.now())) / 1000));
+    const when = g.winner !== null && g.winner !== undefined ? 'final' : ago < 8 ? 'live now' : ago < 90 ? ago + 's ago' : Math.round(ago / 60) + ' min ago';
+    const btn = g.id === mine ? '<button class="btn btn-soft block" data-act="club-game-mine" style="margin-top:8px">This phone is scoring it \u2014 open</button>'
+      : (g.winner !== null && g.winner !== undefined) ? ''
+      : `<button class="btn btn-soft block" data-act="club-game-open" data-game="${esc(g.id)}" style="margin-top:8px">Score this game</button>`;
+    const join = c.joinId === g.id ? `<form class="club-form" data-form="game-join" style="margin-top:10px"><label class="lab" for="game-secret">Game secret \u2014 shown on the scoring phone, on its club page under "Score from your Apple Watch"</label><input id="game-secret" class="field-input" autocomplete="off" autocapitalize="none" autocorrect="off" placeholder="the game's secret"><button type="submit" class="btn btn-ink">Open and score</button></form>` : '';
+    return `<div class="game" style="list-style:none"><div class="lines">${line(g.teams, g.score, g.winner, g.serving, 0)}${line(g.teams, g.score, g.winner, g.serving, 1)}</div><div class="meta"><span>${esc(when)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span><span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span></div>${btn}${join}</div>`;
+  }).join('');
+  const fin = clubGames().slice().sort((x, y) => (y.endedAt || 0) - (x.endedAt || 0)).slice(0, 5);
+  const finRows = fin.length ? '<h3 style="margin:18px 0 6px">Just finished</h3>' + fin.map(g => `<div class="game" style="list-style:none"><div class="lines">${line(g.teams, g.score, g.winner, null, 0)}${line(g.teams, g.score, g.winner, null, 1)}</div></div>`).join('') : '';
+  return `<h2 id="club-h">Games going on</h2>
+  <p>Every live game in ${esc(club.name)}, with players and the score as it stands. Anyone in the club can watch; scoring a game needs its secret, so a tap on one court never lands on another.</p>
+  ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}${rows}${finRows}
+  <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
+async function refreshClubGames() {
+  if (!club || !clubSheet || clubSheet.view !== 'games') return;
+  try { const d = await api('live?code=' + club.code); if (clubSheet && clubSheet.view === 'games') { clubSheet.games = d.games || []; renderClub(); } } catch {}
+}
+setInterval(() => { if (clubSheet && clubSheet.view === 'games' && club && !document.hidden) refreshClubGames(); }, 4000);
+async function joinLiveGame(secret) {
+  const c = clubSheet; if (!c || !c.joinId || !club) return;
+  const sec = String(secret || '').trim();
+  try {
+    const d = await api('live?code=' + club.code + '&id=' + encodeURIComponent(c.joinId) + '&secret=' + encodeURIComponent(sec));
+    if (!d.state) { c.error = 'That game is not live any more.'; renderClub(); refreshClubGames(); return; }
+    live = { state: d.state, stack: [], open: true, secret: sec, shared: true, id: c.joinId, version: d.version || 0 };
+    clubSheet = null; renderClub(); persistLive(); keepAwake(true); render();
+  } catch (e) { c.error = (e && e.message) || 'Could not open that game.'; renderClub(); }
+}
 function watchHTML(c) {
   const gameOn = !!(live && !live.event);
   const url = location.origin + '/api/live';
   const fields = rows => rows.map(r => `<div class="watch-field"><span>${esc(r[0])}</span><b>${esc(r[1])}</b><small>${esc(r[2])}</small></div>`).join('');
   const recipe = (name, rows) => `<div class="ev-card" style="margin-top:10px"><h3 style="margin-top:0">${esc(name)}</h3>${fields(rows)}</div>`;
   return `<h2 id="club-h">Score from your watch</h2>
-  <p>A prototype. While you score a game on this phone, an Apple Watch can send the points: the watch asks, this phone applies the scoring rules and keeps the record. Keep this phone nearby with the game open; points land within a few seconds.</p>
+  <p>While a club game is going, an Apple Watch can score it from the wrist. The tap goes straight to the server, which applies the scoring rules at once \u2014 the scoring phone does not need to be open, and every phone scoring the game sees the new score within a few seconds.</p>
   <p>Make three shortcuts in the Shortcuts app on your iPhone. In each one, add the action <b>Get Contents of URL</b> and set the URL to <b>${esc(url)}</b>. Tap Show More, choose Method <b>POST</b> and Request Body <b>JSON</b>, and add the fields listed below. Then add <b>Get Dictionary Value</b> (key <b>say</b>, from Contents of URL) and <b>Show Result</b> after it, so the watch reads the score back. In the shortcut's settings, turn on <b>Show on Apple Watch</b>.</p>
   ${gameOn ? `<div class="ev-card"><h3 style="margin-top:0">This game's name and secret</h3>${fields([['game', liveGameId(), 'Text'], ['secret', liveSecret(), 'Text']])}<p class="note">Every shortcut needs both. They belong to the game on this phone right now; a new game gets a new secret, so update the shortcuts when you start one. Only people you give the secret to can send points to this game.</p></div>` : `<p class="note"><b>Start a club game first.</b> Each game gets its own name and secret, shown here once it is running, and the shortcuts below need both. Event matches are not watch-scored.</p>`}
-  ${recipe('Top point: the top team on the scoring screen scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text'], ['side', '0', 'Number']])}
-  ${recipe('Bottom point: the bottom team scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text'], ['side', '1', 'Number']])}
-  ${recipe('Undo: take back the last rally', [['code', club.code, 'Text'], ['action', 'undo', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text']])}
-  <p class="note" style="margin-top:12px">Top and bottom are the two halves of the scoring screen. The club code alone is not enough: the phone ignores any tap that does not carry this game's secret.</p>
+  ${recipe('Top point: the top team on the scoring screen scores', [['code', club.code, 'Text'], ['action', 'rally', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text'], ['side', '0', 'Number']])}
+  ${recipe('Bottom point: the bottom team scores', [['code', club.code, 'Text'], ['action', 'rally', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text'], ['side', '1', 'Number']])}
+  ${recipe('Undo: take back the last rally', [['code', club.code, 'Text'], ['action', 'unrally', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text']])}
+  <p class="note" style="margin-top:12px">Top and bottom are the two halves of the scoring screen. The club code alone is not enough: the server ignores any tap that does not carry this game's secret. Shortcuts made earlier with point and undo still work while the scoring phone has the game open; rally and unrally work any time.</p>
   <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 function membersHTML(c) {
@@ -4826,6 +4934,13 @@ document.addEventListener('click', e => {
       return;
     }
     if (a === 'club-watch') { clubSheet = { view: 'watch' }; renderClub(); return; }
+    if (a === 'club-games') { clubSheet = { view: 'games', games: null }; renderClub(); refreshClubGames(); return; }
+    if (a === 'club-game-mine') { clubSheet = null; renderClub(); if (live) { live.open = true; persistLive(); keepAwake(true); render(); } return; }
+    if (a === 'club-game-open') {
+      if (live && (live.id || liveGameId()) === ds.game) { clubSheet = null; renderClub(); live.open = true; persistLive(); keepAwake(true); render(); return; }
+      if (live) { clubSheet.error = 'You already have a game on this phone. Finish it or discard it before scoring another one here.'; clubSheet.joinId = null; renderClub(); return; }
+      clubSheet.joinId = ds.game; clubSheet.error = ''; renderClub(); const gi = $('#game-secret'); if (gi) gi.focus(); return;
+    }
     renderClub(); return;
   }
   if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; render(); try { document.body.scrollTo(0, 0); } catch {} if (tab === 'events') evOpenList(); return; }
@@ -4856,6 +4971,7 @@ document.addEventListener('click', e => {
     return;
   }
   if (ds.rally !== undefined && live && live.state.winner === null && !live.confirmEnd && !logForm) {
+    if (isShared()) { serverRally(+ds.rally); return; }
     buzz();
     const before = live.state.score.slice();
     Scoring.rally(live, +ds.rally);
@@ -4872,7 +4988,7 @@ document.addEventListener('click', e => {
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
   if (act === 'start') beginGame();
   if (act === 'resume') { live.open = true; persistLive(); keepAwake(true); render(); }
-  if (act === 'undo' && live && live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); }
+  if (act === 'undo' && live) { if (isShared()) { serverUnrally(); return; } if (live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); } }
   if (act === 'end') { live.confirmEnd = true; renderCourt(); }
   if (act === 'keep') { live.confirmEnd = false; renderCourt(); }
   if (act === 'minimize') { live.confirmEnd = false; live.open = false; persistLive(); keepAwake(false); render(); }
@@ -4919,6 +5035,7 @@ document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
+  if (form.matches('[data-form="game-join"]')) { e.preventDefault(); joinLiveGame($('#game-secret').value); return; }
   if (form.matches('[data-form="acct-up"]')) { e.preventDefault(); acctSignUp($('#acct-name').value); return; }
   if (form.matches('[data-form="move-out"]')) { e.preventDefault(); moveOut(); return; }
   if (form.matches('[data-form="move-in"]')) { e.preventDefault(); moveIn($('#move-code').value); return; }

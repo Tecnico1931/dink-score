@@ -349,6 +349,86 @@ await step('watch scoring: per-game secret; publish, point and undo intents, ack
   ok(await call(live, 'POST', { body: { code, action: 'end', id: 'live-t2', secret: SB } }));
 });
 
+await step('scoring rules parity: the server port matches the client PB, rally for rally', async () => {
+  const { rally: sRally, call: sCall } = await import('../api/_pb.js');
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
+  const at = html.indexOf('const PB = (() => {');
+  const src = html.slice(at, html.indexOf('})();', at) + 5);
+  const PB = new Function(src + '; return PB;')();
+  const strip = x => { const c = JSON.parse(JSON.stringify(x)); delete c.endedAt; return c; };
+  const patterns = [[0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0], [1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]];
+  for (const cfg of [
+    { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, teams: [['A', 'B'], ['C', 'D']] },
+    { mode: 'doubles', scoring: 'rally', target: 15, winBy: 2, first: 1, teams: [['A', 'B'], ['C', 'D']] },
+    { mode: 'singles', scoring: 'sideout', target: 11, winBy: 2, first: 0, teams: [['A'], ['C']] },
+    { mode: 'singles', scoring: 'rally', target: 21, winBy: 1, first: 0, teams: [['A'], ['C']] },
+  ]) {
+    for (const pat of patterns) {
+      let a = PB.newGame(cfg), b = JSON.parse(JSON.stringify(a));
+      for (const w of pat) {
+        a = PB.rally(a, w); b = sRally(b, w);
+        assert.deepEqual(strip(b), strip(a));
+        assert.deepEqual(sCall(b), PB.call(a));
+        if (a.winner !== null) break;
+      }
+    }
+  }
+});
+
+await step('shared scoring: the server referees rallies; the club list shows players and scores', async () => {
+  const st = { cfg: { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, teams: [['Ana', 'Ben'], ['Cy', 'Di']] }, score: [0, 0], serving: 0, serverNum: 2, right: [0, 0], server: 0, rallies: 0, switched: false, justSwitched: false, winner: null, startedAt: 456, endedAt: null };
+  const SM = 'secretMMM333';
+  const rally = (game, secret, side, base) => call(live, 'POST', { body: { code, action: 'rally', game, secret, side, ...(base !== undefined ? { base } : {}) } });
+  const unrally = (game, secret, base) => call(live, 'POST', { body: { code, action: 'unrally', game, secret, ...(base !== undefined ? { base } : {}) } });
+  ok(await call(live, 'POST', { body: { code, action: 'state', id: 'live-m1', secret: SM, state: st, ack: 0 } }));
+  // The club list needs only the club code and shows players + the score as it stands.
+  const list = ok(await call(live, 'GET', { query: '?code=' + code }));
+  const mine = list.games.find(g => g.id === 'live-m1');
+  assert.ok(mine, 'the live game is listed');
+  assert.deepEqual(mine.teams, [['Ana', 'Ben'], ['Cy', 'Di']]);
+  assert.deepEqual(mine.score, [0, 0]);
+  assert.equal((await rally('live-m1', 'secretXXX999', 0)).status, 403, 'a rally needs the game secret');
+  assert.equal((await call(live, 'POST', { body: { code, action: 'rally', secret: SM, side: 0 } })).status, 400, 'a rally needs a game');
+  let r = ok(await rally('live-m1', SM, 0));
+  assert.deepEqual(r.state.score, [1, 0], 'the serving team scores');
+  assert.equal(r.say, 'Score: 1, 0, 2');
+  const v1 = r.version;
+  r = ok(await rally('live-m1', SM, 1, v1));
+  assert.deepEqual(r.state.score, [1, 0], 'a receiving-team rally is a side out, not a point');
+  assert.equal(r.state.serving, 1); assert.equal(r.state.serverNum, 1);
+  assert.equal(r.say, 'Score: 0, 1, 1');
+  const stale = ok(await rally('live-m1', SM, 0, v1));
+  assert.equal(stale.ok, false, 'a stale base answers with a conflict, not a score');
+  assert.equal(stale.conflict, true);
+  assert.deepEqual(stale.state.score, [1, 0]);
+  r = ok(await unrally('live-m1', SM));
+  assert.equal(r.state.serving, 0, 'undo gives the serve back');
+  assert.deepEqual(r.state.score, [1, 0]);
+  r = ok(await unrally('live-m1', SM));
+  assert.deepEqual(r.state.score, [0, 0], 'undo reaches the start');
+  r = ok(await unrally('live-m1', SM));
+  assert.equal(r.unchanged, true, 'nothing left to undo is a no-op, not an error');
+  const got = ok(await call(live, 'GET', { query: '?code=' + code + '&id=live-m1&secret=' + SM }));
+  assert.equal(got.version, r.version, 'the scoring phone reads the same version');
+  // An old-style intent still lands in the queue, and the ack action clears it.
+  ok(await call(live, 'POST', { body: { code, action: 'point', game: 'live-m1', secret: SM, side: 0 } }));
+  const withIntent = ok(await call(live, 'GET', { query: '?code=' + code + '&id=live-m1&secret=' + SM }));
+  assert.equal(withIntent.intents.length, 1);
+  ok(await call(live, 'POST', { body: { code, action: 'ack', game: 'live-m1', secret: SM, ack: withIntent.intents[0].n } }));
+  assert.equal(ok(await call(live, 'GET', { query: '?code=' + code + '&id=live-m1&secret=' + SM })).intents.length, 0, 'acked intents are gone');
+  // A finished game refuses more rallies.
+  const quick = { ...st, cfg: { ...st.cfg, target: 1, winBy: 1 }, startedAt: 789 };
+  ok(await call(live, 'POST', { body: { code, action: 'state', id: 'live-m2', secret: SM, state: quick, ack: 0 } }));
+  r = ok(await rally('live-m2', SM, 0));
+  assert.equal(r.state.winner, 0); assert.equal(r.say, 'Game over');
+  assert.equal((await rally('live-m2', SM, 1)).status, 409, 'no rallies after the game ends');
+  ok(await call(live, 'POST', { body: { code, action: 'end', id: 'live-m1', secret: SM } }));
+  ok(await call(live, 'POST', { body: { code, action: 'end', id: 'live-m2', secret: SM } }));
+  const after = ok(await call(live, 'GET', { query: '?code=' + code }));
+  assert.ok(!after.games.some(g => g.id === 'live-m1' || g.id === 'live-m2'), 'ended games leave the list');
+});
+
 // Importing players and teams from a sheet. Google is never called: fetch is stubbed for docs.google.com (everything else, such as
 // the database driver, goes through the real fetch). A sheet's DUPR IDs are private references kept outside the event.
 const SHEET_ID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcD';

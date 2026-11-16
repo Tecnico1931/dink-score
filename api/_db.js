@@ -115,6 +115,8 @@ export function ensureSchema() {
       )`;
 
       await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS secret_hash text`; // sha256 of the per-game secret that watch intents must carry
+      await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS stack jsonb NOT NULL DEFAULT '[]'::jsonb`; // states before each server-applied rally, for server-side undo
+      await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS version int NOT NULL DEFAULT 0`; // bumps on every server-held change; scorers pass the version they saw
       // Private reference data typed into an imported sheet: { "player name": "DUPR ID" }. Kept out of `data` on purpose, so no
       // event view, spectator page or export can include it. Only an organizer can read it (events.js, action 'refs').
       await q`ALTER TABLE events ADD COLUMN IF NOT EXISTS refs jsonb`;
