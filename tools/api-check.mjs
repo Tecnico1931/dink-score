@@ -925,7 +925,7 @@ await step('rally log: the column is additive and nullable, so older rows and ol
     assert.equal(r.status, 409); assert.deepEqual(r.json.similar, ['José']);
     assert.equal((await names()).length, 4, 'nothing was added');
     ok(await call(roster, 'POST', { body: { code: nc, name: 'Jose', confirmNew: true } }));
-    assert.deepEqual((await names()).filter(n => n.startsWith('Jos')), ['José', 'Jose']);
+    assert.deepEqual((await names()).filter(n => n.startsWith('Jos')).sort(), ['Jose', 'José']);
     ok(await call(roster, 'POST', { body: { code: nc, name: 'Zoe' } })); // not similar to anyone
     ok(await call(roster, 'DELETE', { query: `?code=${nc}&name=Zoe`, headers: { 'x-club-pin': PIN } }));
   });
