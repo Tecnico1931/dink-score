@@ -1742,6 +1742,27 @@ const newId = t => 'g' + t.toString(36) + Math.random().toString(36).slice(2, 6)
 /* ---------- club sync (the website's shared record; no accounts) ---------- */
 // club: { code, name } when this device has joined a club. The shared games and saved players live on the server;
 // changes made here wait in an outbox until they reach it, so scoring keeps working without signal.
+/*OUTBOX-START*/
+// What happens to a queued change the server refuses. Pure, so test/outbox.test.js can load this block alone.
+// A refused change is never thrown away: it stays in the outbox, marked failed, until someone retries, fixes or exports it.
+const Outbox = {
+  pinOp: op => op.type === 'delete' || op.type === 'restore' || op.type === 'edit' || op.type === 'roster-del',
+  // True when trying again later can work (no signal, server trouble, rate limit); false when the server said no.
+  waits: (err, op) => !!(err.offline || err.status >= 500 || (err.status === 429 && !Outbox.pinOp(op))),
+  fail(op, err, now) { op.failed = { status: err.status || 0, message: String(err.message || 'Not saved.'), at: now }; if (!op.uid) op.uid = now.toString(36) + Math.random().toString(36).slice(2, 6); return op; },
+  active: (ops, code) => ops.filter(o => (!code || o.code === code) && !o.failed),
+  failed: (ops, code) => ops.filter(o => (!code || o.code === code) && o.failed),
+  retry(op) { delete op.failed; return op; },
+  // Fix the score of a refused game and put it back in the queue. Returns false when the score isn't two whole numbers.
+  rescore(op, a, b) {
+    const x = Number(a), y = Number(b);
+    if (op.type !== 'game' || !op.game || !Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x > 99 || y > 99) return false;
+    op.game.score = [x, y]; Outbox.retry(op); return true;
+  },
+  // A file the person can keep: the refused changes exactly as this phone holds them.
+  exportJson: (ops, code) => JSON.stringify({ app: 'dink-score', kind: 'unsent-changes', club: code || null, changes: ops.map(o => Object.assign({}, o, { ownerToken: undefined, pin: undefined })) }, null, 2)
+};
+/*OUTBOX-END*/
 let club = API_OK ? store.get('pb.club', null) : null;
 let clubData = store.get('pb.clubCache', null); // { code, games, roster, deleted, at }
 let outbox = store.get('pb.outbox', []); // changes for every club this phone is in; each op carries its club's code
@@ -1750,7 +1771,8 @@ let clubs = API_OK ? store.get('pb.clubs', null) : [];
 if (!Array.isArray(clubs)) clubs = club ? [club] : [];
 if (club && !clubs.some(c => c.code === club.code)) clubs.unshift(club);
 for (const op of outbox) if (!op.code && club) op.code = club.code; // ops saved before multiple clubs belong to the open one
-const clubOps = () => (club ? outbox.filter(o => o.code === club.code) : []);
+const clubOps = () => (club ? Outbox.active(outbox, club.code) : []);
+const failedOps = () => (club ? Outbox.failed(outbox, club.code) : []);
 function saveClubs() {
   if (club) { const i = clubs.findIndex(c => c.code === club.code); if (i >= 0) clubs[i] = Object.assign({}, club); else clubs.push(Object.assign({}, club)); }
   store.set('pb.clubs', clubs); store.set('pb.club', club);
@@ -1779,6 +1801,7 @@ if (club) roster = (clubData && clubData.roster) ? clubData.roster.slice() : ros
 function clubGames() {
   const map = new Map();
   for (const g of (clubData ? clubData.games : [])) map.set(g.id, g);
+  for (const op of failedOps()) if (op.type === 'game') map.set(op.game.id, op.game); // a refused game stays visible here
   for (const op of clubOps()) {
     if (op.type === 'game') map.set(op.game.id, op.game);
     if (op.type === 'delete') map.delete(op.id);
@@ -1836,13 +1859,13 @@ function applyToCache(op) {
 }
 let flushing = null;
 function flush() {
-  if (flushing || !outbox.length) return flushing;
+  if (flushing || !outbox.some(o => !o.failed)) return flushing;
   flushing = (async () => {
     let sent = false;
-    while (outbox.length) {
-      const op = outbox[0];
+    let op;
+    while ((op = outbox.find(o => !o.failed))) {
       const code = op.code || (club && club.code);
-      if (!code) { outbox.shift(); continue; }
+      if (!code) { outbox.splice(outbox.indexOf(op), 1); continue; }
       try {
         if (op.type === 'game') await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code, games: [op.game] }, senderCreds(code))) });
         else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
@@ -1853,16 +1876,15 @@ function flush() {
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
       } catch (err) {
-        const pinOp = op.type === 'delete' || op.type === 'restore' || op.type === 'edit' || op.type === 'roster-del';
-        if (err.offline || err.status >= 500 || (err.status === 429 && !pinOp)) { clubState = 'offline'; updateSyncPill(); break; }
-        if (op.type === 'game') showToast(`A game couldn't be saved to the club: ${err.message}`, false);
-        if (op.type === 'event-result') showToast(`A result couldn't be saved to the event: ${err.message}`, false);
-        if (pinOp && (err.status === 403 || err.status === 429)) {
-          if (err.status === 403) { delete pins[code]; store.set('pb.pins', pins); }
-          showToast(`${err.message} ${op.type === 'roster-del' ? `${op.name} was not removed.` : `The game was not ${op.type === 'delete' ? 'deleted' : op.type === 'edit' ? 'changed' : 'restored'}.`}`, false);
-        }
+        if (Outbox.waits(err, op)) { clubState = 'offline'; updateSyncPill(); break; }
+        // The server refused it. Keep it, marked, in the "needs attention" list; the rest of the queue carries on.
+        Outbox.fail(op, err, Date.now()); store.set('pb.outbox', outbox); sent = true;
+        if (Outbox.pinOp(op) && err.status === 403) { delete pins[code]; store.set('pb.pins', pins); }
+        showToast(`${op.type === 'game' ? "A game couldn't be saved to the club" : op.type === 'event-result' ? "A result couldn't be saved to the event" : "A change couldn't be saved"}: ${err.message} It is kept under "Needs attention" in the club screen.`, false);
+        updateSyncPill();
+        continue;
       }
-      outbox.shift(); store.set('pb.outbox', outbox); sent = true;
+      outbox.splice(outbox.indexOf(op), 1); store.set('pb.outbox', outbox); sent = true;
     }
     flushing = null;
     if (sent && evScreen && (evScreen.view === 'detail' || evScreen.view === 'bracket')) evLoad(evScreen.id, true);
@@ -1907,9 +1929,9 @@ document.addEventListener('focusout', () => { if (renderPending) setTimeout(() =
 function syncPillHTML() {
   if (!API_OK) return `<span class="sync ${syncOn ? 'on' : ''}">${esc(syncNote)}</span>`;
   if (!club) return `<button class="sync club-btn" data-act="club-open">Join a club</button>`;
-  const pending = clubOps().length;
-  const note = clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
-  return `<button class="sync club-btn ${clubState === 'idle' && !pending ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' || !club.hasPin ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}${club.hasPin ? '' : '. Not protected: no organizer PIN'}">${esc(note)}</button>`;
+  const pending = clubOps().length, failed = failedOps().length;
+  const note = failed ? `${failed} need${failed === 1 ? 's' : ''} attention` : clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
+  return `<button class="sync club-btn ${clubState === 'idle' && !pending && !failed ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' || failed || !club.hasPin ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}${club.hasPin ? '' : '. Not protected: no organizer PIN'}">${esc(note)}</button>`;
 }
 // Round button in the top right: your picture, opening your profile (or asking who you are first).
 function profileButtonHTML() {
@@ -1982,7 +2004,7 @@ function leaveClub() {
   if (!club) return;
   const code = club.code;
   clubs = clubs.filter(c => c.code !== code);
-  outbox = outbox.filter(o => o.code !== code); store.set('pb.outbox', outbox);
+  outbox = outbox.filter(o => o.code !== code || o.failed); store.set('pb.outbox', outbox); // refused changes stay on the phone
   const all = store.get('pb.clubCaches', {}); delete all[code]; store.set('pb.clubCaches', all);
   club = null; clubData = null; store.set('pb.clubCache', null);
   if (clubs.length) { const next = clubs[0]; club = Object.assign({}, next); saveClubs(); clubData = cachedClub(club.code); store.set('pb.clubCache', clubData); roster = rosterFromClub(); render(); refreshClub(); return; }
@@ -2154,6 +2176,7 @@ function renderClub() {
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
       ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p></div>` : ''}
+      ${needsAttentionHTML()}
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
         <p>${!club.hasPin ? (canSetFirstPin() ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : `Anyone with the club code can delete games. Only the phone that created ${esc(club.name)} can set a PIN.`) : isCreator() ? 'This phone created the club, so it can always delete and restore games and reset the PIN, even if the PIN is forgotten.' : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
         <div class="org-btns">${!club.hasPin ? (canSetFirstPin() ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>' : '')
@@ -2169,6 +2192,36 @@ function renderClub() {
   }
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
     <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
+}
+// Changes the server refused. Each can be retried, fixed (a game's score), exported, or, only when the person says so, discarded.
+function opLabel(o) {
+  if (o.type === 'game') return `${teamLabel(o.game.teams[0])} ${Number(o.game.score[0])}–${Number(o.game.score[1])} ${teamLabel(o.game.teams[1])}`;
+  return { 'event-result': 'An event result', edit: 'A game edit', delete: 'A game deletion', restore: 'A game restore', 'roster-add': 'A saved player', 'roster-del': 'Removing a saved player' }[o.type] || 'A change';
+}
+function needsAttentionHTML() {
+  const list = failedOps();
+  if (!list.length) return '';
+  return `<div class="field attn" style="margin:0"><span class="lab">Needs attention</span>
+    <p class="note">The club refused ${list.length === 1 ? 'this change' : 'these changes'}. Nothing is lost: ${list.length === 1 ? 'it is' : 'they are'} kept on this phone until you retry, fix or export ${list.length === 1 ? 'it' : 'them'}.</p>
+    <ul class="deleted">${list.map(o => `<li data-uid="${esc(o.uid)}"><span><b>${esc(opLabel(o))}</b><small style="display:block">${esc(o.failed.message)}</small>
+      ${o.type === 'game' ? `<span class="add-player" style="margin-top:6px"><input type="number" inputmode="numeric" min="0" max="99" aria-label="Team 1 score" data-fs="0" value="${Number(o.game.score[0])}" style="width:64px"><input type="number" inputmode="numeric" min="0" max="99" aria-label="Team 2 score" data-fs="1" value="${Number(o.game.score[1])}" style="width:64px"><button class="link" data-fail="save" data-uid="${esc(o.uid)}">Fix score and retry</button></span>` : ''}</span>
+      <span style="display:flex;flex-direction:column;gap:4px"><button class="link" data-fail="retry" data-uid="${esc(o.uid)}">Retry</button><button class="link" data-fail="discard" data-uid="${esc(o.uid)}" style="color:var(--red,#c0392b)">Discard</button></span></li>`).join('')}</ul>
+    <button class="btn btn-soft" data-fail="export">Export as a file</button></div>`;
+}
+function failAct(kind, uid, el) {
+  const op = outbox.find(o => o.uid === uid);
+  if (kind === 'export') {
+    const url = URL.createObjectURL(new Blob([Outbox.exportJson(failedOps(), club.code)], { type: 'application/json' }));
+    const a = document.createElement('a'); a.href = url; a.download = `dink-score-unsent-${club.code}.json`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return;
+  }
+  if (!op) return;
+  if (kind === 'discard') { if (!confirm('Discard this change for good? It will not be sent to the club.')) return; outbox.splice(outbox.indexOf(op), 1); }
+  else if (kind === 'save') {
+    const row = el.closest('li'), v = [...row.querySelectorAll('[data-fs]')].map(i => i.value);
+    if (!Outbox.rescore(op, v[0], v[1])) { showToast('Enter the two scores as whole numbers.', false); return; }
+  } else { Outbox.retry(op); if (Outbox.pinOp(op) && pins[op.code]) op.pin = pins[op.code]; }
+  store.set('pb.outbox', outbox); renderClub(); updateSyncPill(); flush();
 }
 function clubSwitcherHTML() {
   const others = clubs.filter(c => c.code !== club.code);
@@ -4005,9 +4058,20 @@ async function evLoadList() {
   try {
     const data = await api('events?code=' + club.code);
     evSummary = data.events;
-    if (evScreen === s) { s.list = data.events; s.error = ''; }
+    if (evScreen === s) { s.list = data.events; s.more = !!data.more; s.error = ''; }
   } catch (err) { if (evScreen === s) { s.list = s.list || []; s.error = err.message; } }
   renderEvents(); if (tab === 'play' || tab === 'events') safeRender();
+}
+// The list shows 50 at a time; this fetches the next page and adds it on.
+async function evLoadMore() {
+  const s = evScreen;
+  if (!s || !s.list || s.loadingMore) return;
+  s.loadingMore = true; renderEvents(true);
+  try {
+    const data = await api(`events?code=${club.code}&offset=${s.list.length}`);
+    if (evScreen === s) { const have = new Set(s.list.map(e => e.id)); s.list = s.list.concat(data.events.filter(e => !have.has(e.id))); s.more = !!data.more && data.events.length > 0; s.error = ''; }
+  } catch (err) { if (evScreen === s) s.error = err.message; }
+  if (evScreen === s) { s.loadingMore = false; renderEvents(true); }
 }
 async function evSummaryRefresh() {
   if (!club || !API_OK || (tab !== 'play' && !evScreen)) return; // the summary only feeds the tile on Play
@@ -4088,7 +4152,7 @@ function evListHTML(s) {
   const items = (s.list || []).map(e => `<button class="ev-card ev-item" data-ev="open" data-id="${esc(e.id)}"><span class="ev-item-head"><b>${esc(e.name)}</b><span class="badge ${e.status === 'live' ? 'hot' : 'prov'}">${e.status === 'live' ? 'Live' : 'Finished'}</span></span>
     <span class="note">${esc(EV_FORMAT_NAME[e.format])}${e.partners === 'rotating' ? ', partners rotate' : ', fixed teams'} · ${e.players} players · ${e.courts} court${e.courts === 1 ? '' : 's'}</span><span class="note">${esc(evProgress(e))}</span></button>`).join('');
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}${make}
-    ${s.list === null ? '<p class="note">Loading events…</p>' : items ? `<div class="ev-sec">${items}</div>` : '<div class="empty"><p>No events yet. An organizer can run a round robin with rotating partners, a pool play and knockout, or a single or double elimination bracket.</p></div>'}`;
+    ${s.list === null ? '<p class="note">Loading events…</p>' : items ? `<div class="ev-sec">${items}</div>${s.more ? `<button class="btn btn-soft block" data-ev="more" ${s.loadingMore ? 'disabled' : ''}>${s.loadingMore ? 'Loading…' : 'Show more events'}</button>` : ''}` : '<div class="empty"><p>No events yet. An organizer can run a round robin with rotating partners, a pool play and knockout, or a single or double elimination bracket.</p></div>'}`;
 }
 function evNewHTML(s) {
   const f = s.form, n = f.players.length, rotating = f.partners === 'rotating' && (f.format === 'roundrobin' || f.format === 'pool_knockout');
@@ -4591,6 +4655,7 @@ function evSaveEntry(form) {
 function evAct(a, d) {
   const s = evScreen;
   if (a === 'open-list') { evOpenList(); return; }
+  if (a === 'more') { evLoadMore(); return; }
   if (!s) return;
   if (a === 'back' && s.view !== 'bracket') {
     if (s.view === 'list') { evScreen = null; renderEvents(true); safeRender(); const t = document.querySelector('[data-ev="open-list"]'); if (t) t.focus({ preventScroll: true }); return; }
@@ -4781,6 +4846,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); return; }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }
+  if (ds.fail) { failAct(ds.fail, ds.uid, el); return; }
   if (ds.act === 'shop-admin-open') { clubSheet = { view: 'shopadmin' }; renderClub(); return; }
   if (ds.act === 'adm-save') { adminSave(); return; }
   if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 60 }); renderClub(); return; }
