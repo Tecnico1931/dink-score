@@ -13,6 +13,7 @@
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, nameKey, similarNames, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp, MAX_PHOTOS } from './_db.js';
 import { cleanDupr } from './_dupr.js';
 import { renamePlayer, renameWrites } from './_rename.js';
+import { MEMBER_ACTIONS, memberAction, audit } from './_members.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -57,12 +58,15 @@ export default handler(async (req, res) => {
   const club = await requireClub(cleanCode(body.code), req);
   const code = club.code; // the club's permanent key, even when an old club code was used
 
+  if (MEMBER_ACTIONS.includes(body.action)) return send(res, 200, await memberAction(sql, club, body, req));
+
   if (body.action === 'claim') {
     const name = cleanName(body.name);
     if (!name || /^Player \d+$/.test(name)) throw fail(400, 'Enter your name.');
     const k = nameKey(name);
-    const saved = await sql`SELECT name, name_key, claim_hash FROM roster WHERE club = ${code}`;
+    const saved = await sql`SELECT name, name_key, claim_hash, blocked_at FROM roster WHERE club = ${code}`;
     const existing = saved.find(r => r.name_key === k);
+    if (existing && existing.blocked_at) throw fail(403, `${name} was removed from this club by an organizer. Ask an organizer to unblock it.`);
     if (!existing && saved.length >= 300) throw fail(400, 'This club already has 300 saved players.');
     if (!existing && body.confirmNew !== true) {
       const similar = similarNames(name, saved.map(r => r.name));
@@ -81,7 +85,7 @@ export default handler(async (req, res) => {
     const token = newOwnerToken();
     await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${k}, ${name}) ON CONFLICT DO NOTHING`;
     // Atomic: only one phone can claim a name, even if two try at once.
-    const rows = await sql`UPDATE roster SET claim_hash = ${hashToken(token)} WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NULL RETURNING name`;
+    const rows = await sql`UPDATE roster SET claim_hash = ${hashToken(token)}, role = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NULL AND blocked_at IS NULL RETURNING name`;
     if (!rows.length) throw fail(409, `${name} was just claimed by another phone.`);
     await sql`INSERT INTO lookup_fails (ip) VALUES (${claimKey})`;
     return send(res, 200, { ok: true, name: rows[0].name, playerToken: token });
@@ -114,7 +118,7 @@ export default handler(async (req, res) => {
   }
 
   // Everything below is for organizers.
-  await requireOrganizer(club, body.pin, req, body.ownerToken);
+  const actor = await requireOrganizer(club, body.pin, req, body.ownerToken);
 
   if (body.action === 'clear-avatar') {
     // Organizer: put someone back to initials (for example a photo that shouldn't be there).
@@ -125,8 +129,12 @@ export default handler(async (req, res) => {
 
   if (body.action === 'release') {
     const k = nameKey(body.name);
-    const rows = await sql`UPDATE roster SET claim_hash = NULL, dupr_rating = NULL, dupr_set_at = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NOT NULL RETURNING name`;
+    // A released name also loses any role, so whoever claims it next starts as an ordinary member.
+    const [was] = await sql`SELECT role FROM roster WHERE club = ${code} AND name_key = ${k}`;
+    if (was && was.role === 'organizer' && actor.by === 'organizer') throw fail(403, 'Only the phone that created the club, or the organizer PIN, can release an organizer.');
+    const rows = await sql`UPDATE roster SET claim_hash = NULL, role = NULL, dupr_rating = NULL, dupr_set_at = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NOT NULL RETURNING name`;
     if (!rows.length) throw fail(404, 'That name isn\'t linked to a phone.');
+    await audit(sql, code, actor, 'release', rows[0].name, was && was.role ? { hadRole: was.role } : null);
     return send(res, 200, { ok: true });
   }
 
@@ -167,6 +175,7 @@ export default handler(async (req, res) => {
       // The kept player takes whatever the other one had that it lacks: the phone link, picture and DUPR details.
       extra.push(sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${from.name_key}`);
       extra.push(sql`UPDATE roster SET claim_hash = ${into.claim_hash || from.claim_hash || null},
+        role = ${into.role || from.role || null},
         avatar = ${JSON.stringify(into.avatar || from.avatar || null)}::jsonb,
         dupr_rating = ${into.dupr_rating ?? from.dupr_rating ?? null}, dupr_set_at = ${into.dupr_rating != null ? into.dupr_set_at : from.dupr_set_at ?? null}
         WHERE club = ${code} AND name_key = ${into.name_key}`);

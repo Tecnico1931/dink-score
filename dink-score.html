@@ -1855,6 +1855,7 @@ async function refreshClub() {
     roster = rosterFromClub();
     followRenames(data.renamed);
     if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
+    syncCoOrg(); // promoted or demoted from another phone: this one follows
     clubState = 'idle';
     safeRender();
     loadPhotos();
@@ -2041,8 +2042,18 @@ function rememberOwner(code, token) { if (token) { owners[code] = token; store.s
 const canSetFirstPin = () => !!club && !club.hasPin && (!!owners[club.code] || !!club.openClaim);
 function rememberPin(code, pin) { pins[code] = pin; store.set('pb.pins', pins); }
 function forgetPin() { if (club) { delete pins[club.code]; store.set('pb.pins', pins); } }
-const isCreator = () => !!club && !!owners[club.code];
-const hasOrganizer = () => !!club && (!club.hasPin || !!pins[club.code] || isCreator());
+// owners[code] is the creating phone's 48-hex token, or, on a co-organizer's phone, "<player token>:<name>" (kept in step with
+// the member's role by syncCoOrg). Only the first is the creator; both let the phone do organizer actions.
+const creatorTok = code => /^[0-9a-f]{48}$/.test(owners[code] || '');
+const isCreator = () => !!club && creatorTok(club.code);
+const isCoOrganizer = () => !!club && !!owners[club.code] && !creatorTok(club.code);
+const hasOrganizer = () => !!club && (!club.hasPin || !!pins[club.code] || !!owners[club.code]);
+function syncCoOrg() {
+  if (!club || creatorTok(club.code)) return;
+  const mine = myName() && myToken() && clubPlayers().find(p => p.claimed && sameName(p.name, myName()));
+  const want = mine && mine.role === 'organizer' ? myToken() + ':' + mine.name : '';
+  if (want ? owners[club.code] !== want : owners[club.code]) { if (want) owners[club.code] = want; else delete owners[club.code]; store.set('pb.owners', owners); }
+}
 // Runs a delete or restore, asking for the PIN first when the club has one and this phone isn't unlocked.
 // The phone that created the club sends its creator key instead, so it's never asked and never locked out.
 function withPin(op) {
@@ -2155,8 +2166,8 @@ async function acctClaim() {
 }
 // Brings back identities the account holds that this phone does not (a new phone). A phone that already holds one keeps it.
 async function acctRestore() {
-  const want = ((acct && acct.identities) || []).filter(i => !i.stale && (i.kind === 'organizer' ? !owners[i.code] : !(me[i.code] && me[i.code].token)));
-  let n = 0;
+  const want = ((acct && acct.identities) || []).filter(i => !i.stale && (i.kind === 'organizer' ? !creatorTok(i.code) : !(me[i.code] && me[i.code].token)));
+  let n = 0; // (a co-organizer's credential in owners[] doesn't count as the creator token)
   for (let i = 0; i < want.length; i += 30) {
     const d = await acctPost({ action: 'restore', items: want.slice(i, i + 30).map(w => ({ code: w.code, kind: w.kind, name: w.name })) });
     for (const r of d.restored) {
@@ -2374,6 +2385,7 @@ function renderClub() {
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
       <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
+      ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
         <button class="btn btn-line-danger" data-act="club-leave">Leave ${esc(club.name)} on this phone</button></div>`;
@@ -3570,7 +3582,7 @@ function senderCreds(code = club && club.code) {
 function senderGuess(g) {
   if (!club) return {};
   const guess = { receivedAt: Date.now() };
-  if (owners[club.code]) guess.scoredBy = 'organizer';
+  if (isCreator()) guess.scoredBy = 'organizer';
   else if (myName() && myToken()) guess.scoredBy = myName().trim().toLowerCase();
   return guess;
 }
@@ -3920,12 +3932,14 @@ function membersHTML(c) {
   const linked = rows.filter(r => r.p.claimed).length;
   const duprCount = dc ? rows.filter(r => duprLinked(r.p.name)).length : 0;
   const active = rows.filter(r => r.last && now - r.last <= DAY30).length;
+  const md = c.membersData || { members: [], audit: [] };
+  const blocked = Object.fromEntries(md.members.filter(m => m.blocked).map(m => [m.name.toLowerCase(), true]));
   const list = rows.map(({ p, n, last }) => {
     const when = last ? new Date(last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
     return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini">${avatarInner(p.name)}</span>
-      <span class="mem-text"><span class="mem-name">${esc(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
+      <span class="mem-text"><span class="mem-name">${esc(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${p.role === 'organizer' ? ' <span class="badge on">Organizer</span>' : ''}${blocked[p.name.toLowerCase()] ? ' <span class="badge prov">Blocked</span>' : ''}${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
       <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'}</span></span></button>
-      <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span></li>`;
+      <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span></li>`;
   }).join('');
   const ed = c.nameEdit;
   const editor = ed ? `<form class="club-form" data-form="name-edit">${ed.kind === 'merge'
@@ -3939,12 +3953,33 @@ function membersHTML(c) {
   return `<h2 id="club-h">Members</h2>${editor}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     ${rows.length ? `<p>${rows.length} player${rows.length === 1 ? '' : 's'}, ${linked} linked to phones, ${active} played in the last 30 days.${dc ? ` ${duprCount} connected to DUPR.` : ''}</p>
     <ul class="mem-list">${list}</ul>
-    <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones.</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
+    <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones. Removing someone stops their phone from acting as that name; their games and ratings stay. ${isCoOrganizer() ? 'Only the club creator or the organizer PIN can change roles or remove organizers.' : 'Organizers can do everything except change roles and remove other organizers.'}</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
+    ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></span></li>`).join('')}</ul>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 async function adminAction(body, okMsg) {
-  try { await playerCall(Object.assign(body, adminCreds())); showToast(okMsg, false); await refreshClub(); renderClub(); }
+  try { await playerCall(Object.assign(body, adminCreds())); showToast(okMsg, false); await refreshClub(); await loadMembers(); renderClub(); }
   catch (err) { showToast(err.message, false); }
+}
+// Members sheet extras only organizers can read: who is blocked, and the log of role changes and removals.
+async function loadMembers() {
+  if (!club || !clubSheet || clubSheet.view !== 'members') return;
+  try { const d = await playerCall(Object.assign({ action: 'members' }, adminCreds())); if (clubSheet && clubSheet.view === 'members') { clubSheet.membersData = d; renderClub(); } } catch (e) { /* the list still works without it */ }
+}
+function auditText(a) {
+  const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
+  const t = a.target || 'a member';
+  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list' }[a.action] || a.action;
+  return `${who} ${did}`;
+}
+function memberLeave(el) {
+  if (!clubSheet.confirmLeave) { clubSheet.confirmLeave = true; el.textContent = 'Tap again to leave'; return; }
+  const name = myName(), token = myToken();
+  playerCall({ action: 'leave', name, playerToken: token }).then(() => {
+    delete me[club.code]; store.set('pb.me', me); if (isCoOrganizer()) { delete owners[club.code]; store.set('pb.owners', owners); }
+    clubSheet = { view: 'club', msg: `${name} is off the member list. Your games and ratings stay.` }; showToast('You left the member list', false);
+    refreshClub().then(() => { render(); renderClub(); });
+  }).catch(err => showToast(err.message, false));
 }
 
 /* ---------- player profiles ---------- */
@@ -4141,7 +4176,7 @@ const EV_ROT_NOTE = {
 let evScreen = null;  // null, or { view: 'list' | 'new' | 'detail', list, id, event, form, entry, edit, error, busy }
 let evSummary = [];   // the club's events, for the home tile
 let evPending = false;
-const canOrganize = () => !!club && (isCreator() || (!!club.hasPin && !!pins[club.code]));
+const canOrganize = () => !!club && (!!owners[club.code] || (!!club.hasPin && !!pins[club.code]));
 const evCall = body => api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, adminCreds())) });
 const evTeamName = (t, ev) => (t ? BK.teamName(ev, t) : 'To be decided'); // a team's name from the sheet, else its players
 function evNewForm() {
@@ -4958,7 +4993,16 @@ document.addEventListener('click', e => {
   if (ds.claimNew) { claimName(ds.claimNew, true); return; }
   if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (ds.act === 'whoami-skip') { const after = clubSheet && clubSheet.afterJoin; skipWhoami(); clubSheet = null; if (after) afterJoin(); else { renderClub(); render(); } return; }
-  if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); return; }
+  if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); loadMembers(); return; }
+  if (ds.act === 'member-leave') { memberLeave(el); return; }
+  if (ds.role) { adminAction({ action: 'set-role', name: ds.role, role: ds.to }, ds.to === 'organizer' ? `${ds.role} is now an organizer` : `${ds.role} is a regular member again`); return; }
+  if (ds.unblock) { adminAction({ action: 'unblock', name: ds.unblock }, `${ds.unblock} can be picked again`); return; }
+  if (ds.remove || ds.removeBlock) {
+    const key = ds.removeBlock ? '!' + ds.removeBlock : ds.remove, name = ds.removeBlock || ds.remove;
+    if (clubSheet.confirmRemove !== key) { clubSheet.confirmRemove = key; renderClub(); return; }
+    clubSheet.confirmRemove = null;
+    adminAction({ action: 'remove', name, block: !!ds.removeBlock }, `${name} was removed`); return;
+  }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }
   if (ds.fail) { failAct(ds.fail, ds.uid, el); return; }

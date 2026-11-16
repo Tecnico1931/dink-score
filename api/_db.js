@@ -183,6 +183,21 @@ export function ensureSchema() {
         at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (club, old_key)
       )`;
+      // Roles and membership (see _members.js). `role` is null for an ordinary member or 'organizer' for a co-organizer; the club's
+      // creating phone and the PIN are the other ways to organize. `blocked_at` keeps a removed name from being claimed again.
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS role text`;
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS blocked_at timestamptz`;
+      await q`CREATE TABLE IF NOT EXISTS club_audit (
+        id bigserial PRIMARY KEY,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        at timestamptz NOT NULL DEFAULT now(),
+        actor text NOT NULL,
+        actor_name text,
+        action text NOT NULL,
+        target text,
+        detail jsonb
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS club_audit_club_at ON club_audit (club, at DESC)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -325,11 +340,14 @@ function pinMatches(stored, pin) {
 //   its own mark back off, and a locked network or club refuses every PIN, right or wrong, so guessing learns nothing.
 //   Marks are recorded before counting, so simultaneous guesses see each other. A right PIN removes its marks.
 const PIN_LIMITS = [['pin:', 5, 30, 86400], ['pinclub:', 20, 60, 3600]]; // key prefix, free tries, base wait (s), longest wait (s)
+// Returns who was let in, for the audit log: {by: 'open' | 'owner' | 'organizer' (a co-organizer, with name) | 'pin'}.
 export async function requirePin(club, pin, req, ownerToken) {
-  if (!club.pin_hash) return;
-  if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return;
+  if (!club.pin_hash) return { by: 'open' };
+  if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return { by: 'owner' };
+  const co = await coOrganizer(club, ownerToken);
+  if (co) return { by: 'organizer', name: co };
   const [digits, key] = String(pin ?? '').split(':');
-  if (key && deviceKeyMatches(club, key)) return;
+  if (key && deviceKeyMatches(club, key)) return { by: 'pin' };
   const sql = db();
   const keys = [PIN_LIMITS[0][0] + clientIp(req), PIN_LIMITS[1][0] + club.code];
   const marks = [];
@@ -351,15 +369,27 @@ export async function requirePin(club, pin, req, ownerToken) {
   if (!/^\d{4,8}$/.test(digits) || !pinMatches(club.pin_hash, digits)) throw fail(403, 'That organizer PIN is wrong.');
   await drop(marks);
   await sql`DELETE FROM lookup_fails WHERE ip = ${keys[0]}`; // this network proved it knows the PIN, so its earlier wrong tries are forgiven
+  return { by: 'pin' };
+}
+// A co-organizer's credential travels where the creating phone's owner token does: "<their player token>:<their name>".
+// It only counts while the name is still claimed by that token, still holds the organizer role, and isn't blocked, so
+// removing or demoting someone stops it at once. Returns the member's name, or null.
+export async function coOrganizer(club, cred) {
+  const m = /^([0-9a-f]{48}):(.{1,60})$/s.exec(String(cred ?? ''));
+  if (!m) return null;
+  const [row] = await db()`SELECT name, claim_hash FROM roster WHERE club = ${club.code} AND name_key = ${cleanName(m[2]).toLowerCase()} AND role = 'organizer' AND blocked_at IS NULL`;
+  return row && row.claim_hash && tokenMatches(row.claim_hash, m[1]) ? row.name : null;
 }
 export const ownerFrom = req => (req.headers || {})['x-club-owner'];
 
 // Organizer-only settings (releasing names, running events) need the creating phone or, once set, the PIN.
 // A club without a PIN can't hand these to anyone with the code, so it needs the creating phone.
 export async function requireOrganizer(club, pin, req, ownerToken) {
-  if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return;
+  if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return { by: 'owner' };
+  const co = await coOrganizer(club, ownerToken);
+  if (co) return { by: 'organizer', name: co };
   if (!club.pin_hash) throw fail(403, 'Only organizers can do that. Set an organizer PIN from the phone that created the club.');
-  await requirePin(club, pin, req, ownerToken);
+  return requirePin(club, pin, req, ownerToken);
 }
 
 // Proof of ownership for setting a club's first PIN: a random token handed only to the phone that created the club.

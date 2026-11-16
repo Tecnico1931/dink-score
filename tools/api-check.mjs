@@ -975,6 +975,7 @@ await step('rally log: the column is additive and nullable, so older rows and ol
   await step('names: merge folds games, link, picture and purchases into one player; ratings follow from the games', async () => {
     // "Jose" (a guest typed twice, never linked) is the same person as Joseph (linked, with a picture)
     await G('n-g003', [['Jose', 'Cy'], ['Di', 'Ed']]);
+    ok(await P({ action: 'set-role', name: 'Joseph', role: 'organizer' }));
     const mid = await view();
     const r = await P({ action: 'merge', name: 'Joseph', into: 'Jose' }); // from is claimed, into is not: the claim moves over
     assert.equal(r.status, 200, JSON.stringify(r.json));
@@ -982,6 +983,7 @@ await step('rally log: the column is additive and nullable, so older rows and ol
     assert.ok(!v.players.some(p => p.name === 'Joseph'));
     const kept = v.players.find(p => p.name === 'Jose');
     assert.ok(kept.claimed && kept.avatar && kept.avatar.value, 'phone link and picture followed');
+    assert.equal(kept.role, 'organizer', 'organizer role followed the phone link');
     assert.ok(!JSON.stringify(v.games).includes('Joseph') && !JSON.stringify(v.games).includes('José'));
     assert.ok(v.games.filter(g => g.teams.flat().includes('Jose')).length >= 3, 'all of their games are under the kept name');
     assert.equal(v.renamed.joseph, 'Jose');
@@ -1001,6 +1003,88 @@ await step('rally log: the column is additive and nullable, so older rows and ol
     assert.ok(t && (await names()).includes('Cy') && (await names()).includes('Di'), 'nothing changed');
   });
 }
+await step('roles: co-organizers, removal, leaving, blocking, audit, per-role authorization', async () => {
+  const c = ok(await call(club, 'POST', { body: { name: 'Roles club', pin: '246810' } }), 201);
+  const rc = c.club.code, own = c.ownerToken, pin = '246810';
+  const P = (body, headers) => call(playersApi, 'POST', { body: { code: rc, ...body }, headers });
+  const claim = async name => ok(await P({ action: 'claim', name, ownerToken: own })).playerToken;
+  const tok = { Ana: await claim('Ana'), Ben: await claim('Ben'), Cy: await claim('Cy') };
+  await P({ action: 'claim', name: 'Dee', ownerToken: own }); // claimed below, then left unclaimed
+  const cred = n => `${tok[n]}:${n}`; // a co-organizer's credential, sent where the owner token goes
+  const role = async n => (ok(await call(club, 'GET', { query: '?code=' + rc })).players.find(p => p.name === n) || {}).role;
+  // a plain member and a stranger can't do any of it
+  assert.equal((await P({ action: 'set-role', name: 'Ana', role: 'organizer', ownerToken: cred('Ben') })).status, 403);
+  assert.equal((await P({ action: 'members', ownerToken: cred('Ben') })).status, 403, 'a member is not an organizer');
+  assert.equal((await P({ action: 'set-role', name: 'Ana', role: 'organizer', pin: '000000' })).status, 403);
+  // the owner promotes Ana; the PIN works too
+  ok(await P({ action: 'set-role', name: 'Ana', role: 'organizer', ownerToken: own }));
+  assert.equal(await role('Ana'), 'organizer');
+  assert.equal(await role('Ben'), undefined);
+  // Ana can use organizer-only actions, with her credential, on a phone that has no PIN
+  ok(await P({ action: 'members', ownerToken: cred('Ana') }));
+  ok(await P({ action: 'clear-avatar', name: 'Ben', ownerToken: cred('Ana') }).then(r => (r.status === 200 || r.status === 404 ? { ...r, status: 200 } : r)));
+  const del = await call(games, 'POST', { body: { code: rc, restore: 'nope1234', ownerToken: cred('Ana') } });
+  assert.notEqual(del.status, 403, 'a co-organizer passes the organizer gate on games');
+  // a wrong token for Ana's name, or someone else's token under her name, is refused
+  assert.equal((await P({ action: 'members', ownerToken: `${tok.Ben}:Ana` })).status, 403);
+  // Ana can't change roles, remove an organizer, or promote
+  assert.equal((await P({ action: 'set-role', name: 'Ben', role: 'organizer', ownerToken: cred('Ana') })).status, 403);
+  ok(await P({ action: 'set-role', name: 'Cy', role: 'organizer', pin }));
+  assert.equal((await P({ action: 'remove', name: 'Cy', ownerToken: cred('Ana') })).status, 403);
+  assert.equal((await P({ action: 'release', name: 'Cy', ownerToken: cred('Ana') })).status, 403);
+  // an unclaimed name can't be promoted
+  assert.equal((await P({ action: 'set-role', name: 'Zed', role: 'organizer', pin })).status, 404);
+  // Ana removes Ben (a member): his token stops working, his games stay
+  ok(await call(games, 'POST', { body: { code: rc, games: [{ id: 'roleg001', mode: 'singles', teams: [['Ben'], ['Cy']], score: [11, 5], endedAt: Date.now() - 1000 }], playerName: 'Ben', playerToken: tok.Ben } }));
+  ok(await P({ action: 'remove', name: 'Ben', block: true, ownerToken: cred('Ana') }));
+  assert.equal((await P({ action: 'avatar', name: 'Ben', playerToken: tok.Ben, avatar: { type: 'initials' } })).status, 403, 'his token is dead');
+  assert.equal((await P({ action: 'claim', name: 'Ben' })).status, 403, 'a blocked name cannot be claimed');
+  const after = ok(await call(club, 'GET', { query: '?code=' + rc }));
+  assert.ok(after.games.some(g => g.id === 'roleg001'), 'past games stay');
+  assert.equal(after.players.find(p => p.name === 'Ben').claimed, false);
+  ok(await P({ action: 'unblock', name: 'Ben', ownerToken: cred('Ana') }));
+  const benNew = ok(await P({ action: 'claim', name: 'Ben' })).playerToken;
+  assert.ok(benNew && benNew !== tok.Ben);
+  // demotion kills the credential at once; so does removal of the organizer by the owner
+  ok(await P({ action: 'set-role', name: 'Ana', role: 'player', ownerToken: own }));
+  assert.equal((await P({ action: 'members', ownerToken: cred('Ana') })).status, 403);
+  ok(await P({ action: 'set-role', name: 'Ana', role: 'organizer', pin }));
+  ok(await P({ action: 'members', ownerToken: cred('Ana') }));
+  ok(await P({ action: 'remove', name: 'Ana', pin }));
+  assert.equal((await P({ action: 'members', ownerToken: cred('Ana') })).status, 403);
+  assert.equal(await role('Ana'), undefined);
+  // a released organizer name doesn't hand the role to the next claimer
+  const cyNew = ok(await P({ action: 'release', name: 'Cy', ownerToken: own })) && ok(await P({ action: 'claim', name: 'Cy', ownerToken: own })).playerToken;
+  assert.equal(await role('Cy'), undefined);
+  assert.equal((await P({ action: 'members', ownerToken: `${cyNew}:Cy` })).status, 403);
+  // leaving: only with your own token; the role goes with you
+  ok(await P({ action: 'set-role', name: 'Cy', role: 'organizer', pin }));
+  assert.equal((await P({ action: 'leave', name: 'Cy', playerToken: tok.Cy })).status, 403);
+  ok(await P({ action: 'leave', name: 'Cy', playerToken: cyNew }));
+  assert.equal(await role('Cy'), undefined);
+  assert.equal((await P({ action: 'members', ownerToken: `${cyNew}:Cy` })).status, 403);
+  // the audit log says who and when
+  const m = ok(await P({ action: 'members', pin }));
+  const kinds = m.audit.map(a => `${a.action}:${a.target}:${a.actor}${a.actorName ? '=' + a.actorName : ''}`);
+  assert.ok(kinds.includes('promote:Ana:owner'), kinds.join());
+  assert.ok(kinds.includes('promote:Cy:pin'));
+  assert.ok(kinds.includes('remove:Ben:organizer=Ana'));
+  assert.ok(kinds.includes('demote:Ana:owner'));
+  assert.ok(kinds.includes('leave:Cy:member=Cy'));
+  assert.ok(m.audit.every(a => a.at > 0));
+  assert.equal(m.members.find(x => x.name === 'Ben').claimed, true);
+  // the audit log never reaches the club payload
+  assert.ok(!JSON.stringify(ok(await call(club, 'GET', { query: '?code=' + rc }))).includes('promote'));
+  // club code rotation: the old code still resolves to the same roles during the overlap
+  ok(await P({ action: 'set-role', name: 'Ben', role: 'organizer', ownerToken: own }));
+  const rot = ok(await call(club, 'POST', { body: { code: rc, action: 'rotate-code', ownerToken: `${benNew}:Ben` } }));
+  const viaNew = await call(playersApi, 'POST', { body: { code: rot.club.code, action: 'members', ownerToken: `${benNew}:Ben` } });
+  ok(viaNew);
+  ok(await call(playersApi, 'POST', { body: { code: rc, action: 'members', ownerToken: `${benNew}:Ben` } }));
+  // roster rows with a role and a block are additive columns on existing tables
+  const cols = (await pg.query("SELECT column_name FROM information_schema.columns WHERE table_name = 'roster' AND column_name IN ('role','blocked_at')")).rows;
+  assert.equal(cols.length, 2);
+});
 
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
