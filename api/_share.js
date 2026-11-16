@@ -20,7 +20,7 @@ const treeMatch = m => ({ ...match(m), stage: str(m.stage, 1), round: int(m.roun
 
 // What a spectator sees of an event. Everything is copied field by field, so a field added to an event later is
 // private until it is listed here. Never in it: the club code, organizer PIN or token, other events, saved-player
-// claims, the shop, purchases, the draw seed, game ids, or anything that could write.
+// claims, the draw seed, game ids, or anything that could write.
 export function publicView(ev) {
   const v = view(ev);
   const logos = v.publicLogos === true; // team logos are the organizer's choice per event: the viewer's browser contacts the logo's host

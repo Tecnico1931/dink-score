@@ -8,22 +8,22 @@
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
-import { XP, LEVEL_MAX, PRESTIGE_DINKS, CATALOG, EARN, SPIN_WHEEL, shopSettings, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_PRIZES, SEASON_MIN_GAMES } from './_dinks.js';
+import { XP, LEVEL_MAX, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_MIN_GAMES } from './_progress.js';
 
-// Achievements, this week's challenges, trophies and Dinks (base + bonuses) for every player, as the server counts them.
+// Achievements, this week's challenges, trophies and levels for every player, as the server counts them.
 function progressFor(games) {
   const now = Date.now(), week = weekOf(now), season = seasonOf(now);
   const players = {};
   for (const [k, p] of computeProgress(games, now)) {
-    players[k] = { name: p.name, earned: p.earned, base: p.base, bonus: p.bonus, achievements: p.achievements, trophies: p.trophies, week: p.weeks[week.id] || null };
+    players[k] = { name: p.name, achievements: p.achievements, trophies: p.trophies, week: p.weeks[week.id] || null };
   }
   return {
     players,
     achievements: ACHIEVEMENTS,
     week: { id: week.id, end: week.end, challenges: challengesFor(week.id) },
     challenges: CHALLENGES,
-    season: Object.assign({}, season, { prizes: SEASON_PRIZES, minGames: SEASON_MIN_GAMES }),
-    levels: { xp: XP, max: LEVEL_MAX, prestigeDinks: PRESTIGE_DINKS }
+    season: Object.assign({}, season, { minGames: SEASON_MIN_GAMES }),
+    levels: { xp: XP, max: LEVEL_MAX }
   };
 }
 
@@ -112,22 +112,18 @@ export default handler(async (req, res) => {
     const rows = await sql`SELECT name, left(md5(avatar->>'value'), 8) AS v, avatar->>'value' AS value FROM roster WHERE club = ${code} AND avatar->>'type' = 'photo' LIMIT ${MAX_PHOTOS}`;
     return send(res, 200, { photos: Object.fromEntries(rows.map(r => [r.name, { v: r.v, value: r.value }])) });
   }
-  const [games, deleted, roster, purchases, [shopRow]] = await Promise.all([
+  const [games, deleted, roster] = await Promise.all([
     sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
-    sql`SELECT name, claim_hash IS NOT NULL AS claimed, equipped, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, prestige, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
-    sql`SELECT id, name_key, item_id, item_name, price, is_reward, given_at, created_at FROM purchases WHERE club = ${code} ORDER BY id LIMIT 5000`,
-    sql`SELECT shop FROM clubs WHERE code = ${code}`
+    sql`SELECT name, claim_hash IS NOT NULL AS claimed, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, prestige, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
   ]);
   send(res, 200, {
     club: publicClub(club),
     games: games.map(r => r.data),
     deleted: deleted.map(r => Object.assign({}, r.data, { deletedAt: new Date(r.deleted_at).getTime() })),
     roster: roster.map(r => r.name),
-    // Shop: who has claimed a name (never the claim itself), what everyone wears and has bought, and the club's settings.
-    players: roster.map(r => ({ name: r.name, claimed: r.claimed, equipped: r.equipped || {}, avatar: r.avatar || null, prestige: r.prestige || null, dupr: duprFrom(r.dupr_rating) })),
-    purchases: purchases.map(p => ({ id: Number(p.id), player: p.name_key, itemId: p.item_id, itemName: p.item_name, price: p.price, reward: p.is_reward, givenAt: p.given_at ? new Date(p.given_at).getTime() : null, at: new Date(p.created_at).getTime() })),
-    shop: Object.assign({ catalog: CATALOG, earn: EARN, spinWheel: SPIN_WHEEL }, shopSettings(shopRow && shopRow.shop), { configured: !!(shopRow && shopRow.shop) }),
+    // Who has claimed a name (never the claim itself), plus pictures, prestige and self-reported DUPR numbers.
+    players: roster.map(r => ({ name: r.name, claimed: r.claimed, avatar: r.avatar || null, prestige: r.prestige || null, dupr: duprFrom(r.dupr_rating) })),
     progress: progressFor(games.map(r => r.data))
   });
 });

@@ -36,10 +36,10 @@ export default handler(async (req, res) => {
     const g = Object.assign(cleanGame(body.edit), { editedAt: Date.now() });
     const [old] = await sql`SELECT data FROM games WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
     if (!old) throw fail(404, 'That game no longer exists, so it could not be changed.');
-    // Keep the server's own record of when the game arrived. Whether it still counts as verified (full Dinks):
+    // Keep the server's own record of when the game arrived. Whether it still counts as verified (for achievements, levels and seasons):
     // - An edit that changes who played, the score, or whether it was scored live keeps verification only when an
     //   organizer has proved it: the club creator's phone, or the PIN in a club that has one. (In a club without a
-    //   PIN anyone can edit, so their changes can't keep a game's full-Dinks status.)
+    //   PIN anyone can edit, so their changes can't keep a game's verified status.)
     // - Any other edit (just the date or format) keeps it.
     // An edit never adds verification to a game that didn't have it.
     g.receivedAt = old.data.receivedAt || old.data.endedAt;
@@ -65,10 +65,10 @@ export default handler(async (req, res) => {
   if (list.length > 500) throw fail(400, 'Upload at most 500 games at a time.');
 
   const games = list.map(cleanGame); // validate everything before using up any of the club's allowance
-  // Server-side facts for Dinks (the app can't set these; cleanGame drops them):
-  // - receivedAt: when the server got the game. The daily earning cap counts by this, so backdating doesn't help.
-  // - scoredBy: who sent it. Win, forecast and streak Dinks need a game sent from the phone linked to one of
-  //   any club player (the game can be for other people), or from the club creator's phone. Anything else earns the play bonus only.
+  // Server-side facts (the app can't set these; cleanGame drops them):
+  // - receivedAt: when the server got the game. Weeks, seasons and daily XP caps count by this, so backdating doesn't help.
+  // - scoredBy: who sent it. Achievements, levels and seasons count only games sent from the phone linked to one of
+  //   any club player (the game can be for other people), or from the club creator's phone.
   const sender = await verifiedSender(sql, club, code, body);
   const now = Date.now();
   for (const g of games) {

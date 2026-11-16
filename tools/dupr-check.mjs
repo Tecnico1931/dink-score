@@ -37,7 +37,7 @@ process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 delete process.env.DUPR_CLIENT_KEY; delete process.env.DUPR_CLIENT_SECRET; delete process.env.DUPR_ENV;
 
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
-const [club, games, events, shop, dupr] = await Promise.all(['club', 'games', 'events', 'shop', 'dupr'].map(load));
+const [club, games, events, playersApi, dupr] = await Promise.all(['club', 'games', 'events', 'players', 'dupr'].map(load));
 const { __test } = await import(pathToFileURL(path.join(root, 'api', '_duprapi.js')).href);
 let ip = 0;
 async function call(handler, method, { query = '', body, headers = {} } = {}) {
@@ -92,8 +92,8 @@ await step('config: the browser gets the login iframe URL and no secret', async 
 
 await step('set up an 8 player rotating event and claim two names', async () => {
   ev = ok(await call(events, 'POST', { body: { code, action: 'create', ownerToken: owner, event: { name: 'Sunday rotation', format: 'roundrobin', rotation: 'auto', courts: 2, players: names, seed: 'dupr' } } }), 201).event;
-  anaToken = ok(await call(shop, 'POST', { body: { code, action: 'claim', name: 'Ana' } })).playerToken;
-  benToken = ok(await call(shop, 'POST', { body: { code, action: 'claim', name: 'Ben' } })).playerToken;
+  anaToken = ok(await call(playersApi, 'POST', { body: { code, action: 'claim', name: 'Ana' } })).playerToken;
+  benToken = ok(await call(playersApi, 'POST', { body: { code, action: 'claim', name: 'Ben' } })).playerToken;
 });
 
 await step('link: only the claiming phone or an organizer, verified with DUPR, tokens never kept', async () => {

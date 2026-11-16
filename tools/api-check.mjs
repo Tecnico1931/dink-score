@@ -37,7 +37,7 @@ neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}
 process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
-const [club, roster, games, events, shop, bracket, live] = await Promise.all(['club', 'roster', 'games', 'events', 'shop', 'bracket', 'live'].map(load));
+const [club, roster, games, events, playersApi, bracket, live] = await Promise.all(['club', 'roster', 'games', 'events', 'players', 'bracket', 'live'].map(load));
 let ip = 0;
 async function call(handler, method, { query = '', body, headers = {} } = {}) {
   const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.0.0.' + (++ip % 200), ...headers }, body };
@@ -183,7 +183,7 @@ await step('the public bracket link: organizer makes it, a spectator sees only t
   assert.equal(v.name, 'Public Cup');
   assert.ok(v.tree.matches.length > 5);
   const text = JSON.stringify(v);
-  for (const secret of [code, owner, 'SECRET-SEED', 'ownerToken', 'pin_hash', 'owner_hash', 'purchases', 'shop', 'claim', 'Another club event', e.id]) assert.ok(!text.includes(secret), 'leaked ' + secret);
+  for (const secret of [code, owner, 'SECRET-SEED', 'ownerToken', 'pin_hash', 'owner_hash', 'purchases', 'claim', 'Another club event', e.id]) assert.ok(!text.includes(secret), 'leaked ' + secret);
   assert.ok(!text.includes('"gameId"') && !text.includes('startedAt') && !text.includes('rallies'));
   // Every bad token gets the very same answer.
   const answers = new Set();
@@ -220,7 +220,7 @@ await step('the existing club data still loads with event games in it (ratings, 
 // Self-reported DUPR rating: set by the name's own phone or an organizer, never a stranger; display only.
 const PIN = '482159';
 ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: PIN, ownerToken: owner } }));
-const sh = (body) => call(shop, 'POST', { body: { code, ...body } });
+const sh = (body) => call(playersApi, 'POST', { body: { code, ...body } });
 const dupr = async name => (ok(await call(club, 'GET', { query: '?code=' + code })).players.find(p => p.name === name) || {}).dupr;
 let anaToken;
 await step('DUPR: a name has none until set, and its phone can set, change and clear it', async () => {
@@ -269,7 +269,7 @@ await step('DUPR: it is not in event responses', async () => {
 
 
 await step('event results: players in the match and organizers by default, any member when the organizer allows it', async () => {
-  const sh = body => call(shop, 'POST', { body: { code, ...body } });
+  const sh = body => call(playersApi, 'POST', { body: { code, ...body } });
   const pinSet = ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: PIN, ownerToken: owner } }));
   const e = ok(await create({ name: 'Who scores', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph'], seed: 'perm' }), 201).event;
   assert.equal(e.resultsBy, 'players', 'the default');
@@ -682,8 +682,8 @@ await step('photo avatars: kept out of the club payload, served lazily, capped p
   const photo = 'data:image/jpeg;base64,' + 'A'.repeat(500);
   const toks = {};
   const setAv = async name => {
-    if (!toks[name]) toks[name] = ok(await call(shop, 'POST', { body: { code: c7.club.code, action: 'claim', name, ownerToken: c7.ownerToken } })).playerToken;
-    return call(shop, 'POST', { body: { code: c7.club.code, action: 'avatar', name, avatar: { type: 'photo', value: photo }, playerToken: toks[name] } });
+    if (!toks[name]) toks[name] = ok(await call(playersApi, 'POST', { body: { code: c7.club.code, action: 'claim', name, ownerToken: c7.ownerToken } })).playerToken;
+    return call(playersApi, 'POST', { body: { code: c7.club.code, action: 'avatar', name, avatar: { type: 'photo', value: photo }, playerToken: toks[name] } });
   };
   const first = await setAv('Ana');
   assert.ok(first.status < 300, JSON.stringify(first.json));
@@ -696,6 +696,23 @@ await step('photo avatars: kept out of the club payload, served lazily, capped p
   for (let i = 1; i < 50; i++) await pg.query("INSERT INTO roster (club, name, name_key, avatar) VALUES ($1, $2, $3, $4::jsonb)", [c7.club.code, 'P' + i, 'p' + i, JSON.stringify({ type: 'photo', value: photo })]);
   assert.equal((await setAv('Zed')).status, 409);
   assert.ok((await setAv('Ana')).status < 300, 'replacing your own photo is fine');
+await step('Dinks and the shop are gone: no routes, and recording, editing and deleting a game never touch Dinks tables', async () => {
+  const fs = await import('node:fs');
+  for (const f of ['shop.js', '_dinks.js']) assert.ok(!fs.existsSync(path.join(root, 'api', f)), f + ' should not exist');
+  assert.ok(!/shop|dinks/i.test(fs.readFileSync(path.join(root, 'vercel.json'), 'utf8').replace(/"script-src[^"]*"/g, '')), 'no shop or dinks route in vercel.json');
+  await assert.rejects(import(pathToFileURL(path.join(root, 'api', 'shop.js')).href));
+  const purchases = async () => (await pg.query('SELECT count(*)::int AS n FROM purchases')).rows[0].n;
+  const before = await purchases();
+  const g = Object.assign(gm('nodinks-1'), { winner: 0 });
+  ok(await call(games, 'POST', { body: { code, games: [g], ownerToken: owner } }));
+  ok(await call(games, 'POST', { body: { code, edit: Object.assign({}, g, { score: [11, 7] }), ownerToken: owner } }));
+  ok(await call(games, 'DELETE', { query: `?code=${code}&id=nodinks-1`, headers: { 'x-club-owner': owner } }));
+  assert.equal(await purchases(), before, 'no purchase rows written');
+  const data = ok(await call(club, 'GET', { query: '?code=' + code }));
+  for (const k of ['shop', 'purchases']) assert.ok(!(k in data), k + ' is no longer sent');
+  assert.ok(data.players.every(p => !('equipped' in p)));
+  for (const p of Object.values(data.progress.players)) for (const k of ['earned', 'base', 'bonus']) assert.ok(!(k in p), k);
+  assert.ok(!('prizes' in data.progress.season) && !('prestigeDinks' in data.progress.levels));
 });
 
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { START, replay } from '../api/_dinks.js';
+import { START, replay } from '../api/_progress.js';
 
 // The client's copy of the rating engine, pulled out of dink-score.html so both copies are held to the same numbers.
 const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');

@@ -17,7 +17,7 @@
 //   refs          {id}                                      -> organizer: the private DUPR reference IDs typed in the imported sheet: {refs}
 //   public-logos  {id, on}                                  -> organizer: show or hide team logos on the public bracket page
 // create may carry teamMeta ([{name, logo}] for each of its manual teams), publicLogos and refs ({player: DUPR ID}, reference only).
-// Organizer actions need the creating phone's token or the organizer PIN, like the shop settings.
+// Organizer actions need the creating phone's token or the organizer PIN, like the club's other organizer settings.
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, reserveGames, releaseGames, verifiedSender } from './_db.js';
 import { newShareToken } from './_share.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
