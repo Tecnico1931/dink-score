@@ -899,5 +899,108 @@ await step('rally log: the column is additive and nullable, so older rows and ol
   assert.ok(withLog > 0 && withLog < total);
 });
 
+// ---- player names: normalisation, did-you-mean, rename and merge ----
+{
+  const PIN = '482916';
+  const made = ok(await call(club, 'POST', { body: { name: 'Names club', pin: PIN } }), 201);
+  const nc = made.club.code, no = made.ownerToken;
+  const org = { ownerToken: no };
+  const P = (body, creds = org) => call(playersApi, 'POST', { body: { code: nc, ...body, ...creds } });
+  const G = async (id, teams, creds = org) => ok(await call(games, 'POST', { body: { code: nc, games: [{ id, mode: 'doubles', teams, score: [11, 4], endedAt: Date.now() - 5000 }], ...creds } }));
+  const view = async () => ok(await call(club, 'GET', { query: '?code=' + nc }));
+  const names = async () => (await view()).players.map(p => p.name).sort();
+  await step('names: accents typed two ways and different case are one player', async () => {
+    await G('n-g001', [['José', 'Ben'], ['Cy', 'Di']]); // "e" + combining accent
+    await G('n-g002', [['JOSÉ', 'Ben'], ['Cy', 'Di']]);
+    const v = await view();
+    assert.deepEqual(v.players.map(p => p.name).sort(), ['Ben', 'Cy', 'Di', 'José']);
+    assert.ok(v.games.every(g => [...g.teams[0], ...g.teams[1]].every(n => n === n.normalize('NFC'))), 'stored names are NFC');
+    ok(await call(roster, 'POST', { body: { code: nc, name: '  josé   ' } })); // same key: not a new player, no prompt
+    assert.equal((await names()).length, 4);
+  });
+  await step('names: a near duplicate is held back with a "did you mean" until confirmed, on roster and claim', async () => {
+    let r = await call(roster, 'POST', { body: { code: nc, name: 'Jose' } });
+    assert.equal(r.status, 409); assert.deepEqual(r.json.similar, ['José']); assert.match(r.json.error, /Did you mean José/);
+    r = await P({ action: 'claim', name: 'Jose' }, {});
+    assert.equal(r.status, 409); assert.deepEqual(r.json.similar, ['José']);
+    assert.equal((await names()).length, 4, 'nothing was added');
+    ok(await call(roster, 'POST', { body: { code: nc, name: 'Jose', confirmNew: true } }));
+    assert.deepEqual((await names()).filter(n => n.startsWith('Jos')), ['José', 'Jose']);
+    ok(await call(roster, 'POST', { body: { code: nc, name: 'Zoe' } })); // not similar to anyone
+    ok(await call(roster, 'DELETE', { query: `?code=${nc}&name=Zoe`, headers: { 'x-club-pin': PIN } }));
+  });
+  let joseToken;
+  await step('names: rename and merge are organizer only', async () => {
+    joseToken = ok(await P({ action: 'claim', name: 'José', confirmNew: true }, {})).playerToken;
+    for (const creds of [{}, { pin: '000000' }, { ownerToken: 'f'.repeat(48) }, { playerToken: joseToken, playerName: 'José' }]) {
+      assert.equal((await P({ action: 'rename', name: 'Cy', newName: 'Cyrus' }, creds)).status, 403);
+      assert.equal((await P({ action: 'merge', name: 'Jose', into: 'José' }, creds)).status, 403);
+    }
+    assert.ok((await names()).includes('Cy'), 'nothing changed');
+  });
+  await step('names: rename carries games, events and the phone link; the old phone name follows it', async () => {
+    const ev = ok(await call(events, 'POST', { body: { code: nc, action: 'create', event: { name: 'Ben cup', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Ben', 'Cy', 'Di', 'Ed', 'Flo', 'Gus'], seed: 'n' }, ...org } }), 201).event;
+    const m = ev.rounds[0].matches[0];
+    ok(await call(events, 'POST', { body: { code: nc, action: 'result', id: ev.id, matchId: m.id, score: [11, 3], endedAt: Date.now(), startedAt: Date.now() - 60000, ...org } }));
+    const before = JSON.stringify((await view()).games);
+    const r = ok(await P({ action: 'rename', name: 'ben', newName: '  Benjamín ' }));
+    assert.equal(r.name, 'Benjamín');
+    const v = await view();
+    assert.ok(!JSON.stringify(v.games).includes('"Ben"') && JSON.stringify(v.games).includes('Benjamín'));
+    assert.equal(JSON.stringify(v.games).split('Benjamín').length, before.split('"Ben"').length, 'every occurrence was renamed');
+    assert.ok(v.players.some(p => p.name === 'Benjamín') && !v.players.some(p => p.name === 'Ben'));
+    const e = ok(await call(events, 'GET', { query: `?code=${nc}&id=${ev.id}` })).event;
+    assert.ok(e.players.includes('Benjamín') && !JSON.stringify(e).includes('"Ben"'));
+    assert.equal(e.name, 'Ben cup', 'a title that contains the old name is not a player name');
+    assert.equal(v.renamed.ben, 'Benjamín');
+    assert.ok(v.progress.players.benjamín || Object.keys(v.progress.players).includes('benjamín'), 'achievements follow the new name');
+    // a claimed player keeps their link through a rename
+    ok(await P({ action: 'rename', name: 'José', newName: 'Joseph' }));
+    ok(await P({ action: 'avatar', name: 'Joseph', playerToken: joseToken, avatar: { type: 'emoji', value: '🏓' } }, {}));
+  });
+  await step('names: renaming onto an existing player is a collision and points to merge; casing-only rename is fine', async () => {
+    const r = await P({ action: 'rename', name: 'Cy', newName: 'DI' });
+    assert.equal(r.status, 409); assert.equal(r.json.mergeInto, 'Di');
+    assert.equal((await P({ action: 'rename', name: 'Cy', newName: 'Player 3' })).status, 400);
+    assert.equal((await P({ action: 'rename', name: 'Nobody', newName: 'Cyrus' })).status, 404);
+    ok(await P({ action: 'rename', name: 'Cy', newName: 'CY' }));
+    assert.ok((await names()).includes('CY'));
+    const sim = await P({ action: 'rename', name: 'CY', newName: 'Joseph' }); // Joseph is taken
+    assert.equal(sim.status, 409);
+    const near = await P({ action: 'rename', name: 'CY', newName: 'Josephe' });
+    assert.equal(near.status, 409); assert.deepEqual(near.json.similar, ['Joseph']);
+    ok(await P({ action: 'rename', name: 'CY', newName: 'Josephe', confirmNew: true }));
+    ok(await P({ action: 'rename', name: 'Josephe', newName: 'Cy' }));
+  });
+  await step('names: merge folds games, link, picture and purchases into one player; ratings follow from the games', async () => {
+    // "Jose" (a guest typed twice, never linked) is the same person as Joseph (linked, with a picture)
+    await G('n-g003', [['Jose', 'Cy'], ['Di', 'Ed']]);
+    const mid = await view();
+    const r = await P({ action: 'merge', name: 'Joseph', into: 'Jose' }); // from is claimed, into is not: the claim moves over
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const v = await view();
+    assert.ok(!v.players.some(p => p.name === 'Joseph'));
+    const kept = v.players.find(p => p.name === 'Jose');
+    assert.ok(kept.claimed && kept.avatar && kept.avatar.value, 'phone link and picture followed');
+    assert.ok(!JSON.stringify(v.games).includes('Joseph') && !JSON.stringify(v.games).includes('José'));
+    assert.ok(v.games.filter(g => g.teams.flat().includes('Jose')).length >= 3, 'all of their games are under the kept name');
+    assert.equal(v.renamed.joseph, 'Jose');
+    assert.equal(mid.games.length, v.games.length, 'no game was lost or duplicated');
+    // the old phone token still works for the kept player: it is the same link
+    ok(await P({ action: 'avatar', name: 'Jose', playerToken: joseToken, avatar: { type: 'initials' } }, {}));
+  });
+  await step('names: merge refuses two linked players, two players in the same game, and itself', async () => {
+    const t = ok(await P({ action: 'claim', name: 'Cy' })).playerToken;
+    ok(await P({ action: 'claim', name: 'Di' }));
+    assert.equal((await P({ action: 'merge', name: 'Cy', into: 'Di' })).status, 409, 'both linked');
+    ok(await P({ action: 'release', name: 'Di' }));
+    const same = await P({ action: 'merge', name: 'Di', into: 'Cy' });
+    assert.equal(same.status, 409); assert.match(same.json.error, /same game/);
+    assert.equal((await P({ action: 'merge', name: 'Cy', into: 'cy' })).status, 400);
+    assert.equal((await P({ action: 'merge', name: 'Cy', into: 'Nobody' })).status, 404);
+    assert.ok(t && (await names()).includes('Cy') && (await names()).includes('Di'), 'nothing changed');
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

@@ -18,7 +18,7 @@
 // Hook for email magic links (not built: needs a custom domain and a mail provider): add an `email-start` / `email-finish`
 // pair that ends in startSession(res, accountId), exactly as `login` does below, and a verified `email` column on accounts.
 import { createHash, randomBytes } from 'node:crypto';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp, cleanName, hashToken, newOwnerToken, tokenMatches } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp, cleanName, nameKey, hashToken, newOwnerToken, tokenMatches } from './_db.js';
 import { b64u, newChallenge, creationOptions, requestOptions, verifyRegistration, verifyAssertion } from './_webauthn.js';
 
 const COOKIE = '__Host-dink_session'; // __Host-: Secure, Path=/, no Domain, so no sibling host can set or read it
@@ -211,7 +211,7 @@ export default handler(async (req, res) => {
       let any = false;
       if (it.ownerToken && club.owner_hash && tokenMatches(club.owner_hash, it.ownerToken)) { any = true; await link('organizer', '', club.owner_hash); }
       if (it.playerName && it.playerToken) {
-        const k = cleanName(it.playerName).toLowerCase();
+        const k = nameKey(it.playerName);
         const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${club.code} AND name_key = ${k}`;
         if (row && row.claim_hash && tokenMatches(row.claim_hash, it.playerToken)) { any = true; await link('player', k, row.claim_hash); }
       }
@@ -226,7 +226,7 @@ export default handler(async (req, res) => {
     const out = [];
     for (const it of items) {
       const want = it && String(it.code || '').toUpperCase();
-      const k = it && it.kind === 'player' ? cleanName(it.name).toLowerCase() : '';
+      const k = it && it.kind === 'player' ? nameKey(it.name) : '';
       const row = rows.find(r => r.code === want && r.kind === (it.kind === 'player' ? 'player' : 'organizer') && r.name_key === k);
       if (!row || !fresh(row)) continue;
       // A new phone gets a new token, and the one the old phone held stops working: a name or a creating phone lives on one phone at a time.

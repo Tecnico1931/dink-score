@@ -1,7 +1,7 @@
 // Shared helpers for the club API. Files starting with "_" are not routes.
 import { neon } from '@neondatabase/serverless';
 import { scryptSync, randomBytes, timingSafeEqual, createHmac } from 'node:crypto';
-import { cleanName } from './_names.js';
+import { cleanName, nameKey } from './_names.js';
 import { reportError } from './_report.js';
 import { netKey, lockSeconds, waitText } from './_limits.js';
 
@@ -175,6 +175,14 @@ export function ensureSchema() {
         PRIMARY KEY (club, kind, name_key)
       )`;
       await q`CREATE INDEX IF NOT EXISTS account_identities_account ON account_identities (account_id)`;
+      // Where a renamed or merged player went, so a phone that still holds the old name can follow it (see players.js).
+      await q`CREATE TABLE IF NOT EXISTS name_changes (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        old_key text NOT NULL,
+        new_name text NOT NULL,
+        at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, old_key)
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -369,7 +377,7 @@ export const pinFrom = req => (req.headers || {})['x-club-pin'];
 export async function verifiedSender(sql, club, code, body) {
   if (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)) return 'organizer';
   if (!body.playerName || !body.playerToken) return null;
-  const k = cleanName(body.playerName).toLowerCase();
+  const k = nameKey(body.playerName);
   const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
   return row && row.claim_hash && tokenMatches(row.claim_hash, body.playerToken) ? k : null;
 }
@@ -444,6 +452,7 @@ export function cleanGame(g) {
   };
 }
 export { cleanName };
+export { nameKey, similarNames } from './_names.js';
 
 export function handler(fn) {
   return async (req, res) => {
@@ -453,7 +462,7 @@ export function handler(fn) {
     } catch (err) {
       const status = err.status || 500;
       if (status === 500) { console.error(err); await reportError('server', { message: err && err.message, stack: err && err.stack }); }
-      send(res, status, { error: status === 500 ? 'Something went wrong on the server. Try again in a moment.' : err.message });
+      send(res, status, { error: status === 500 ? 'Something went wrong on the server. Try again in a moment.' : err.message, ...(status !== 500 && err.extra ? err.extra : {}) });
     }
   };
 }

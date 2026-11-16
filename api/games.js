@@ -8,7 +8,7 @@
 // Deleting, restoring and editing need the organizer PIN (X-Club-PIN header, or "pin" in the body) when the club has one,
 // or the creating phone's token (X-Club-Owner header, or "ownerToken" in the body).
 import { checkLog } from './_rallylog.js';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, verifiedSender } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, verifiedSender } from './_db.js';
 
 export default handler(async (req, res) => {
   const sql = db();
@@ -67,7 +67,7 @@ export default handler(async (req, res) => {
     let [{ players }] = await sql`SELECT count(*)::int AS players FROM roster WHERE club = ${code}`;
     for (const p of g.teams.flat()) {
       if (players >= 300 || /^Player \d+$/.test(p)) continue;
-      const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${p.toLowerCase()}, ${cleanName(p)}) ON CONFLICT DO NOTHING RETURNING name_key`;
+      const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${nameKey(p)}, ${cleanName(p)}) ON CONFLICT DO NOTHING RETURNING name_key`;
       players += added.length;
     }
     return send(res, 200, { ok: true, game: g });
@@ -99,7 +99,7 @@ export default handler(async (req, res) => {
       const rows = await sql`INSERT INTO games (club, id, data, ended_at, rally_log) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt}, ${logs[i]})
                 ON CONFLICT (club, id) DO NOTHING RETURNING id`;
       inserted += rows.length;
-      for (const p of g.teams.flat()) if (!/^Player \d+$/.test(p)) names.set(p.toLowerCase(), p);
+      for (const p of g.teams.flat()) if (!/^Player \d+$/.test(p)) names.set(nameKey(p), p);
     }
   } finally {
     // Give back the allowance for games that were already stored (re-sent after a dropped connection) or not saved.
