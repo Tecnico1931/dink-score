@@ -57,6 +57,27 @@ for (const [mode, opt] of states) {
   if (await page.$('[data-act="start"]')) { for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(500); await audit(page, `${mode}: court`, report, '.court');
     if (await page.$('.half')) { for (let i = 0; i < 3; i++) { await page.click('.half[data-k="a"]'); await sleep(150); } await audit(page, `${mode}: court after rallies`, report, '.court'); } }
+  // Sheets over the court: leave-game, then the winner sheet once team 1 wins.
+  if (await page.$('.half')) {
+    await page.click('[data-act="end"]'); await sleep(250); await audit(page, `${mode}: leave-game sheet`, report, '.sheet');
+    await page.click('[data-act="keep"]'); await sleep(200);
+    for (let i = 0; i < 30 && !(await page.$('.sheet h2')); i++) { await page.click('.half[data-k="a"]'); await sleep(60); }
+    await sleep(300);
+    const f = await page.evaluate(() => document.activeElement && (document.activeElement.closest('.sheet') ? 'sheet' : document.activeElement.tagName));
+    if (f !== 'sheet') report.push({ label: `${mode}: winner sheet focus`, axe: [], extra: [{ kind: 'text', name: 'focus not inside the winner sheet: ' + f, px: 0 }] });
+    await audit(page, `${mode}: winner sheet`, report, '.sheet');
+    await page.click('[data-act="finish"]'); await sleep(300);
+  }
+  // Sheets from home: join a club, log a result.
+  for (const [act, label] of [['club-open', 'club sheet'], ['log-open', 'log sheet']]) {
+    if (await page.$(`[data-act="${act}"]`)) { await page.click(`[data-act="${act}"]`); await sleep(300); await audit(page, `${mode}: ${label}`, report, '.sheet'); await page.keyboard.press('Escape'); await sleep(200); }
+  }
+  // Reflow (WCAG 1.4.10): at 320 px and at 195 px (a 390 px phone zoomed to 200%) nothing may scroll sideways.
+  for (const w of [320, 195]) {
+    await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(250);
+    const over = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('[style*="overflow"],.tabs,svg') && getComputedStyle(e).position !== 'fixed'; }).slice(0, 3).map(e => e.outerHTML.slice(0, 90) + ' right=' + Math.round(e.getBoundingClientRect().right)));
+    if (over.length) report.push({ label: `${mode}: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+  }
   await ctx.close();
 }
 await browser.close(); srv.kill();
@@ -66,7 +87,7 @@ for (const r of report) {
   for (const v of r.axe) { bad++; console.log(`  axe ${v.impact} ${v.id} x${v.n}`); v.ex.forEach(e => console.log('     ' + e)); }
   const t = r.extra.filter(e => e.kind === 'target'), x = r.extra.filter(e => e.kind === 'text');
   bad += t.length + x.length;
-  t.forEach(e => console.log(`  target ${e.w}x${e.h} ${e.name}`)); x.forEach(e => console.log(`  text ${e.px}px ${e.name}`));
+  t.forEach(e => console.log(`  target ${e.w}x${e.h} ${e.name}`)); x.forEach(e => console.log(e.px ? `  text ${e.px}px ${e.name}` : `  ${e.name}`));
   if (!r.axe.length && !r.extra.length) console.log('  clean');
 }
 process.exit(bad ? 1 : 0);

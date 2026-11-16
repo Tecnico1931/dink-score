@@ -18,7 +18,7 @@
   --green: #0B8562;     /* team 2 court */
   --ball: #DDF247;      /* serve, highlights */
   --ball-ink: #1B2104;
-  --up: #0B8562;
+  --up: #0A7656;
   --down: #C2372B;
   --danger: #C2372B;
   --focus: #2B49E6;
@@ -895,6 +895,12 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 #club-display.dsp-has-board .dsp-code { font-size: 3.4vmin; margin-top: 0; }
 #club-display.dsp-has-board .dsp-inner { justify-content: flex-start; }
 /*A11Y-START*/
+.g-actions { flex-wrap: wrap; min-width: 0; }
+.game { min-width: 0; }
+.totals { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.totals span { overflow-wrap: anywhere; }
+@media (max-width: 300px) { .totals { grid-template-columns: 1fr; } }
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]), select, .share-pill { min-height: 44px; }
 h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 /* Targets: 44 px for everything you press (WCAG 2.5.5; 2.5.8 asks only 24). Text: 12 px at the least. */
 .seg button, .chip-btn, .serve-pick, .sync.club-btn, button.dupr-btn, .tour-skip, .link, .stepper .sb button { min-height: 44px; }
@@ -3026,7 +3032,8 @@ let lastTap = null; // where the last rally tap landed, for the ripple
 function renderCourt() {
   const root = $('#overlay');
   const behind = off => { for (const sel of ['#app', '#tabs']) { const el = $(sel); if (el) el.inert = off || !!(evScreen && club); } }; // the page behind is out of reach while the court is up
-  const ae = document.activeElement, keep = root.contains(ae) && root.querySelector('.court') && root.querySelector('.court').contains(ae) ? (ae.dataset.rally != null ? `[data-rally="${ae.dataset.rally}"]` : ae.dataset.act ? `[data-act="${ae.dataset.act}"]` : '') : null;
+  const ae = document.activeElement, keyOf = el => el.dataset.rally != null ? `[data-rally="${el.dataset.rally}"]` : el.dataset.act ? `[data-act="${el.dataset.act}"]` : el.matches('.sheet h2') ? '.sheet h2' : '';
+  const keep = root.contains(ae) && ae !== root ? keyOf(ae) : null;
   if (!live || !live.open) { root.innerHTML = ''; behind(false); lockBody(!!logForm); return; }
   behind(true); lockBody(true);
   const s = live.state, cfg = s.cfg;
@@ -3093,7 +3100,7 @@ function renderCourt() {
   bumpTeam = null;
   // The court is rebuilt on every rally, so put focus back where it was; a sheet that has just opened takes it.
   if (sheet && !hadSheet) { const h = root.querySelector('.sheet h2'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
-  else if (!sheet && keep) { const b = root.querySelector(keep); if (b && !b.disabled) b.focus({ preventScroll: true }); else if (hadSheet) { const g = root.querySelector('.half'); if (g) g.focus({ preventScroll: true }); } }
+  else if (keep) { const b = root.querySelector(keep); if (b && !b.disabled) b.focus({ preventScroll: true }); else if (hadSheet && !sheet) { const g = root.querySelector('.half'); if (g) g.focus({ preventScroll: true }); } }
   if (lastTap) {
     const el = root.querySelector(`.half[data-rally="${lastTap.t}"]`);
     if (el) { const r = document.createElement('span'); r.className = 'ripple'; r.style.left = lastTap.x + 'px'; r.style.top = lastTap.y + 'px'; el.appendChild(r); }
@@ -3299,7 +3306,7 @@ function renderLog() {
       ${Array.from({ length: n }, (_, i) => `<input type="text" id="log-${t}-${i}" data-log-name="${t}-${i}" list="roster-list-log" placeholder="${TEAM_NAME[t]} player ${i + 1}" value="${esc(f.names[t][i])}" autocomplete="off" aria-label="${TEAM_NAME[t]} team, player ${i + 1}">`).join('')}</div>
       <div class="stepper"><input type="number" inputmode="numeric" min="0" max="99" id="log-score-${t}" data-log-score="${t}" value="${esc(f.score[t])}" placeholder="0" aria-label="${TEAM_NAME[t]} team score">
         <div class="sb"><button type="button" data-step="${t}" data-d="-1" aria-label="Lower ${TEAM_NAME[t]} score">−</button><button type="button" data-step="${t}" data-d="1" aria-label="Raise ${TEAM_NAME[t]} score">+</button></div></div></div>`;
-  root.innerHTML = `<div class="sheet-bg top"><form class="sheet" data-form="log" role="dialog" aria-modal="true" aria-labelledby="log-h" novalidate><span class="grip"></span>
+  root.innerHTML = `<div class="sheet-bg top" role="dialog" aria-modal="true" aria-labelledby="log-h"><form class="sheet" data-form="log" novalidate><span class="grip"></span>
     <div class="sheet-head"><h2 id="log-h">${f.editId ? 'Edit result' : 'Log a result'}</h2><span style="display:flex;gap:8px;align-items:center">${f.editId ? `<button type="button" class="btn btn-ball share-pill" data-share="${esc(f.editId)}">${ICON.share}Share</button>` : ''}<button type="button" class="x" data-act="log-close" aria-label="Close">✕</button></span></div>
     <p>${f.editId ? `Fix the score, players, format or date. Ratings are recalculated from the corrected game.${club && club.hasPin && !hasOrganizer() ? ' Saving needs the organizer PIN.' : ''}` : `Add a finished game from another court. It counts toward the record and Dink Ratings${live && live.open ? ', and your live game keeps its score' : ''}.`}</p>
     <div class="seg-row" style="margin:0"><div class="field" style="margin:0"><span class="lab">Format</span>${seg('data-log-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], f.mode, 'sm')}</div>
