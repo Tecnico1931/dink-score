@@ -10,7 +10,7 @@
 //   send    {id, tz?, confirm:true, matchIds?, retryFailed?, pin|ownerToken} -> organizer: sends what review says is ready
 // DUPR data never goes into /api/club or the events API, so it stays out of anything public. Event matches reach DUPR only
 // from here and never write to `games`, so the app's ratings can't double count.
-import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, tokenMatches, cleanName, clientIp } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, tokenMatches, cleanName, nameKey, clientIp } from './_db.js';
 import { config, publicConfig, DuprError, userInfo, entitlements, userRatings, createBatch, updateMatch, deleteMatch } from './_duprapi.js';
 import { ensureDuprSchema, linkMap, getPause, setPause } from './_dupr_store.js';
 import { listEventMatches, preflight, toDuprMatch, fingerprint, plan, chunk, cleanZone, classify, redact, BATCH_SIZE } from './_dupr_map.js';
@@ -32,7 +32,7 @@ const isUnique = e => !!e && (e.code === '23505' || /duplicate key|unique constr
 async function requireOwnerOrOrganizer(sql, club, code, body, req) {
   const name = cleanName(body.playerName);
   if (!name) throw fail(400, 'Which player?');
-  const [row] = await sql`SELECT name, name_key, claim_hash, dupr_id FROM roster WHERE club = ${code} AND name_key = ${name.toLowerCase()}`;
+  const [row] = await sql`SELECT name, name_key, claim_hash, dupr_id FROM roster WHERE club = ${code} AND name_key = ${nameKey(name)}`;
   if (!row) throw fail(404, 'That player is not saved in this club.');
   if (!(row.claim_hash && tokenMatches(row.claim_hash, body.playerToken))) await requireOrganizer(club, body.pin, req, body.ownerToken);
   return row;
@@ -250,7 +250,7 @@ export default handler(async (req, res) => {
 
   if (action === 'refresh') {
     const name = cleanName(body.playerName);
-    const [row] = await sql`SELECT name_key, dupr_id, dupr_snapshot FROM roster WHERE club = ${code} AND name_key = ${name.toLowerCase()} AND dupr_id IS NOT NULL`;
+    const [row] = await sql`SELECT name_key, dupr_id, dupr_snapshot FROM roster WHERE club = ${code} AND name_key = ${nameKey(name)} AND dupr_id IS NOT NULL`;
     if (!row) throw fail(404, 'That player is not linked to DUPR.');
     const snap = row.dupr_snapshot || {};
     if (snap.at && Date.now() - snap.at < RATING_TTL && !snap.needsRelink) return send(res, 200, { ok: true, cached: true, snapshot: ratingView(snap) });

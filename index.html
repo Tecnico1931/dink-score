@@ -1787,7 +1787,7 @@ async function api(path, opts = {}) {
   finally { if (timer) clearTimeout(timer); }
   let body = {};
   try { body = await res.json(); } catch {}
-  if (!res.ok) throw Object.assign(new Error(body.error || 'Something went wrong. Try again.'), { status: res.status });
+  if (!res.ok) throw Object.assign(new Error(body.error || 'Something went wrong. Try again.'), { status: res.status, data: body });
   return body;
 }
 function queueOp(op) {
@@ -1829,7 +1829,7 @@ function flush() {
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'event-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'result', id: op.eventId, matchId: op.matchId, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, rallyLog: op.rallyLog || undefined, live: op.live, pin: pins[code] || '' }, senderCreds(code))) });
-        else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
+        else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name, confirmNew: true }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
       } catch (err) {
@@ -1877,6 +1877,7 @@ async function refreshClub() {
     clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
+    followRenames(data.renamed);
     if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
     syncCoOrg(); // promoted or demoted from another phone: this one follows
     clubState = 'idle';
@@ -3609,12 +3610,12 @@ function senderGuess(g) {
   else if (myName() && myToken()) guess.scoredBy = myName().trim().toLowerCase();
   return guess;
 }
-async function claimName(raw) {
+async function claimName(raw, confirmNew) {
   const name = String(raw || '').trim();
   if (!name) { clubSheet.error = 'Enter your name, or tap it above.'; renderClub(); return; }
-  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  clubSheet.busy = true; clubSheet.error = ''; clubSheet.dym = null; renderClub();
   try {
-    const data = await playerCall({ action: 'claim', name, pin: clubSheet.claimPin || pins[club.code] || '', ownerToken: owners[club.code] || '' });
+    const data = await playerCall({ action: 'claim', name, confirmNew: confirmNew === true, pin: clubSheet.claimPin || pins[club.code] || '', ownerToken: owners[club.code] || '' });
     me[club.code] = { name: data.name, token: data.playerToken }; store.set('pb.me', me);
     if (!setup.names[0][0] && !setup.names[0][1] && !setup.names[1][0] && !setup.names[1][1]) { setup.names[0][0] = data.name; store.set('pb.setup', setup); }
     const after = clubSheet.afterJoin;
@@ -3624,7 +3625,38 @@ async function claimName(raw) {
     if (after) afterJoin(); else { render(); renderClub(); }
   } catch (err) {
     clubSheet.busy = false; clubSheet.error = err.message;
+    if (err.status === 409 && err.data && Array.isArray(err.data.similar)) { clubSheet.error = ''; clubSheet.dym = { name, similar: err.data.similar }; }
     if (err.status === 403 && /organizer/i.test(err.message)) { clubSheet.needPinFor = name; clubSheet.claimPin = ''; }
+    renderClub();
+  }
+}
+// An organizer renamed or merged players: this phone's own name and the names in the game being set up follow them.
+function followRenames(renamed) {
+  if (!renamed || typeof renamed !== 'object' || !club) return;
+  const to = n => { const t = renamed[String(n || '').trim().toLowerCase()]; return typeof t === 'string' && t ? t : null; };
+  const m = me[club.code], mine = m && to(m.name);
+  if (mine && mine !== m.name) { m.name = mine; store.set('pb.me', me); }
+  let changed = false;
+  for (const t of setup.names) for (let i = 0; i < t.length; i++) { const n = to(t[i]); if (n && n !== t[i]) { t[i] = n; changed = true; } }
+  if (changed) store.set('pb.setup', setup);
+}
+// "Jose" / "José": the name with accents, case, spaces and punctuation taken away (the server's looseKey).
+const looseName = n => String(n || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+const similarSaved = name => { const l = looseName(name); return l ? roster.filter(r => !sameName(r, name) && looseName(r) === l) : []; };
+async function nameEditSubmit(confirmNew) {
+  const ed = clubSheet.nameEdit; if (!ed) return;
+  const body = ed.kind === 'merge' ? { action: 'merge', name: ed.name, into: ($('#ne-into') || {}).value } : { action: 'rename', name: ed.name, newName: ($('#ne-name') || {}).value || '' };
+  if (confirmNew === true) body.confirmNew = true;
+  clubSheet.busy = true; clubSheet.error = ''; ed.similar = null; renderClub();
+  try {
+    await playerCall(Object.assign(body, adminCreds()));
+    const done = ed.kind === 'merge' ? `${ed.name} was merged into ${body.into}` : `${ed.name} is now ${body.newName.trim()}`;
+    clubSheet.nameEdit = null; clubSheet.busy = false;
+    showToast(done, false); await refreshClub(); roster = rosterFromClub(); render(); renderClub();
+  } catch (err) {
+    clubSheet.busy = false; clubSheet.error = err.message;
+    if (err.data && Array.isArray(err.data.similar)) ed.similar = err.data.similar;
+    if (err.data && err.data.mergeInto) ed.mergeInto = err.data.mergeInto;
     renderClub();
   }
 }
@@ -3637,6 +3669,7 @@ function whoamiHTML(c) {
     ${taken.length ? `<p class="note">Already linked to a phone: ${taken.map(p => esc(p.name)).join(', ')}. Ask an organizer if one of these is you.</p>` : ''}
     <form class="club-form" data-form="whoami"><label class="lab" for="whoami-name">${free.length ? 'Not listed? Add your name' : 'Your name'}</label>
       <div class="add-player"><input id="whoami-name" autocomplete="off" maxlength="40" placeholder="Your name"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>That's me</button></div></form>
+    ${c.dym ? `<div class="field" role="alert"><span class="lab">Did you mean ${esc(c.dym.similar[0])}?</span><div class="chips">${c.dym.similar.map(n => `<button type="button" class="chip-btn" data-claim="${esc(n)}">Yes, ${esc(n)}</button>`).join('')}<button type="button" class="chip-btn" data-claim-new="${esc(c.dym.name)}">No, add ${esc(c.dym.name)}</button></div></div>` : ''}
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     ${c.needPinFor ? `<form class="club-form" data-form="whoami-pin"><label class="lab" for="whoami-pin">Organizer PIN to confirm ${esc(c.needPinFor)}</label>
       <div class="add-player"><input id="whoami-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="Organizer enters it"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Confirm</button></div></form>` : ''}
@@ -3930,9 +3963,18 @@ function membersHTML(c) {
     return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini">${avatarInner(p.name)}</span>
       <span class="mem-text"><span class="mem-name">${esc(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${p.role === 'organizer' ? ' <span class="badge on">Organizer</span>' : ''}${blocked[p.name.toLowerCase()] ? ' <span class="badge prov">Blocked</span>' : ''}${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
       <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'}</span></span></button>
-      ${p.claimed || p.avatar || dc || blocked[p.name.toLowerCase()] ? `<span class="mem-acts">${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span>` : ''}</li>`;
+      <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span></li>`;
   }).join('');
-  return `<h2 id="club-h">Members</h2>
+  const ed = c.nameEdit;
+  const editor = ed ? `<form class="club-form" data-form="name-edit">${ed.kind === 'merge'
+    ? `<label class="lab" for="ne-into">Merge ${esc(ed.name)} into</label><select id="ne-into" class="field-input">${rows.filter(r => !sameName(r.p.name, ed.name)).map(r => `<option ${ed.mergeInto && sameName(ed.mergeInto, r.p.name) ? 'selected' : ''}>${esc(r.p.name)}</option>`).join('')}</select>
+       <p class="note">Their games, ratings, achievements, phone link and DUPR connection all move to the player you pick, and ${esc(ed.name)} goes away. This can't be undone.</p>`
+    : `<label class="lab" for="ne-name">New name for ${esc(ed.name)}</label><input id="ne-name" class="field-input" maxlength="40" autocomplete="off" value="${esc(ed.name)}">
+       <p class="note">Their games, ratings and achievements keep following them under the new name.</p>`}
+    ${ed.similar ? `<p class="err" role="alert">Did you mean ${esc(ed.similar[0])}? That is already a saved player.</p>` : ''}
+    ${ed.mergeInto && ed.kind !== 'merge' ? `<p class="note">${esc(ed.mergeInto)} already exists. <button type="button" class="link" data-merge="${esc(ed.name)}" data-into="${esc(ed.mergeInto)}">Merge the two players</button> instead.</p>` : ''}
+    <div class="btns"><button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>${ed.kind === 'merge' ? 'Merge' : 'Rename'}</button>${ed.similar ? '<button type="button" class="btn btn-soft" data-act="name-edit-confirm">They are different people</button>' : ''}<button type="button" class="btn btn-soft" data-act="name-edit-cancel">Cancel</button></div></form>` : '';
+  return `<h2 id="club-h">Members</h2>${editor}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     ${rows.length ? `<p>${rows.length} player${rows.length === 1 ? '' : 's'}, ${linked} linked to phones, ${active} played in the last 30 days.${dc ? ` ${duprCount} connected to DUPR.` : ''}</p>
     <ul class="mem-list">${list}</ul>
     <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones. Removing someone stops their phone from acting as that name; their games and ratings stay. ${isCoOrganizer() ? 'Only the club creator or the organizer PIN can change roles or remove organizers.' : 'Organizers can do everything except change roles and remove other organizers.'}</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
@@ -4972,6 +5014,7 @@ document.addEventListener('click', e => {
   }
   // Who are you
   if (ds.claim) { claimName(ds.claim); return; }
+  if (ds.claimNew) { claimName(ds.claimNew, true); return; }
   if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (ds.act === 'whoami-skip') { const after = clubSheet && clubSheet.afterJoin; skipWhoami(); clubSheet = null; if (after) afterJoin(); else { renderClub(); render(); } return; }
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); loadMembers(); return; }
@@ -4987,6 +5030,9 @@ document.addEventListener('click', e => {
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }
   if (ds.fail) { failAct(ds.fail, ds.uid, el); return; }
+  if (ds.rename || ds.merge) { clubSheet.nameEdit = { kind: ds.rename ? 'rename' : 'merge', name: ds.rename || ds.merge, mergeInto: ds.into || '' }; clubSheet.error = ''; renderClub(); return; }
+  if (ds.act === 'name-edit-cancel') { clubSheet.nameEdit = null; clubSheet.error = ''; renderClub(); return; }
+  if (ds.act === 'name-edit-confirm') { nameEditSubmit(true); return; }
   if (ds.release) {
     if (clubSheet.confirmRelease !== ds.release) { clubSheet.confirmRelease = ds.release; el.textContent = 'Tap again to release'; return; }
     adminAction({ action: 'release', name: ds.release }, `${ds.release} can now be picked on another phone`); return;
@@ -5157,6 +5203,7 @@ document.addEventListener('submit', e => {
     if (!v || count !== 1 || !/\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(v)) { clubSheet.error = 'Type a single emoji.'; renderClub(); return; }
     clubSheet.pending = { type: 'emoji', value: v }; clubSheet.error = ''; renderClub(); return;
   }
+  if (form.matches('[data-form="name-edit"]')) { e.preventDefault(); nameEditSubmit(); return; }
   if (form.matches('[data-form="whoami"]')) { e.preventDefault(); claimName($('#whoami-name').value); return; }
   if (form.matches('[data-form="whoami-pin"]')) { e.preventDefault(); clubSheet.claimPin = $('#whoami-pin').value.trim(); claimName(clubSheet.needPinFor); return; }
   if (form.matches('[data-form="pin-set"]')) { e.preventDefault(); pinSet($('#pin-old') ? $('#pin-old').value : '', $('#pin-new').value, $('#pin-new2').value); return; }
@@ -5164,6 +5211,8 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const name = $('#new-player').value.trim();
   if (!name) return;
+  const like = similarSaved(name);
+  if (like.length && !confirm(`Did you mean ${like[0]}? Tap Cancel to use ${like[0]}, or OK to add ${name} as a different person.`)) { $('#new-player').value = ''; return; }
   addToRoster([name]); render();
   const again = $('#new-player'); if (again) again.focus();
 });

@@ -19,7 +19,7 @@
 // create may carry teamMeta ([{name, logo}] for each of its manual teams), publicLogos and refs ({player: DUPR ID}, reference only).
 // Organizer actions need the creating phone's token or the organizer PIN, like the club's other organizer settings.
 import { checkLog } from './_rallylog.js';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, reserveGames, releaseGames, verifiedSender } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, nameKey, reserveGames, releaseGames, verifiedSender } from './_db.js';
 import { newShareToken } from './_share.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
 import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, checkResultActor, setResultsBy, correctResult, startKnockout, endEvent, view } from './_events.js';
@@ -79,7 +79,7 @@ async function addToRoster(sql, code, names) {
   let [{ n }] = await sql`SELECT count(*)::int AS n FROM roster WHERE club = ${code}`;
   for (const name of names) {
     if (n >= 300) break;
-    const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${name.toLowerCase()}, ${cleanName(name)}) ON CONFLICT DO NOTHING RETURNING name_key`;
+    const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${nameKey(name)}, ${cleanName(name)}) ON CONFLICT DO NOTHING RETURNING name_key`;
     n += added.length;
   }
 }

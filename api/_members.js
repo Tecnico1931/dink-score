@@ -9,7 +9,7 @@
 // claim, so its tokens stop working, and any account link to the name; the member's past games and ratings stay under their
 // name. Every change is written to club_audit with who did it: 'owner', 'pin' (the PIN is shared, so no name), the
 // co-organizer's name, or the member themselves.
-import { fail, requireOrganizer, cleanName, tokenMatches } from './_db.js';
+import { fail, requireOrganizer, cleanName, nameKey, tokenMatches } from './_db.js';
 
 export const MAX_ORGANIZERS = 10;
 export const AUDIT_LIMIT = 100;
@@ -22,7 +22,7 @@ export async function audit(sql, club, actor, action, target, detail) {
 const targetKey = raw => {
   const name = cleanName(raw);
   if (!name) throw fail(400, 'Pick a member.');
-  return name.toLowerCase();
+  return nameKey(name);
 };
 
 export const MEMBER_ACTIONS = ['members', 'set-role', 'remove', 'unblock', 'leave'];

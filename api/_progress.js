@@ -3,7 +3,7 @@
 
 // --- Dink Rating forecast (same maths as DR in dink-score.html) ---
 export const START = 2, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20, DAY = 864e5;
-const key = n => String(n).trim().toLowerCase();
+const key = n => String(n).normalize('NFC').trim().toLowerCase();
 const expShare = gap => 1 / (1 + Math.pow(10, -gap / SCALE));
 function reliability(p, now) {
   if (!p || !p.games) return 0;

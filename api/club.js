@@ -111,17 +111,20 @@ export default handler(async (req, res) => {
     const rows = await sql`SELECT name, left(md5(avatar->>'value'), 8) AS v, avatar->>'value' AS value FROM roster WHERE club = ${code} AND avatar->>'type' = 'photo' LIMIT ${MAX_PHOTOS}`;
     return send(res, 200, { photos: Object.fromEntries(rows.map(r => [r.name, { v: r.v, value: r.value }])) });
   }
-  const [games, deleted, roster] = await Promise.all([
+  const [games, deleted, roster, renamed] = await Promise.all([
     // rally_log itself stays out of this payload (GET /api/games?id= has it); a game just says whether it can be replayed.
     sql`SELECT data, rally_log IS NOT NULL AS replay FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
     sql`SELECT name, claim_hash IS NOT NULL AS claimed, role, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
+    sql`SELECT old_key, new_name FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC LIMIT 100`,
   ]);
   send(res, 200, {
     club: publicClub(club),
     games: games.map(r => (r.replay ? { ...r.data, replay: true } : r.data)),
     deleted: deleted.map(r => Object.assign({}, r.data, { deletedAt: new Date(r.deleted_at).getTime() })),
     roster: roster.map(r => r.name),
+    // Players renamed or merged in the last 90 days: { old name key: new name }, so a phone holding the old name can follow.
+    renamed: Object.fromEntries(renamed.map(r => [r.old_key, r.new_name])),
     // Who has claimed a name (never the claim itself), plus pictures and self-reported DUPR numbers.
     players: roster.map(r => ({ name: r.name, claimed: r.claimed, ...(r.role ? { role: r.role } : {}), avatar: r.avatar || null, dupr: duprFrom(r.dupr_rating) })),
     progress: progressFor(games.map(r => r.data))
