@@ -23,7 +23,7 @@ const pairs = t => [
   [t.muted, t.bg, 4.5, 'muted text on page'], [t.muted, t.surface, 4.5, 'muted text on cards'], [t.muted, t['surface-2'], 4.5, 'muted text on soft buttons'],
   [t.bg, t.ink, 4.5, '.btn-ink'], [WHITE, t.blue, 4.5, 'white on blue (.btn-blue, team 1)'], [ [255, 255, 255], t.green, 4.5, 'white on green (team 2)'],
   [t['ball-ink'], t.ball, 4.5, 'text on the ball highlight'], [t.danger, t.surface, 4.5, 'error text on cards'], [t.danger, t.bg, 4.5, 'error text on page'],
-  [t.up, t.surface, 4.5, 'rating up'], [t.down, t.surface, 4.5, 'rating down'], [t.focus, t.bg, 3, 'focus ring on page'], [t.focus, t.surface, 3, 'focus ring on cards'], [t.green, t.surface, 3, 'green marks on cards'], [t.blue, t.surface, 3, 'blue marks on cards'],
+  [t.up, t.surface, 4.5, 'rating up'], [t.down, t.surface, 4.5, 'rating down'], [t.focus, t.bg, 3, 'focus ring on page'], [t.focus, t.surface, 3, 'focus ring on cards'], [t['blue-text'], t.surface, 4.5, 'blue text on cards'], [t['blue-text'], t.bg, 4.5, 'blue text on page'], [t.green, t.surface, 3, 'green marks on cards'], [t.blue, t.surface, 3, 'blue marks on cards'],
 ];
 for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]) {
   test(`token contrast: ${name}`, () => {

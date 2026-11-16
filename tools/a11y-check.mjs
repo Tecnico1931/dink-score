@@ -46,13 +46,16 @@ for (const [mode, opt] of states) {
   const ctx = await browser.createBrowserContext(); const page = await ctx.newPage();
   await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: opt.colorScheme }]);
-  await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', '1'); localStorage.setItem('pb.tourSeen', '1'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
+  await page.evaluateOnNewDocument(o => { try { if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
   await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+  await audit(page, `${mode}: first-run tour`, report, '.tour');
+  await page.evaluate(() => localStorage.setItem('pb.tutorialSeen', 'true')); await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
   await audit(page, `${mode}: home`, report);
   for (const tab of ['leaders', 'history', 'rules']) { await page.click(`[data-tab="${tab}"]`); await sleep(250); await audit(page, `${mode}: ${tab}`, report); }
   await page.click('[data-tab="play"]'); await sleep(200);
   if (await page.$('[data-act="me-open"]')) { await page.click('[data-act="me-open"]'); await sleep(300); await audit(page, `${mode}: profile sheet`, report); await page.keyboard.press('Escape'); await sleep(200); if (await page.$('.sheet-bg')) await page.evaluate(() => document.querySelector('.sheet-bg')?.click()); await sleep(200); }
-  if (await page.$('[data-act="start"]')) { await page.click('[data-act="start"]'); await sleep(500); await audit(page, `${mode}: court`, report, '.court');
+  if (await page.$('[data-act="start"]')) { for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
+    await page.click('[data-act="start"]'); await sleep(500); await audit(page, `${mode}: court`, report, '.court');
     if (await page.$('.half')) { for (let i = 0; i < 3; i++) { await page.click('.half[data-k="a"]'); await sleep(150); } await audit(page, `${mode}: court after rallies`, report, '.court'); } }
   await ctx.close();
 }
