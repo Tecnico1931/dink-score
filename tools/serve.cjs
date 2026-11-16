@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const root = path.join(__dirname, '..', 'public');
 const port = Number(process.argv[2]) || 4173;
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json', '.css': 'text/css; charset=utf-8', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8' };
 // The same security headers Vercel sends (from vercel.json), so the Content-Security-Policy can be tested locally.
 let securityHeaders = [];
 try { securityHeaders = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers.find(h => h.source === '/(.*)').headers; } catch {}
@@ -95,7 +95,8 @@ http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(body));
   }
-  let file = path.normalize(path.join(root, decodeURIComponent(url.pathname)));
+  const rewrites = { '/privacy': '/privacy.html', '/terms': '/terms.html' }; // same rewrites as vercel.json
+  let file = path.normalize(path.join(root, decodeURIComponent(rewrites[url.pathname] || url.pathname)));
   if (!file.startsWith(root)) { res.writeHead(403); return res.end(); }
   if (url.pathname.endsWith('/')) file = path.join(file, 'index.html');
   fs.readFile(file, (err, data) => {

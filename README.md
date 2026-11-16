@@ -114,3 +114,10 @@ node build.cjs
 ```
 
 Then bump `VERSION` in `sw.js`, commit, and push. Vercel deploys from GitHub automatically.
+
+## Legal and privacy
+
+- `/privacy` and `/terms` are static pages (`privacy.html`, `terms.html`). They are **drafts for the site owner to review, not legal advice**, and have placeholders for the contact email and governing law.
+- `SECURITY.md` and `/.well-known/security.txt` describe private vulnerability reporting. **Owner action:** enable *Private vulnerability reporting* in the repository settings. Dependabot is configured in `.github/dependabot.yml`; also enable Dependabot security updates in settings.
+- Fonts (Bricolage Grotesque and Geist, both under the SIL Open Font License) are self-hosted in `fonts/`; no page contacts Google Fonts.
+- **TODO (licence): there is no `LICENSE` file.** Neither this fork nor the upstream project has one. Do not add one until the upstream author has given written permission or chosen a licence; then add it here.
