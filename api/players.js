@@ -164,6 +164,7 @@ export default handler(async (req, res) => {
       const d = renameDeep(r.data, k, label), refs = r.refs && Object.fromEntries(Object.entries(r.refs).filter(([n]) => nameKey(n) !== k));
       if (json(d) !== json(r.data) || json(refs) !== json(r.refs)) { touched++; ops.push(sql`UPDATE events SET data = ${json(d)}::jsonb, refs = ${refs ? json(refs) : null}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code} AND id = ${r.id}`); }
     }
+    for (const r of await sql`SELECT data FROM court_boards WHERE club = ${code} AND lower(data::text) LIKE ${like}`) ops.push(sql`UPDATE court_boards SET data = ${json({ ...renameDeep(r.data, k, label), config: r.data.config })}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code}`);
     for (const r of live) ops.push(sql`UPDATE live_games SET state = ${json(renameDeep(r.state, k, label))}::jsonb, stack = ${json(renameDeep(r.stack, k, label))}::jsonb WHERE club = ${code} AND id = ${r.id}`);
     if (dupr[0].has && row && row.dupr_id) ops.push(sql`UPDATE dupr_matches SET payload = NULL WHERE club = ${code} AND payload IS NOT NULL AND payload::text LIKE ${'%' + String(row.dupr_id).replace(/[\\%_]/g, '\\$&') + '%'}`);
     // The history tables keep names too (game audit, club audit, "renamed" pointers), so they get the same label.
