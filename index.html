@@ -1964,7 +1964,7 @@ function syncUrl() {
 // The share sheet for the live game. Joining a club is what shares a game: games end up in the club's record, and anyone with the code can join and score.
 function shareSheetHTML(c) {
   if (!club) return `<h2 id="club-h">Share this game</h2>
-    <p>This game is only on this phone. Start a club or join one and other players can join it with a code or QR code. This game is saved to the club's record when it ends.</p>
+    <p>This game is only on this phone, and it stays here unless you save it to a club. Start a club or join one and other players can join it with a code or QR code. You can also share the result card when the game ends.</p>
     <div class="btns"><button class="btn btn-blue" data-act="club-open">Join or start a club</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
   const link = inviteLink();
   let qr = '';
@@ -2013,15 +2013,23 @@ function leaveClub() {
   render();
 }
 function uploadedHere() { return club && store.get('pb.uploaded', {})[club.code]; }
-async function uploadLocalGames() {
+/*DEVICEGAMES-START*/
+// Games kept on this phone with no club. Pure, so test/devicegames.test.js can load this block alone.
+const DeviceGames = {
+  // ids: just those games ("save this game to a club"); omitted: every game on the phone
+  select: (games, ids) => (ids ? games.filter(g => ids.includes(g.id)) : games.slice())
+};
+/*DEVICEGAMES-END*/
+async function uploadLocalGames(ids) {
   if (!club || uploading) return;
-  const games = store.get('pb.games', []);
+  const games = DeviceGames.select(store.get('pb.games', []), ids);
+  if (!games.length) return;
   const names = store.get('pb.roster', []);
   uploading = true; clubSheet && (clubSheet.msg = 'Uploading…'); renderClub();
   try {
     for (let i = 0; i < games.length; i += 400) await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, games: games.slice(i, i + 400) }, senderCreds())) });
     for (const n of names) { try { await api('roster', { method: 'POST', body: JSON.stringify({ code: club.code, name: n }) }); } catch {} }
-    const up = store.get('pb.uploaded', {}); up[club.code] = Date.now(); store.set('pb.uploaded', up);
+    if (!ids) { const up = store.get('pb.uploaded', {}); up[club.code] = Date.now(); store.set('pb.uploaded', up); }
     if (clubSheet) clubSheet.msg = `Uploaded ${games.length} game${games.length === 1 ? '' : 's'} to ${club.name}.`;
     await refreshClub();
   } catch (err) { if (clubSheet) clubSheet.msg = err.message; }
@@ -2125,10 +2133,9 @@ function renderClub() {
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
       <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
   } else if (!club || c.view === 'add') {
-    body = `<h2 id="club-h">${club ? 'Add another club' : c.reason === 'log' ? 'Join a club to log results' : c.reason === 'start' ? 'Join a club to start a game' : 'Play as a club'}</h2>
+    body = `<h2 id="club-h">${club ? 'Add another club' : c.reason === 'save' ? 'Save to a club' : 'Play as a club'}</h2>
       ${club ? `<p class="need-club">You'll stay in ${esc(club.name)} too. Switch between your clubs from the club screen.</p>` : ''}
-      ${c.reason === 'log' ? `<p class="need-club">Logged results go into a club's shared record. Join your club with its code, or start one, and the log form opens next.</p>` : ''}
-      ${c.reason === 'start' ? `<p class="need-club">Games are saved to a club's shared record. Join your club with its code, or start one, and your game starts right after with the players you picked.</p>` : ''}
+      ${c.reason === 'save' ? `<p class="need-club">Your game is saved on this phone. Join a club with its code, or start one, and the game is added to its shared record.</p>` : ''}
       <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
       <form class="club-form" data-form="club-join"><label class="lab" for="club-code">Join with a code</label>
         <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
@@ -2245,8 +2252,7 @@ async function clubJoinByCode(raw) {
 // After joining: first "Who are you?", then on to whatever brought them here (logging a result, starting a game).
 function afterJoin() {
   if (club && !myName() && !whoamiSkipped()) { clubSheet = { view: 'whoami', afterJoin: true }; render(); renderClub(); return; }
-  if (club && logAfterJoin) { logAfterJoin = false; clubSheet = null; render(); openLog(); return; }
-  if (club && startAfterJoin) { startAfterJoin = false; clubSheet = null; beginGame(); return; }
+  if (club && saveAfterJoin) { const ids = saveAfterJoin; saveAfterJoin = null; clubSheet = { view: 'club', msg: 'Adding your game…' }; render(); renderClub(); uploadLocalGames(ids); return; }
   render(); renderClub();
 }
 async function clubCreate(name, pin) {
@@ -2324,7 +2330,7 @@ function homeTiles(games) {
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
   if (club && myName() && !shopHidden()) tiles.push(`<button class="tile dinks" data-tab-go="shop"><span class="t-k">Your Dinks</span><span class="t-big">${wallet(myName()).balance}</span><span class="t-foot">Spend them in the shop</span></button>`);
-  tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">${needsClubToLog() ? 'Join a club to log results' : 'For games on other courts'}</span></button>`);
+  tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
   if (club) {
     const liveEv = evSummary.find(e => e.status === 'live');
     tiles.push(`<button class="tile wide" data-ev="open-list" style="min-height:0"><span class="t-k">Events</span>${liveEv ? `<span class="t-name">${esc(liveEv.name)}</span><span class="t-foot">Live · ${esc(evProgress(liveEv))}</span>` : `<span class="t-name">Tournaments and rotating doubles</span><span class="t-foot">Round robins, brackets and several courts at once</span>`}</button>`);
@@ -2420,7 +2426,7 @@ function playView() {
     <div id="forecast">${forecastHTML()}</div>
     <datalist id="roster-list">${roster.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
     <button class="btn btn-ink block start" data-act="start"><span class="ball"></span>Start game</button>
-    ${needsClubToLog() ? `<p class="note" style="margin-top:8px;text-align:center">You'll join or start a club first, so the game is shared.</p>` : ''}
+    ${API_OK && !club ? `<p class="note" style="margin-top:8px;text-align:center">No club needed. Games stay on this phone until you save them to a club.</p>` : ''}
   </section>
   ${games.length ? `<section><div class="sec-head"><h2>Recent</h2><button class="link" data-tab-go="history">See all</button></div><ul class="games" style="margin-top:10px">${games.slice(0, 3).map(gameItem).join('')}</ul></section>` : ''}`;
 }
@@ -2439,10 +2445,11 @@ function historyView() {
   const games = allGames();
   const head = `<section><div class="sec-head"><h2>Record</h2><button class="btn btn-blue" data-act="log-open" style="padding:10px 16px;border-radius:12px;font-size:15px">+ Log a result</button></div></section>`;
   if (!games.length) return head + `<div class="empty"><p>Finished games land here. Score one live, or log a result from another court.</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>`;
+  const onPhone = API_OK && !club ? `<section><div class="upload-card"><b>These games are only on this phone</b><p>Save them to a club to share the record and count toward its leaderboard.</p><button class="btn btn-blue" data-act="save-club">Save to a club</button></div></section>` : '';
   const totalRallies = games.reduce((s, g) => s + (g.rallies || 0), 0);
   const timed = games.filter(g => !g.logged);
   const totalMin = timed.reduce((s, g) => s + minutes(g), 0);
-  return head + `<section class="totals"><div><b>${games.length}</b><span>Games</span></div><div><b>${totalRallies}</b><span>Rallies scored</span></div><div><b>${totalMin}</b><span>Minutes</span></div></section>
+  return head + onPhone + `<section class="totals"><div><b>${games.length}</b><span>Games</span></div><div><b>${totalRallies}</b><span>Rallies scored</span></div><div><b>${totalMin}</b><span>Minutes</span></div></section>
     <section><ul class="games">${games.map(gameItem).join('')}</ul></section>`;
 }
 
@@ -2595,8 +2602,10 @@ function renderCourt() {
       <div class="facts"><div><b>${s.rallies}</b><small>Rallies</small></div><div><b>${minutes(s)} min</b><small>Duration</small></div><div><b>${cfg.scoring === 'rally' ? 'Rally' : 'Side-out'}</b><small>To ${cfg.target}</small></div></div>
       ${ratingPreview(s)}
       ${dinksPreview(s)}
+      ${API_OK && !club && !live.event ? '<p class="note">No club yet, so this game is saved on this phone.</p>' : ''}
       <div class="btns">${live.event ? '' : '<button class="btn btn-ball" data-act="rematch">Save and rematch</button>'}
         <button class="btn ${live.event ? 'btn-ball' : 'btn-ink'}" data-act="finish">${live.event ? 'Save result' : 'Save and finish'}</button>
+        ${API_OK && !club && !live.event ? '<button class="btn btn-blue" data-act="finish-club">Save to a club</button>' : ''}
         <button class="btn btn-soft" data-act="undo">Undo last rally</button></div></div></div>`;
   } else if (live.confirmEnd) {
     sheet = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="end-h"><span class="grip"></span>
@@ -2755,19 +2764,14 @@ function localDateTimeValue(t) {
   const d = new Date(t); const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-// On the website, logged results go to a club's shared record, so logging needs a club.
-// (The Claude artifact has no clubs, so it keeps logging to this device.)
-const needsClubToLog = () => API_OK && !club;
-let logAfterJoin = false;
-// Starting a game on the website needs a club too, so every finished game lands in the shared record.
-let startAfterJoin = false;
+// With no club, games and logged results stay on this device (pb.games) until saved to a club.
+// saveAfterJoin: game ids to upload once a club is joined ("Save to a club" after a game).
+let saveAfterJoin = null;
 function beginGame() {
-  if (needsClubToLog()) { startAfterJoin = true; clubSheet = { view: 'club', reason: 'start' }; renderClub(); return; }
   addToRoster([...teamPlayers(0), ...teamPlayers(1)]);
   startGame();
 }
 function openLog() {
-  if (needsClubToLog()) { logAfterJoin = true; clubSheet = { view: 'club', reason: 'log' }; renderClub(); return; }
   logForm = { mode: setup.mode, target: +setup.target, names: [['', ''], ['', '']], score: ['', ''], when: localDateTimeValue(Date.now()), error: '' };
   renderLog();
 }
@@ -2803,7 +2807,6 @@ function openEdit(id) {
   renderLog();
 }
 function submitLog() {
-  if (needsClubToLog() && !(logForm && logForm.editId)) { logForm = null; openLog(); return; }
   const f = logForm;
   const n = f.mode === 'doubles' ? 2 : 1;
   const teams = [0, 1].map(t => Array.from({ length: n }, (_, i) => (f.names[t][i] || '').trim()));
@@ -3988,12 +3991,12 @@ function tourSteps() {
     { title: 'Tap the side that won', art: `<div class="mini-court"><div class="mh a"><span class="srv">Serving</span>4</div><div class="mcall"><span>4</span><span>2</span><span>1</span></div><div class="mh b">2</div><span class="tap"></span></div>`,
       body: `<ul><li>After each rally, tap the half of the screen for the side that <b>won the rally</b>. The app applies the serving rules for you.</li><li>The white pill is the <b>score call</b> to say out loud. The yellow tag shows who serves, and from which side.</li><li>Mis-tap? Hit <b>Undo</b>. <b>Leave</b> lets you pause the game and come back later.</li></ul>` },
     { title: 'Log games from other courts', art: `<div class="mini-log"><span class="badge-live">Your game keeps going</span><div class="row" style="--c:var(--blue)"><i></i><b>11</b></div><div class="row" style="--c:var(--green)"><i></i><b>7</b></div><div class="save">Save result</div></div>`,
-      body: `<p>Running more than one court? Tap <b>+ Log</b> while scoring, or <b>Log a result</b> on the home screen. Enter the players and final score. Your live game isn't affected, and logged games count toward the record and ratings.${API_OK ? ' Logging results needs a club, so everyone sees them.' : ''}</p>` },
+      body: `<p>Running more than one court? Tap <b>+ Log</b> while scoring, or <b>Log a result</b> on the home screen. Enter the players and final score. Your live game isn't affected, and logged games count toward the record and ratings.${API_OK ? ' With no club, results stay on this phone.' : ''}</p>` },
     { title: 'Climb the leaderboard', art: `<div class="mini-podium"><div class="p2"><b>3.82</b><small>2nd</small></div><div class="p1"><b>4.10</b><small>1st</small></div><div class="p3"><b>3.64</b><small>3rd</small></div></div>`,
       body: `<p>Every saved game updates each player's <b>Dink Rating</b>, from 2.00 to 8.00. Beat the forecast score and your rating rises, even in a loss. See the rankings, streaks and honors on <b>Leaders</b>.</p>` }
   ];
-  if (API_OK) steps.push({ title: 'Share one record with your club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
-    body: `<p>Tap <b>Join a club</b> at the top to start a club or join one with its code. Everyone in the club sees the same games, saved players and leaderboard on their own phone. No accounts needed.</p>` });
+  if (API_OK) steps.push({ title: 'Play alone or with a club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
+    body: `<p>You can start scoring right now, no club needed. Games stay on your phone, and after a game you can <b>Share</b> the result or <b>Save to a club</b>. To share one record with your friends, tap <b>Join a club</b> at the top and join with a code: everyone sees the same games, saved players and leaderboard. No accounts needed.</p>` });
   if (API_OK) steps.push({ title: 'Earn Dinks, spend them in the shop', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>+10 a win</span><span>Titles</span><span>Courts</span></div>`,
     body: `<p>When you join a club, pick your name. Every win earns you <b>Dinks</b> to spend in the <b>Shop</b> on titles, name styles, avatar rings, court themes, win celebrations and victory sounds, and spin the wheel once a day for free Dinks. Your organizer can also add real club rewards.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
@@ -4900,8 +4903,8 @@ document.addEventListener('click', e => {
   }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
-    if (a === 'club-open') { logAfterJoin = false; startAfterJoin = false; clubSheet = { view: 'club' }; }
-    if (a === 'club-close') { logAfterJoin = false; startAfterJoin = false; clubSheet = null; if (renderPending) safeRender(); }
+    if (a === 'club-open') { saveAfterJoin = null; clubSheet = { view: 'club' }; }
+    if (a === 'club-close') { saveAfterJoin = null; clubSheet = null; if (renderPending) safeRender(); }
     if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
     if (a === 'club-upload') { uploadLocalGames(); return; }
     if (a === 'club-add') { if (gameInProgress()) { clubSheet.msg = 'Finish or end the game in progress before adding a club.'; renderClub(); return; } clubSheet = { view: 'add' }; }
@@ -4975,10 +4978,13 @@ document.addEventListener('click', e => {
   if (act === 'keep') { live.confirmEnd = false; renderCourt(); }
   if (act === 'minimize') { live.confirmEnd = false; live.open = false; persistLive(); keepAwake(false); render(); }
   if (act === 'discard') { live = null; persistLive(); keepAwake(false); render(); }
-  if (act === 'finish' || act === 'rematch') {
+  if (act === 'save-club') { saveAfterJoin = null; clubSheet = { view: 'add', reason: 'save' }; renderClub(); return; }
+  if (act === 'finish' || act === 'rematch' || act === 'finish-club') {
     const s = live.state;
     if (live.event) { finishEventMatch(s); return; } // an event match goes to the event; the server adds it to the club's games
-    saveGame(record(s));
+    const rec = record(s);
+    saveGame(rec);
+    if (act === 'finish-club') { live = null; persistLive(); keepAwake(false); tab = 'history'; store.set('pb.tab', tab); saveAfterJoin = [rec.id]; clubSheet = { view: 'add', reason: 'save' }; render(); renderClub(); return; }
     if (act === 'rematch') startGame(Object.assign({}, s.cfg, { first: 1 - (s.cfg.first || 0) }));
     else { live = null; persistLive(); keepAwake(false); tab = 'history'; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} }
   }
