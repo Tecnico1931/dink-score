@@ -128,6 +128,50 @@ export function ensureSchema() {
         club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
         expires_at timestamptz NOT NULL
       )`;
+      // Optional accounts (passkeys; see account.js). Nothing here is read by the no-login paths.
+      await q`CREATE TABLE IF NOT EXISTS accounts (
+        id text PRIMARY KEY,
+        display_name text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+      await q`CREATE TABLE IF NOT EXISTS passkeys (
+        id text PRIMARY KEY,
+        account_id text NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        public_key text NOT NULL,
+        alg int NOT NULL,
+        sign_count bigint NOT NULL DEFAULT 0,
+        transports text[] NOT NULL DEFAULT '{}',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_used_at timestamptz
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS passkeys_account ON passkeys (account_id)`;
+      // Only the SHA-256 of the session token is stored, so a copy of the table can't be used to sign in.
+      await q`CREATE TABLE IF NOT EXISTS sessions (
+        id_hash text PRIMARY KEY,
+        account_id text NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS sessions_account ON sessions (account_id)`;
+      await q`CREATE TABLE IF NOT EXISTS auth_challenges (
+        id text PRIMARY KEY,
+        challenge text NOT NULL,
+        kind text NOT NULL,
+        account_id text,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+      // A club identity (a claimed player name, or the club creator's phone) an account has proven it holds. `proof` is the
+      // stored token hash at link time: if an organizer later releases the name, it no longer matches and the link is stale.
+      await q`CREATE TABLE IF NOT EXISTS account_identities (
+        account_id text NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        kind text NOT NULL,
+        name_key text NOT NULL DEFAULT '',
+        proof text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, kind, name_key)
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS account_identities_account ON account_identities (account_id)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
