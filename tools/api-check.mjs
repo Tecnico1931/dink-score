@@ -445,7 +445,7 @@ await step('sheet import: with rotating partners only the players are added (tea
 const mk = async (extra = {}) => ok(await call(club, 'POST', { body: { name: 'Rot club', ...extra } }), 201);
 const gm = id => ({ id, mode: 'singles', teams: [['Ann'], ['Bo']], score: [11, 5], endedAt: Date.now() - 1000 });
 await step('new clubs always get an organizer credential: the PIN given, or a generated code shown once', async () => {
-  const withPin = await mk({ pin: '5566' });
+  const withPin = await mk({ pin: '556677' });
   assert.equal(withPin.organizerCode, undefined);
   assert.equal(withPin.club.hasPin, true);
   const gen = await mk();
@@ -468,26 +468,26 @@ await step('a legacy club without a PIN is reported as unprotected and has no or
   ok(await rot({ ownerToken: c.ownerToken })); // the creating phone can
 });
 await step('rotate-code: who may do it', async () => {
-  const c = await mk({ pin: '7788' });
+  const c = await mk({ pin: '778899' });
   const rot = body => call(club, 'POST', { body: { code: c.club.code, action: 'rotate-code', ...body } });
   assert.equal((await rot({})).status, 403, 'no credential');
   assert.equal((await rot({ pin: '1111' })).status, 403, 'wrong PIN');
   assert.equal((await rot({ ownerToken: '0'.repeat(48) })).status, 403, 'wrong creator token');
-  assert.equal((await rot({ pin: '7788', graceMinutes: -1 })).status, 400);
-  assert.equal((await rot({ pin: '7788', graceMinutes: 99999 })).status, 400);
-  assert.equal((await call(club, 'POST', { body: { code: 'ZZZZZZ', action: 'rotate-code', pin: '7788' } })).status, 404);
+  assert.equal((await rot({ pin: '778899', graceMinutes: -1 })).status, 400);
+  assert.equal((await rot({ pin: '778899', graceMinutes: 99999 })).status, 400);
+  assert.equal((await call(club, 'POST', { body: { code: 'ZZZZZZ', action: 'rotate-code', pin: '778899' } })).status, 404);
   assert.equal((await call(club, 'GET', { query: '?code=' + c.club.code })).status, 200, 'nothing changed after refusals');
-  const r1 = ok(await rot({ pin: '7788' }));
+  const r1 = ok(await rot({ pin: '778899' }));
   assert.notEqual(r1.club.code, c.club.code);
   assert.equal(r1.oldCode, c.club.code);
   const r2 = ok(await call(club, 'POST', { body: { code: r1.club.code, action: 'rotate-code', ownerToken: c.ownerToken, graceMinutes: 0 } }));
   assert.notEqual(r2.club.code, r1.club.code, 'the creating phone can rotate too');
 });
 await step('rotation: new code works, old code works during the overlap and says when it stops, then 404; data and roles carry over', async () => {
-  const c = await mk({ pin: '2468' });
+  const c = await mk({ pin: '246802' });
   const oldCode = c.club.code;
   ok(await call(games, 'POST', { body: { code: oldCode, games: [gm('rot-g1')] } }));
-  const r = ok(await call(club, 'POST', { body: { code: oldCode, action: 'rotate-code', pin: '2468', graceMinutes: 30 } }));
+  const r = ok(await call(club, 'POST', { body: { code: oldCode, action: 'rotate-code', pin: '246802', graceMinutes: 30 } }));
   const newCode = r.club.code;
   const viaNew = ok(await call(club, 'GET', { query: '?code=' + newCode }));
   assert.equal(viaNew.club.code, newCode);
@@ -500,7 +500,7 @@ await step('rotation: new code works, old code works during the overlap and says
   ok(await call(roster, 'POST', { body: { code: newCode, name: 'Cy' } }));
   assert.equal(ok(await call(club, 'GET', { query: '?code=' + newCode })).games.length, 2);
   assert.equal((await call(games, 'DELETE', { query: `?code=${newCode}&id=rot-g1` })).status, 403, 'roles are unchanged: delete still needs the organizer');
-  ok(await call(games, 'DELETE', { query: `?code=${oldCode}&id=rot-g1`, headers: { 'x-club-pin': '2468' } }));
+  ok(await call(games, 'DELETE', { query: `?code=${oldCode}&id=rot-g1`, headers: { 'x-club-pin': '246802' } }));
   await pg.query("UPDATE club_aliases SET expires_at = now() - interval '1 second' WHERE code = $1", [oldCode]); // the overlap ends
   for (const call_ of [() => call(club, 'GET', { query: '?code=' + oldCode }), () => call(games, 'POST', { body: { code: oldCode, games: [gm('rot-g3')] } }), () => call(live, 'POST', { body: { code: oldCode, action: 'point', side: 0 } })]) {
     assert.equal((await call_()).status, 404, 'the old code stops working');
@@ -508,8 +508,8 @@ await step('rotation: new code works, old code works during the overlap and says
   assert.equal((await call(club, 'GET', { query: '?code=' + newCode })).status, 200);
 });
 await step('rotation with no overlap cuts the old code at once; retired codes are never handed to another club', async () => {
-  const c = await mk({ pin: '1357' });
-  const r = ok(await call(club, 'POST', { body: { code: c.club.code, action: 'rotate-code', pin: '1357', graceMinutes: 0 } }));
+  const c = await mk({ pin: '135790' });
+  const r = ok(await call(club, 'POST', { body: { code: c.club.code, action: 'rotate-code', pin: '135790', graceMinutes: 0 } }));
   assert.equal((await call(club, 'GET', { query: '?code=' + c.club.code })).status, 404);
   assert.equal(ok(await call(club, 'GET', { query: '?code=' + r.club.code })).club.code, r.club.code);
   await pg.query("INSERT INTO club_aliases (code, club, expires_at) VALUES ('AAAAAA', $1, now() - interval '1 day')", [c.club.code]);
@@ -517,10 +517,10 @@ await step('rotation with no overlap cuts the old code at once; retired codes ar
   assert.equal(await codeTaken(neon.neon(process.env.DATABASE_URL), 'AAAAAA'), true);
 });
 await step('a stranger on a rotated club still needs the organizer for organizer actions; players of one club cannot use another club\'s code', async () => {
-  const a = await mk({ pin: '9999' }), b = await mk({ pin: '8888' });
-  const ra = ok(await call(club, 'POST', { body: { code: a.club.code, action: 'rotate-code', pin: '9999', graceMinutes: 5 } }));
-  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'rotate-code', pin: '8888' } })).status, 403, "another club's PIN does not work");
-  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'set-pin', pin: '1212', oldPin: '0000' } })).status, 403);
+  const a = await mk({ pin: '999999' }), b = await mk({ pin: '888888' });
+  const ra = ok(await call(club, 'POST', { body: { code: a.club.code, action: 'rotate-code', pin: '999999', graceMinutes: 5 } }));
+  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'rotate-code', pin: '888888' } })).status, 403, "another club's PIN does not work");
+  assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'set-pin', pin: '121212', oldPin: '0000' } })).status, 403);
   assert.equal((await call(club, 'GET', { query: '?code=' + b.club.code })).json.club.code, b.club.code);
 });
 await step('the event list pages through every event the club keeps (60 and up to the 100 limit)', async () => {

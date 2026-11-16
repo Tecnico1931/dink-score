@@ -2096,7 +2096,7 @@ function withPin(op) {
 }
 async function pinUnlock(raw) {
   const pin = String(raw || '').trim();
-  if (!/^\d{6,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits.'; renderClub(); return; }
+  if (!/^\d{6,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 6 to 8 digits.'; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
     const ver = await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'verify-pin', pin }) });
