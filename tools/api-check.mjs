@@ -696,6 +696,8 @@ await step('photo avatars: kept out of the club payload, served lazily, capped p
   for (let i = 1; i < 50; i++) await pg.query("INSERT INTO roster (club, name, name_key, avatar) VALUES ($1, $2, $3, $4::jsonb)", [c7.club.code, 'P' + i, 'p' + i, JSON.stringify({ type: 'photo', value: photo })]);
   assert.equal((await setAv('Zed')).status, 409);
   assert.ok((await setAv('Ana')).status < 300, 'replacing your own photo is fine');
+});
+
 await step('Dinks and the shop are gone: no routes, and recording, editing and deleting a game never touch Dinks tables', async () => {
   const fs = await import('node:fs');
   for (const f of ['shop.js', '_dinks.js']) assert.ok(!fs.existsSync(path.join(root, 'api', f)), f + ' should not exist');
