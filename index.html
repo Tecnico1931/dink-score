@@ -485,17 +485,8 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .art-code .phones i { width: 34px; height: 56px; border-radius: 9px; border: 2px solid rgb(255 255 255 / .5); position: relative; }
 .art-code .phones i::after { content: ""; position: absolute; inset: 14px 7px; border-radius: 4px; background: var(--ball); }
 
-/* Shop, wallet and cosmetics */
+/* Player badges and DUPR */
 .badge.you { background: var(--ink); color: var(--bg); margin-left: 6px; }
-.p-title { display: block; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .01em; margin-top: 1px; }
-.p-name.style-gold { background: linear-gradient(180deg, #F7D774, #C9971C); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
-.p-name.style-glow { color: var(--ink); text-shadow: 0 0 10px color-mix(in srgb, var(--ball) 80%, transparent), 0 0 2px var(--ball); font-weight: 800; }
-.p-name.style-flame { background: linear-gradient(90deg, #FF4D2E, #FF9F1C 60%, #FFD23F); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
-.frame-ball { box-shadow: 0 0 0 3px var(--ball) !important; }
-.frame-cobalt { box-shadow: 0 0 0 3px #4361FF !important; }
-.frame-forest { box-shadow: 0 0 0 3px #17B988 !important; }
-.frame-sunset { box-shadow: 0 0 0 3px #FF7A45, 0 0 0 6px #C2185B !important; }
-.frame-prism { box-shadow: 0 0 0 3px #FF2BD6, 0 0 0 6px #00E5FF, 0 0 14px 4px rgb(0 229 255 / .35) !important; }
 .avatar-mini { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--bg); display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
 .dupr { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .dupr small { font-size: 10px; font-weight: 500; opacity: .8; }
@@ -514,70 +505,12 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .dsso-check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
 .dsso-check input { width: 22px; height: 22px; flex: none; margin: 0; }
 .dupr-form .btn { padding: 10px 16px; font-size: 15px; border-radius: 12px; }
-.pf-dinks { display: inline-block; margin-left: 8px; font-family: var(--ui); font-size: 13px; font-weight: 700; color: var(--ball-ink); background: var(--ball); border-radius: 999px; padding: 2px 9px; vertical-align: middle; }
-.tile.dinks { background: var(--ball); color: var(--ball-ink); }
-.tile.dinks .t-k, .tile.dinks .t-foot { color: rgb(27 33 4 / .72); }
 .dupr-entry { display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); border-radius: 14px; padding: 12px; }
 .dupr-entry .test { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--ink); background: var(--yellow, #f5c542); border-radius: 999px; padding: 2px 8px; }
 button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; min-height: 32px; padding: 0 10px; cursor: pointer; flex: none; }
 .mem-dupr { display: inline-flex; gap: 8px; align-items: center; }
 .me-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
 .me-row b { color: var(--ink); }
-.wallet { background: var(--surface); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
-.w-top { display: flex; align-items: center; gap: 10px; }
-.w-who { min-width: 0; flex: 1; font-weight: 600; overflow-wrap: anywhere; }
-.w-bal { display: flex; align-items: baseline; gap: 8px; }
-.w-bal b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 64px; line-height: .9; font-variant-numeric: tabular-nums; }
-.w-bal span { font-weight: 700; color: var(--muted); }
-.w-sub { font-size: 13px; color: var(--muted); margin-top: -6px; }
-.earn { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.earn li { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; font-size: 13px; color: var(--muted); }
-.earn b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.shop-sec { display: flex; flex-direction: column; gap: 10px; }
-.shop-sec .sec-head .note { font-size: 13px; }
-.items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.item { background: var(--surface); border-radius: 18px; padding: 12px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.item .pv { height: 58px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; overflow: hidden; padding: 0 8px; text-align: center; }
-.item .iname { font-weight: 700; font-size: 14px; line-height: 1.2; }
-.iprice { font-size: 12px; color: var(--muted); font-weight: 600; }
-.ibtn { margin-top: auto; border: 0; border-radius: 12px; padding: 9px 10px; font-weight: 700; font-size: 14px; background: var(--surface-2); color: var(--ink); }
-.ibtn.buy { background: var(--ink); color: var(--bg); }
-.ibtn.buy.armed { background: var(--ball); color: var(--ball-ink); }
-.ibtn.on { background: color-mix(in srgb, var(--up) 18%, transparent); color: var(--up); }
-.ibtn:disabled { opacity: .45; }
-.item.owned { outline: 2px solid color-mix(in srgb, var(--up) 35%, transparent); outline-offset: -2px; }
-.pv-title { font-weight: 800; font-size: 14px; color: var(--muted); }
-.pv-theme { display: grid; grid-template-rows: 1fr 1fr; gap: 3px; width: 56px; height: 46px; }
-.pv-theme i { border-radius: 7px; }
-.pv-cele { position: relative; width: 70px; height: 46px; }
-.pv-cele i { position: absolute; width: 8px; height: 8px; border-radius: 2px; }
-.pv-cele i:nth-child(1) { left: 6px; top: 8px; } .pv-cele i:nth-child(2) { left: 24px; top: 26px; } .pv-cele i:nth-child(3) { left: 40px; top: 4px; } .pv-cele i:nth-child(4) { left: 56px; top: 22px; } .pv-cele i:nth-child(5) { left: 32px; top: 36px; }
-.pv-cele.celebrate-confetti i:nth-child(odd) { background: #4361FF; transform: rotate(25deg); } .pv-cele.celebrate-confetti i:nth-child(even) { background: #FF8A5B; transform: rotate(-20deg); } .pv-cele.celebrate-confetti i:nth-child(3) { background: #17B988; }
-.pv-cele.celebrate-balls i { border-radius: 50%; width: 11px; height: 11px; background: radial-gradient(circle at 35% 35%, #F4FAB8 0 18%, var(--ball) 19%); }
-.rewards { display: flex; flex-direction: column; gap: 8px; }
-.reward { background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
-.reward .rname { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-.reward .ibtn { margin: 0; }
-.toggle { display: flex; align-items: center; gap: 10px; font-weight: 600; background: var(--surface-2); border-radius: 14px; padding: 12px 14px; cursor: pointer; }
-.toggle input { width: 20px; height: 20px; accent-color: var(--blue); }
-.adm-rows { display: flex; flex-direction: column; gap: 6px; }
-.adm-row { display: grid; grid-template-columns: 1fr 86px auto; gap: 8px; align-items: center; }
-.adm-row:has(.adm-item) { grid-template-columns: 1fr 86px; }
-.adm-row .price { text-align: right; font-variant-numeric: tabular-nums; }
-.adm-item { font-weight: 600; font-size: 14px; display: flex; flex-direction: column; }
-.adm-item small { font-weight: 500; color: var(--muted); font-size: 12px; }
-.dinks-row { display: flex; flex-direction: column; gap: 8px; }
-.dk-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface-2); border-left: 4px solid var(--c); border-radius: 10px; padding: 5px 10px; font-size: 14px; font-weight: 600; }
-.dk-chip b { color: var(--up); font-variant-numeric: tabular-nums; }
-/* Court themes, applied to the scoring screen on the phone that owns them */
-.court[data-theme="theme-sunset"] .half[data-k="a"], .pv-theme.theme-sunset i:first-child { --c1: #FF7A45; --c2: #C2185B; background: linear-gradient(155deg, #FF7A45, #C2185B); }
-.court[data-theme="theme-sunset"] .half[data-k="b"], .pv-theme.theme-sunset i:last-child { --c1: #7E57C2; --c2: #3A1F7A; background: linear-gradient(155deg, #7E57C2, #3A1F7A); }
-.court[data-theme="theme-clay"] .half[data-k="a"], .pv-theme.theme-clay i:first-child { --c1: #D9774B; --c2: #8A3A1E; background: linear-gradient(155deg, #D9774B, #8A3A1E); }
-.court[data-theme="theme-clay"] .half[data-k="b"], .pv-theme.theme-clay i:last-child { --c1: #3F7CAC; --c2: #1F4466; background: linear-gradient(155deg, #3F7CAC, #1F4466); }
-.court[data-theme="theme-grass"] .half[data-k="a"], .pv-theme.theme-grass i:first-child { --c1: #4CAF50; --c2: #1B5E20; background: linear-gradient(155deg, #4CAF50, #1B5E20); }
-.court[data-theme="theme-grass"] .half[data-k="b"], .pv-theme.theme-grass i:last-child { --c1: #8BC34A; --c2: #3E6B12; background: linear-gradient(155deg, #8BC34A, #3E6B12); }
-.court[data-theme="theme-neon"] .half[data-k="a"], .pv-theme.theme-neon i:first-child { --c1: #FF2BD6; --c2: #7A0A8C; background: linear-gradient(155deg, #FF2BD6, #7A0A8C); }
-.court[data-theme="theme-neon"] .half[data-k="b"], .pv-theme.theme-neon i:last-child { --c1: #00C8E6; --c2: #005B79; background: linear-gradient(155deg, #00C8E6, #005B79); }
 /* Challenges, achievements, trophies, rivalries, seasons */
 .challenges { display: flex; flex-direction: column; gap: 10px; }
 .challenges ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -589,18 +522,14 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .ch-bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .ch-bar i { display: block; height: 100%; background: var(--ball); border-radius: 3px; }
 .challenges li.done .ch-bar i { background: var(--up); }
-.ch-dinks { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 18px; color: var(--up); }
-.challenges li.done .ch-dinks { font-family: var(--ui); font-stretch: 100%; font-size: 12px; }
 .ach-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ach { position: relative; background: var(--surface-2); border-radius: 14px; padding: 10px 8px 9px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; min-width: 0; }
 .ach .ach-ic { font-size: 26px; line-height: 1.1; filter: grayscale(1); opacity: .35; }
 .ach b { font-size: 12px; line-height: 1.2; color: var(--muted); }
 .ach small { font-size: 10px; color: var(--muted); line-height: 1.25; }
-.ach .ach-d { position: absolute; top: 5px; right: 6px; font-size: 10px; font-weight: 800; color: var(--muted); }
 .ach.got { background: color-mix(in srgb, var(--ball) 16%, var(--surface-2)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ball) 60%, transparent); }
 .ach.got .ach-ic { filter: none; opacity: 1; }
 .ach.got b { color: var(--ink); }
-.ach.got .ach-d { color: var(--up); }
 .trophies { display: flex; flex-direction: column; gap: 6px; }
 .trophy-chip { display: flex; align-items: center; gap: 10px; border-radius: 14px; padding: 10px 12px; background: var(--surface-2); }
 .trophy-chip > span { font-size: 26px; }
@@ -645,106 +574,7 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .photo-drop small { font-weight: 500; color: var(--muted); max-width: 32ch; }
 .photo-drop:focus-within, .photo-drop:hover { border-color: var(--blue); }
 
-/* Legendary cosmetics: animated, so owning one is obvious at a glance */
-.p-title.legendary { background: linear-gradient(100deg, #B8860B 0%, #FFE58A 35%, #FFF6D0 50%, #FFE58A 65%, #B8860B 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; animation: sheen 3.2s linear infinite; }
-@keyframes sheen { from { background-position: 100% 0; } to { background-position: -150% 0; } }
-.p-name.style-holo { background: linear-gradient(90deg, #6EE7FF, #B388FF, #FF8AD8, #FFE27A, #7CFFB2, #6EE7FF); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; animation: holo 4s linear infinite; filter: drop-shadow(0 0 6px rgb(179 136 255 / .35)); }
-@keyframes holo { from { background-position: 0 0; } to { background-position: 300% 0; } }
-.p-name.style-molten { background: linear-gradient(100deg, #7A4A00 0%, #E09A1F 25%, #FFF1B8 45%, #FFB31A 55%, #A85F00 80%, #7A4A00 100%); background-size: 260% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; animation: sheen 2.4s linear infinite; filter: drop-shadow(0 0 8px rgb(255 170 30 / .45)); }
-.avatar, .av, .avatar-mini { position: relative; --r: 29px; }
-.step.s1 .avatar { --r: 35px; } .av { --r: 32px; } .avatar-mini { --r: 24px; }
-.frame-orbit { box-shadow: 0 0 0 2px rgb(221 242 71 / .55) !important; }
-.frame-orbit::after { content: ""; position: absolute; left: 50%; top: 50%; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #FFFFFF 0 18%, #DDF247 19%); box-shadow: 0 0 8px rgb(221 242 71 / .9); animation: orbit 2.2s linear infinite; }
-@keyframes orbit { from { transform: rotate(0deg) translateX(var(--r)) rotate(0deg); } to { transform: rotate(360deg) translateX(var(--r)) rotate(-360deg); } }
-.frame-crown { box-shadow: 0 0 0 3px #F2C94C, 0 0 16px 2px rgb(242 201 76 / .55) !important; }
-.frame-crown::before { content: ""; position: absolute; left: 50%; top: -15px; width: 26px; height: 16px; transform: translateX(-50%) rotate(-8deg); background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 16'%3E%3Cpath d='M1 15 L3 4 L9 9 L13 1 L17 9 L23 4 L25 15 Z' fill='%23F2C94C' stroke='%239A6B00' stroke-width='1.2' stroke-linejoin='round'/%3E%3Ccircle cx='13' cy='1.6' r='1.6' fill='%23FF5A5A'/%3E%3Ccircle cx='3' cy='4' r='1.3' fill='%234DA3FF'/%3E%3Ccircle cx='23' cy='4' r='1.3' fill='%234DA3FF'/%3E%3C/svg%3E"); filter: drop-shadow(0 1px 2px rgb(0 0 0 / .4)); animation: crown 3s ease-in-out infinite; }
-@keyframes crown { 50% { transform: translateX(-50%) rotate(8deg) translateY(-1px); } }
-.court[data-theme="theme-aurora"] .half[data-k="a"], .pv-theme.theme-aurora i:first-child { --c1: #00D2A8; --c2: #3A47D5; background: linear-gradient(125deg, #00D2A8, #3A7BD5, #8E44AD, #00D2A8); background-size: 300% 300%; animation: aurora 9s ease-in-out infinite; }
-.court[data-theme="theme-aurora"] .half[data-k="b"], .pv-theme.theme-aurora i:last-child { --c1: #FF6A88; --c2: #6A5ACD; background: linear-gradient(125deg, #FF6A88, #FFB36A, #6A5ACD, #FF6A88); background-size: 300% 300%; animation: aurora 11s ease-in-out infinite reverse; }
-@keyframes aurora { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
-.court[data-theme="theme-galaxy"] .half, .pv-theme.theme-galaxy i { --c1: #6A4BFF; --c2: #120A3A;
-  background: radial-gradient(1.5px 1.5px at 12% 22%, #fff, transparent), radial-gradient(1px 1px at 30% 70%, #fff, transparent), radial-gradient(1.5px 1.5px at 55% 35%, #fff, transparent), radial-gradient(1px 1px at 72% 80%, #fff, transparent), radial-gradient(2px 2px at 85% 15%, #FFE9A8, transparent), radial-gradient(1px 1px at 45% 88%, #fff, transparent), radial-gradient(1px 1px at 92% 55%, #fff, transparent), radial-gradient(120% 90% at 20% 0%, #5B3CFF 0%, transparent 55%), linear-gradient(160deg, #2A1670, #0A0626); }
-.court[data-theme="theme-galaxy"] .half[data-k="b"], .pv-theme.theme-galaxy i:last-child { background: radial-gradient(1px 1px at 18% 30%, #fff, transparent), radial-gradient(1.5px 1.5px at 40% 75%, #fff, transparent), radial-gradient(1px 1px at 62% 20%, #fff, transparent), radial-gradient(2px 2px at 80% 65%, #A8F0FF, transparent), radial-gradient(1px 1px at 8% 85%, #fff, transparent), radial-gradient(1px 1px at 52% 50%, #fff, transparent), radial-gradient(120% 90% at 80% 100%, #0FB5C8 0%, transparent 55%), linear-gradient(200deg, #0D2B5A, #04101F); --c1: #0FB5C8; }
-.court[data-theme="theme-galaxy"] .half::after { background: radial-gradient(1px 1px at 25% 45%, rgb(255 255 255 / .9), transparent), radial-gradient(1px 1px at 65% 60%, rgb(255 255 255 / .9), transparent); animation: twinkle 2.6s ease-in-out infinite; }
-@keyframes twinkle { 50% { opacity: .2; } }
-/* Fireworks and trophy shower */
-.celebrate.celebrate-fireworks .burst { position: absolute; width: 0; height: 0; }
-.celebrate.celebrate-fireworks .burst i { position: absolute; top: 0; left: 0; width: 6px; height: 6px; border-radius: 50%; animation: spark 1.3s cubic-bezier(.15, .7, .3, 1) forwards; box-shadow: 0 0 6px currentColor; }
-@keyframes spark { 0% { transform: translate(0, 0) scale(1.2); opacity: 1; } 80% { opacity: 1; } 100% { transform: translate(var(--sx), var(--sy)) scale(.4); opacity: 0; } }
-.celebrate .trophy { position: absolute; left: 50%; top: 18%; width: 140px; height: 140px; margin-left: -70px; animation: trophy 2.6s cubic-bezier(.2, .9, .3, 1.2) forwards; filter: drop-shadow(0 10px 30px rgb(255 190 40 / .6)); }
-@keyframes trophy { 0% { transform: translateY(-60vh) scale(.6) rotate(-12deg); } 35% { transform: translateY(0) scale(1.05) rotate(4deg); } 50% { transform: scale(1) rotate(0); } 85% { opacity: 1; } 100% { transform: scale(1.1); opacity: 0; } }
-.legend-sec { display: flex; flex-direction: column; gap: 10px; }
-.legend-sec .sec-head h3 { display: flex; align-items: center; gap: 8px; }
-.legend-sec .sec-head h3::before { content: ""; width: 14px; height: 14px; border-radius: 4px; background: conic-gradient(from 0deg, #FFD54F, #FF8AD8, #6EE7FF, #7CFFB2, #FFD54F); animation: spin 4s linear infinite; }
-.item.legendary { position: relative; isolation: isolate; background: var(--surface); box-shadow: 0 10px 30px -14px rgb(255 190 40 / .45); }
-.item.legendary::before { content: ""; position: absolute; inset: -1.5px; border-radius: 19.5px; z-index: -1; background: conic-gradient(from var(--a, 0deg), #FFD54F, #FF8AD8, #6EE7FF, #7CFFB2, #FFD54F); animation: spin-border 5s linear infinite; }
-.item.legendary::after { content: ""; position: absolute; inset: 0; border-radius: 18px; z-index: -1; background: var(--surface); }
-@property --a { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
-@keyframes spin-border { to { --a: 360deg; } }
-@keyframes spin { to { transform: rotate(360deg); } }
-.item .rarity { align-self: flex-start; font-size: 10px; font-weight: 800; letter-spacing: .02em; border-radius: 6px; padding: 2px 6px; }
-.rarity.rare { background: color-mix(in srgb, var(--blue) 18%, transparent); color: var(--blue); }
-.rarity.legendary { background: linear-gradient(90deg, #FFD54F, #FF8AD8); color: #2A1600; }
-.item.legendary .pv { height: 74px; background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, #FFD54F 18%, var(--surface-2)), var(--surface-2)); }
-.pv-trophy { width: 42px; height: 42px; }
-.pv-fw { position: relative; width: 60px; height: 50px; }
-.pv-fw i { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; border-radius: 50%; margin: -2.5px; }
-@media (prefers-reduced-motion: reduce) { .p-title.legendary, .p-name.style-holo, .p-name.style-molten, .frame-orbit::after, .frame-crown::before, .item.legendary::before, .legend-sec .sec-head h3::before, .court[data-theme] .half { animation: none !important; } }
-
-/* More rings, name styles, courts and celebrations */
-.frame-pickle { box-shadow: 0 0 0 3px #7CB342, 0 0 0 5px #33691E !important; }
-.frame-ice { box-shadow: 0 0 0 3px #A8E6FF, 0 0 12px 3px rgb(120 210 255 / .6) !important; }
-.frame-lava { box-shadow: 0 0 0 3px #FF6A1A, 0 0 0 6px #8C1A00, 0 0 14px 3px rgb(255 90 20 / .5) !important; }
-.frame-rainbow::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; background: conic-gradient(#FF5A5A, #FFD54F, #7CFFB2, #6EE7FF, #B388FF, #FF8AD8, #FF5A5A); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 3px)); animation: spin 3s linear infinite; pointer-events: none; }
-.p-name.style-pickle { background: linear-gradient(180deg, #AED581, #558B2F 70%, #33691E); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; }
-.p-name.style-ice { background: linear-gradient(180deg, #CFF3FF, #5CC2FF 55%, #1C7FCC); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 800; filter: drop-shadow(0 0 1px rgb(20 90 150 / .55)) drop-shadow(0 0 6px rgb(120 210 255 / .45)); }
-.p-name.style-neon { color: #FF4FD8; font-weight: 800; text-shadow: 0 0 2px #fff, 0 0 8px #FF4FD8, 0 0 16px rgb(255 79 216 / .7); animation: neon 3.5s step-end infinite; }
-@keyframes neon { 0%, 100% { opacity: 1; } 41% { opacity: .55; } 42% { opacity: 1; } 44% { opacity: .6; } 45% { opacity: 1; } }
-.court[data-theme="theme-beach"] .half[data-k="a"], .pv-theme.theme-beach i:first-child { --c1: #E0A95A; --c2: #9A6324; background: radial-gradient(1px 1px at 20% 30%, rgb(255 255 255 / .5), transparent), radial-gradient(1px 1px at 70% 60%, rgb(255 255 255 / .4), transparent), linear-gradient(155deg, #E0A95A, #9A6324); }
-.court[data-theme="theme-beach"] .half[data-k="b"], .pv-theme.theme-beach i:last-child { --c1: #1FA8C9; --c2: #0A4F6E; background: linear-gradient(155deg, #1FA8C9, #0A4F6E); }
-.court[data-theme="theme-ice"] .half[data-k="a"], .pv-theme.theme-ice i:first-child { --c1: #4FA3D9; --c2: #164A7A; background: linear-gradient(115deg, transparent 40%, rgb(255 255 255 / .18) 41%, transparent 43%), linear-gradient(155deg, #4FA3D9, #164A7A); }
-.court[data-theme="theme-ice"] .half[data-k="b"], .pv-theme.theme-ice i:last-child { --c1: #6FB6C9; --c2: #1F5566; background: linear-gradient(65deg, transparent 55%, rgb(255 255 255 / .16) 56%, transparent 58%), linear-gradient(155deg, #6FB6C9, #1F5566); }
-.court[data-theme="theme-midnight"] .half[data-k="a"], .pv-theme.theme-midnight i:first-child { --c1: #34497A; --c2: #0B1226; background: linear-gradient(155deg, #34497A, #0B1226); box-shadow: inset 0 0 0 1.5px rgb(140 170 255 / .25); }
-.court[data-theme="theme-midnight"] .half[data-k="b"], .pv-theme.theme-midnight i:last-child { --c1: #5A3A7E; --c2: #150B26; background: linear-gradient(155deg, #5A3A7E, #150B26); box-shadow: inset 0 0 0 1.5px rgb(200 150 255 / .25); }
-.court[data-theme="theme-arcade"] .half[data-k="a"], .pv-theme.theme-arcade i:first-child { --c1: #FF3EA5; --c2: #4A0F7A; background: linear-gradient(rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(155deg, #FF3EA5, #4A0F7A); }
-.court[data-theme="theme-arcade"] .half[data-k="b"], .pv-theme.theme-arcade i:last-child { --c1: #19D3C5; --c2: #0B2F6B; background: linear-gradient(rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, rgb(255 255 255 / .13) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(155deg, #19D3C5, #0B2F6B); }
-.pv-theme.theme-arcade i { background-size: 8px 8px, 8px 8px, auto !important; }
-.pv-cele.celebrate-pickles i { width: 7px; height: 16px; border-radius: 99px; background: linear-gradient(90deg, #9CCC65, #558B2F); transform: rotate(25deg); }
-.pv-cele.celebrate-paddles i { width: 11px; height: 13px; border-radius: 6px 6px 5px 5px; background: #4361FF; }
-.pv-cele.celebrate-paddles i::after { content: ""; position: absolute; left: 4px; top: 12px; width: 3px; height: 6px; border-radius: 1px; background: #C9A27A; }
-.pv-cele.celebrate-paddles i:nth-child(even) { background: #FF8A5B; transform: rotate(-30deg); } .pv-cele.celebrate-paddles i:nth-child(odd) { transform: rotate(20deg); }
-.pv-cele.celebrate-hearts i { width: auto; height: auto; background: none; font-size: 14px; line-height: 1; color: #FF4D6D; } .pv-cele.celebrate-hearts i::before { content: "♥"; }
-.pv-cele.celebrate-hearts i:nth-child(even) { color: #FF8AD8; }
-.celebrate.celebrate-pickles i { width: 14px; height: 34px; border-radius: 99px; background: radial-gradient(circle at 30% 30%, rgb(255 255 255 / .35) 0 2px, transparent 3px), radial-gradient(circle at 60% 65%, rgb(0 0 0 / .18) 0 2px, transparent 3px), linear-gradient(90deg, #9CCC65, #558B2F 70%, #33691E); }
-.celebrate.celebrate-paddles i { width: 26px; height: 30px; border-radius: 13px 13px 11px 11px; box-shadow: inset 0 0 0 2px rgb(0 0 0 / .18); }
-.celebrate.celebrate-paddles i::after { content: ""; position: absolute; left: 10px; top: 28px; width: 6px; height: 14px; border-radius: 2px; background: #C9A27A; }
-.celebrate.celebrate-hearts i { width: auto; height: auto; border-radius: 0; background: none; font-size: 26px; line-height: 1; }
-.celebrate.celebrate-hearts i::before { content: "♥"; }
-/* Victory sound previews */
-.pv-play { border: 0; background: var(--ink); color: var(--bg); width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer; }
-.pv-play svg { width: 16px; height: 16px; margin-left: 2px; }
-.pv-play.playing { background: var(--ball); color: var(--ball-ink); }
-/* Daily spin */
-.spin-card { background: var(--surface); border-radius: 22px; padding: 16px; box-shadow: var(--shadow); display: grid; grid-template-columns: 132px 1fr; gap: 16px; align-items: center; }
-.spin-wrap { position: relative; width: 132px; height: 132px; }
-.spin-wheel { width: 100%; height: 100%; display: block; transform: rotate(var(--rot, 0deg)); filter: drop-shadow(0 6px 14px rgb(0 0 0 / .18)); }
-.spin-wheel.go { transition: transform 3.6s cubic-bezier(.12, .7, .14, 1); }
-.spin-wheel text { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 19px; }
-.spin-ptr { position: absolute; left: 50%; top: -6px; width: 18px; height: 20px; margin-left: -9px; background: var(--ink); clip-path: polygon(0 0, 100% 0, 50% 100%); filter: drop-shadow(0 2px 2px rgb(0 0 0 / .25)); }
-.spin-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.spin-text h3 { margin: 0; }
-.spin-text .note { margin: 0; }
-.spin-won { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 30px; line-height: 1; color: var(--up); }
-@media (max-width: 360px) { .spin-card { grid-template-columns: 104px 1fr; gap: 12px; } .spin-wrap { width: 104px; height: 104px; } }
-@media (prefers-reduced-motion: reduce) { .frame-rainbow::before, .p-name.style-neon { animation: none !important; } .spin-wheel.go { transition-duration: .6s; } }
-
-/* Win celebrations */
-.celebrate { position: fixed; inset: 0; z-index: 120; pointer-events: none; overflow: hidden; }
-.celebrate i { position: absolute; top: -20px; width: 10px; height: 14px; border-radius: 2px; animation: fall 2.2s cubic-bezier(.25, .6, .4, 1) forwards; }
-.celebrate.celebrate-balls i { width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #F4FAB8 0 16%, #DDF247 17%); box-shadow: inset 0 0 0 1px rgb(0 0 0 / .15); }
-@keyframes fall { 0% { transform: translate(0, 0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), 105vh) rotate(540deg); opacity: .9; } }
-@media (prefers-reduced-motion: reduce) { .celebrate { display: none; } }
-@media (max-width: 360px) { .earn { grid-template-columns: 1fr; } }
+.avatar, .av, .avatar-mini { position: relative; }
 
 /* Player profile */
 .pf-head { display: flex; align-items: center; gap: 12px; }
@@ -1049,7 +879,6 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
     <button data-tab="play" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><circle cx="9" cy="9" r=".9" fill="currentColor"/><circle cx="14.5" cy="8.7" r=".9" fill="currentColor"/><circle cx="12" cy="12.6" r=".9" fill="currentColor"/><circle cx="8.7" cy="14.6" r=".9" fill="currentColor"/><circle cx="15.4" cy="14.2" r=".9" fill="currentColor"/></svg>Play</button>
     <button data-tab="events" hidden aria-label="Events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 6H5.5v1.5A2.5 2.5 0 008 10M16 6h2.5v1.5A2.5 2.5 0 0116 10M12 13v3.5M8.5 20h7M9.5 20l.5-3.5h4l.5 3.5"/></svg>Events</button>
     <button data-tab="leaders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M3.5 20.5h17M5 20.5v-6h4.5v6M9.5 20.5V10h5v10.5M14.5 20.5v-8H19v8"/><path d="M12 3l1 2 2.2.3-1.6 1.5.4 2.2-2-1.1-2 1.1.4-2.2L8.8 5.3 11 5z" fill="currentColor" stroke="none"/></svg>Leaders</button>
-    <button data-tab="shop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6.5a3 3 0 016 0V8" stroke-linecap="round"/></svg>Shop</button>
     <button data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6.5h12M8 12h12M8 17.5h12"/><circle cx="4" cy="6.5" r="1" fill="currentColor"/><circle cx="4" cy="12" r="1" fill="currentColor"/><circle cx="4" cy="17.5" r="1" fill="currentColor"/></svg>Record</button>
     <button data-tab="rules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M5 9.5h14M5 14.5h14M12 14.5V21M12 3v6.5"/></svg>Rules</button>
   </nav>
@@ -1208,49 +1037,6 @@ const DR = (() => {
   return { compute, forecast, lookup, reliability, expShare, START };
 })();
 
-/* Dinks: earned per player per game. Must match computeDinks() in api/_dinks.js, which is what counts when buying.
-   Live-scored games sent from a player's own linked phone (or the club creator's): +2 play, +10 win, +3 beat the
-   forecast, +5 per win from the 3rd in a row. The server records who sent each game (scoredBy) and when (receivedAt).
-   Logged results earn the same as live ones. At most 60 per player per UTC day. */
-const DK = (() => {
-  const EARN = { play: 2, win: 10, beatForecast: 3, streak: 5, streakFrom: 3, dailyCap: 120 };
-  function compute(games) {
-    const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
-    const { changes } = DR.compute(sorted);
-    const people = new Map(), streaks = new Map(), daily = new Map();
-    for (const g of sorted) {
-      const day = new Date(g.receivedAt || g.endedAt).toISOString().slice(0, 10); // server receive time, not the claimed finish time
-      for (const t of [0, 1]) {
-        const won = g.winner === t;
-        const tot = g.score[0] + g.score[1];
-        const share = tot ? g.score[t] / tot : 0;
-        const expected = changes[g.id] ? (t === 0 ? changes[g.id].expected : 1 - changes[g.id].expected) : 0.5;
-        for (const raw of g.teams[t]) {
-          const name = String(raw).trim();
-          if (!name || /^Player \d+$/.test(name)) continue;
-          const k = name.toLowerCase();
-          let n = EARN.play;
-          if (g.scoredBy) { // sent from a linked player's phone (or the club creator's), as the server recorded; logged or live
-            const s = won ? (streaks.get(k) || 0) + 1 : 0;
-            streaks.set(k, s);
-            if (won) n += EARN.win;
-            if (share > expected) n += EARN.beatForecast;
-            if (won && s >= EARN.streakFrom) n += EARN.streak;
-          }
-          if (!daily.has(k)) daily.set(k, new Map());
-          const used = daily.get(k).get(day) || 0;
-          n = Math.max(0, Math.min(n, EARN.dailyCap - used));
-          daily.get(k).set(day, used + n);
-          const e = people.get(k) || { name, earned: 0, games: {} };
-          e.earned += n; e.games[g.id] = n;
-          people.set(k, e);
-        }
-      }
-    }
-    return people;
-  }
-  return { compute, EARN };
-})();
 /*ENGINE-END*/
 </script>
 
@@ -1602,7 +1388,7 @@ if (location.hash.startsWith('#import=')) {
 const defaults = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, names: [['', ''], ['', '']] };
 let setup = Object.assign({}, defaults, store.get('pb.setup', {}));
 let tab = store.get('pb.tab', 'play');
-if (!['play', 'leaders', 'events', 'shop', 'history', 'rules'].includes(tab)) tab = 'play';
+if (!['play', 'leaders', 'events', 'history', 'rules'].includes(tab)) tab = 'play';
 let live = store.get('pb.live', null); // { state, stack, open }
 if (live) live.stack = live.stack || [];
 let localGames = store.get('pb.games', []);
@@ -1916,7 +1702,7 @@ async function refreshClub() {
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
     club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
-    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], purchases: data.purchases || [], shop: data.shop || null, progress: data.progress || null, at: Date.now() };
+    clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, at: Date.now() };
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
     if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
@@ -1952,7 +1738,7 @@ function profileButtonHTML() {
   const name = club ? myName() : null;
   const label = name ? `Your profile, ${esc(name)}` : club ? 'Choose your name' : 'Join a club to get a profile';
   const inner = name ? avatarInner(name) : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.3-3.3 4-5 7-5s5.7 1.7 7 5"/></svg>`;
-  return `<button class="me-btn${name ? frameClass(name) : ''}" data-act="me-open" aria-label="${label}">${inner}</button>`;
+  return `<button class="me-btn" data-act="me-open" aria-label="${label}">${inner}</button>`;
 }
 function updateSyncPill() { const el = document.querySelector('header.top .sync'); if (el) el.outerHTML = syncPillHTML(); }
 /*SHARELINK-START*/
@@ -2232,8 +2018,6 @@ function renderClub() {
     body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   } else if (c.view === 'whoami' && club) {
     body = whoamiHTML(c);
-  } else if (c.view === 'shopadmin' && club) {
-    body = shopAdminHTML(c);
   } else if (c.view === 'members' && club) {
     body = membersHTML(c);
   } else if (c.view === 'watch' && club) {
@@ -2330,7 +2114,6 @@ function renderClub() {
       ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
       ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
-      ${clubData && shopHidden() && (club.hasPin || isCreator()) ? `<button class="btn btn-soft block" data-act="shop-admin-open">Set up shop</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
@@ -2445,11 +2228,10 @@ function eventsTabView() {
 function render() {
   syncUrl();
   const y = document.body.scrollTop;
-  const noShop = shopHidden();
-  if ((noShop && tab === 'shop') || (!club && tab === 'events')) tab = 'play';
-  document.querySelectorAll('#tabs button').forEach(b => { b.hidden = (noShop && b.dataset.tab === 'shop') || (!club && b.dataset.tab === 'events'); b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
+  if (!club && tab === 'events') tab = 'play';
+  document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
   const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${API_OK ? '<button class="dupr-btn" data-act="dupr-open" aria-label="Your DUPR">DUPR</button>' : ''}${profileButtonHTML()}</div></header>`;
-  $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'shop' ? shopView() : tab === 'history' ? historyView() : rulesView());
+  $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
   renderClub();
@@ -2471,7 +2253,6 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
-  if (club && myName() && !shopHidden()) tiles.push(`<button class="tile dinks" data-tab-go="shop"><span class="t-k">Your Dinks</span><span class="t-big">${wallet(myName()).balance}</span><span class="t-foot">Spend them in the shop</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
   if (club) {
     const liveEv = evSummary.find(e => e.status === 'live');
@@ -2620,7 +2401,7 @@ function leadersView() {
   const games = season ? allGames().filter(g => g.scoredBy && (g.receivedAt || g.endedAt) >= season.start && (g.receivedAt || g.endedAt) < season.end) : allGames();
   const rows = leaderStats(games, ratingMode);
   const scope = info ? seg('data-lbscope', [['season', esc(info.season.name)], ['all', 'All time']], lbScope, 'sm') : '';
-  const sub = season ? `${esc(season.name)} ends in ${daysLeft(season.end)} day${daysLeft(season.end) === 1 ? '' : 's'}. Everyone starts at 2.00 and only games sent from a club player's phone count. The top 3 with ${season.minGames}+ games win a trophy and ${season.prizes.join('/')} Dinks.` : `Ranked by Dink Rating from every saved ${ratingMode} game.`;
+  const sub = season ? `${esc(season.name)} ends in ${daysLeft(season.end)} day${daysLeft(season.end) === 1 ? '' : 's'}. Everyone starts at 2.00 and only games sent from a club player's phone count. The top 3 with ${season.minGames}+ games win a trophy.` : `Ranked by Dink Rating from every saved ${ratingMode} game.`;
   const head = `<section><div class="sec-head"><h2>Leaderboard</h2>${seg('data-rmode', [['doubles', 'Doubles'], ['singles', 'Singles']], ratingMode, 'sm')}</div>${scope ? `<div style="margin-top:10px">${scope}</div>` : ''}<p class="sub">${sub}</p></section>`;
   if (!rows.length) return head + `<div class="empty"><p>${season ? `No ${ratingMode} games from a club player's phone yet this season.` : `No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.`}</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>` + (info ? pastChampionsHTML(ratingMode) : '');
   if (!rows.length) return head + `<div class="empty"><p>No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>`;
@@ -2628,10 +2409,10 @@ function leadersView() {
   const order = podium.length === 3 ? [1, 0, 2] : podium.map((_, i) => i);
   const avatarColor = ['var(--ink)', 'var(--blue)', 'var(--green)'];
   const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<button class="step s${i + 1}" style="--c:${avatarColor[i]}" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile">
-      <span class="avatar${frameClass(p.name)}">${avatarInner(p.name)}</span><span class="pl-name">${styledName(p.name, false)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
+      <span class="avatar">${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
-  const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
-      <span class="pinfo"><span class="pname">${styledName(p.name)}${youTag(p.name)}${levelChip(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
+  const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini">${avatarInner(p.name)}</span>
+      <span class="pinfo"><span class="pname">${esc(p.name)}${youTag(p.name)}${levelChip(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
@@ -2658,9 +2439,7 @@ function rulesView() {
         <li>After the game, your rating moves by how far you beat or missed that forecast. Losing 9–11 to a much stronger team can raise your rating. Winning 11–9 when you were expected to win 11–4 can lower it.</li>
         <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Below 60% your rating is provisional and moves faster.</li>
         <li>Logged results count the same as games scored live.</li></ul></div>
-    <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer, each paying bonus Dinks. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy and 100, 60 or 40 Dinks.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
-    <div class="rule"><h3>Earning Dinks</h3><p>In a club, every game earns each named player Dinks to spend in the shop.</p>
-      <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the same as games scored live. Games need to be sent from a club player's own phone (it doesn't have to be theirs) to earn more than the +2 for playing. Each player can earn up to 120 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li><li>Linked players get one free spin a day in the shop for a few extra Dinks.</li></ul></div>
+    <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
     <div class="rule" id="rules-dupr"><h3>Set up DUPR</h3>
       <ol><li><b>Join or start a club.</b> DUPR is linked per club, so you need one first.</li>
         <li><b>Tell the app who you are.</b> Tap <b>Choose my name</b> and pick your name from the list.</li>
@@ -2744,7 +2523,6 @@ function renderCourt() {
       ${resultBlock(cfg.teams, s.score, w)}
       <div class="facts"><div><b>${s.rallies}</b><small>Rallies</small></div><div><b>${minutes(s)} min</b><small>Duration</small></div><div><b>${cfg.scoring === 'rally' ? 'Rally' : 'Side-out'}</b><small>To ${cfg.target}</small></div></div>
       ${ratingPreview(s)}
-      ${dinksPreview(s)}
       ${API_OK && !club && !live.event ? '<p class="note">No club yet, so this game is saved on this phone.</p>' : ''}
       <div class="btns">${live.event ? '' : '<button class="btn btn-ball" data-act="rematch">Save and rematch</button>'}
         <button class="btn ${live.event ? 'btn-ball' : 'btn-ink'}" data-act="finish">${live.event ? 'Save result' : 'Save and finish'}</button>
@@ -2759,8 +2537,7 @@ function renderCourt() {
         <button class="btn btn-danger" data-act="discard">End without saving</button></div></div></div>`;
   }
   const fresh = s.rallies === 0;
-  const myTheme = club && myName() ? equippedFor(myName()).theme : null;
-  root.innerHTML = `<div class="court"${myTheme ? ` data-theme="${esc(myTheme)}"` : ''}>
+  root.innerHTML = `<div class="court">
     <div class="court-top">
       <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
       <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${live.event ? esc(live.event.name) + ': ' : ''}${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
@@ -2785,30 +2562,11 @@ setInterval(() => { const el = document.getElementById('court-clock'); if (el &&
 document.addEventListener('pointerdown', e => {
   const h = e.target.closest && e.target.closest('.half[data-rally]');
   if (!h) return;
-  if (club && live && live.state.cfg.teams.some(t => t.some(n => !isDefaultName(n) && equippedFor(n).sound))) audioCtx();
   const r = h.getBoundingClientRect();
   lastTap = { t: h.dataset.rally, x: e.clientX - r.left, y: e.clientY - r.top };
 });
 
 let askedWhoami = false;
-// Dinks each named player gets from this game once it's saved (the same rules the server uses).
-function dinksPreview(s) {
-  if (!club || !shopInfo()) return '';
-  const base = Object.assign(record(s), { id: '__pending' });
-  const rec = Object.assign(base, senderGuess(base));
-  const after = DK.compute([...allGames(), rec]);
-  const named = [0, 1].flatMap(t => s.cfg.teams[t].map(n => ({ n, t }))).filter(x => !isDefaultName(x.n));
-  if (!named.length) return '';
-  const got = named.map(x => ({ ...x, d: ((after.get(x.n.trim().toLowerCase()) || { games: {} }).games.__pending) || 0 }));
-  if (!live.celebrated && s.winner !== null) {
-    live.celebrated = true;
-    const fx = s.cfg.teams[s.winner].map(n => equippedFor(n).celebrate).find(Boolean);
-    if (fx) setTimeout(() => celebrate(fx), 250);
-    const snd = s.cfg.teams[s.winner].map(n => equippedFor(n).sound).find(Boolean);
-    if (snd) playSound(snd);
-  }
-  return `<div class="dinks-row"><span class="lab">Dinks earned</span><div class="chips">${got.map(x => `<span class="dk-chip" style="--c:${TEAM_COLOR[x.t]}">${esc(x.n)} <b>+${x.d}</b></span>`).join('')}</div></div>`;
-}
 function ratingPreview(s) {
   const rec = Object.assign(record(s), { id: '__pending' });
   const { changes } = DR.compute([...allGames(), rec]);
@@ -3284,7 +3042,7 @@ function saveShareImage() {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-/* ---------- who you are, Dinks and the shop ---------- */
+/* ---------- who you are ---------- */
 // Each phone can be linked to one player name per club. The server keeps the link; the phone keeps a private key.
 let me = store.get('pb.me', {}); // { [clubCode]: { name, token } }
 const myName = () => (club && me[club.code] ? me[club.code].name : null);
@@ -3293,41 +3051,11 @@ const isMe = n => !!myName() && sameName(n, myName());
 const whoamiSkipped = () => !!(club && store.get('pb.whoamiSkip', {})[club.code]);
 function skipWhoami() { const s = store.get('pb.whoamiSkip', {}); s[club.code] = Date.now(); store.set('pb.whoamiSkip', s); }
 const clubPlayers = () => (clubData && clubData.players) || [];
-const shopInfo = () => (clubData && clubData.shop) || null;
-// The shop shows only inside a club whose organizer has saved shop settings (the server reports this as shop.configured).
-const shopHidden = () => !(club && shopInfo() && shopInfo().configured);
 const youTag = n => (isMe(n) ? '<span class="badge you">You</span>' : '');
-function equippedFor(name) {
-  const p = clubPlayers().find(x => sameName(x.name, name));
-  return (p && p.equipped) || {};
+async function playerCall(body) {
+  return api('players', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
 }
-const isLegendary = id => { const s = shopInfo(); const it = s && s.catalog.find(i => i.id === id); return !!(it && it.rarity === 'legendary'); };
-const itemName = id => { const s = shopInfo(); const it = s && s.catalog.find(i => i.id === id); return it ? it.name : ''; };
-// A player's name with their title and name style, for leaderboards and profiles.
-function styledName(name, withTitle = true) {
-  const eq = club ? equippedFor(name) : {};
-  const style = eq.style ? ' ' + eq.style : '';
-  const title = withTitle && eq.title ? `<span class="p-title${isLegendary(eq.title) ? ' legendary' : ''}">${esc(itemName(eq.title))}</span>` : '';
-  return `<span class="p-name${style}">${esc(name)}</span>${title}`;
-}
-const frameClass = name => { const eq = club ? equippedFor(name) : {}; return eq.frame ? ' ' + eq.frame : ''; };
-function wallet(name) {
-  const key = String(name || '').trim().toLowerCase();
-  const prog = progressOf(name);
-  const pendingGames = clubOps().filter(o => o.type === 'game').length;
-  const pendingEstimate = pendingGames ? (DK.compute(allGames()).get(key) || { earned: 0 }).earned - (DK.compute((clubData && clubData.games) || []).get(key) || { earned: 0 }).earned : 0;
-  const earned = prog ? prog.earned + Math.max(0, pendingEstimate) : (DK.compute(allGames()).get(key) || { earned: 0 }).earned;
-  const mine = ((clubData && clubData.purchases) || []).filter(p => p.player === key);
-  const spins = mine.filter(p => p.itemId === SPIN_ID);
-  const bought = mine.filter(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID);
-  const won = mine.filter(p => p.itemId === SPIN_ID || p.itemId === PRESTIGE_ID).reduce((s, p) => s - p.price, 0);
-  const spent = bought.reduce((s, p) => s + p.price, 0);
-  return { earned: earned + won, spent, balance: earned + won - spent, owned: new Set(bought.filter(p => !p.reward).map(p => p.itemId)), rewards: bought.filter(p => p.reward), spins };
-}
-async function shopCall(body) {
-  return api('shop', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
-}
-// What this phone tells the server about who is sending a game, so live wins can earn full Dinks.
+// What this phone tells the server about who is sending a game, so it counts toward achievements and levels.
 function senderCreds(code = club && club.code) {
   if (!code) return {};
   const m = me[code] || {};
@@ -3347,7 +3075,7 @@ async function claimName(raw) {
   if (!name) { clubSheet.error = 'Enter your name, or tap it above.'; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
-    const data = await shopCall({ action: 'claim', name, pin: clubSheet.claimPin || pins[club.code] || '', ownerToken: owners[club.code] || '' });
+    const data = await playerCall({ action: 'claim', name, pin: clubSheet.claimPin || pins[club.code] || '', ownerToken: owners[club.code] || '' });
     me[club.code] = { name: data.name, token: data.playerToken }; store.set('pb.me', me);
     if (!setup.names[0][0] && !setup.names[0][1] && !setup.names[1][0] && !setup.names[1][1]) { setup.names[0][0] = data.name; store.set('pb.setup', setup); }
     const after = clubSheet.afterJoin;
@@ -3365,7 +3093,7 @@ function whoamiHTML(c) {
   const players = clubPlayers().length ? clubPlayers() : roster.map(n => ({ name: n, claimed: false }));
   const free = players.filter(p => !p.claimed), taken = players.filter(p => p.claimed);
   return `<h2 id="club-h">Who are you?</h2>
-    <p>Pick your name so your wins earn you Dinks to spend in the shop. Only this phone can spend them.</p>
+    <p>Pick your name so your games count toward your level, achievements and weekly challenges. Only this phone can use it.</p>
     ${free.length ? `<div class="field" style="margin:0"><span class="lab">Tap your name</span><div class="chips">${free.map(p => `<button type="button" class="chip-btn" data-claim="${esc(p.name)}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
     ${taken.length ? `<p class="note">Already linked to a phone: ${taken.map(p => esc(p.name)).join(', ')}. Ask an organizer if one of these is you.</p>` : ''}
     <form class="club-form" data-form="whoami"><label class="lab" for="whoami-name">${free.length ? 'Not listed? Add your name' : 'Your name'}</label>
@@ -3377,7 +3105,7 @@ function whoamiHTML(c) {
 }
 
 /* ---------- achievements, weekly challenges, seasons, rivalries ---------- */
-// The server works these out (so bonus Dinks can't be faked); the app shows what it sends.
+// The server works these out (so they can't be faked); the app shows what it sends.
 const progressInfo = () => (clubData && clubData.progress) || null;
 function progressOf(name) {
   const p = progressInfo();
@@ -3398,11 +3126,11 @@ function challengesCard() {
     const st = mine.find(x => x.id === c.id) || { progress: 0, done: false };
     return `<li class="${st.done ? 'done' : ''}"><span class="ch-check" aria-hidden="true">${st.done ? '✓' : ''}</span>
       <span class="ch-text"><b>${esc(c.name)}</b><span class="ch-bar"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></span>
-      <span class="ch-dinks">${st.done ? 'Done' : `+${c.dinks}`}</span></li>`;
+      </li>`;
   }).join('');
   const d = daysLeft(info.week.end);
   return `<section class="card challenges"><div class="sec-head"><h3>This week's challenges</h3><span class="note">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></div>
-    <ul>${items}</ul><p class="note">Games sent from any club player's phone count, scored live or logged. Rewards land in your Dinks.</p></section>`;
+    <ul>${items}</ul><p class="note">Games sent from any club player's phone count, scored live or logged.</p></section>`;
 }
 
 // Tell the player when something new unlocks (checked after each refresh from the server).
@@ -3419,18 +3147,18 @@ function announceUnlocks() {
   seenAll[seenKey] = now; store.set('pb.seenProgress', seenAll);
   if (!seen) return; // first time on this phone: don't replay old unlocks
   const msgs = lv.msgs.slice();
-  for (const id of now.ach) if (!seen.ach.includes(id)) { const a = info.achievements.find(x => x.id === id); if (a) msgs.push(`${ACH_ICON[id] || '🏅'} Achievement: ${a.name}! +${a.dinks} Dinks`); }
-  for (const k of now.ch) if (!(seen.ch || []).includes(k)) { const c = info.week.challenges.find(x => k.endsWith(':' + x.id)); if (c) msgs.push(`✓ Challenge done: ${c.name}. +${c.dinks} Dinks`); }
-  for (const k of now.tr) if (!(seen.tr || []).includes(k)) { const t = p.trophies.find(x => x.season + x.mode === k); if (t) msgs.push(`${MEDAL[t.place - 1]} ${t.name} ${t.mode} ${PLACE[t.place - 1]}! +${info.season.prizes[t.place - 1]} Dinks`); }
+  for (const id of now.ach) if (!seen.ach.includes(id)) { const a = info.achievements.find(x => x.id === id); if (a) msgs.push(`${ACH_ICON[id] || '🏅'} Achievement: ${a.name}!`); }
+  for (const k of now.ch) if (!(seen.ch || []).includes(k)) { const c = info.week.challenges.find(x => k.endsWith(':' + x.id)); if (c) msgs.push(`✓ Challenge done: ${c.name}`); }
+  for (const k of now.tr) if (!(seen.tr || []).includes(k)) { const t = p.trophies.find(x => x.season + x.mode === k); if (t) msgs.push(`${MEDAL[t.place - 1]} ${t.name} ${t.mode} ${PLACE[t.place - 1]}!`); }
   msgs.slice(0, 3).forEach((m, i) => setTimeout(() => showToast(m, false), i * 3200));
 }
 
 /* ---------- levels: one for each player (with prestige) and one for the whole club ---------- */
-// Same rules as api/_dinks.js: only games sent from a club player's phone count, 10 XP a game and 5 more for a win,
+// Same rules as api/_progress.js: only games sent from a club player's phone count, 10 XP a game and 5 more for a win,
 // at most 300 XP a player a day. Personal levels stop at
-// LEVEL_MAX; a maxed player can prestige to start again from level 1 with a star and bonus Dinks. The club level adds up
+// LEVEL_MAX; a maxed player can prestige to start again from level 1 with a star. The club level adds up
 // every game the club has played and never stops.
-const XP = { game: 10, win: 5, dailyCap: 300 }, LEVEL_MAX = 25, PRESTIGE_ID = 'prestige', PRESTIGE_DINKS = 250;
+const XP = { game: 10, win: 5, dailyCap: 300 }, LEVEL_MAX = 25;
 const levelNeed = n => 40 + 8 * (n - 1);
 function levelFrom(xp) {
   let level = 1, left = Math.max(0, Math.floor(xp));
@@ -3492,7 +3220,7 @@ async function saveDupr(clear) {
   const raw = clear ? '' : String(($('#dupr-in') || {}).value || '');
   e.value = raw; e.error = ''; e.busy = true; refreshDupr();
   try {
-    const d = await shopCall(Object.assign({ action: 'dupr', name: e.name, rating: raw, playerToken: isMe(e.name) ? myToken() : '' }, adminCreds()));
+    const d = await playerCall(Object.assign({ action: 'dupr', name: e.name, rating: raw, playerToken: isMe(e.name) ? myToken() : '' }, adminCreds()));
     const p = clubPlayers().find(x => sameName(x.name, e.name)); if (p) p.dupr = d.dupr;
     duprEdit = null; showToast(d.dupr ? 'DUPR rating saved' : 'DUPR rating cleared', false); refreshDupr(); render();
   } catch (err) { e.busy = false; e.error = err.message; refreshDupr(); }
@@ -3515,7 +3243,7 @@ function levelCardHTML(name) {
   if (!club || !clubData) return '';
   const L = playerLevel(name), mine = isMe(name);
   const foot = L.maxed
-    ? (mine ? `<p class="note">You're at the top level. Prestige to start again from level 1, keep a star by your level for good and get ${PRESTIGE_DINKS} Dinks.</p>
+    ? (mine ? `<p class="note">You're at the top level. Prestige to start again from level 1, and keep a star by your level for good.</p>
       <button class="btn ${prestigeArmed ? 'btn-blue' : 'btn-ink'}" data-act="prestige" ${prestigeBusy ? 'disabled' : ''}>${prestigeBusy ? 'Prestiging…' : prestigeArmed ? 'Tap again to prestige' : 'Prestige'}</button>` : `<p class="note">Top level reached. ${esc(name)} can prestige from their phone.</p>`)
     : `<span class="lv-bar"><i style="width:${Math.round(100 * L.into / L.need)}%"></i></span><p class="note">${L.need - L.into} XP to level ${L.level + 1}. Games sent from a club player's phone give ${XP.game} XP, ${XP.game + XP.win} for a win, up to ${XP.dailyCap} a day.</p>`;
   return `<div class="lv-card"><div class="lv-top"><span class="lv-num">${L.level}</span><span class="lv-txt"><b>Level ${L.level}${L.maxed ? ' (max)' : ` of ${LEVEL_MAX}`}</b><small>${L.prestige ? `${stars(L.prestige)}Prestige ${L.prestige} · ` : ''}${L.xp} XP all time</small></span></div>${foot}</div>`;
@@ -3526,9 +3254,8 @@ async function doPrestige() {
   if (!prestigeArmed) { prestigeArmed = true; renderProfile(); setTimeout(() => { if (prestigeArmed && !prestigeBusy) { prestigeArmed = false; renderProfile(); } }, 4000); return; }
   prestigeBusy = true; renderProfile();
   try {
-    const data = await shopCall({ action: 'prestige', name: myName(), playerToken: myToken() });
-    showToast(`★ Prestige ${data.prestige.count}! Back to level 1, plus ${data.dinks} Dinks`, false);
-    celebrate('celebrate-fireworks');
+    const data = await playerCall({ action: 'prestige', name: myName(), playerToken: myToken() });
+    showToast(`★ Prestige ${data.prestige.count}! Back to level 1`, false);
   } catch (err) { showToast(err.message, false); }
   prestigeBusy = false; prestigeArmed = false;
   await refreshClub(); renderProfile();
@@ -3548,7 +3275,7 @@ function achievementsHTML(name) {
   if (!info) return '';
   const got = new Map(((p && p.achievements) || []).map(a => [a.id, a.at]));
   return `<div class="field" style="margin:0"><span class="lab">Achievements ${got.size}/${info.achievements.length}</span>
-    <div class="ach-grid">${info.achievements.map(a => { const at = got.get(a.id); return `<div class="ach ${at ? 'got' : ''}" title="${esc(a.desc)}"><span class="ach-ic">${ACH_ICON[a.id] || '🏅'}</span><b>${esc(a.name)}</b><small>${at ? new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : esc(a.desc)}</small><span class="ach-d">+${a.dinks}</span></div>`; }).join('')}</div></div>`;
+    <div class="ach-grid">${info.achievements.map(a => { const at = got.get(a.id); return `<div class="ach ${at ? 'got' : ''}" title="${esc(a.desc)}"><span class="ach-ic">${ACH_ICON[a.id] || '🏅'}</span><b>${esc(a.name)}</b><small>${at ? new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : esc(a.desc)}</small></div>`; }).join('')}</div></div>`;
 }
 function trophiesHTML(name) {
   const p = progressOf(name);
@@ -3575,7 +3302,7 @@ function rivalriesHTML(name, mode) {
   if (!rivals.length) return '';
   return `<div class="field" style="margin:0"><span class="lab">Rivalries</span><div class="rivals">${rivals.map((e, i) => {
     const lead = e.w > e.l ? 'leads' : e.w < e.l ? 'trails' : 'tied';
-    return `<button class="rival ${lead}" data-player="${esc(e.name)}"><span class="avatar-mini${frameClass(e.name)}">${avatarInner(e.name)}</span>
+    return `<button class="rival ${lead}" data-player="${esc(e.name)}"><span class="avatar-mini">${avatarInner(e.name)}</span>
       <span class="rv-text"><b>${i === 0 ? 'Top rival: ' : ''}${esc(e.name)}</b><small>${lead === 'tied' ? `All square at ${e.w}–${e.l}` : `${esc(name.split(' ')[0])} ${lead} ${Math.max(e.w, e.l)}–${Math.min(e.w, e.l)}`}</small></span>
       <span class="rv-score">${e.w}–${e.l}</span></button>`;
   }).join('')}</div></div>`;
@@ -3662,7 +3389,7 @@ function avatarSheetHTML(c) {
   if (c.atab === 'photo') body = `<label class="photo-drop" for="av-file"><span>${cur && cur.type === 'photo' ? 'Choose a different photo' : 'Choose a photo'}</span><small>It's cropped to a square and shrunk before it's saved. Everyone in ${esc(club.name)} can see it.</small></label><input id="av-file" type="file" accept="image/*" hidden>`;
   if (c.atab === 'initials') body = `<p class="note">Use the letters of your name, like everyone starts with.</p><button type="button" class="btn btn-soft" data-av-initials="1">Use my initials</button>`;
   return `<h2 id="club-h">Your picture</h2>
-    <div class="av-preview"><span class="av${frameClass(name)}">${avatarInner(name, cur || null)}</span><span>${styledName(name)}</span></div>
+    <div class="av-preview"><span class="av">${avatarInner(name, cur || null)}</span><span>${esc(name)}</span></div>
     ${seg('data-av-tab', tabs, c.atab, 'sm')}
     ${body}
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
@@ -3672,159 +3399,14 @@ async function saveAvatar() {
   const c = clubSheet;
   c.busy = true; c.error = ''; renderClub();
   try {
-    await shopCall({ action: 'avatar', name: myName(), playerToken: myToken(), avatar: c.pending || { type: 'initials' } });
+    await playerCall({ action: 'avatar', name: myName(), playerToken: myToken(), avatar: c.pending || { type: 'initials' } });
     clubSheet = null; showToast('Picture saved', false);
     await refreshClub(); render(); renderProfile();
   } catch (err) { c.busy = false; c.error = err.message; renderClub(); }
 }
 
-const SLOT_LABEL = { title: 'Titles', frame: 'Avatar rings', style: 'Name styles', theme: 'Court themes', celebrate: 'Win celebrations', sound: 'Victory sounds' };
-const SLOT_NOTE = { title: 'Shown under your name.', frame: 'A ring around your initials.', style: 'How your name looks on the leaderboard.', theme: 'Your scoring screen on this phone.', celebrate: 'Plays when your team wins.', sound: 'Plays on the scoring phone when your team wins. Tap to hear it.' };
-const TROPHY_SVG = `<svg class="pv-trophy" viewBox="0 0 64 64" aria-hidden="true"><path d="M18 8h28v14a14 14 0 01-28 0z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><path d="M18 12H9a9 9 0 009 12M46 12h9a9 9 0 01-9 12" fill="none" stroke="#F2C94C" stroke-width="4" stroke-linecap="round"/><path d="M28 35h8v10h-8z" fill="#E0A82E"/><path d="M20 46h24v8H20z" fill="#F2C94C" stroke="#9A6B00" stroke-width="2"/><circle cx="32" cy="20" r="5" fill="#DDF247" stroke="#9A6B00" stroke-width="1.5"/></svg>`;
-function itemPreview(it, name) {
-  if (it.slot === 'title') return `<span class="pv-title${it.rarity === 'legendary' ? ' p-title legendary' : ''}" style="${it.rarity === 'legendary' ? 'font-size:15px' : ''}">${esc(it.name)}</span>`;
-  if (it.id === 'celebrate-trophy') return TROPHY_SVG;
-  if (it.id === 'celebrate-fireworks') return `<span class="pv-fw">${Array.from({ length: 10 }, (_, i) => { const a = i / 10 * Math.PI * 2; return `<i style="transform:translate(${Math.round(Math.cos(a) * 20)}px,${Math.round(Math.sin(a) * 18)}px);background:${['#FFD54F', '#FF8AD8', '#6EE7FF'][i % 3]}"></i>`; }).join('')}</span>`;
-  if (it.slot === 'frame') return `<span class="avatar-mini ${it.id}">${name ? avatarInner(name) : 'You'}</span>`;
-  if (it.slot === 'style') return `<span class="p-name ${it.id}">${esc(name || 'Your name')}</span>`;
-  if (it.slot === 'theme') return `<span class="pv-theme ${it.id}"><i></i><i></i></span>`;
-  if (it.slot === 'sound') return `<button class="pv-play" data-sound="${it.id}" aria-label="Play ${esc(it.name)}"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg></button>`;
-  return `<span class="pv-cele ${it.id}"><i></i><i></i><i></i><i></i><i></i></span>`;
-}
-let armedBuy = null;
-function shopView() {
-  const head = `<section><div class="sec-head"><h2>Shop</h2></div></section>`;
-  if (!API_OK) return head + `<div class="empty"><p>The shop works on the Dink Score website, inside a club.</p></div>`;
-  if (!club) return head + `<div class="empty"><p>Join a club to earn Dinks from games and spend them here.</p><button class="btn btn-ink" data-act="club-open">Join a club</button></div>`;
-  const s = shopInfo();
-  if (!s) return head + `<div class="empty"><p>Loading the shop…</p></div>`;
-  const name = myName();
-  const w = name ? wallet(name) : null;
-  const earnRules = `<ul class="earn"><li><b>+${s.earn.win}</b> for a win</li><li><b>+${s.earn.play}</b> for playing</li><li><b>+${s.earn.beatForecast}</b> for beating the forecast</li><li><b>+${s.earn.streak}</b> per win in a ${s.earn.streakFrom}+ win streak</li></ul>
-    <p class="note">Full Dinks come from games sent from any club player's phone, scored live or logged. Other games earn the +${s.earn.play} for playing. Up to ${s.earn.dailyCap} a day.</p>`;
-  const walletCard = name
-    ? `<section class="wallet"><div class="w-top"><button class="av-btn" data-act="av-open" aria-label="Change your picture"><span class="avatar-mini${frameClass(name)}">${avatarInner(name)}</span><span class="av-edit">Edit</span></button><div class="w-who">${styledName(name)}</div><span class="badge you">You</span></div>
-        <div class="w-bal"><b>${w.balance}</b><span>Dinks</span></div><div class="w-sub">${w.earned} earned, ${w.spent} spent</div>${earnRules}</section>`
-    : `<section class="wallet"><h3>Who are you?</h3><p class="note">Link this phone to your name to see your Dinks and buy things.</p><button class="btn btn-ink" data-act="whoami-open">Choose my name</button>${earnRules}</section>`;
-  const card = it => {
-    const slot = it.slot;
-    const eq = name ? equippedFor(name)[slot] : null;
-    const price = s.prices[it.id];
-    const owned = w && w.owned.has(it.id);
-    const worn = eq === it.id;
-    const afford = w && w.balance >= price;
-    const armed = armedBuy === it.id;
-    const legend = it.rarity === 'legendary';
-    const action = !name ? '' : owned
-      ? (worn ? `<button class="ibtn on" data-equip="${it.id}" data-slot="${slot}" data-off="1">Wearing</button>` : `<button class="ibtn" data-equip="${it.id}" data-slot="${slot}">Wear</button>`)
-      : `<button class="ibtn buy ${armed ? 'armed' : ''}" data-buy="${it.id}" ${afford ? '' : 'disabled'}>${armed ? `Buy for ${price}?` : afford ? `${price} Dinks` : `${price - w.balance} more`}</button>`;
-    const badge = it.rarity === 'rare' ? '<span class="rarity rare">Rare</span>' : legend ? '<span class="rarity legendary">Legendary</span>' : '';
-    return `<div class="item ${owned ? 'owned' : ''} ${legend ? 'legendary' : ''}"><div class="pv">${itemPreview(it, name)}</div>${badge}<span class="iname">${esc(it.name)}</span>${!owned ? `<span class="iprice">${price} Dinks</span>` : '<span class="iprice">Owned</span>'}${action}</div>`;
-  };
-  const legends = s.catalog.filter(i => i.rarity === 'legendary');
-  const legendSec = legends.length ? `<section class="legend-sec"><div class="sec-head"><h3>Legendary</h3></div><div class="items">${legends.map(card).join('')}</div></section>` : '';
-  const byslot = ['title', 'frame', 'style', 'theme', 'celebrate', 'sound'].map(slot => {
-    const items = s.catalog.filter(i => i.slot === slot && i.rarity !== 'legendary');
-    return `<section class="shop-sec"><div class="sec-head"><h3>${SLOT_LABEL[slot]}</h3><span class="note">${SLOT_NOTE[slot]}</span></div>
-      <div class="items">${items.map(card).join('')}</div></section>`;
-  }).join('');
-  const rewards = s.rewardsEnabled && s.rewards.length ? `<section class="shop-sec"><div class="sec-head"><h3>Club rewards</h3><span class="note">Real perks, handed over by an organizer.</span></div>
-    <div class="rewards">${s.rewards.map(r => {
-      const armed = armedBuy === r.id, afford = w && w.balance >= r.price;
-      return `<div class="reward"><span class="rname">${esc(r.name)}</span><span class="iprice">${Number(r.price)} Dinks</span>${name ? `<button class="ibtn buy ${armed ? 'armed' : ''}" data-buy="${esc(r.id)}" ${afford ? '' : 'disabled'}>${armed ? `Buy for ${Number(r.price)}?` : afford ? 'Get it' : `${Number(r.price) - w.balance} more`}</button>` : ''}</div>`;
-    }).join('')}</div>
-    ${w && w.rewards.length ? `<p class="note">Your rewards: ${w.rewards.slice(-5).reverse().map(p => `${esc(p.itemName)} (${p.givenAt ? 'given' : 'waiting for an organizer'})`).join(', ')}</p>` : ''}</section>` : '';
-  const admin = club.hasPin || isCreator() ? `<section><button class="btn btn-soft block" data-act="shop-admin-open">Manage shop${pendingRewards().length ? ` (${pendingRewards().length} to hand out)` : ''}</button></section>` : '';
-  return head + walletCard + (name ? spinCard(w, s) : '') + legendSec + byslot + rewards + admin;
-}
-// Daily spin: one free spin per UTC day. The server picks the result; the wheel only shows it.
-const SPIN_ID = 'daily-spin';
-const SPIN_COLORS = ['#DDF247', '#4361FF', '#17B988', '#FF8A5B', '#B388FF', '#FF4D6D', '#6EE7FF', '#F2C94C'];
-let spinRot = 0, spinBusy = false;
-const utcDay = t => new Date(t).toISOString().slice(0, 10);
-function spinToday(w) { const today = utcDay(Date.now()); return (w.spins || []).find(p => utcDay(p.at) === today) || null; }
-function wheelSVG(values) {
-  const n = values.length, a = 360 / n, R = 96;
-  const pt = deg => { const r = (deg - 90) * Math.PI / 180; return [(Math.cos(r) * R).toFixed(2), (Math.sin(r) * R).toFixed(2)]; };
-  const segs = values.map((v, i) => {
-    const c = SPIN_COLORS[i % SPIN_COLORS.length];
-    const [x1, y1] = pt(i * a - a / 2), [x2, y2] = pt(i * a + a / 2);
-    const dark = ['#4361FF', '#17B988', '#FF4D6D'].includes(c);
-    return `<path d="M0 0L${x1} ${y1}A${R} ${R} 0 0 1 ${x2} ${y2}Z" fill="${c}"/><text transform="rotate(${i * a}) translate(0 -62)" text-anchor="middle" dominant-baseline="middle" fill="${dark ? '#fff' : '#1B2104'}">${Number(v)}</text>`;
-  }).join('');
-  return `<svg class="spin-wheel" id="spin-wheel" viewBox="-100 -100 200 200" style="--rot:${spinRot}deg" aria-hidden="true"><circle r="99" fill="var(--ink)"/>${segs}<circle r="16" fill="var(--ink)"/><circle r="6" fill="var(--ball)"/></svg>`;
-}
-function spinCard(w, s) {
-  const values = s.spinWheel || [5, 10, 3, 15, 5, 25, 3, 50];
-  const done = spinToday(w);
-  const next = new Date(); next.setUTCHours(24, 0, 0, 0);
-  const mins = Math.max(1, Math.round((next - Date.now()) / 6e4));
-  const wait = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
-  const text = done && !spinBusy
-    ? `<h3>Daily spin</h3><span class="spin-won">+${-done.price}</span><p class="note">Won today. Next spin in ${wait}.</p>`
-    : `<h3>Daily spin</h3><p class="note">Free Dinks once a day, up to ${Math.max(...values)}.</p><button class="btn btn-ink" data-act="spin" ${spinBusy ? 'disabled' : ''}>${spinBusy ? 'Spinning…' : 'Spin'}</button>`;
-  return `<section class="spin-card"><div class="spin-wrap">${wheelSVG(values)}<span class="spin-ptr"></span></div><div class="spin-text">${text}</div></section>`;
-}
-async function doSpin(btn) {
-  if (spinBusy) return;
-  spinBusy = true; if (btn) { btn.disabled = true; btn.textContent = 'Spinning…'; }
-  try {
-    const data = await shopCall({ action: 'spin', name: myName(), playerToken: myToken() });
-    const n = (shopInfo().spinWheel || []).length || 8, a = 360 / n;
-    const want = (360 - data.index * a + (Math.random() - 0.5) * a * 0.6 + 360) % 360;
-    spinRot = spinRot + 360 * 5 + ((want - spinRot % 360) + 360) % 360;
-    const el = document.getElementById('spin-wheel');
-    if (el) { el.classList.add('go'); el.getBoundingClientRect(); el.style.setProperty('--rot', spinRot + 'deg'); }
-    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    await new Promise(r => setTimeout(r, el ? (reduce ? 700 : 3700) : 0));
-    spinBusy = false;
-    showToast(`You won ${data.amount} Dinks`, false);
-    if (data.amount >= 25) celebrate('celebrate-confetti');
-    await refreshClub();
-    if (tab === 'shop') safeRender();
-  } catch (err) { spinBusy = false; showToast(err.message, false); await refreshClub(); if (tab === 'shop') safeRender(); }
-}
-const pendingRewards = () => ((clubData && clubData.purchases) || []).filter(p => p.reward && !p.givenAt);
-async function buyItem(id) {
-  try {
-    await shopCall({ action: 'buy', name: myName(), playerToken: myToken(), itemId: id });
-    armedBuy = null;
-    const it = shopInfo().catalog.find(i => i.id === id);
-    showToast(it ? `Bought ${it.name}` : 'Reward requested. An organizer will hand it over.', false);
-    await refreshClub();
-    if (it) await equipItem(it.slot, id, true);
-  } catch (err) { armedBuy = null; showToast(err.message, false); render(); }
-}
-async function equipItem(slot, id, quiet) {
-  try {
-    await shopCall({ action: 'equip', name: myName(), playerToken: myToken(), slot, itemId: id });
-    if (!quiet) showToast(id ? `Wearing ${itemName(id)}` : 'Taken off', false);
-    await refreshClub();
-  } catch (err) { showToast(err.message, false); }
-}
-
-// Organizer: prices, rewards on/off, the rewards list, handing rewards over, and releasing linked names.
+// Organizer: releasing linked names and removing pictures.
 function adminCreds() { return { pin: pins[club.code] || '', ownerToken: owners[club.code] || '' }; }
-function shopAdminHTML(c) {
-  const s = shopInfo();
-  if (!c.draft) c.draft = { rewardsEnabled: s.rewardsEnabled, prices: Object.assign({}, s.prices), rewards: s.rewards.map(r => Object.assign({}, r)) };
-  const d = c.draft;
-  const locked = club.hasPin && !hasOrganizer();
-  const pend = pendingRewards();
-  const playerName = key => { const p = clubPlayers().find(x => x.name.toLowerCase() === key); return p ? p.name : key; };
-  return `<h2 id="club-h">Manage shop</h2>
-    ${locked ? `<p>Changing the shop needs the organizer PIN.</p><div class="btns"><button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div>` : `
-    ${pend.length ? `<div class="field" style="margin:0"><span class="lab">Rewards to hand out</span><ul class="deleted">${pend.map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}</span><button class="link" data-given="${p.id}">Mark given</button></li>`).join('')}</ul></div>` : ''}
-    <label class="toggle"><input type="checkbox" id="adm-rewards" ${d.rewardsEnabled ? 'checked' : ''}><span>Club rewards in the shop</span></label>
-    ${d.rewardsEnabled ? `<div class="field" style="margin:0"><span class="lab">Rewards</span><div class="adm-rows">${d.rewards.map((r, i) => `<div class="adm-row"><input class="field-input" data-rw-name="${i}" value="${esc(r.name)}" maxlength="60" aria-label="Reward ${i + 1} name"><input class="field-input price" type="number" inputmode="numeric" min="0" max="9999" data-rw-price="${i}" value="${Number(r.price)}" aria-label="Reward ${i + 1} price"><button class="x" data-rw-del="${i}" aria-label="Remove reward">✕</button></div>`).join('')}</div>
-      <button class="link" data-act="adm-add-reward" style="align-self:flex-start">+ Add a reward</button></div>` : ''}
-    <div class="field" style="margin:0"><span class="lab">Item prices (Dinks)</span><div class="adm-rows">${s.catalog.map(it => `<div class="adm-row"><span class="adm-item">${esc(it.name)}<small>${SLOT_LABEL[it.slot]}</small></span><input class="field-input price" type="number" inputmode="numeric" min="0" max="9999" data-price="${it.id}" value="${Number(d.prices[it.id])}" aria-label="${esc(it.name)} price"></div>`).join('')}</div></div>
-    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
-    <button class="btn btn-ink" data-act="adm-save" ${c.busy ? 'disabled' : ''}>Save shop</button>
-    ${((clubData && clubData.purchases) || []).some(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID) ? `<div class="field" style="margin:0"><span class="lab">Recent purchases</span><ul class="deleted">${clubData.purchases.filter(p => p.itemId !== SPIN_ID && p.itemId !== PRESTIGE_ID).slice(-15).reverse().map(p => `<li><span>${esc(playerName(p.player))}: ${esc(p.itemName)}, ${Number(p.price)} Dinks</span><button class="link" data-refund="${p.id}">Refund</button></li>`).join('')}</ul><p class="note">Refunding gives the Dinks back and takes the item off.</p></div>` : ''}
-    ${clubPlayers().some(p => p.claimed) ? `<div class="field" style="margin:0"><span class="lab">Names linked to phones</span><ul class="deleted">${clubPlayers().filter(p => p.claimed).map(p => `<li><span>${esc(p.name)}</span><button class="link" data-release="${esc(p.name)}">Release</button></li>`).join('')}</ul><p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p></div>` : ''}`}
-    <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
-}
 function watchHTML(c) {
   const gameOn = !!(live && !live.event);
   const url = location.origin + '/api/live';
@@ -3856,11 +3438,10 @@ function membersHTML(c) {
   const duprCount = dc ? rows.filter(r => duprLinked(r.p.name)).length : 0;
   const active = rows.filter(r => r.last && now - r.last <= DAY30).length;
   const list = rows.map(({ p, n, last }) => {
-    const bal = Math.round((wallet(p.name) || {}).balance || 0);
     const when = last ? new Date(last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-    return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
-      <span class="mem-text"><span class="mem-name">${styledName(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
-      <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'} · ${bal} Dinks</span></span></button>
+    return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini">${avatarInner(p.name)}</span>
+      <span class="mem-text"><span class="mem-name">${esc(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
+      <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'}</span></span></button>
       ${p.claimed || p.avatar || dc ? `<span class="mem-acts">${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span>` : ''}</li>`;
   }).join('');
   return `<h2 id="club-h">Members</h2>
@@ -3869,137 +3450,9 @@ function membersHTML(c) {
     <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones.</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
-async function adminSave() {
-  const c = clubSheet, d = c.draft;
-  c.busy = true; c.error = ''; renderClub();
-  try {
-    const data = await shopCall(Object.assign({ action: 'settings', rewardsEnabled: d.rewardsEnabled, prices: d.prices, rewards: d.rewards }, adminCreds()));
-    if (clubData) clubData.shop = Object.assign({}, clubData.shop, data.settings, { configured: true });
-    clubSheet = null; showToast('Shop saved', false); render();
-    refreshClub();
-  } catch (err) { c.busy = false; c.error = err.message; renderClub(); }
-}
 async function adminAction(body, okMsg) {
-  try { await shopCall(Object.assign(body, adminCreds())); showToast(okMsg, false); await refreshClub(); renderClub(); }
+  try { await playerCall(Object.assign(body, adminCreds())); showToast(okMsg, false); await refreshClub(); renderClub(); }
   catch (err) { showToast(err.message, false); }
-}
-
-// Victory sounds, made with Web Audio (no files). The audio context is only made when a sound may play, so phones
-// that aren't using one never have their music interrupted.
-let actx = null;
-function audioCtx() {
-  if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; try { actx = new C(); } catch { return null; } }
-  if (actx.state === 'suspended') actx.resume();
-  return actx;
-}
-function tone(ctx, { f, f2, type = 'sine', at = 0, dur = 0.3, vol = 0.25, attack = 0.01, out }) {
-  const o = ctx.createOscillator(), g = ctx.createGain(), t = ctx.currentTime + at;
-  o.type = type; o.frequency.setValueAtTime(f, t);
-  if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
-  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g).connect(out || ctx.destination); o.start(t); o.stop(t + dur + 0.05);
-}
-function noise(ctx, { at = 0, dur = 0.5, vol = 0.3, attack = 0.01, filter = 'bandpass', freq = 1000, q = 1, out }) {
-  const len = Math.ceil(ctx.sampleRate * (dur + 0.05)), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-  const src = ctx.createBufferSource(), bq = ctx.createBiquadFilter(), g = ctx.createGain(), t = ctx.currentTime + at;
-  src.buffer = buf; bq.type = filter; bq.frequency.value = freq; bq.Q.value = q;
-  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(bq).connect(g).connect(out || ctx.destination); src.start(t); src.stop(t + dur + 0.05);
-}
-const NOTE = n => 440 * Math.pow(2, (n - 69) / 12);
-function playSound(id) {
-  const ctx = audioCtx();
-  if (!ctx) return;
-  const out = ctx.createGain(); out.gain.value = 0.9; out.connect(ctx.destination);
-  if (id === 'sound-ding') {
-    [[88, 0], [93, 0.22]].forEach(([n, at]) => { tone(ctx, { f: NOTE(n), at, dur: 1.4, vol: 0.3, out }); tone(ctx, { f: NOTE(n) * 2.76, at, dur: 0.5, vol: 0.06, out }); });
-  } else if (id === 'sound-horn') {
-    [[0, 0.22], [0.3, 0.22], [0.6, 0.9]].forEach(([at, dur]) => {
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400; lp.connect(out);
-      [233, 294, 349, 466].forEach(f => tone(ctx, { f: f * 0.985, f2: f, type: 'sawtooth', at, dur, vol: 0.07, attack: 0.02, out: lp }));
-    });
-  } else if (id === 'sound-arcade') {
-    [72, 76, 79, 84, 79, 84].forEach((n, i) => tone(ctx, { f: NOTE(n), type: 'square', at: i * 0.09, dur: i === 5 ? 0.6 : 0.09, vol: 0.09, attack: 0.003, out }));
-    tone(ctx, { f: NOTE(91), type: 'square', at: 0.54, dur: 0.6, vol: 0.05, attack: 0.003, out });
-  } else if (id === 'sound-drum') {
-    for (let i = 0; i < 22; i++) noise(ctx, { at: i * 0.055, dur: 0.08, vol: 0.06 + i * 0.012, freq: 1800, q: 0.7, out });
-    tone(ctx, { f: 110, f2: 45, at: 1.25, dur: 0.6, vol: 0.6, out });
-    noise(ctx, { at: 1.25, dur: 1.6, vol: 0.28, filter: 'highpass', freq: 5000, q: 0.5, out });
-  } else if (id === 'sound-crowd') {
-    noise(ctx, { dur: 2.4, vol: 0.32, attack: 0.5, freq: 900, q: 0.6, out });
-    noise(ctx, { at: 0.2, dur: 2.0, vol: 0.16, attack: 0.4, freq: 2400, q: 1.2, out });
-    for (let i = 0; i < 6; i++) tone(ctx, { f: 500 + Math.random() * 400, f2: 900 + Math.random() * 500, type: 'triangle', at: 0.3 + Math.random() * 1.2, dur: 0.45, vol: 0.025, attack: 0.08, out });
-    for (let i = 0; i < 14; i++) noise(ctx, { at: 0.2 + Math.random() * 1.8, dur: 0.05, vol: 0.12, freq: 2500, q: 2, out });
-  } else if (id === 'sound-fanfare') {
-    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; lp.connect(out);
-    const seq = [[67, 0, 0.14], [67, 0.15, 0.14], [67, 0.3, 0.14], [72, 0.45, 0.5], [76, 0.95, 0.25], [79, 1.2, 1.1]];
-    seq.forEach(([n, at, dur]) => { tone(ctx, { f: NOTE(n), type: 'sawtooth', at, dur, vol: 0.09, attack: 0.03, out: lp }); tone(ctx, { f: NOTE(n - 12), type: 'sawtooth', at, dur, vol: 0.05, attack: 0.03, out: lp }); });
-    [64, 67, 72].forEach(n => tone(ctx, { f: NOTE(n), type: 'triangle', at: 1.2, dur: 1.1, vol: 0.06, attack: 0.05, out: lp }));
-    noise(ctx, { at: 1.2, dur: 1.3, vol: 0.12, filter: 'highpass', freq: 6000, q: 0.5, out });
-  }
-}
-
-// Win celebrations: a short burst over the game-over screen when a winner has one equipped.
-function celebrate(kind) {
-  const layer = document.createElement('div');
-  layer.className = 'celebrate ' + kind;
-  layer.setAttribute('aria-hidden', 'true');
-  const colors = ['var(--ball)', '#4361FF', '#17B988', '#FF8A5B', '#FFFFFF'];
-  if (kind === 'celebrate-fireworks') {
-    // Five bursts across the screen, one after another.
-    const hues = ['#FFD54F', '#FF8AD8', '#6EE7FF', '#7CFFB2', '#FF7A45'];
-    for (let b = 0; b < 5; b++) {
-      const burst = document.createElement('div');
-      burst.className = 'burst';
-      burst.style.left = (15 + Math.random() * 70) + '%';
-      burst.style.top = (12 + Math.random() * 45) + '%';
-      for (let i = 0; i < 22; i++) {
-        const p = document.createElement('i');
-        const a = (i / 22) * Math.PI * 2, d = 70 + Math.random() * 60;
-        p.style.setProperty('--sx', Math.cos(a) * d + 'px');
-        p.style.setProperty('--sy', Math.sin(a) * d + 'px');
-        p.style.color = p.style.background = hues[(b + i) % hues.length];
-        p.style.animationDelay = (b * 0.35) + 's';
-        burst.appendChild(p);
-      }
-      layer.appendChild(burst);
-    }
-    document.body.appendChild(layer);
-    setTimeout(() => layer.remove(), 3400);
-    return;
-  }
-  if (kind === 'celebrate-trophy') {
-    // A trophy drops in over a shower of gold.
-    const t = document.createElement('div');
-    t.className = 'trophy';
-    t.innerHTML = TROPHY_SVG.replace('class="pv-trophy"', 'width="140" height="140"');
-    layer.appendChild(t);
-    for (let i = 0; i < 40; i++) {
-      const g = document.createElement('i');
-      g.style.left = (Math.random() * 100) + '%';
-      g.style.animationDelay = (0.3 + Math.random() * 0.6) + 's';
-      g.style.setProperty('--dx', ((Math.random() - 0.5) * 120) + 'px');
-      g.style.background = ['#F2C94C', '#FFE58A', '#E0A82E', '#FFF6D0'][i % 4];
-      layer.appendChild(g);
-    }
-    document.body.appendChild(layer);
-    setTimeout(() => layer.remove(), 3000);
-    return;
-  }
-  const count = kind === 'celebrate-pickles' || kind === 'celebrate-paddles' ? 24 : 36;
-  for (let i = 0; i < count; i++) {
-    const b = document.createElement('i');
-    b.style.left = (Math.random() * 100) + '%';
-    b.style.animationDelay = (Math.random() * 0.5) + 's';
-    b.style.setProperty('--dx', ((Math.random() - 0.5) * 160) + 'px');
-    if (kind === 'celebrate-confetti') b.style.background = colors[i % colors.length];
-    if (kind === 'celebrate-paddles') b.style.background = ['#4361FF', '#FF8A5B', '#17B988', '#DDF247', '#FF4D6D'][i % 5];
-    if (kind === 'celebrate-hearts') { b.style.color = ['#FF4D6D', '#FF8AD8', '#FF2B5E', '#FFB3C7'][i % 4]; b.style.fontSize = (18 + Math.random() * 18) + 'px'; }
-    layer.appendChild(b);
-  }
-  document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 2600);
 }
 
 /* ---------- player profiles ---------- */
@@ -4107,7 +3560,7 @@ function renderProfile() {
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
   }
   const changed = setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
-    <div class="pf-head"><span class="av${frameClass(pr.name)}">${avatarInner(pr.name)}</span><h2 id="pf-h">${styledName(pr.name)}${youTag(pr.name)}${club && clubData ? `<span class="pf-dinks">${wallet(pr.name).balance} Dinks</span>` : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    <div class="pf-head"><span class="av">${avatarInner(pr.name)}</span><h2 id="pf-h">${esc(pr.name)}${youTag(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${levelCardHTML(pr.name)}
@@ -4140,8 +3593,8 @@ function tourSteps() {
   ];
   if (API_OK) steps.push({ title: 'Play alone or with a club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
     body: `<p>You can start scoring right now, no club needed. Games stay on your phone, and after a game you can <b>Share</b> the result or <b>Save to a club</b>. To share one record with your friends, tap <b>Join a club</b> at the top and join with a code: everyone sees the same games, saved players and leaderboard. No accounts needed.</p>` });
-  if (API_OK) steps.push({ title: 'Earn Dinks, spend them in the shop', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>+10 a win</span><span>Titles</span><span>Courts</span></div>`,
-    body: `<p>When you join a club, pick your name. Every win earns you <b>Dinks</b> to spend in the <b>Shop</b> on titles, name styles, avatar rings, court themes, win celebrations and victory sounds, and spin the wheel once a day for free Dinks. Your organizer can also add real club rewards.</p>` });
+  if (API_OK) steps.push({ title: 'Pick your name', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>Levels</span><span>Challenges</span></div>`,
+    body: `<p>When you join a club, pick your name. Games sent from your phone count toward your <b>level</b>, <b>achievements</b> and the weekly <b>challenges</b>, and you can set your own picture.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
     body: isIOS
       ? `<p>In Safari, tap the <b>Share</b> button, then <b>Add to Home Screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>`
@@ -5004,31 +4457,15 @@ document.addEventListener('click', e => {
     if (el.dataset.armed !== '1') { el.dataset.armed = '1'; el.textContent = 'Tap again to remove it'; return; }
     adminAction({ action: 'clear-avatar', name: ds.clearAvatar }, 'Picture removed').then(() => renderProfile()); return;
   }
-  // Who are you, and the shop
+  // Who are you
   if (ds.claim) { claimName(ds.claim); return; }
   if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (ds.act === 'whoami-skip') { const after = clubSheet && clubSheet.afterJoin; skipWhoami(); clubSheet = null; if (after) afterJoin(); else { renderClub(); render(); } return; }
-  if (ds.buy) {
-    if (armedBuy !== ds.buy) { armedBuy = ds.buy; render(); setTimeout(() => { if (armedBuy === ds.buy) { armedBuy = null; if (tab === 'shop') safeRender(); } }, 4000); return; }
-    el.disabled = true; el.textContent = 'Buying…'; buyItem(ds.buy); return;
-  }
-  if (ds.equip) { equipItem(ds.slot, ds.off ? null : ds.equip); return; }
-  if (ds.sound) { el.classList.add('playing'); setTimeout(() => el.classList.remove('playing'), 1400); playSound(ds.sound); return; }
-  if (ds.act === 'spin') { doSpin(el); return; }
   if (ds.act === 'prestige') { doPrestige(); return; }
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); return; }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }
   if (ds.fail) { failAct(ds.fail, ds.uid, el); return; }
-  if (ds.act === 'shop-admin-open') { clubSheet = { view: 'shopadmin' }; renderClub(); return; }
-  if (ds.act === 'adm-save') { adminSave(); return; }
-  if (ds.act === 'adm-add-reward') { clubSheet.draft.rewards.push({ name: '', price: 60 }); renderClub(); return; }
-  if (ds.rwDel !== undefined) { clubSheet.draft.rewards.splice(+ds.rwDel, 1); renderClub(); return; }
-  if (ds.given) { adminAction({ action: 'given', purchaseId: +ds.given }, 'Marked as given'); return; }
-  if (ds.refund) {
-    if (clubSheet.confirmRefund !== ds.refund) { clubSheet.confirmRefund = ds.refund; el.textContent = 'Tap again to refund'; return; }
-    adminAction({ action: 'refund', purchaseId: +ds.refund }, 'Refunded'); return;
-  }
   if (ds.release) {
     if (clubSheet.confirmRelease !== ds.release) { clubSheet.confirmRelease = ds.release; el.textContent = 'Tap again to release'; return; }
     adminAction({ action: 'release', name: ds.release }, `${ds.release} can now be picked on another phone`); return;
@@ -5139,15 +4576,6 @@ document.addEventListener('click', e => {
   }
 });
 let fcTimer;
-// Shop settings draft: keep what the organizer types without redrawing (which would lose their place).
-document.addEventListener('input', e => {
-  const d = clubSheet && clubSheet.view === 'shopadmin' && clubSheet.draft;
-  if (!d) return;
-  const t = e.target, ds = t.dataset || {};
-  if (ds.price) d.prices[ds.price] = Math.trunc(Number(t.value));
-  if (ds.rwName !== undefined) d.rewards[+ds.rwName].name = t.value;
-  if (ds.rwPrice !== undefined) d.rewards[+ds.rwPrice].price = Math.trunc(Number(t.value));
-});
 document.addEventListener('change', e => {
   if (e.target.id === 'av-file' && clubSheet && clubSheet.view === 'avatar') {
     const file = e.target.files && e.target.files[0];
@@ -5155,7 +4583,6 @@ document.addEventListener('change', e => {
       .catch(err => { clubSheet.error = err.message; renderClub(); });
     return;
   }
-  if (e.target.id === 'adm-rewards' && clubSheet && clubSheet.draft) { clubSheet.draft.rewardsEnabled = e.target.checked; renderClub(); }
 });
 document.addEventListener('input', e => {
   const d = e.target.dataset || {};
@@ -5225,7 +4652,7 @@ document.addEventListener('keydown', e => {
 // Everything here stays hidden until GET /api/dupr says {enabled:true}. A player signs in on DUPR's own page (an iframe),
 // the server confirms who they are with DUPR, and only a DUPR id and a rating are kept. Organizers review finished event
 // matches and send them to DUPR after an explicit confirm. DUPR numbers are shown as labelled by DUPR and never feed the
-// Dink Rating, Dinks, achievements or the leaderboard order. (The self-reported rating further up is a separate thing.)
+// Dink Rating, achievements or the leaderboard order. (The self-reported rating further up is a separate thing.)
 let dsso = { code: null, cfg: null, loading: false, failedAt: 0 };
 let dssoUI = null; // { view: 'connect' | 'review', name, event, busy, error, review, round, ok, results }
 function dssoCfg() {
@@ -5240,7 +4667,7 @@ function dssoCfg() {
 }
 const dssoFmt = v => (typeof v === 'number' ? v.toFixed(2) : '–');
 const dssoAgo = at => { const m = Math.max(0, Math.round((Date.now() - at) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
-const DSSO_CONSENT = 'You sign in on DUPR’s own page, so Dink Score never sees your DUPR password. Dink Score keeps your DUPR ID and your DUPR rating, and your club sees the rating labelled as DUPR’s. If an organizer sends event scores to DUPR, what goes to DUPR is the players’ DUPR IDs, the scores, the match date and the event name. Nothing is sent without an organizer confirming it. You can revoke access in your DUPR settings, or tap Unlink here, which deletes the stored ID and rating. DUPR numbers never change your Dink Rating, Dinks or leaderboard.';
+const DSSO_CONSENT = 'You sign in on DUPR’s own page, so Dink Score never sees your DUPR password. Dink Score keeps your DUPR ID and your DUPR rating, and your club sees the rating labelled as DUPR’s. If an organizer sends event scores to DUPR, what goes to DUPR is the players’ DUPR IDs, the scores, the match date and the event name. Nothing is sent without an organizer confirming it. You can revoke access in your DUPR settings, or tap Unlink here, which deletes the stored ID and rating. DUPR numbers never change your Dink Rating or leaderboard.';
 // DUPR is wired to DUPR's UAT (test) site until production keys exist, so say so where a real account may fail.
 const duprTestNote = c => DuprEntry.testMode(c) ? '<p class="note"><span class="test" style="font-weight:700">DUPR test mode.</span> This connects to DUPR’s test site (uat.dupr.gg). A real DUPR account may not sign in here, and that is not a bug in Dink Score.</p>' : '';
 /*DUPRENTRY-START*/

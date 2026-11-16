@@ -63,7 +63,8 @@ export function ensureSchema() {
       )`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_hash text`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_expires timestamptz`;
-      // Shop: organizer settings on the club, claimed names and equipped items on saved players, purchases.
+      // UNUSED LEGACY (Dinks and the shop were removed): clubs.shop, roster.equipped and the purchases table are no longer
+      // read or written. Kept, with their data, for a possible later cleanup. roster.claim_hash/avatar/prestige/dupr are live.
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS shop jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS claim_hash text`; // hash of the token on the phone that claimed this name
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS equipped jsonb NOT NULL DEFAULT '{}'::jsonb`;
@@ -298,7 +299,7 @@ export async function requirePin(club, pin, req, ownerToken) {
 }
 export const ownerFrom = req => (req.headers || {})['x-club-owner'];
 
-// Organizer-only settings (shop prices, rewards, releasing names) need the creating phone or, once set, the PIN.
+// Organizer-only settings (releasing names, running events) need the creating phone or, once set, the PIN.
 // A club without a PIN can't hand these to anyone with the code, so it needs the creating phone.
 export async function requireOrganizer(club, pin, req, ownerToken) {
   if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return;

@@ -541,7 +541,7 @@
   ],
   "narrative": {
     "northStar": "The Floodlit Court",
-    "overview": "Dink Score has two lighting conditions. By day, the app is a calm, cool-grey phone UI: white soft-cornered cards on a pale slate ground, ink-dark type, nothing shouting. When a game starts, the scoring screen switches to a floodlit night court. It's a near-black radial field with two big rounded team panels, blue and green, lit from within. The numerals are so large and so squeezed that you can read them from the baseline. Tennis-ball yellow is the floodlight. It marks who is serving, what's live, and who's on top.\n\nThe surfaces are calm and tidy. Cards, tiles, chips and rows are restrained, and the numbers do the shouting. The one bold typographic idea runs through everything: the variable grotesque Bricolage Grotesque, squeezed to 75% width and set heavy, for every number that matters. That covers scores, ratings, ranks, totals and forecasts. Geist carries everything else at a comfortable reading size.\n\nIt must never read as a corporate fitness app (gradients everywhere, stock athletes, goal-crushing energy). The Shop and Dinks must never read as a casino or gacha game. Text never gets small or dense enough to need squinting outdoors.",
+    "overview": "Dink Score has two lighting conditions. By day, the app is a calm, cool-grey phone UI: white soft-cornered cards on a pale slate ground, ink-dark type, nothing shouting. When a game starts, the scoring screen switches to a floodlit night court. It's a near-black radial field with two big rounded team panels, blue and green, lit from within. The numerals are so large and so squeezed that you can read them from the baseline. Tennis-ball yellow is the floodlight. It marks who is serving, what's live, and who's on top.\n\nThe surfaces are calm and tidy. Cards, tiles, chips and rows are restrained, and the numbers do the shouting. The one bold typographic idea runs through everything: the variable grotesque Bricolage Grotesque, squeezed to 75% width and set heavy, for every number that matters. That covers scores, ratings, ranks, totals and forecasts. Geist carries everything else at a comfortable reading size.\n\nIt must never read as a corporate fitness app (gradients everywhere, stock athletes, goal-crushing energy). Text never gets small or dense enough to need squinting outdoors.",
     "keyCharacteristics": [
       "Two worlds: a calm daylight app and a floodlit night court for scoring.",
       "Squeezed, heavy, tabular numerals for every number that matters.",
@@ -588,7 +588,7 @@
     ],
     "donts": [
       "Don't let it look like a corporate fitness app: no gradients on daylight surfaces, no stock athletes, no hype copy. Gradients belong only to the court panels.",
-      "Don't make the Shop, Dinks or rewards look like a casino or gacha game: no slot-machine flashing, confetti storms or loot-box theatrics.",
+      "Don't make achievements or rewards look like a casino or gacha game: no slot-machine flashing, confetti storms or loot-box theatrics.",
       "Don't set text below 13px for reading or below 11px for labels, and don't pack dense small type that needs squinting outdoors.",
       "Don't add a second accent color, or use ball yellow as a background wash.",
       "Don't add hover-only affordances. Every state must work on touch."

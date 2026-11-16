@@ -31,7 +31,7 @@ const names = ['Ana', 'Ben', 'Cy', 'Di', 'Ed', 'Flo', 'Gus', 'Hal'];
 names.forEach((n, i) => mock.state.addUser(`sso-token-${n.toLowerCase()}-0000000`, `${n.toUpperCase()}00${i + 1}`, { doubles: (3 + i / 10).toFixed(3) }));
 
 const H = {};
-for (const n of ['club', 'events', 'games', 'shop', 'roster', 'dupr', 'bracket']) { try { H[n] = (await import(pathToFileURL(path.join(root, 'api', n + '.js')).href)).default; } catch {} }
+for (const n of ['club', 'events', 'games', 'players', 'roster', 'dupr', 'bracket']) { try { H[n] = (await import(pathToFileURL(path.join(root, 'api', n + '.js')).href)).default; } catch {} }
 async function direct(handler, method, body, query = '') {
   const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.9.0.' + Math.floor(Math.random() * 200) }, body };
   let status = 0, text = '';
@@ -42,7 +42,7 @@ async function direct(handler, method, body, query = '') {
 const club = (await direct(H.club, 'POST', { name: 'Preview Club' })).json;
 const code = club.club.code, owner = club.ownerToken;
 let ev = (await direct(H.events, 'POST', { code, action: 'create', ownerToken: owner, event: { name: 'Sunday rotation', format: 'roundrobin', rotation: 'auto', courts: 2, players: names, seed: 'preview' } })).json.event;
-const claim = (await direct(H.shop, 'POST', { code, action: 'claim', name: 'Ana' })).json;
+const claim = (await direct(H.players, 'POST', { code, action: 'claim', name: 'Ana' })).json;
 for (const [i, m] of ev.rounds[0].matches.entries()) ev = (await direct(H.events, 'POST', { code, action: 'result', id: ev.id, matchId: m.id, score: i ? [11, 9] : [11, 5], endedAt: Date.now() })).json.event;
 const seed = { 'pb.club': { code, name: 'Preview Club', hasPin: false, openClaim: false }, 'pb.clubs': [{ code, name: 'Preview Club', hasPin: false }], 'pb.owners': { [code]: owner }, 'pb.me': { [code]: { name: 'Ana', token: claim.playerToken } }, 'pb.tutorialSeen': true, eventId: ev.id, code };
 

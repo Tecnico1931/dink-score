@@ -164,7 +164,7 @@ Dink Score has two lighting conditions. By day, the app is a calm, cool-grey pho
 
 The surfaces are calm and tidy. Cards, tiles, chips and rows are restrained, and the numbers do the shouting. The one bold typographic idea runs through everything: the variable grotesque Bricolage Grotesque, squeezed to 75% width and set heavy, for every number that matters. That covers scores, ratings, ranks, totals and forecasts. Geist carries everything else at a comfortable reading size.
 
-It must never read as a corporate fitness app (gradients everywhere, stock athletes, goal-crushing energy). The Shop and Dinks must never read as a casino or gacha game. Text never gets small or dense enough to need squinting outdoors.
+It must never read as a corporate fitness app (gradients everywhere, stock athletes, goal-crushing energy). Text never gets small or dense enough to need squinting outdoors.
 
 **Key Characteristics:**
 - Two worlds: a calm daylight app and a floodlit night court for scoring.
@@ -224,7 +224,7 @@ The palette is cool slate neutrals with two court colors and one electric ball y
 
 The layout is a single phone column, with a maximum width of 560px centered on larger screens. Side gutters are max(16px, safe-area inset). The vertical rhythm between sections is 22px. Inside cards the spacing runs 6, 10, 14 and 18px. The home screen is a two-column tile grid with a 10px gap. Tiles have a minimum height of 132px, and wide tiles span both columns.
 
-A floating tab bar with five or six tabs (Events appears only in a club, Shop only when the shop is set up) sits fixed at the bottom. It's at most 420px wide and inset 12px above the safe area. The page reserves about 112px plus the safe area at the bottom so content clears it. The page scrolls inside `<body>`, not the window.
+A floating tab bar with five tabs (Events appears only in a club) sits fixed at the bottom. It's at most 420px wide and inset 12px above the safe area. The page reserves about 112px plus the safe area at the bottom so content clears it. The page scrolls inside `<body>`, not the window.
 
 The scoring screen is a fixed full-viewport grid: a top bar, then team A's panel, then the net row with the score call, then team B's panel. In landscape at 640px and wider, the panels sit side by side with the net between them. Sheets rise from the bottom, at most 560px wide.
 
@@ -273,7 +273,7 @@ A recessed surface-2 track (14px radius, 4px padding). The selected segment lift
 - **Focus:** inside a team block, the border turns the team color with a 3px ring at 22% team color. Elsewhere it uses the global focus outline.
 
 ### Navigation
-A floating glass pill tab bar: surface at 82% opacity with a blur, a 1px line border and a 26px radius. It holds up to six icon-and-label tabs (Play, Leaders, Events, Shop, Record, Rules; Events and Shop come and go) with 22px icons and 11px labels at weight 600. The active tab is an ink pill with background-colored text. Inactive tabs are muted.
+A floating glass pill tab bar: surface at 82% opacity with a blur, a 1px line border and a 26px radius. It holds up to five icon-and-label tabs (Play, Leaders, Events, Record, Rules; Events comes and goes) with 22px icons and 11px labels at weight 600. The active tab is an ink pill with background-colored text. Inactive tabs are muted.
 
 ### Court Panel (signature)
 The team's big tap target. It's a 30px-radius panel with a team gradient, a soft white glow orb and the court panel shadow. It holds the avatars, names, a serve pill, the giant score and a mini serving-box diagram. The non-serving panel dims under a 30% night veil. A tap ripples white, and the score bumps up with a springy entrance (`cubic-bezier(.2, .9, .3, 1.25)`, 0.36s). Team B's panel mirrors team A's vertically.
@@ -305,7 +305,7 @@ The canvas scrolls and snaps round by round on a phone. Where it fits at 93% of 
 
 ### Don't:
 - **Don't** let it look like a corporate fitness app: no gradients on daylight surfaces, no stock athletes, no hype copy. Gradients belong only to the court panels.
-- **Don't** make the Shop, Dinks or rewards look like a casino or gacha game: no slot-machine flashing, confetti storms or loot-box theatrics.
+- **Don't** make achievements or rewards look like a casino or gacha game: no slot-machine flashing, confetti storms or loot-box theatrics.
 - **Don't** set text below 13px for reading or below 11px for labels, and don't pack dense small type that needs squinting outdoors.
 - **Don't** add a second accent color, or use ball yellow as a background wash.
 - **Don't** add hover-only affordances. Every state must work on touch.

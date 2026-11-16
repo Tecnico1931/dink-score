@@ -52,11 +52,11 @@ test('the public view lists only allowed fields, for every format', () => {
 test('a private field added to an event, at any depth, never reaches a spectator', () => {
   const ev = mk('single_elim');
   // Plant secrets everywhere an event or a club could carry them.
-  Object.assign(ev, { clubCode: 'K7P2QX', club: 'K7P2QX', pin: '123456', pinHash: 'h', ownerToken: 'tok', ownerHash: 'oh', shareToken: 'st', shop: { dinks: 9 }, purchases: [1], claimHash: 'c', email: 'a@b.c', notes: 'private' });
+  Object.assign(ev, { clubCode: 'K7P2QX', club: 'K7P2QX', pin: '123456', pinHash: 'h', ownerToken: 'tok', ownerHash: 'oh', shareToken: 'st', claimHash: 'c', email: 'a@b.c', notes: 'private' });
   ev.bracket.matches[0].secret = 'MATCH-SECRET'; ev.bracket.matches[0].gameId = 'GAME-ID-SECRET'; ev.bracket.matches[0].winnerTo.secret = 'LINK-SECRET';
   recordResult(ev, ev.bracket.matches.find(m => m.status === 'pending').id, { score: [11, 5], rallies: 40, live: true }, NOW);
   const text = JSON.stringify(publicView(ev));
-  for (const s of ['K7P2QX', '123456', 'ownerToken', 'ownerHash', 'pinHash', 'claimHash', 'shareToken', 'dinks', 'a@b.c', 'private', 'MATCH-SECRET', 'GAME-ID-SECRET', 'LINK-SECRET', 'SECRET-SEED', 'seed', 'gameId', 'startedAt', 'endedAt', 'rallies', 'purchases', 'clubCode'])
+  for (const s of ['K7P2QX', '123456', 'ownerToken', 'ownerHash', 'pinHash', 'claimHash', 'shareToken', 'a@b.c', 'private', 'MATCH-SECRET', 'GAME-ID-SECRET', 'LINK-SECRET', 'SECRET-SEED', 'seed', 'gameId', 'startedAt', 'endedAt', 'rallies', 'purchases', 'clubCode'])
     assert.ok(!text.includes(s), `leaked ${s}`);
   checkShape(publicView(ev));
 });
