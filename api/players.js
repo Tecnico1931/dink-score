@@ -8,6 +8,7 @@
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, requireOrganizer, newOwnerToken, hashToken, tokenMatches, clientIp, MAX_PHOTOS } from './_db.js';
 import { cleanDupr } from './_dupr.js';
+import { MEMBER_ACTIONS, memberAction, audit } from './_members.js';
 
 const MAX_CLAIMS_PER_DAY = 3; // names one network can link to phones per club per day without an organizer
 
@@ -50,12 +51,15 @@ export default handler(async (req, res) => {
   const club = await requireClub(cleanCode(body.code), req);
   const code = club.code; // the club's permanent key, even when an old club code was used
 
+  if (MEMBER_ACTIONS.includes(body.action)) return send(res, 200, await memberAction(sql, club, body, req));
+
   if (body.action === 'claim') {
     const name = cleanName(body.name);
     if (!name || /^Player \d+$/.test(name)) throw fail(400, 'Enter your name.');
     const k = name.toLowerCase();
     const [{ players }] = await sql`SELECT count(*)::int AS players FROM roster WHERE club = ${code}`;
-    const [existing] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
+    const [existing] = await sql`SELECT claim_hash, blocked_at FROM roster WHERE club = ${code} AND name_key = ${k}`;
+    if (existing && existing.blocked_at) throw fail(403, `${name} was removed from this club by an organizer. Ask an organizer to unblock it.`);
     if (!existing && players >= 300) throw fail(400, 'This club already has 300 saved players.');
     if (existing && existing.claim_hash) throw fail(409, `${name} is already linked to another phone. Ask an organizer to release it.`);
     // A network that has already linked 3 names to phones today needs an organizer to confirm the next one, so one
@@ -70,7 +74,7 @@ export default handler(async (req, res) => {
     const token = newOwnerToken();
     await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${k}, ${name}) ON CONFLICT DO NOTHING`;
     // Atomic: only one phone can claim a name, even if two try at once.
-    const rows = await sql`UPDATE roster SET claim_hash = ${hashToken(token)} WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NULL RETURNING name`;
+    const rows = await sql`UPDATE roster SET claim_hash = ${hashToken(token)}, role = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NULL AND blocked_at IS NULL RETURNING name`;
     if (!rows.length) throw fail(409, `${name} was just claimed by another phone.`);
     await sql`INSERT INTO lookup_fails (ip) VALUES (${claimKey})`;
     return send(res, 200, { ok: true, name: rows[0].name, playerToken: token });
@@ -103,7 +107,7 @@ export default handler(async (req, res) => {
   }
 
   // Everything below is for organizers.
-  await requireOrganizer(club, body.pin, req, body.ownerToken);
+  const actor = await requireOrganizer(club, body.pin, req, body.ownerToken);
 
   if (body.action === 'clear-avatar') {
     // Organizer: put someone back to initials (for example a photo that shouldn't be there).
@@ -114,8 +118,12 @@ export default handler(async (req, res) => {
 
   if (body.action === 'release') {
     const k = cleanName(body.name).toLowerCase();
-    const rows = await sql`UPDATE roster SET claim_hash = NULL, dupr_rating = NULL, dupr_set_at = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NOT NULL RETURNING name`;
+    // A released name also loses any role, so whoever claims it next starts as an ordinary member.
+    const [was] = await sql`SELECT role FROM roster WHERE club = ${code} AND name_key = ${k}`;
+    if (was && was.role === 'organizer' && actor.by === 'organizer') throw fail(403, 'Only the phone that created the club, or the organizer PIN, can release an organizer.');
+    const rows = await sql`UPDATE roster SET claim_hash = NULL, role = NULL, dupr_rating = NULL, dupr_set_at = NULL WHERE club = ${code} AND name_key = ${k} AND claim_hash IS NOT NULL RETURNING name`;
     if (!rows.length) throw fail(404, 'That name isn\'t linked to a phone.');
+    await audit(sql, code, actor, 'release', rows[0].name, was && was.role ? { hadRole: was.role } : null);
     return send(res, 200, { ok: true });
   }
 
