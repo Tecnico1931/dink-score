@@ -24,9 +24,8 @@ img { max-width: 100%; }
 <body>
 <title>Dink Score</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=Geist:wght@400..700&display=swap">
+<link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/fonts/fonts.css">
 <style>
 /* Layout: phone-first app. Home is a tile grid (now playing, log a result, top player, this week) over the game setup card.
    A floating pill tab bar. Scoring is two rounded court panels with condensed numerals and a score-call pill between them.
@@ -2184,6 +2183,7 @@ function renderClub() {
       ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
       ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p></div>` : ''}
       ${needsAttentionHTML()}
+      <p class="note legal-links"><a href="/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="/terms" target="_blank" rel="noopener">Terms</a></p>
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
         <p>${!club.hasPin ? (canSetFirstPin() ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : `Anyone with the club code can delete games. Only the phone that created ${esc(club.name)} can set a PIN.`) : isCreator() ? 'This phone created the club, so it can always delete and restore games and reset the PIN, even if the PIN is forgotten.' : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
         <div class="org-btns">${!club.hasPin ? (canSetFirstPin() ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>' : '')
@@ -2527,6 +2527,7 @@ function rulesView() {
       <p><b>Organizers:</b> the club's <b>Members</b> list shows who is connected to DUPR, and tapping DUPR on a row opens that player's DUPR box. After an event, review the matches and confirm before anything is sent. A match goes to DUPR only when all its players are connected.</p>
       <p>If you import players from a Google Sheet, its DUPR ID column is a reference for organizers only. It is not checked with DUPR and does not connect anyone.</p>
       <button class="btn btn-ink replay" data-act="dupr-open" style="padding:11px 16px;border-radius:12px;font-size:15px">Open Your DUPR</button></div>
+    <div class="rule" id="rules-legal"><h3>Privacy, terms and security</h3><p>What the app stores and who handles it, the rules for using it, and how to report a security problem. These are drafts for review, not legal advice.</p><p><a href="/privacy" target="_blank" rel="noopener">Privacy note</a> · <a href="/terms" target="_blank" rel="noopener">Terms of use</a> · <a href="https://github.com/Tecnico1931/dink-score/security/policy" target="_blank" rel="noopener">Report a security problem</a></p></div>
     <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
   </div>`;
 }

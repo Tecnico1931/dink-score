@@ -67,10 +67,10 @@ const hashes = [...(html + pub).matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)
 const csp = [
   "default-src 'self'",
   `script-src 'self' ${hashes.join(' ')}`,
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com", // the app uses inline styles throughout
-  "font-src https://fonts.gstatic.com",
+  "style-src 'self' 'unsafe-inline'",                              // the app uses inline styles throughout
+  "font-src 'self'",                                               // fonts are self-hosted in /fonts
   "img-src 'self' data: blob: https:",                             // photo avatars (data:), the photo picker (blob:), and imported team logos (any https image: the viewer's browser contacts the logo's website)
-  "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com", // the service worker caches the fonts
+  "connect-src 'self'",
   "manifest-src 'self'",
   "worker-src 'self'",
   "object-src 'none'",
@@ -81,7 +81,7 @@ const csp = [
 ].join('; ');
 const vercel = {
   // /b/<token> is the public bracket page: the same shell for every token, which then asks /api/bracket for the data.
-  rewrites: [{ source: '/b/:token', destination: '/b.html' }],
+  rewrites: [{ source: '/b/:token', destination: '/b.html' }, { source: '/privacy', destination: '/privacy.html' }, { source: '/terms', destination: '/terms.html' }],
   headers: [{
     source: '/b/(.*)',
     headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }, { key: 'Cache-Control', value: 'no-store' }]
@@ -103,6 +103,10 @@ console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)
 const out = path.join(__dirname, 'public');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-for (const f of ['index.html', 'b.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of ['index.html', 'b.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js', 'privacy.html', 'terms.html', 'legal.css']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
+for (const d of ['fonts', '.well-known']) {
+  fs.mkdirSync(path.join(out, d), { recursive: true });
+  for (const f of fs.readdirSync(path.join(__dirname, d))) fs.copyFileSync(path.join(__dirname, d, f), path.join(out, d, f));
+}
 console.log('Copied the site into public/');

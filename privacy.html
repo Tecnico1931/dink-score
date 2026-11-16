@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0F241E">
+<title>Privacy note · Dink Score</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/legal.css">
+</head>
+<body>
+<main>
+<a class="back" href="/">&larr; Back to Dink Score</a>
+<h1>Privacy note</h1>
+<p>Dink Score is a pickleball scoreboard for friends and clubs. There are no accounts: a club is opened with a short club code. This note says what is stored, who handles it, and how long it stays.</p>
+<div class="draft"><b>Draft for review.</b> This text was written by the project team to describe what the app does today. It is not legal advice and has not been reviewed by a lawyer. The site owner should review it before relying on it.</div>
+
+<h2>What is stored</h2>
+<table>
+<tr><th>Data</th><th>Why</th><th>Who can see it</th></tr>
+<tr><td>Club name, club code, organizer PIN (stored only as a hash)</td><td>Running the club</td><td>Anyone with the club code sees the club; the PIN is never shown</td></tr>
+<tr><td>Player names, and an optional avatar (emoji, icon or a small photo)</td><td>Showing who played</td><td>Everyone with the club code</td></tr>
+<tr><td>Games, scores, ratings, achievements, Dinks and shop purchases</td><td>The club record and leaderboard</td><td>Everyone with the club code</td></tr>
+<tr><td>Optional self-reported DUPR rating</td><td>Reference inside the club</td><td>Everyone with the club code; never sent to DUPR</td></tr>
+<tr><td>Events: names, players, team names, team logo links, brackets and results</td><td>Tournaments and rotating doubles</td><td>Club members. An organizer can also publish a read-only bracket page at a private link; it shows the bracket, standings and champion, but never the club code, DUPR data or photos</td></tr>
+<tr><td>DUPR link (only when the DUPR feature is switched on): a DUPR ID and DUPR ratings for a linked player, and results sent to DUPR</td><td>Showing DUPR ratings and sending scores, on request</td><td>Club members only. Your DUPR password is never seen by Dink Score and no DUPR login tokens are kept</td></tr>
+<tr><td>Network address (IP) of failed club-code, PIN and similar attempts</td><td>Blocking guessing attacks</td><td>Nobody in the app. Not linked to a player</td></tr>
+<tr><td>On your own phone: saved settings, your name on this phone, games scored before joining a club</td><td>Making the app work offline</td><td>Only you. It stays in your browser until you clear site data</td></tr>
+</table>
+<p>Dink Score does not ask for email addresses, phone numbers, locations or payment details, and does not use advertising or cross-site tracking. Do not put sensitive personal details in names, club names or team names.</p>
+
+<h2>Who handles the data (processors)</h2>
+<ul>
+<li><b>Vercel</b> hosts the website and its server functions, and runs Vercel Web Analytics, which counts page views without cookies. Vercel sees ordinary web request data such as IP address and browser type.</li>
+<li><b>Neon</b> hosts the Postgres database that holds the club data above.</li>
+<li><b>DUPR</b>, only if the DUPR feature is switched on and a player chooses to link: you sign in on DUPR's own page inside the app, and DUPR's own privacy terms apply to what you do there. Results are sent to DUPR only when someone sends them.</li>
+<li><b>Google</b>, only when an organizer imports players from a Google Sheet link: the server fetches that sheet once to read it. The fetch is made by the server, not your phone, and only for the link the organizer gives.</li>
+<li><b>Team logo websites</b>: if an event uses team logo links, your browser loads those images straight from the websites that host them, which can see your IP address. Public bracket pages show logos only if the organizer has allowed it.</li>
+</ul>
+<p>Fonts are served from Dink Score itself; the page does not contact Google Fonts.</p>
+
+<h2>How long data is kept</h2>
+<ul>
+<li>Club data is kept while the club exists. There is not yet an automatic expiry for inactive clubs.</li>
+<li>Failed-attempt network addresses are cleared after about a day (the cleanup runs as the app is used, so a few may linger a little longer).</li>
+<li>Deleted games and ended shared bracket links stop being shown immediately; backups kept by the database provider may hold older copies for a limited time.</li>
+<li>Self-service export, anonymise-me and delete-club tools are planned but not built yet. Until then, ask by contact below and we will do it by hand.</li>
+</ul>
+
+<h2>Young players</h2>
+<p>Juniors may play, but only with a responsible adult: a parent, guardian or the club manager creates and runs the club and decides what is entered. Dink Score does not knowingly collect data from children who set up a club on their own, and does not ask for any contact details. For junior players we recommend using first names or initials and the emoji avatar rather than a photo. Showing initials in place of names and photos on public pages for juniors is planned as a later feature, not something the app does today. If you are a parent and want a child's name, photo or results removed, contact us below.</p>
+
+<h2>Your choices</h2>
+<p>You can ask to see, correct, anonymise or delete data about you, and to delete a club. Club organizers can already delete games and remove players in the app. Contact us and say which club and which name.</p>
+
+<h2>Contact</h2>
+<p><b>[Contact email: to be added by the site owner before launch]</b>. Security problems: see <a href="https://github.com/Tecnico1931/dink-score/security/policy">the security policy</a>.</p>
+
+<footer><p>See also the <a href="/terms">terms of use</a>. Last updated: 16 November 2026 (draft).</p></footer>
+</main>
+</body>
+</html>
