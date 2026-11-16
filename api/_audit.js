@@ -1,15 +1,19 @@
 // Append-only history of what happened to a club's games: who, what, when, and the game before and after.
 // Rows are only ever inserted here; nothing in the API updates or deletes them (they go with the club).
-import { tokenMatches } from './_db.js';
+import { tokenMatches, coOrganizer } from './_db.js';
+import { nameKey } from './_names.js';
 
 // Who is acting, as the server can tell. Organizers share one PIN, so "organizer-pin" says which kind of credential, not which person.
 //   creator       the phone that created the club (its private token)
+//   co-organizer:<key> a player given the organizer role (see _members.js)
 //   organizer-pin someone with the organizer PIN
 //   member        a club with no PIN, where anyone with the code may edit
 //   player:<key>  a phone linked to that club player
 //   anonymous     only the club code
-export function organizerActor(club, ownerToken) {
+export async function organizerActor(club, ownerToken) {
   if (club.owner_hash && tokenMatches(club.owner_hash, ownerToken)) return 'creator';
+  const co = await coOrganizer(club, ownerToken);
+  if (co) return 'co-organizer:' + nameKey(co);
   return club.pin_hash ? 'organizer-pin' : 'member';
 }
 export const senderActor = sender => (sender === 'organizer' ? 'creator' : sender ? 'player:' + sender : 'anonymous');

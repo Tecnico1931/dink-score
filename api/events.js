@@ -163,7 +163,7 @@ export default handler(async (req, res) => {
     const g = cleanGame(out.game);
     const [old] = await sql`SELECT data FROM games WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
     await sql`UPDATE games SET data = data || ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}, rally_log = NULL WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
-    if (old) await audit(sql, code, g.id, 'edit', organizerActor(club, body.ownerToken), snapshot(old.data), snapshot(Object.assign({}, old.data, g)), 'event score corrected');
+    if (old) await audit(sql, code, g.id, 'edit', await organizerActor(club, body.ownerToken), snapshot(old.data), snapshot(Object.assign({}, old.data, g)), 'event score corrected');
     return send(res, 200, { event: view(event) });
   }
   const actions = {

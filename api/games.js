@@ -11,7 +11,7 @@
 // POST   /api/games {code, keepBoth: [idA, idB], pin|ownerToken}  -> organizer: these two similar games are really two games, stop flagging them
 // GET    /api/games?code=ABC123&audit=1[&id=g123]  -> organizer only: the history of changes to games (who, what, when, before and after), newest first
 import { checkLog } from './_rallylog.js';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, requireOrganizer, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, verifiedSender } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, requireOrganizer, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, coOrganizer, verifiedSender } from './_db.js';
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 import { confirmBlocker } from './_confirm.js';
 
@@ -25,7 +25,7 @@ export default handler(async (req, res) => {
     const id = String(url.searchParams.get('id') || '');
     const rows = await sql`UPDATE games SET deleted_at = now() WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id, data, rally_log IS NOT NULL AS replay`;
     if (!rows.length) throw fail(404, 'That game was already deleted.');
-    await audit(sql, code, id, 'delete', organizerActor(club, ownerFrom(req)), snapshot(rows[0].data), null, rows[0].replay ? 'had a replay' : null);
+    await audit(sql, code, id, 'delete', await organizerActor(club, ownerFrom(req)), snapshot(rows[0].data), null, rows[0].replay ? 'had a replay' : null);
     return send(res, 200, { ok: true });
   }
   if (req.method === 'GET') {
@@ -53,7 +53,7 @@ export default handler(async (req, res) => {
     await requirePin(club, body.pin ?? pinFrom(req), req, body.ownerToken ?? ownerFrom(req));
     const rows = await sql`UPDATE games SET deleted_at = NULL WHERE club = ${code} AND id = ${String(body.restore)} AND deleted_at IS NOT NULL RETURNING id, data`;
     if (!rows.length) throw fail(404, 'That game can no longer be restored.');
-    await audit(sql, code, rows[0].id, 'restore', organizerActor(club, body.ownerToken ?? ownerFrom(req)), null, snapshot(rows[0].data));
+    await audit(sql, code, rows[0].id, 'restore', await organizerActor(club, body.ownerToken ?? ownerFrom(req)), null, snapshot(rows[0].data));
     return send(res, 200, { ok: true });
   }
 
@@ -62,6 +62,7 @@ export default handler(async (req, res) => {
     // A wrong PIN is just not an organizer here (still counted against the PIN limits).
     const sender = await verifiedSender(sql, club, code, body);
     let by = sender === 'organizer' ? 'organizer' : null;
+    if (!by && await coOrganizer(club, body.ownerToken ?? ownerFrom(req))) by = 'organizer';
     if (!by && club.pin_hash && body.pin) {
       try { await requirePin(club, body.pin, req, body.ownerToken); by = 'organizer'; } catch (e) { if (e.status === 429) throw e; }
     }
@@ -76,7 +77,7 @@ export default handler(async (req, res) => {
     }
     if (row.confirmed_by) return send(res, 200, { ok: true, alreadyConfirmed: true, confirmed: { by: row.confirmed_by } });
     const rows = await sql`UPDATE games SET confirmed_by = ${by}, confirmed_at = now() WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL AND confirmed_by IS NULL RETURNING confirmed_at`;
-    if (rows.length) await audit(sql, code, id, 'confirm', by === 'organizer' ? organizerActor(club, body.ownerToken ?? ownerFrom(req)) : 'player:' + by, null, snapshot(row.data));
+    if (rows.length) await audit(sql, code, id, 'confirm', by === 'organizer' ? await organizerActor(club, body.ownerToken ?? ownerFrom(req)) : 'player:' + by, null, snapshot(row.data));
     return send(res, 200, { ok: true, confirmed: { by, at: rows.length ? new Date(rows[0].confirmed_at).getTime() : undefined } });
   }
 
@@ -87,7 +88,7 @@ export default handler(async (req, res) => {
     if (ids.length !== 2 || ids[0] === ids[1]) throw fail(400, 'Name the two games to keep.');
     const rows = await sql`UPDATE games SET dup_ok = true WHERE club = ${code} AND id = ANY(${ids}) AND deleted_at IS NULL RETURNING id`;
     if (rows.length !== 2) throw fail(404, 'One of those games no longer exists.');
-    await audit(sql, code, ids[0], 'keep-both', organizerActor(club, body.ownerToken ?? ownerFrom(req)), null, null, 'kept alongside ' + ids[1]);
+    await audit(sql, code, ids[0], 'keep-both', await organizerActor(club, body.ownerToken ?? ownerFrom(req)), null, null, 'kept alongside ' + ids[1]);
     return send(res, 200, { ok: true });
   }
 
@@ -119,7 +120,7 @@ export default handler(async (req, res) => {
         confirmed_at = CASE WHEN ${confirmBy === undefined} THEN confirmed_at WHEN ${confirmBy ?? null}::text IS NULL THEN NULL ELSE now() END
       WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That game no longer exists, so it could not be changed.');
-    await audit(sql, code, g.id, 'edit', organizerActor(club, body.ownerToken ?? ownerFrom(req)), snapshot(old.data), snapshot(g), old.rally_log && !log ? 'replay cleared' : null);
+    await audit(sql, code, g.id, 'edit', await organizerActor(club, body.ownerToken ?? ownerFrom(req)), snapshot(old.data), snapshot(g), old.rally_log && !log ? 'replay cleared' : null);
     let [{ players }] = await sql`SELECT count(*)::int AS players FROM roster WHERE club = ${code}`;
     for (const p of g.teams.flat()) {
       if (players >= 300 || /^Player \d+$/.test(p)) continue;

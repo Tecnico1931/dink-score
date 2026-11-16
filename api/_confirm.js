@@ -3,7 +3,8 @@
 
 export const DUP_WINDOW_MS = 45 * 60 * 1000; // two records of one game are normally minutes apart; a logged one may be typed in later
 
-const key = n => String(n).trim().toLowerCase();
+import { nameKey as key } from './_names.js'; // one way to key a name, shared with the roster
+
 
 // Whether a game counts toward ratings, achievements, challenges and seasons. With the club setting off everything
 // counts, as before. With it on a game needs a confirmation. Event matches are run by an organizer, so they count.

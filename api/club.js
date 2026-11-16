@@ -46,7 +46,7 @@ export default handler(async (req, res) => {
       await requireOrganizer(club, body.pin, req, body.ownerToken);
       if (typeof body.required !== 'boolean') throw fail(400, 'Say whether confirmation is required.');
       await sql`UPDATE clubs SET require_confirmation = ${body.required} WHERE code = ${club.code}`;
-      if (!!club.require_confirmation !== body.required) await audit(sql, club.code, '', 'setting', organizerActor(club, body.ownerToken), { requireConfirmation: !!club.require_confirmation }, { requireConfirmation: body.required });
+      if (!!club.require_confirmation !== body.required) await audit(sql, club.code, '', 'setting', await organizerActor(club, body.ownerToken), { requireConfirmation: !!club.require_confirmation }, { requireConfirmation: body.required });
       return send(res, 200, { ok: true, requireConfirmation: body.required });
     }
     if (body.action === 'verify-pin' || body.action === 'set-pin' || body.action === 'rotate-code') {

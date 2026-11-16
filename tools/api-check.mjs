@@ -1229,6 +1229,15 @@ await step('audit: event matches are recorded too, event games count even when c
   assert.deepEqual(log, [['create', 'event match'], ['edit', 'event score corrected']]);
   ok(await cfPost(club, { action: 'set-confirmation', required: false, ownerToken: cf.owner }));
 });
+await step('confirmation: a co-organizer can confirm and read the history, and is named in it', async () => {
+  ok(await cfPost(playersApi, { action: 'set-role', name: 'Eve', role: 'organizer', ownerToken: cf.owner }));
+  const co = `${cfTok.Eve}:Eve`;
+  ok(await cfPost(games, { games: [cfGame('conf-co', { endedAt: now - 11000000 })], playerName: 'Ann', playerToken: cfTok.Ann }));
+  assert.equal((await cfPost(games, { confirm: 'conf-co', playerName: 'Bo', playerToken: cfTok.Bo })).status, 403); // a teammate of the scorer still can't
+  ok(await cfPost(games, { confirm: 'conf-co', ownerToken: co }));
+  const h = ok(await cfAudit({ headers: { 'x-club-owner': co } }, 'conf-co'));
+  assert.ok(JSON.stringify(h).includes('co-organizer:eve'));
+});
 await step('confirmation: the new columns and table are additive', async () => {
   const cols = (await pg.query("SELECT table_name, column_name, is_nullable FROM information_schema.columns WHERE (table_name = 'games' AND column_name IN ('confirmed_by','confirmed_at','dup_ok')) OR (table_name = 'clubs' AND column_name = 'require_confirmation')")).rows;
   assert.equal(cols.length, 4);
