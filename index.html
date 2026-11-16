@@ -389,6 +389,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 /* Replay of a game scored live */
 .rp-title { font-weight: 600; color: var(--ink) !important; overflow-wrap: anywhere; }
 .rp-chart .rp-sum { font-size: 14px; margin: 6px 2px 0; color: var(--ink); }
+/*REPLAYCHART-CSS-START*/
 .rp-svg { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: pointer; }
 .rp-zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
 .rp-ax { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
@@ -399,6 +400,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .rp-so { stroke: var(--muted); stroke-width: 2; }
 .rp-cur { stroke: var(--ink); stroke-width: 1; }
 .rp-dot { fill: var(--ball); stroke: var(--ink); stroke-width: 2.5; }
+/*REPLAYCHART-CSS-END*/
 .rp-key { display: flex; flex-direction: column; gap: 4px; margin: 8px 2px 6px; font-size: 13px; color: var(--muted); }
 .rp-key i { display: inline-block; width: 18px; margin-right: 8px; vertical-align: middle; }
 .rp-key .line-sw { height: 0; border-top: 2px solid var(--ink); opacity: .6; }
@@ -1959,7 +1961,7 @@ async function refreshClub() {
     const data = await api('club?code=' + asked);
     if (!club || club.code !== asked) return;
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.publicResults = !!data.club.publicResults; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
     clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, dupes: data.dupes || [], at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
@@ -2433,6 +2435,8 @@ function renderClub() {
     body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   } else if (c.view === 'whoami' && club) {
     body = whoamiHTML(c);
+  } else if (c.view === 'links' && club) {
+    body = linksHTML(c);
   } else if (c.view === 'audit' && club) {
     body = auditHTML(c);
   } else if (c.view === 'members' && club) {
@@ -2559,7 +2563,7 @@ function renderClub() {
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
       <button class="btn btn-soft block" data-act="rights-open">Your data: export, anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}</button>
       <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
-      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button>` : ''}
+      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button><button class="btn btn-soft block" data-act="links-open">Public result links</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
@@ -3378,12 +3382,17 @@ function replayStepText(r, i) {
   if (i === r.wins.length) text += ` Game over: ${esc(teamLabel(g.teams[g.winner]))} won ${g.score[g.winner]}–${g.score[1 - g.winner]}.`;
   return { head: `Rally ${i}`, text, call };
 }
-function replayChart(r) {
-  const W = 320, H = 150, L = 8, R = 8, T = 10, B = 20, n = r.wins.length, m = r.model, mid = (T + H - B) / 2;
+const replayChart = r => RC.chart(r.model, r.wins.length, TEAM_NAME, esc);
+/*REPLAYCHART-START*/
+// The score-flow chart, shared with the public result page (build.cjs pastes this block into r.js): free of app globals.
+// m: { lead, sideouts, runs, best, span } as replayModel() makes it (or the server's flow()), n: rallies, names: team names.
+const RC = {
+chart(m, n, names, esc, controls = true) {
+  const W = 320, H = 150, L = 8, R = 8, T = 10, B = 20, mid = (T + H - B) / 2;
   const x = i => L + (i / n) * (W - L - R);
   const y = v => mid - (v / m.span) * (mid - T - 2);
   const pts = (from, to) => { const o = []; for (let i = from; i <= to; i++) o.push(`${x(i).toFixed(1)},${y(m.lead[i]).toFixed(1)}`); return o.join(' '); };
-  const label = `Score flow over ${n} rallies. ${m.best ? `Longest run: ${m.best.n} unanswered points by ${TEAM_NAME[m.best.team]}. ` : 'No run of 3 or more unanswered points. '}${m.sideouts.length} side-out${m.sideouts.length === 1 ? '' : 's'}. Use the replay controls to step through it.`;
+  const label = `Score flow over ${n} rallies. ${m.best ? `Longest run: ${m.best.n} unanswered points by ${names[m.best.team]}. ` : 'No run of 3 or more unanswered points. '}${m.sideouts.length} side-out${m.sideouts.length === 1 ? '' : 's'}.${controls ? ' Use the replay controls to step through it.' : ''}`;
   return `<svg class="rp-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
     <line class="rp-zero" x1="${L}" x2="${W - R}" y1="${mid}" y2="${mid}"/>
     <text class="rp-ax" x="${L}" y="${T + 8}">+${m.span}</text><text class="rp-ax" x="${L}" y="${H - B - 3}">+${m.span}</text>
@@ -3393,6 +3402,8 @@ function replayChart(r) {
     <line class="rp-cur" x1="0" x2="0" y1="${T}" y2="${H - B + 11}"/><circle class="rp-dot" r="5" cx="0" cy="0"/>
   </svg>`;
 }
+};
+/*REPLAYCHART-END*/
 function renderReplay() {
   const root = $('#sheet7');
   if (!replay) { root.innerHTML = ''; lockBody(!!(logForm || shareSheet || (live && live.open))); return; }
@@ -3692,7 +3703,7 @@ function canShareFiles() {
 function openShare(g, pending) {
   let theme = store.get('pb.shareTheme', 'night');
   if (theme !== 'day') theme = 'night';
-  shareSheet = { data: shareCardData(g, pending), theme, url: null, file: null, token: 0 };
+  shareSheet = { data: shareCardData(g, pending), theme, url: null, file: null, token: 0, gameId: pending || !club ? null : g.id, link: null };
   renderShare();
   updateSharePreview();
 }
@@ -3711,7 +3722,8 @@ function renderShare() {
     <div class="share-prev busy"><img alt="The result card that will be shared"></div>
     ${seg('data-share-theme', [['night', 'Night'], ['day', 'Day']], shareSheet.theme)}
     <div class="btns">${share ? `<button type="button" class="btn btn-ball block" data-act="share-go" disabled>Share…</button>` : ''}
-      <button type="button" class="btn ${share ? 'btn-soft' : 'btn-ball'} block" data-act="share-save" disabled>Save image</button></div></div></div>`;
+      <button type="button" class="btn ${share ? 'btn-soft' : 'btn-ball'} block" data-act="share-save" disabled>Save image</button></div>
+    <div id="share-link">${shareLinkHTML()}</div></div></div>`;
 }
 function setShareTheme(theme) {
   if (!shareSheet || (theme !== 'night' && theme !== 'day') || theme === shareSheet.theme) return;
@@ -4244,6 +4256,57 @@ function membersHTML(c) {
     <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones. Removing someone stops their phone from acting as that name; their games and ratings stay. ${isCoOrganizer() ? 'Only the club creator or the organizer PIN can change roles or remove organizers.' : 'Organizers can do everything except change roles and remove other organizers.'}</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
     ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></span></li>`).join('')}</ul>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
+/* ---------- public result links (api/results.js, served at /r/<token>) ---------- */
+const resultsCall = body => api('results', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
+const resultUrl = path => location.origin + path;
+async function loadLinks() {
+  const c = clubSheet;
+  try {
+    const d = await api('results?code=' + encodeURIComponent(club.code) + '&list=1', { headers: { 'Content-Type': 'application/json', 'x-club-pin': pins[club.code] || '', 'x-club-owner': owners[club.code] || '' } });
+    if (clubSheet === c) { c.data = d; c.error = ''; renderClub(); }
+  } catch (err) { if (clubSheet === c) { c.error = err.message; c.data = c.data || { enabled: !!club.publicResults, links: [] }; renderClub(); } }
+}
+async function linksAct(fn) {
+  const c = clubSheet;
+  try { await fn(); await refreshClub(); } catch (err) { if (clubSheet === c) c.error = err.message; }
+  if (clubSheet === c) { renderClub(); loadLinks(); }
+}
+function linkLabel(l) {
+  if (l.kind === 'session') return 'Games on ' + new Date(l.from).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const g = allGames().find(x => x.id === l.game);
+  return g ? `${teamLabel(g.teams[0])} ${Number(g.score[0])}–${Number(g.score[1])} ${teamLabel(g.teams[1])}` : 'A game that is no longer in the record';
+}
+function linksHTML(c) {
+  const d = c.data, on = d ? d.enabled : !!club.publicResults;
+  const list = !d ? '<p class="note">Loading…</p>' : !d.links.length ? '<p class="note">No links yet. Players make them from a game\'s Share button.</p>'
+    : `<ul class="deleted">${d.links.map(l => `<li style="display:block"><b>${esc(linkLabel(l))}</b> <span class="note">${esc(new Date(l.createdAt).toLocaleDateString())}</span><br><div class="invite"><input readonly value="${esc(resultUrl(l.path))}" aria-label="Link"></div><span class="g-actions"><button class="link" data-link-copy="${esc(l.path)}">Copy</button><button class="link" data-link-revoke="${esc(l.token)}">Turn off</button></span></li>`).join('')}</ul>`;
+  return `<h2 id="club-h">Public result links</h2>
+    <p class="note">${on ? 'On. Anyone in the club can make a read-only link for a finished game or a day\'s games. Whoever holds a link sees the teams, the score, the date and the score flow, nothing else: no club name, no code, no member list.' : 'Off. Turn this on to let players share a finished game or a day\'s games as a read-only link with a preview picture. Names on those games become visible to whoever receives the link.'}</p>
+    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+    <button class="btn ${on ? 'btn-soft' : 'btn-blue'} block" data-act="links-toggle">${on ? 'Turn off and end every link' : 'Turn on public links'}</button>
+    ${on ? `<button class="btn btn-soft block" data-act="links-today">Make a link for today's games</button>${list}` : ''}
+    <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
+function copyText(t) {
+  try { navigator.clipboard.writeText(t).then(() => showToast('Link copied', false), () => showToast(t, false)); } catch { showToast(t, false); }
+}
+// The link block in the share-result sheet: only for a saved club game, and only while the organizers have public links on.
+function shareLinkHTML() {
+  const s = shareSheet;
+  if (!s || !s.gameId || !club || !club.publicResults) return '';
+  if (s.link) return `<p class="note">Anyone with this link can see the teams, score and score flow. An organizer can turn it off.</p><div class="invite"><input readonly id="share-url" value="${esc(s.link)}" aria-label="Public link"></div><div class="btns"><button type="button" class="btn btn-soft block" data-act="share-link-copy">Copy link</button>${navigator.share ? '<button type="button" class="btn btn-soft block" data-act="share-link-go">Share link…</button>' : ''}</div>`;
+  return `${s.linkError ? `<p class="err" role="alert">${esc(s.linkError)}</p>` : ''}<button type="button" class="btn btn-soft block" data-act="share-link" ${s.linkBusy ? 'disabled' : ''}>Get a public link</button>`;
+}
+function renderShareLink() { const el = $('#share-link'); if (el) el.innerHTML = shareLinkHTML(); }
+async function makeShareLink() {
+  const s = shareSheet;
+  if (!s || !s.gameId) return;
+  s.linkBusy = true; s.linkError = ''; renderShareLink();
+  try { const d = await resultsCall({ action: 'create', game: s.gameId }); s.link = resultUrl(d.path); }
+  catch (err) { s.linkError = err.message; }
+  s.linkBusy = false;
+  if (shareSheet === s) renderShareLink();
 }
 async function setConfirmation(required) {
   try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-confirmation', required }, adminCreds())) }); await refreshClub(); renderClub(); }
@@ -5300,6 +5363,17 @@ document.addEventListener('click', e => {
   if (ds.claimNew) { claimName(ds.claimNew, true); return; }
   if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (ds.act === 'whoami-skip') { const after = clubSheet && clubSheet.afterJoin; skipWhoami(); clubSheet = null; if (after) afterJoin(); else { renderClub(); render(); } return; }
+  if (ds.act === 'links-open') { clubSheet = { view: 'links', data: null, error: '' }; renderClub(); loadLinks(); return; }
+  if (ds.act === 'links-toggle') { const on = !(clubSheet.data ? clubSheet.data.enabled : club.publicResults); linksAct(() => resultsCall(Object.assign({ action: 'set', enabled: on }, adminCreds()))); return; }
+  if (ds.act === 'links-today') {
+    const a = new Date(); a.setHours(0, 0, 0, 0); const b = new Date(a); b.setDate(b.getDate() + 1);
+    linksAct(() => resultsCall({ action: 'create', from: a.getTime(), to: b.getTime() })); return;
+  }
+  if (ds.linkCopy) { copyText(resultUrl(ds.linkCopy)); return; }
+  if (ds.linkRevoke) { linksAct(() => resultsCall(Object.assign({ action: 'revoke', token: ds.linkRevoke }, adminCreds()))); return; }
+  if (ds.act === 'share-link') { makeShareLink(); return; }
+  if (ds.act === 'share-link-copy') { copyText(shareSheet.link); return; }
+  if (ds.act === 'share-link-go') { try { navigator.share({ title: 'Dink Score result', url: shareSheet.link }).catch(() => {}); } catch {} return; }
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); loadMembers(); return; }
   if (ds.act === 'member-leave') { memberLeave(el); return; }
   if (ds.role) { adminAction({ action: 'set-role', name: ds.role, role: ds.to }, ds.to === 'organizer' ? `${ds.role} is now an organizer` : `${ds.role} is a regular member again`); return; }
