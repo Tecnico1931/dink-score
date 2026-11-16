@@ -493,6 +493,10 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .pf-dinks { display: inline-block; margin-left: 8px; font-family: var(--ui); font-size: 13px; font-weight: 700; color: var(--ball-ink); background: var(--ball); border-radius: 999px; padding: 2px 9px; vertical-align: middle; }
 .tile.dinks { background: var(--ball); color: var(--ball-ink); }
 .tile.dinks .t-k, .tile.dinks .t-foot { color: rgb(27 33 4 / .72); }
+.dupr-entry { display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); border-radius: 14px; padding: 12px; }
+.dupr-entry .test { align-self: flex-start; font-size: 11px; font-weight: 700; letter-spacing: .02em; color: var(--ink); background: var(--yellow, #f5c542); border-radius: 999px; padding: 2px 8px; }
+button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; min-height: 32px; padding: 0 10px; cursor: pointer; flex: none; }
+.mem-dupr { display: inline-flex; gap: 8px; align-items: center; }
 .me-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
 .me-row b { color: var(--ink); }
 .wallet { background: var(--surface); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
@@ -2020,6 +2024,8 @@ function renderClub() {
   let body;
   if (c.view === 'avatar' && club && myName()) {
     body = avatarSheetHTML(c);
+  } else if (c.view === 'dupr') {
+    body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   } else if (c.view === 'whoami' && club) {
     body = whoamiHTML(c);
   } else if (c.view === 'shopadmin' && club) {
@@ -2071,6 +2077,7 @@ function renderClub() {
       ${clubLevelCard()}
       ${clubSwitcherHTML()}
       <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
+      ${yourDuprHTML()}
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
@@ -2168,7 +2175,7 @@ function render() {
   const noShop = shopHidden();
   if ((noShop && tab === 'shop') || (!club && tab === 'events')) tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = (noShop && b.dataset.tab === 'shop') || (!club && b.dataset.tab === 'events'); b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
-  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${profileButtonHTML()}</div></header>`;
+  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${API_OK ? '<button class="dupr-btn" data-act="dupr-open" aria-label="Your DUPR">DUPR</button>' : ''}${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + (tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'shop' ? shopView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
@@ -2380,6 +2387,14 @@ function rulesView() {
     <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer, each paying bonus Dinks. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy and 100, 60 or 40 Dinks.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
     <div class="rule"><h3>Earning Dinks</h3><p>In a club, every game earns each named player Dinks to spend in the shop.</p>
       <ul><li><b>+10</b> for a win and <b>+2</b> for playing.</li><li><b>+3</b> for beating the forecast score, even in a loss.</li><li><b>+5</b> extra per win once you've won 3 in a row.</li><li>Logged results earn the same as games scored live. Games need to be sent from a club player's own phone (it doesn't have to be theirs) to earn more than the +2 for playing. Each player can earn up to 120 a day.</li><li>Edited or deleted games change the Dinks they earned. Shop items are only for looks, so nothing you buy changes ratings.</li><li>Linked players get one free spin a day in the shop for a few extra Dinks.</li></ul></div>
+    <div class="rule" id="rules-dupr"><h3>Set up DUPR</h3>
+      <ol><li><b>Join or start a club.</b> DUPR is linked per club, so you need one first.</li>
+        <li><b>Tell the app who you are.</b> Tap <b>Choose my name</b> and pick your name from the list.</li>
+        <li><b>Open Your DUPR</b> and tap <b>Connect DUPR</b>. You sign in on DUPR's own page, so Dink Score never sees your password. While DUPR is in test mode, you need a DUPR test account, and a real account may not work.</li>
+        <li><b>Or skip linking</b> and type in a self-reported rating. It is only for show and is not checked by DUPR.</li></ol>
+      <p><b>Organizers:</b> the club's <b>Members</b> list shows who is connected to DUPR, and tapping DUPR on a row opens that player's DUPR box. After an event, review the matches and confirm before anything is sent. A match goes to DUPR only when all its players are connected.</p>
+      <p>If you import players from a Google Sheet, its DUPR ID column is a reference for organizers only. It is not checked with DUPR and does not connect anyone.</p>
+      <button class="btn btn-ink replay" data-act="dupr-open" style="padding:11px 16px;border-radius:12px;font-size:15px">Open Your DUPR</button></div>
     <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
   </div>`;
 }
@@ -3175,7 +3190,8 @@ const duprOf = name => { const p = club && clubPlayers().find(x => sameName(x.na
 const duprChip = name => { const v = duprOf(name); return v ? `<span class="dupr" title="${DUPR_TIP}" aria-label="DUPR ${v.toFixed(2)}, self-reported, not verified">DUPR ${v.toFixed(2)}<small>self-reported</small></span>` : ''; };
 // That name's own phone, or an organizer (the only one who can set it on a guest name).
 const canSetDupr = name => !!club && !!clubData && clubPlayers().some(x => sameName(x.name, name)) && (isMe(name) || (club.hasPin ? hasOrganizer() : isCreator()));
-let duprEdit = null; // { name, value, error, busy } while the DUPR box in a profile is being edited
+let duprEdit = null; // { name, value, error, busy } while the DUPR box in a profile or the Your DUPR card is being edited
+const refreshDupr = () => { if (profile) renderProfile(); if (clubSheet) renderClub(); };
 function selfDuprHTML(name) {
   if (!club || !clubData) return '';
   const v = duprOf(name), can = canSetDupr(name);
@@ -3189,12 +3205,12 @@ function selfDuprHTML(name) {
 async function saveDupr(clear) {
   const e = duprEdit; if (!e || e.busy) return;
   const raw = clear ? '' : String(($('#dupr-in') || {}).value || '');
-  e.value = raw; e.error = ''; e.busy = true; renderProfile();
+  e.value = raw; e.error = ''; e.busy = true; refreshDupr();
   try {
     const d = await shopCall(Object.assign({ action: 'dupr', name: e.name, rating: raw, playerToken: isMe(e.name) ? myToken() : '' }, adminCreds()));
     const p = clubPlayers().find(x => sameName(x.name, e.name)); if (p) p.dupr = d.dupr;
-    duprEdit = null; showToast(d.dupr ? 'DUPR rating saved' : 'DUPR rating cleared', false); renderProfile(); render();
-  } catch (err) { e.busy = false; e.error = err.message; renderProfile(); }
+    duprEdit = null; showToast(d.dupr ? 'DUPR rating saved' : 'DUPR rating cleared', false); refreshDupr(); render();
+  } catch (err) { e.busy = false; e.error = err.message; refreshDupr(); }
 }
 const levelChip = name => { if (!club) return ''; const L = playerLevel(name); return `<span class="badge lv${L.maxed ? ' max' : ''}" aria-label="Level ${L.level}${L.prestige ? ', prestige ' + L.prestige : ''}">${stars(L.prestige)}Lv ${L.level}</span>`; };
 // Club level: 10 XP for every game; level n needs 50 x n XP to reach the next.
@@ -3548,18 +3564,20 @@ function membersHTML(c) {
     return { p, n, last };
   });
   rows.sort((a, b) => (b.p.claimed ? 1 : 0) - (a.p.claimed ? 1 : 0) || b.last - a.last || a.p.name.localeCompare(b.p.name));
+  const dc = dssoCfg(), duprLinked = n => !!(dc && dc.players[String(n).trim().toLowerCase()]);
   const linked = rows.filter(r => r.p.claimed).length;
+  const duprCount = dc ? rows.filter(r => duprLinked(r.p.name)).length : 0;
   const active = rows.filter(r => r.last && now - r.last <= DAY30).length;
   const list = rows.map(({ p, n, last }) => {
     const bal = Math.round((wallet(p.name) || {}).balance || 0);
     const when = last ? new Date(last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
     return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini${frameClass(p.name)}">${avatarInner(p.name)}</span>
-      <span class="mem-text"><span class="mem-name">${styledName(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span></span>
+      <span class="mem-text"><span class="mem-name">${styledName(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
       <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'} · ${bal} Dinks</span></span></button>
-      ${p.claimed || p.avatar ? `<span class="mem-acts">${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span>` : ''}</li>`;
+      ${p.claimed || p.avatar || dc ? `<span class="mem-acts">${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span>` : ''}</li>`;
   }).join('');
   return `<h2 id="club-h">Members</h2>
-    ${rows.length ? `<p>${rows.length} player${rows.length === 1 ? '' : 's'}, ${linked} linked to phones, ${active} played in the last 30 days.</p>
+    ${rows.length ? `<p>${rows.length} player${rows.length === 1 ? '' : 's'}, ${linked} linked to phones, ${active} played in the last 30 days.${dc ? ` ${duprCount} connected to DUPR.` : ''}</p>
     <ul class="mem-list">${list}</ul>
     <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones.</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
@@ -4651,10 +4669,13 @@ document.addEventListener('click', e => {
   if (ds.player) { if (clubSheet && el.closest && el.closest('#sheet3')) { clubSheet = null; renderClub(); } profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
   if (ds.act === 'profile-close') { profile = null; duprEdit = null; renderProfile(); return; }
-  if (ds.act === 'dupr-edit' && profile) { duprEdit = { name: profile.name, value: String(duprOf(profile.name) || ''), error: '', busy: false }; renderProfile(); const i = $('#dupr-in'); if (i) i.focus(); return; }
-  if (ds.act === 'dupr-cancel') { duprEdit = null; renderProfile(); return; }
+  // The profile's DUPR box and the Your DUPR card share these; the name is the open profile's, else this phone's player.
+  const duprName = profile ? profile.name : myName();
+  if (ds.act === 'dupr-edit' && duprName) { duprEdit = { name: duprName, value: String(duprOf(duprName) || ''), error: '', busy: false }; refreshDupr(); const i = $('#dupr-in'); if (i) i.focus(); return; }
+  if (ds.act === 'dupr-cancel') { duprEdit = null; refreshDupr(); return; }
   if (ds.act === 'dupr-save') { saveDupr(false); return; }
-  if (ds.act === 'dupr-clear' && profile) { duprEdit = { name: profile.name, value: '', error: '', busy: false }; saveDupr(true); return; }
+  if (ds.act === 'dupr-clear' && duprName) { duprEdit = { name: duprName, value: '', error: '', busy: false }; saveDupr(true); return; }
+  if (ds.act === 'dupr-open') { clubSheet = { view: 'dupr' }; renderClub(); return; }
   if (ds.act === 'me-open') {
     if (club && myName()) { profile = { name: myName(), mode: ratingMode }; renderProfile(); }
     else if (club) { clubSheet = { view: 'whoami' }; renderClub(); }
@@ -4886,7 +4907,7 @@ function dssoCfg() {
   if (dsso.code === club.code && dsso.cfg) return dsso.cfg.enabled ? dsso.cfg : null;
   if (!dsso.loading && (dsso.code !== club.code || Date.now() - dsso.failedAt > 60000)) {
     const code = club.code; dsso = { code, cfg: null, loading: true, failedAt: 0 };
-    api('dupr?code=' + code).then(d => { if (club && club.code === code) { dsso = { code, cfg: d, loading: false, failedAt: 0 }; if (d.enabled) { if (profile) renderProfile(); if (evScreen) renderEvents(true); } } })
+    api('dupr?code=' + code).then(d => { if (club && club.code === code) { dsso = { code, cfg: d, loading: false, failedAt: 0 }; if (d.enabled) { refreshDupr(); if (evScreen) renderEvents(true); } } })
       .catch(() => { dsso = { code, cfg: null, loading: false, failedAt: Date.now() }; });
   }
   return null;
@@ -4894,6 +4915,28 @@ function dssoCfg() {
 const dssoFmt = v => (typeof v === 'number' ? v.toFixed(2) : '–');
 const dssoAgo = at => { const m = Math.max(0, Math.round((Date.now() - at) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 const DSSO_CONSENT = 'You sign in on DUPR’s own page, so Dink Score never sees your DUPR password. Dink Score keeps your DUPR ID and your DUPR rating, and your club sees the rating labelled as DUPR’s. If an organizer sends event scores to DUPR, what goes to DUPR is the players’ DUPR IDs, the scores, the match date and the event name. Nothing is sent without an organizer confirming it. You can revoke access in your DUPR settings, or tap Unlink here, which deletes the stored ID and rating. DUPR numbers never change your Dink Rating, Dinks or leaderboard.';
+// DUPR is wired to DUPR's UAT (test) site until production keys exist, so say so where a real account may fail.
+const duprTestNote = c => DuprEntry.testMode(c) ? '<p class="note"><span class="test" style="font-weight:700">DUPR test mode.</span> This connects to DUPR’s test site (uat.dupr.gg). A real DUPR account may not sign in here, and that is not a bug in Dink Score.</p>' : '';
+/*DUPRENTRY-START*/
+// Which "Your DUPR" card to show. Pure, so test/duprentry.test.js can load this block alone.
+const DuprEntry = {
+  // cfg is the enabled /api/dupr answer or null
+  state: ({ club, cfg, myName }) => (!club ? 'noclub' : !myName ? 'pickname' : cfg ? 'connect' : 'self'),
+  testMode: cfg => !!cfg && cfg.env === 'uat'
+};
+/*DUPRENTRY-END*/
+// The always-findable "Your DUPR" card: header DUPR button and the club sheet. Reuses the profile's DUPR boxes.
+function yourDuprHTML(label = true) {
+  const c = dssoCfg(), mine = myName();
+  const st = DuprEntry.state({ club, cfg: c, myName: mine });
+  const tag = DuprEntry.testMode(c) ? '<span class="test">DUPR test mode</span>' : '';
+  let inner;
+  if (st === 'noclub') inner = '<p class="note">DUPR linking is per club, so join or start a club first. Then you can link your DUPR here.</p><button type="button" class="btn btn-blue" data-act="club-open">Join or start a club</button>';
+  else if (st === 'pickname') inner = `<p class="note">First tell ${esc(club.name)} which player you are. Pick your name, then you can connect your DUPR.</p><button type="button" class="btn btn-blue" data-act="whoami-open">Pick my name</button>`;
+  else if (st === 'connect') inner = `<p class="note">You are <b>${esc(mine)}</b> in ${esc(club.name)}.</p>${duprTestNote(c)}${dssoProfileHTML(mine)}`;
+  else inner = `<p class="note">You are <b>${esc(mine)}</b> in ${esc(club.name)}. Linking with DUPR is not switched on, so you can enter your rating yourself.</p>${selfDuprHTML(mine)}`;
+  return `<section class="dupr-entry" aria-label="Your DUPR">${label ? '<span class="lab">Your DUPR</span>' : ''}${tag}${inner}</section>`;
+}
 function dssoProfileHTML(name) {
   const c = dssoCfg(); if (!c) return '';
   const p = c.players[String(name).trim().toLowerCase()];
@@ -4928,6 +4971,7 @@ function renderDsso() {
   let inner;
   if (u.view === 'connect') {
     inner = `<div class="sheet-head"><h2 id="dsso-h">Connect ${esc(u.name)} to DUPR</h2><button type="button" class="x" data-dsso="close" aria-label="Close">✕</button></div>
+      ${duprTestNote(c)}
       <p class="note">${esc(DSSO_CONSENT)}</p>
       ${u.error ? `<p class="err" role="alert">${esc(u.error)}</p>` : ''}
       ${u.busy ? '<p class="note" role="status">Checking with DUPR…</p>' : `<iframe class="dsso-frame" id="dsso-frame" title="Sign in to DUPR" src="${esc(c.loginUrl)}"></iframe>`}`;
@@ -4965,7 +5009,7 @@ async function dssoLink(userToken) {
     if (dssoUI === u) dssoUI = null;
     showToast(d.basic === false ? 'DUPR connected. DUPR shows no membership for this account yet.' : 'DUPR connected', false);
   } catch (err) { u.busy = false; u.error = err.message; }
-  renderDsso(); if (profile) renderProfile();
+  renderDsso(); refreshDupr();
 }
 async function dssoReview(quiet) {
   const u = dssoUI; if (!u) return;
@@ -5006,12 +5050,12 @@ document.addEventListener('click', async e => {
     b.disabled = true;
     try { const d = await dssoPost({ action: 'refresh', playerName: name }); dssoSetPlayer(name, d.snapshot); showToast(d.needsRelink ? 'DUPR access ended. Connect again.' : d.cached ? 'Already up to date' : 'Rating updated from DUPR', false); }
     catch (err) { showToast(err.message, false); }
-    if (profile) renderProfile();
+    refreshDupr();
   } else if (a === 'unlink') {
     if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to unlink'; return; }
     try { await dssoPost(Object.assign({ action: 'unlink', playerName: name }, dssoCreds())); dssoSetPlayer(name, null); showToast('DUPR unlinked. The stored ID and rating are deleted.', false); }
     catch (err) { showToast(err.message, false); }
-    if (profile) renderProfile();
+    refreshDupr();
   }
 });
 document.addEventListener('change', e => {
