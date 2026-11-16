@@ -23,6 +23,7 @@
 <tr><td>Games, scores, ratings and achievements</td><td>The club record and leaderboard</td><td>Everyone with the club code</td></tr>
 <tr><td>Optional self-reported DUPR rating</td><td>Reference inside the club</td><td>Everyone with the club code; never sent to DUPR</td></tr>
 <tr><td>Events: names, players, team names, team logo links, brackets and results</td><td>Tournaments and rotating doubles</td><td>Club members. An organizer can also publish a read-only bracket page at a private link; it shows the bracket, standings and champion, but never the club code, DUPR data or photos</td></tr>
+<tr><td>Public result links (only if an organizer turns them on)</td><td>Sharing a finished game or a day's games</td><td>Anyone holding the link. It shows the player names, score, date and score flow already on those games, with a preview picture; never the club name or code, member list or photos. Names of people who anonymised themselves stay anonymous. An organizer can turn a link off, or all links, at any time</td></tr>
 <tr><td>DUPR link (only when the DUPR feature is switched on): a DUPR ID and DUPR ratings for a linked player, and results sent to DUPR</td><td>Showing DUPR ratings and sending scores, on request</td><td>Club members only. Your DUPR password is never seen by Dink Score and no DUPR login tokens are kept</td></tr>
 <tr><td>Network address (IP) of failed club-code, PIN and similar attempts</td><td>Blocking guessing attacks</td><td>Nobody in the app. Not linked to a player</td></tr>
 <tr><td>On your own phone: saved settings, your name on this phone, games scored before joining a club</td><td>Making the app work offline</td><td>Only you. It stays in your browser until you clear site data</td></tr>
@@ -43,8 +44,8 @@
 <ul>
 <li>Club data is kept while the club exists. There is not yet an automatic expiry for inactive clubs.</li>
 <li>Failed-attempt network addresses are cleared after about a day (the cleanup runs as the app is used, so a few may linger a little longer).</li>
-<li>Deleted games and ended shared bracket links stop being shown immediately; backups kept by the database provider may hold older copies for a limited time.</li>
-<li>A club an organizer deletes stays usable for 24 hours, so the deletion can be undone. After that its games, players, events, bracket links, live games and the court board are removed from the database (the removal runs as the app is used, and an expired club is refused at once). Backups kept by the database provider may hold older copies for a limited time.</li>
+<li>Deleted games and ended shared bracket or result links stop being shown immediately (a result page may stay in a cache for up to 20 seconds); backups kept by the database provider may hold older copies for a limited time.</li>
+<li>A club an organizer deletes stays usable for 24 hours, so the deletion can be undone. After that its games, players, events, bracket links, result links, live games and the court board are removed from the database (the removal runs as the app is used, and an expired club is refused at once). Backups kept by the database provider may hold older copies for a limited time.</li>
 </ul>
 
 <h2>Young players</h2>
