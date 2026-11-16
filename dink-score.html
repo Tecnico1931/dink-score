@@ -3078,7 +3078,7 @@ const duprChip = name => { const v = duprOf(name); return v ? `<span class="dupr
 // That name's own phone, or an organizer (the only one who can set it on a guest name).
 const canSetDupr = name => !!club && !!clubData && clubPlayers().some(x => sameName(x.name, name)) && (isMe(name) || (club.hasPin ? hasOrganizer() : isCreator()));
 let duprEdit = null; // { name, value, error, busy } while the DUPR box in a profile is being edited
-function duprHTML(name) {
+function selfDuprHTML(name) {
   if (!club || !clubData) return '';
   const v = duprOf(name), can = canSetDupr(name);
   if (!v && !can) return '';
@@ -3708,7 +3708,7 @@ function renderProfile() {
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${levelCardHTML(pr.name)}
-    ${duprHTML(pr.name)}
+    ${selfDuprHTML(pr.name)}
     ${dssoProfileHTML(pr.name)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}
