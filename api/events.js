@@ -18,6 +18,7 @@
 //   public-logos  {id, on}                                  -> organizer: show or hide team logos on the public bracket page
 // create may carry teamMeta ([{name, logo}] for each of its manual teams), publicLogos and refs ({player: DUPR ID}, reference only).
 // Organizer actions need the creating phone's token or the organizer PIN, like the club's other organizer settings.
+import { checkLog } from './_rallylog.js';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, reserveGames, releaseGames, verifiedSender } from './_db.js';
 import { newShareToken } from './_share.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
@@ -57,7 +58,7 @@ async function mutate(sql, code, id, fn) {
 }
 
 // Puts a finished match into the club's games. Safe to repeat: the game id is the same every time, so it is stored once.
-async function recordGame(sql, club, code, event, game, body, now) {
+async function recordGame(sql, club, code, event, game, body, now, rallyLog) {
   const g = Object.assign(cleanGame(game), { event: { id: event.id, name: event.name } });
   g.receivedAt = now;
   const sender = await verifiedSender(sql, club, code, body);
@@ -65,7 +66,7 @@ async function recordGame(sql, club, code, event, game, body, now) {
   const windowStart = await reserveGames(code, 1);
   let inserted = 0;
   try {
-    const rows = await sql`INSERT INTO games (club, id, data, ended_at) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt})
+    const rows = await sql`INSERT INTO games (club, id, data, ended_at, rally_log) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt}, ${checkLog(g, rallyLog)})
       ON CONFLICT (club, id) DO NOTHING RETURNING id`;
     inserted = rows.length;
   } finally {
@@ -128,7 +129,7 @@ export default handler(async (req, res) => {
     }
     const actor = { organizer, name: sender && sender !== 'organizer' ? sender : null };
     const { event, out } = await mutate(sql, code, id, ev => { checkResultActor(ev, String(body.matchId || ''), actor); return recordResult(ev, String(body.matchId || ''), body, now); });
-    await recordGame(sql, club, code, event, out.game, body, now);
+    await recordGame(sql, club, code, event, out.game, body, now, body.rallyLog);
     return send(res, 200, { event: view(event) });
   }
 
@@ -155,7 +156,7 @@ export default handler(async (req, res) => {
     const { event, out } = await mutate(sql, code, id, ev => correctResult(ev, String(body.matchId || ''), body.score, now));
     // Same game id, new score. Keeps who sent it and when it arrived; does nothing if the game was deleted from the record.
     const g = cleanGame(out.game);
-    await sql`UPDATE games SET data = data || ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt} WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
+    await sql`UPDATE games SET data = data || ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}, rally_log = NULL WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
     return send(res, 200, { event: view(event) });
   }
   const actions = {
