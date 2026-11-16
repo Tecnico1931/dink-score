@@ -44,14 +44,23 @@
 <li>Club data is kept while the club exists. There is not yet an automatic expiry for inactive clubs.</li>
 <li>Failed-attempt network addresses are cleared after about a day (the cleanup runs as the app is used, so a few may linger a little longer).</li>
 <li>Deleted games and ended shared bracket links stop being shown immediately; backups kept by the database provider may hold older copies for a limited time.</li>
-<li>Self-service export, anonymise-me and delete-club tools are planned but not built yet. Until then, ask by contact below and we will do it by hand.</li>
+<li>A club an organizer deletes stays usable for 24 hours, so the deletion can be undone. After that its games, players, events, bracket links and live games are removed from the database (the removal runs as the app is used, and an expired club is refused at once). Backups kept by the database provider may hold older copies for a limited time.</li>
 </ul>
 
 <h2>Young players</h2>
 <p>Juniors may play, but only with a responsible adult: a parent, guardian or the club manager creates and runs the club and decides what is entered. Dink Score does not knowingly collect data from children who set up a club on their own, and does not ask for any contact details. For junior players we recommend using first names or initials and the emoji avatar rather than a photo. Showing initials in place of names and photos on public pages for juniors is planned as a later feature, not something the app does today. If you are a parent and want a child's name, photo or results removed, contact us below.</p>
 
 <h2>Your choices</h2>
-<p>You can ask to see, correct, anonymise or delete data about you, and to delete a club. Club organizers can already delete games and remove players in the app. Contact us and say which club and which name.</p>
+<p>These are built into the app (club menu, <b>Your data</b>):</p>
+<ul>
+<li><b>Download my data (any player).</b> On the phone that picked your name in the club, you can download a JSON file with your saved player (name, picture, self-reported rating, DUPR link if any), the games you played in, with their rally logs, and the events you are in. Only that phone can do this, because the phone link is how Dink Score knows the name is yours.</li>
+<li><b>Anonymise me (any player; an organizer can do it for a name too).</b> Your name is replaced by a random label such as "Former player 4K7QX" in every game, event and live game of that club. Your picture, DUPR ID and link, self-reported rating, the link from this phone and any account link to the name are removed. The games stay, so other people's ratings and records do not change; they just show the label. This cannot be undone, and anyone who remembers who you were can still guess from the games. Only the club you do it in is changed.</li>
+<li><b>Download the whole club (organizers).</b> A JSON file with the club's players, games (with rally logs) and events, or a CSV file of its games. It does not contain the PIN, phone tokens, bracket link tokens or DUPR links and IDs.</li>
+<li><b>Delete the club (organizers).</b> The organizer types the club's name to confirm. Everyone sees the club is scheduled for deletion; an organizer can undo it for 24 hours, after which the club and everything in it is removed.</li>
+<li><b>Delete my account (optional accounts).</b> Removes the account, its passkeys, sign-in sessions and its links to club names. Clubs, games and names stay; use anonymise to change those.</li>
+<li>Organizers can also delete games and remove saved players in the app.</li>
+</ul>
+<p>Not covered by these tools: copies in the database provider's backups, and data already on other people's phones or in files they downloaded. To correct something, ask an organizer to edit the game, or contact us below.</p>
 
 <h2>Contact</h2>
 <p><b>[Contact email: to be added by the site owner before launch]</b>. Security problems: see <a href="https://github.com/Tecnico1931/dink-score/security/policy">the security policy</a>.</p>

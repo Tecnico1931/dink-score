@@ -1852,7 +1852,7 @@ async function refreshClub() {
     const data = await api('club?code=' + asked);
     if (!club || club.code !== asked) return;
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; saveClubs();
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
     clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, dupes: data.dupes || [], at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
@@ -2094,6 +2094,46 @@ async function codeRotate(grace) {
     render();
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
 }
+// Data rights (api/players.js export/anonymise, api/club.js export/delete-club): see privacy.html.
+function saveFile(text, name, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function rightsRun(fn) {
+  clubSheet.busy = true; clubSheet.error = ''; clubSheet.msg = ''; renderClub();
+  try { const msg = await fn(); clubSheet = clubSheet && clubSheet.view === 'rights' ? { view: 'rights', msg: msg || '' } : clubSheet; }
+  catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  if (clubSheet) renderClub();
+}
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'club';
+const rightsPlayerExport = () => rightsRun(async () => {
+  const d = await playerCall({ action: 'export', name: myName(), playerToken: myToken() });
+  saveFile(JSON.stringify(d, null, 2), `dink-score-${slug(myName())}.json`, 'application/json');
+  return 'Your data was downloaded.';
+});
+const rightsAnonymise = () => rightsRun(async () => {
+  const d = await playerCall({ action: 'anonymise', name: myName(), playerToken: myToken() });
+  delete me[club.code]; store.set('pb.me', me);
+  await refreshClub();
+  return `Done. In ${club.name} you are now "${d.label}". Your games stay, so other people's ratings don't change.`;
+});
+const rightsClubExport = fmt => rightsRun(async () => {
+  const res = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
+    body: JSON.stringify(Object.assign({ code: club.code, action: 'export', format: fmt }, adminCreds())) }).catch(() => { throw new Error("Can't reach the server. Check your connection."); });
+  if (!res.ok) { let m = {}; try { m = await res.json(); } catch {} throw new Error(m.error || 'Something went wrong. Try again.'); }
+  saveFile(fmt === 'csv' ? await res.text() : JSON.stringify(await res.json(), null, 2), `dink-score-${slug(club.name)}.${fmt === 'csv' ? 'csv' : 'json'}`, fmt === 'csv' ? 'text/csv' : 'application/json');
+  return fmt === 'csv' ? 'The games were downloaded as a spreadsheet file.' : 'The whole club was downloaded.';
+});
+const rightsClubDelete = typed => rightsRun(async () => {
+  const d = await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'delete-club', confirm: typed }, adminCreds())) });
+  club.deleteAt = d.deleteAt; saveClubs();
+  return 'Deletion is scheduled. An organizer can undo it until the deletion time shown here.';
+});
+const rightsClubUndo = () => rightsRun(async () => {
+  await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'cancel-delete-club' }, adminCreds())) });
+  delete club.deleteAt; saveClubs();
+  return 'Deletion cancelled. The club stays.';
+});
 // Moving to a new phone (see the MOVE block and api/transfer.js).
 async function moveOut() {
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
@@ -2346,6 +2386,23 @@ function renderClub() {
       <form class="club-form" data-form="pin-unlock"><label class="lab" for="pin-input">PIN</label>
         <div class="add-player"><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${c.pending ? ({ delete: 'Delete game', restore: 'Restore game', edit: 'Save changes', 'roster-del': 'Remove player' }[c.pending.type]) : 'Unlock'}</button></div></form>${err}
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
+  } else if (c.view === 'rights') {
+    const org = isCreator() || (club.hasPin && hasOrganizer()), canDelete = isCreator() || (club.hasPin && !!pins[club.code]), when = club.deleteAt ? new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    body = `<h2 id="club-h">Your data</h2>
+      ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}${err}
+      ${myName() ? `<div class="org-card"><div class="org-head"><span class="lab">You, ${esc(myName())}</span></div>
+        <p>Download everything ${esc(club.name)} holds about you, or have your name replaced by an anonymous label across the club. Your games stay, so other people's ratings stay correct. Your picture, DUPR link and this phone's link to the name are removed. This can't be undone.</p>
+        <div class="org-btns"><button class="btn btn-soft" data-act="rights-player-export" ${c.busy ? 'disabled' : ''}>Download my data</button>
+        <button class="btn ${c.confirmAnon ? 'btn-line-danger' : 'btn-soft'}" data-act="rights-anon" ${c.busy ? 'disabled' : ''}>${c.confirmAnon ? 'Tap again to anonymise me' : 'Anonymise me'}</button></div></div>`
+        : `<p>Pick your name in the club to download or anonymise your own data. An organizer can anonymise a name from Members.</p>`}
+      ${org ? `<div class="org-card"><div class="org-head"><span class="lab">Whole club (organizers)</span></div>
+        <div class="org-btns"><button class="btn btn-soft" data-act="rights-club-export" ${c.busy ? 'disabled' : ''}>Download club (JSON)</button><button class="btn btn-soft" data-act="rights-club-csv" ${c.busy ? 'disabled' : ''}>Games (CSV)</button></div>
+        ${club.deleteAt && !canDelete ? `<p class="err" role="status">${esc(club.name)} will be deleted for good on ${esc(when)}.</p>` : ''}${!canDelete ? '' : club.deleteAt ? `<p class="err" role="status">${esc(club.name)} will be deleted for good on ${esc(when)}. Everyone can still use it until then.</p><button class="btn btn-ink" data-act="rights-club-undo" ${c.busy ? 'disabled' : ''}>Undo deletion</button>`
+          : `<form class="club-form" data-form="club-delete"><label class="lab" for="del-confirm">Delete this club: type its name, ${esc(club.name)}</label>
+            <input id="del-confirm" class="field-input" autocomplete="off" maxlength="40"><p class="note">Everything in the club is removed after 24 hours: games, players, events and links. Until then you can undo it.</p>
+            <button type="submit" class="btn btn-line-danger" ${c.busy ? 'disabled' : ''}>Delete club</button></form>`}</div>` : ''}
+      <p class="note"><a href="/privacy" target="_blank" rel="noopener">Privacy</a></p>
+      <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Back</button></div>`;
   } else if (c.view === 'rotate') {
     body = `<h2 id="club-h">Change the club code?</h2>
       <p>${esc(club.name)} gets a new code. The old code, the invite link and any QR code or TV display page that use it will stop working. After the overlap below, anyone still using the old one is locked out until you give them the new code. Games, players and ratings stay as they are.</p>
@@ -2377,6 +2434,7 @@ function renderClub() {
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
       ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p></div>` : ''}
+      ${club.deleteAt ? `<p class="err" role="status">${esc(club.name)} is scheduled for deletion on ${esc(new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}. An organizer can undo it under Your data.</p>` : ''}
       ${needsAttentionHTML()}
       <p class="note legal-links"><a href="/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="/terms" target="_blank" rel="noopener">Terms</a></p>
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
@@ -2389,6 +2447,7 @@ function renderClub() {
       ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
       ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
+      <button class="btn btn-soft block" data-act="rights-open">Your data: export, anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}</button>
       <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
@@ -3968,7 +4027,7 @@ function membersHTML(c) {
     return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini">${avatarInner(p.name)}</span>
       <span class="mem-text"><span class="mem-name">${esc(p.name)}${youTag(p.name)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${p.role === 'organizer' ? ' <span class="badge on">Organizer</span>' : ''}${blocked[p.name.toLowerCase()] ? ' <span class="badge prov">Blocked</span>' : ''}${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
       <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'}</span></span></button>
-      <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}</span></li>`;
+      <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}<button class="link" data-anon="${esc(p.name)}">Anonymise</button></span></li>`;
   }).join('');
   const ed = c.nameEdit;
   const editor = ed ? `<form class="club-form" data-form="name-edit">${ed.kind === 'merge'
@@ -5063,8 +5122,18 @@ document.addEventListener('click', e => {
     if (clubSheet.confirmRelease !== ds.release) { clubSheet.confirmRelease = ds.release; el.textContent = 'Tap again to release'; return; }
     adminAction({ action: 'release', name: ds.release }, `${ds.release} can now be picked on another phone`); return;
   }
+  if (ds.anon) {
+    if (clubSheet.confirmAnon !== ds.anon) { clubSheet.confirmAnon = ds.anon; el.textContent = 'Tap again: replaces the name everywhere'; return; }
+    adminAction({ action: 'anonymise', name: ds.anon }, `${ds.anon} is now anonymous in this club`); return;
+  }
   if (ds.edit) { openEdit(ds.edit); return; }
   if (ds.restore) { withPin({ type: 'restore', id: ds.restore }); return; }
+  if (ds.act === 'rights-open') { clubSheet = { view: 'rights' }; renderClub(); return; }
+  if (ds.act === 'rights-player-export') { rightsPlayerExport(); return; }
+  if (ds.act === 'rights-anon') { if (!clubSheet.confirmAnon) { clubSheet.confirmAnon = true; renderClub(); return; } rightsAnonymise(); return; }
+  if (ds.act === 'rights-club-export') { rightsClubExport('json'); return; }
+  if (ds.act === 'rights-club-csv') { rightsClubExport('csv'); return; }
+  if (ds.act === 'rights-club-undo') { rightsClubUndo(); return; }
   if (ds.act === 'code-rotate-open') { clubSheet = { view: 'rotate' }; renderClub(); return; }
   if (ds.act === 'acct-open') { acctOpen(); return; }
   if (ds.act === 'acct-close') { clubSheet = club ? { view: 'club' } : { view: 'add' }; renderClub(); return; }
@@ -5081,7 +5150,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'move-print') { window.print(); return; }
   if (ds.act && ds.act.startsWith('pin-')) {
     const a = ds.act;
-    if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && (clubSheet.view === 'setpin' || clubSheet.view === 'rotate')) ? { view: 'club' } : null;
+    if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && (clubSheet.view === 'setpin' || clubSheet.view === 'rotate' || clubSheet.view === 'rights')) ? { view: 'club' } : null;
     if (a === 'pin-set-open') clubSheet = { view: 'setpin' };
     if (a === 'pin-unlock-open') clubSheet = { view: 'unlock', back: 'club' };
     if (a === 'pin-lock') { forgetPin(); clubSheet = { view: 'club', msg: 'This phone is locked. Deleting games needs the PIN again.' }; }
@@ -5222,6 +5291,7 @@ document.addEventListener('submit', e => {
   if (form.matches('[data-form="move-in"]')) { e.preventDefault(); moveIn($('#move-code').value); return; }
   if (form.matches('[data-form="recover"]')) { e.preventDefault(); recoverClub($('#rec-club').value, $('#rec-code').value); return; }
   if (form.matches('[data-form="recovery-make"]')) { e.preventDefault(); recoveryMake(); return; }
+  if (form.matches('[data-form="club-delete"]')) { e.preventDefault(); rightsClubDelete($('#del-confirm').value); return; }
   if (form.matches('[data-form="code-rotate"]')) { e.preventDefault(); codeRotate($('#rot-grace').value); return; }
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
