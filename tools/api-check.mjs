@@ -383,5 +383,15 @@ await step('sheet import: with rotating partners only the players are added (tea
 });
 globalThis.fetch = realFetch;
 
+await step('report endpoint: 204 and nothing sent when ERROR_REPORT_URL is unset; rejects GET', async () => {
+  const report = await load('report');
+  delete process.env.ERROR_REPORT_URL;
+  const post = { method: 'POST', url: '/api/report', headers: {}, body: { message: 'x' } };
+  let st = 0; await report(post, { setHeader() {}, end() { st = this.statusCode; } });
+  assert.equal(st, 204);
+  let g = 0; await report({ method: 'GET', url: '/api/report', headers: {} }, { setHeader() {}, end() { g = this.statusCode; } });
+  assert.equal(g, 405);
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
