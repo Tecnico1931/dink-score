@@ -32,7 +32,11 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
+<<<<<<< HEAD
           "value": "default-src 'self'; script-src 'self' 'sha256-ElShUWg/R0NC6WIMZp3N2FKE5siI90ZKCnHMHJYcUhk=' 'sha256-l9jxO9Mc9BZ3OprIjQPT/dOgJNycLUVb9mXnaRHliQs=' 'sha256-88k9LhcsCu+7RWm4yzMCjunH1WTmb43+iGn2F8W+lnk=' 'sha256-zzg00g0+F/T8z5cCRwzuHHslS0IfT+iTJw/128fggeU=' 'sha256-4unVq5spfShsnNUt3oUMXuYSx/rrCxeFssgDmJW7NuI=' 'sha256-BQFeIinGsbj1ipNYBpq8KjQfExRAcafuj/6Zrbwusj4=' 'sha256-qhtNgQkkzFPF24U+9KzZwLuADkwDw7MxERvfA8hcxtw=' 'sha256-mAmcNl0PttXVnndgA3mSdbUfdJkt//5Jp0ssqHX1WCY=' 'sha256-yy3FX4fUKW/2jQELl7NOsRJ1ialA8QXJhP4/BTb6PPA='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src https://dashboard.dupr.com https://uat.dupr.gg; frame-ancestors 'none'"
+=======
+          "value": "default-src 'self'; script-src 'self' 'sha256-ElShUWg/R0NC6WIMZp3N2FKE5siI90ZKCnHMHJYcUhk=' 'sha256-l9jxO9Mc9BZ3OprIjQPT/dOgJNycLUVb9mXnaRHliQs=' 'sha256-88k9LhcsCu+7RWm4yzMCjunH1WTmb43+iGn2F8W+lnk=' 'sha256-zzg00g0+F/T8z5cCRwzuHHslS0IfT+iTJw/128fggeU=' 'sha256-4unVq5spfShsnNUt3oUMXuYSx/rrCxeFssgDmJW7NuI=' 'sha256-BQFeIinGsbj1ipNYBpq8KjQfExRAcafuj/6Zrbwusj4=' 'sha256-+Qg8VXOgpLcZF/S/6VyTx1d4kbj/mJgAEGEbwFYIwgk=' 'sha256-mAmcNl0PttXVnndgA3mSdbUfdJkt//5Jp0ssqHX1WCY=' 'sha256-yy3FX4fUKW/2jQELl7NOsRJ1ialA8QXJhP4/BTb6PPA='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src https://dashboard.dupr.com https://uat.dupr.gg; frame-ancestors 'none'"
+>>>>>>> ffc3618 (Rebuild, bump sw version)
         },
         {
           "key": "X-Frame-Options",
