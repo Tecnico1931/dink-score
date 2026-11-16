@@ -4,7 +4,7 @@
 // POST /api/transfer {action: 'recovery-create', code, ownerToken} -> new printable creator recovery code (replaces any earlier one)
 // POST /api/transfer {action: 'recovery-redeem', code, recovery}   -> trades a recovery code for a fresh creator token (single use)
 // Nothing here can read a phone's tokens: the bundle is encrypted on the phone with a key derived from the transfer code.
-import { db, handler, send, readBody, fail, cleanCode, clientIp, newOwnerToken, hashToken, tokenMatches } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, clientIp, newOwnerToken, hashToken, tokenMatches, requireClub, publicClub } from './_db.js';
 import { TRANSFER_TTL_MIN, RECOVERY_TTL_DAYS, newRecoveryCode, cleanRecoveryCode, hashRecovery, recoveryMatches, cleanTransferId, idHash, cleanBlob } from './_transfer.js';
 
 const MAX_MADE = 10;       // transfer codes one network address may create per hour
@@ -48,10 +48,10 @@ export default handler(async (req, res) => {
 
   if (body.action === 'recovery-create') {
     const code = cleanCode(body.code);
-    const [club] = await sql`SELECT code, owner_hash FROM clubs WHERE code = ${code}`;
-    if (!club || !tokenMatches(club.owner_hash, body.ownerToken)) throw fail(403, 'Only the phone that created this club can make its recovery code.');
+    const club = await requireClub(code, req);
+    if (!tokenMatches(club.owner_hash, body.ownerToken)) throw fail(403, 'Only the phone that created this club can make its recovery code.');
     const recovery = newRecoveryCode();
-    const [row] = await sql`UPDATE clubs SET recovery_hash = ${hashRecovery(recovery.replace(/-/g, ''))}, recovery_expires = now() + make_interval(days => ${RECOVERY_TTL_DAYS}) WHERE code = ${code} RETURNING recovery_expires`;
+    const [row] = await sql`UPDATE clubs SET recovery_hash = ${hashRecovery(recovery.replace(/-/g, ''))}, recovery_expires = now() + make_interval(days => ${RECOVERY_TTL_DAYS}) WHERE code = ${club.code} RETURNING recovery_expires`;
     return send(res, 200, { ok: true, recovery, expires: row.recovery_expires });
   }
 
@@ -59,14 +59,16 @@ export default handler(async (req, res) => {
     const code = cleanCode(body.code), recovery = cleanRecoveryCode(body.recovery);
     const byIp = await attempt(sql, 'recov:' + ip, MAX_WRONG, 15, 'Too many wrong recovery codes. Wait 15 minutes and try again.');
     const byClub = await attempt(sql, 'recovclub:' + code, MAX_WRONG_CLUB, 15, 'Too many wrong recovery codes were tried for this club. Wait 15 minutes and try again.');
-    const [club] = await sql`SELECT code, name, pin_hash, recovery_hash FROM clubs WHERE code = ${code} AND recovery_expires > now()`;
+    // The typed code is the club's current public code or a retired one still in its overlap (see requireClub in _db.js).
+    const [club] = await sql`SELECT code, name, pin_hash, public_code, recovery_hash FROM clubs
+      WHERE recovery_expires > now() AND (coalesce(public_code, code) = ${code} OR code IN (SELECT club FROM club_aliases WHERE code = ${code} AND expires_at > now()))`;
     if (!recovery || !club || !recoveryMatches(club.recovery_hash, recovery)) throw fail(403, 'That recovery code is wrong, already used, or has expired.');
     const ownerToken = newOwnerToken();
     // Atomic and single use: only the request that still sees this exact code wins.
-    const won = await sql`UPDATE clubs SET owner_hash = ${hashToken(ownerToken)}, recovery_hash = NULL, recovery_expires = NULL WHERE code = ${code} AND recovery_hash = ${club.recovery_hash} RETURNING code`;
+    const won = await sql`UPDATE clubs SET owner_hash = ${hashToken(ownerToken)}, recovery_hash = NULL, recovery_expires = NULL WHERE code = ${club.code} AND recovery_hash = ${club.recovery_hash} RETURNING code`;
     if (!won.length) throw fail(403, 'That recovery code is wrong, already used, or has expired.');
     await sql`DELETE FROM lookup_fails WHERE id IN (${byIp}, ${byClub})`;
-    return send(res, 200, { ok: true, ownerToken, club: { code, name: club.name, hasPin: !!club.pin_hash } });
+    return send(res, 200, { ok: true, ownerToken, club: { code: club.public_code || club.code, name: club.name, hasPin: !!club.pin_hash } });
   }
 
   throw fail(400, 'Unknown action.');
