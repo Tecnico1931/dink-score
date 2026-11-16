@@ -270,14 +270,14 @@ await step('DUPR: it is not in event responses', async () => {
 
 await step('event results: players in the match and organizers by default, any member when the organizer allows it', async () => {
   const sh = body => call(shop, 'POST', { body: { code, ...body } });
-  const pinSet = ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: '4821', ownerToken: owner } }));
+  const pinSet = ok(await call(club, 'POST', { body: { code, action: 'set-pin', pin: PIN, ownerToken: owner } }));
   const e = ok(await create({ name: 'Who scores', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph'], seed: 'perm' }), 201).event;
   assert.equal(e.resultsBy, 'players', 'the default');
   const [m] = e.rounds[0].matches, playing = m.teams.flat().map(x => x.toLowerCase());
   const sitting = ['Pa', 'Pb', 'Pc', 'Pd', 'Pe', 'Pf', 'Pg', 'Ph'].find(n => !playing.includes(n.toLowerCase()));
   const inMatch = m.teams[0][0], inMatch2 = m.teams[1][1];
   const tok = {};
-  for (const n of [inMatch, inMatch2, sitting]) tok[n] = ok(await sh({ action: 'claim', name: n, ownerToken: owner, pin: '4821' })).playerToken;
+  for (const n of [inMatch, inMatch2, sitting]) tok[n] = ok(await sh({ action: 'claim', name: n, ownerToken: owner, pin: PIN })).playerToken;
   const res = (extra, matchId = m.id, score = [11, 5]) => call(events, 'POST', { body: { code, action: 'result', id: e.id, matchId, score, endedAt: Date.now(), ...extra } });
   let r = await res({});
   assert.equal(r.status, 403, 'a stranger with only the club code'); assert.match(r.json.error || r.json.message || '', /players in this match or an organizer/);
@@ -292,7 +292,7 @@ await step('event results: players in the match and organizers by default, any m
   ok(await res({ playerName: inMatch, playerToken: tok[inMatch] }));
   assert.equal((await clubGames()).filter(g => g.event && g.event.id === e.id).length, 1, 'a player in the match');
   const m2 = e.rounds[0].matches[1];
-  ok(await res({ pin: '4821' }, m2 ? m2.id : m.id)); // organizer by PIN (or a retry of the same score when there is one court)
+  ok(await res({ pin: PIN }, m2 ? m2.id : m.id)); // organizer by PIN (or a retry of the same score when there is one court)
   // Organizer toggle: refused for members, allowed for organizers.
   assert.equal((await act('results-by', { id: e.id, who: 'club' }, { playerName: sitting, playerToken: tok[sitting] })).status, 403);
   assert.equal((await act('results-by', { id: e.id, who: 'nobody' })).status, 400);
@@ -651,11 +651,11 @@ await step('club creation is throttled per network, and a bad PIN does not use u
 });
 await step('game allowance counts only games that are not deleted, and an organizer can reset the pause', async () => {
   const c5 = ok(await call(club, 'POST', { body: { name: 'Allowance club' } }), 201);
-  const mk = n => Array.from({ length: n }, (_, i) => ({ id: 'a' + i + '-' + Math.random().toString(36).slice(2), t: Date.now() - i, at: Date.now(), mode: 'doubles', p: [['A', 'B'], ['C', 'D']], s: [11, 5], to: 11, ended: Date.now() }));
+  const mk = n => Array.from({ length: n }, (_, i) => gm('a' + i + '-' + Math.random().toString(36).slice(2)));
   const send = (n, extra = {}) => call(games, 'POST', { body: { code: c5.club.code, games: mk(n), ownerToken: c5.ownerToken, ...extra } });
   const r1 = await send(3);
   assert.ok(r1.status < 300, JSON.stringify(r1.json));
-  const [{ n: live }] = (await pg.query('SELECT count(*)::int AS n FROM games WHERE club = $1', [c5.club.code])).rows.map(r => ({ n: r[0] }));
+  const live = (await pg.query('SELECT count(*)::int AS n FROM games WHERE club = $1', [c5.club.code])).rows[0].n;
   assert.equal(live, 3);
   // Pretend a long history: total_count used to cap a club for good; it no longer matters.
   await pg.query('UPDATE clubs SET total_count = 999999 WHERE code = $1', [c5.club.code]);
@@ -670,7 +670,7 @@ await step('game allowance counts only games that are not deleted, and an organi
 await step('live games: each club keeps at most 20 open at once, stale ones expire', async () => {
   const c6 = ok(await call(club, 'POST', { body: { name: 'Live club' } }), 201);
   const st = { score: [0, 0], serving: 0, cfg: { mode: 'singles' }, winner: null };
-  const put = id => call(live, 'POST', { body: { code: c6.club.code, action: 'state', id, state: st } });
+  const put = id => call(live, 'POST', { body: { code: c6.club.code, action: 'state', id, state: st, secret: 'secret123' } });
   for (let i = 0; i < 20; i++) ok(await put('g' + i));
   assert.equal((await put('overflow')).status, 429);
   ok(await put('g3')); // updating one that exists is always fine
@@ -680,7 +680,11 @@ await step('live games: each club keeps at most 20 open at once, stale ones expi
 await step('photo avatars: kept out of the club payload, served lazily, capped per club', async () => {
   const c7 = ok(await call(club, 'POST', { body: { name: 'Photo club' } }), 201);
   const photo = 'data:image/jpeg;base64,' + 'A'.repeat(500);
-  const setAv = name => call(shop, 'POST', { body: { code: c7.club.code, action: 'avatar', name, avatar: { type: 'photo', value: photo }, ownerToken: c7.ownerToken } });
+  const toks = {};
+  const setAv = async name => {
+    if (!toks[name]) toks[name] = ok(await call(shop, 'POST', { body: { code: c7.club.code, action: 'claim', name, ownerToken: c7.ownerToken } })).playerToken;
+    return call(shop, 'POST', { body: { code: c7.club.code, action: 'avatar', name, avatar: { type: 'photo', value: photo }, playerToken: toks[name] } });
+  };
   const first = await setAv('Ana');
   assert.ok(first.status < 300, JSON.stringify(first.json));
   const main = ok(await call(club, 'GET', { query: '?code=' + c7.club.code }));
