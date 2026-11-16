@@ -365,6 +365,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 /* Replay of a game scored live */
 .rp-title { font-weight: 600; color: var(--ink) !important; overflow-wrap: anywhere; }
 .rp-chart .rp-sum { font-size: 14px; margin: 6px 2px 0; color: var(--ink); }
+/*REPLAYCHART-CSS-START*/
 .rp-svg { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: pointer; }
 .rp-zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
 .rp-ax { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
@@ -375,6 +376,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .rp-so { stroke: var(--muted); stroke-width: 2; }
 .rp-cur { stroke: var(--ink); stroke-width: 1; }
 .rp-dot { fill: var(--ball); stroke: var(--ink); stroke-width: 2.5; }
+/*REPLAYCHART-CSS-END*/
 .rp-key { display: flex; flex-direction: column; gap: 4px; margin: 8px 2px 6px; font-size: 13px; color: var(--muted); }
 .rp-key i { display: inline-block; width: 18px; margin-right: 8px; vertical-align: middle; }
 .rp-key .line-sw { height: 0; border-top: 2px solid var(--ink); opacity: .6; }
@@ -3354,12 +3356,17 @@ function replayStepText(r, i) {
   if (i === r.wins.length) text += ` Game over: ${esc(teamLabel(g.teams[g.winner]))} won ${g.score[g.winner]}–${g.score[1 - g.winner]}.`;
   return { head: `Rally ${i}`, text, call };
 }
-function replayChart(r) {
-  const W = 320, H = 150, L = 8, R = 8, T = 10, B = 20, n = r.wins.length, m = r.model, mid = (T + H - B) / 2;
+const replayChart = r => RC.chart(r.model, r.wins.length, TEAM_NAME, esc);
+/*REPLAYCHART-START*/
+// The score-flow chart, shared with the public result page (build.cjs pastes this block into r.js): free of app globals.
+// m: { lead, sideouts, runs, best, span } as replayModel() makes it (or the server's flow()), n: rallies, names: team names.
+const RC = {
+chart(m, n, names, esc, controls = true) {
+  const W = 320, H = 150, L = 8, R = 8, T = 10, B = 20, mid = (T + H - B) / 2;
   const x = i => L + (i / n) * (W - L - R);
   const y = v => mid - (v / m.span) * (mid - T - 2);
   const pts = (from, to) => { const o = []; for (let i = from; i <= to; i++) o.push(`${x(i).toFixed(1)},${y(m.lead[i]).toFixed(1)}`); return o.join(' '); };
-  const label = `Score flow over ${n} rallies. ${m.best ? `Longest run: ${m.best.n} unanswered points by ${TEAM_NAME[m.best.team]}. ` : 'No run of 3 or more unanswered points. '}${m.sideouts.length} side-out${m.sideouts.length === 1 ? '' : 's'}. Use the replay controls to step through it.`;
+  const label = `Score flow over ${n} rallies. ${m.best ? `Longest run: ${m.best.n} unanswered points by ${names[m.best.team]}. ` : 'No run of 3 or more unanswered points. '}${m.sideouts.length} side-out${m.sideouts.length === 1 ? '' : 's'}.${controls ? ' Use the replay controls to step through it.' : ''}`;
   return `<svg class="rp-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">
     <line class="rp-zero" x1="${L}" x2="${W - R}" y1="${mid}" y2="${mid}"/>
     <text class="rp-ax" x="${L}" y="${T + 8}">+${m.span}</text><text class="rp-ax" x="${L}" y="${H - B - 3}">+${m.span}</text>
@@ -3369,6 +3376,8 @@ function replayChart(r) {
     <line class="rp-cur" x1="0" x2="0" y1="${T}" y2="${H - B + 11}"/><circle class="rp-dot" r="5" cx="0" cy="0"/>
   </svg>`;
 }
+};
+/*REPLAYCHART-END*/
 function renderReplay() {
   const root = $('#sheet7');
   if (!replay) { root.innerHTML = ''; lockBody(!!(logForm || shareSheet || (live && live.open))); return; }
