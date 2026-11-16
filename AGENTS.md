@@ -13,6 +13,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Organizer-only actions use `requireOrganizer` (creating phone's token or the PIN); a club without a PIN is organized only by its creating phone.
 - Club codes rotate: `clubs.code` is the permanent key and `requireClub` (`api/_db.js`) resolves the typed code (current `public_code` or an unexpired `club_aliases` row) to it; handlers must query with `club.code`, never the code from the request. New clubs always get a PIN (generated if none given).
 - Never put production identifiers (real club names or codes, organizer PINs or tokens, database or deploy URLs with secrets) in committed files, tests, PR text or issues; use made-up values.
+- Optional accounts: `api/account.js` + `api/_webauthn.js` (own minimal passkey code, node:crypto only, no dependency). Session cookie `__Host-dink_session` (hash stored); RP ID/origin from `WEBAUTHN_RP_ID`/`WEBAUTHN_ORIGIN`. No-login paths never read these tables. `node tools/account-check.mjs` (PGlite, software authenticator in `tools/fake-authenticator.mjs`) runs in CI.
 
 ## Maintaining this file
 
