@@ -121,6 +121,7 @@ export function ensureSchema() {
 
       // Club code rotation. A club keeps its original `code` as a permanent internal key; the code people type is
       // `public_code` once one has been generated. Retired codes stay in club_aliases until `expires_at`, then stop working.
+      await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS rally_log text`; // who won each rally (see _rallylog.js); only for games scored live
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS public_code text`;
       await q`CREATE UNIQUE INDEX IF NOT EXISTS clubs_public_code ON clubs (public_code) WHERE public_code IS NOT NULL`;
       await q`CREATE TABLE IF NOT EXISTS club_aliases (
