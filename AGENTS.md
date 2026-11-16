@@ -11,6 +11,8 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 - Sheet import: `sheet-import.js` (top level, shared by browser and API) parses and checks; `api/_gsheet.js` is the only server fetch of an organizer-supplied link (Google hosts only). Team names/logos live in `event.teamInfo`; DUPR IDs only in `events.refs`, never in `data` or `publicView()`. Logos are https-only (`img-src https:` in the CSP) and the public page shows them only when `publicLogos` is true.
 - Organizer-only actions use `requireOrganizer` (creating phone's token or the PIN); a club without a PIN is organized only by its creating phone.
+- Club codes rotate: `clubs.code` is the permanent key and `requireClub` (`api/_db.js`) resolves the typed code (current `public_code` or an unexpired `club_aliases` row) to it; handlers must query with `club.code`, never the code from the request. New clubs always get a PIN (generated if none given).
+- Never put production identifiers (real club names or codes, organizer PINs or tokens, database or deploy URLs with secrets) in committed files, tests, PR text or issues; use made-up values.
 
 ## Maintaining this file
 

@@ -418,6 +418,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: block; }
 .sync.warn::before { background: var(--down); }
 .code-card { background: var(--surface-2); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.org-card .code { font-family: var(--display); font-weight: 800; font-size: 32px; letter-spacing: .08em; user-select: all; }
 .code-card .code { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 52px; letter-spacing: .08em; line-height: 1; user-select: all; }
 .code-card p { font-size: 14px; }
 .share-card { align-items: center; text-align: center; }
@@ -1730,6 +1731,16 @@ function saveClubs() {
   if (club) { const i = clubs.findIndex(c => c.code === club.code); if (i >= 0) clubs[i] = Object.assign({}, club); else clubs.push(Object.assign({}, club)); }
   store.set('pb.clubs', clubs); store.set('pb.club', club);
 }
+// An organizer changed the club code. Everything this phone keeps per club moves to the new code, so nothing is lost.
+function adoptClubCode(from, to) {
+  const move = (key, fallback) => { const m = store.get(key, fallback); if (m && m[from] !== undefined) { m[to] = m[from]; delete m[from]; store.set(key, m); } return m; };
+  for (const c of clubs) if (c.code === from) c.code = to;
+  if (club && club.code === from) club.code = to;
+  for (const op of outbox) if (op.code === from) op.code = to;
+  if (clubData && clubData.code === from) clubData.code = to;
+  owners = move('pb.owners', {}); pins = move('pb.pins', {}); me = move('pb.me', {}); move('pb.clubCaches', {});
+  store.set('pb.outbox', outbox); store.set('pb.clubCache', clubData); saveClubs();
+}
 function stashClubCache() {
   if (!club || !clubData || clubData.code !== club.code) return;
   const all = store.get('pb.clubCaches', {}); all[club.code] = clubData; store.set('pb.clubCaches', all);
@@ -1841,8 +1852,10 @@ async function refreshClub() {
   if (!club || refreshing) return;
   refreshing = true; clubState = 'syncing'; updateSyncPill();
   try {
-    const data = await api('club?code=' + club.code);
-    if (!club || data.club.code !== club.code) return;
+    const asked = club && club.code;
+    const data = await api('club?code=' + asked);
+    if (!club || club.code !== asked) return;
+    if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
     club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; saveClubs();
     clubData = { code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], purchases: data.purchases || [], shop: data.shop || null, progress: data.progress || null, at: Date.now() };
     store.set('pb.clubCache', clubData);
@@ -1872,7 +1885,7 @@ function syncPillHTML() {
   if (!club) return `<button class="sync club-btn" data-act="club-open">Join a club</button>`;
   const pending = clubOps().length;
   const note = clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
-  return `<button class="sync club-btn ${clubState === 'idle' && !pending ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}">${esc(note)}</button>`;
+  return `<button class="sync club-btn ${clubState === 'idle' && !pending ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' || !club.hasPin ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}${club.hasPin ? '' : '. Not protected: no organizer PIN'}">${esc(note)}</button>`;
 }
 // Round button in the top right: your picture, opening your profile (or asking who you are first).
 function profileButtonHTML() {
@@ -2003,6 +2016,17 @@ async function pinUnlock(raw) {
     renderClub();
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
 }
+async function codeRotate(grace) {
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const old = club.code;
+    const data = await api('club', { method: 'POST', body: JSON.stringify({ code: old, action: 'rotate-code', graceMinutes: Number(grace), pin: pins[old] || '', ownerToken: owners[old] || '' }) });
+    adoptClubCode(old, data.club.code);
+    const until = Number(grace) ? ` The old code ${old} works until ${new Date(data.oldCodeUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : ` The old code ${old} no longer works.`;
+    clubSheet = { view: 'club', msg: `The new club code is ${data.club.code}.${until} Share the new code or invite link.` };
+    render();
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
+}
 async function pinSet(oldPin, pin, again) {
   pin = String(pin || '').trim();
   if (!/^\d{4,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits.'; renderClub(); return; }
@@ -2065,15 +2089,22 @@ function renderClub() {
       <div class="or"><span>or</span></div>
       <form class="club-form" data-form="club-create"><label class="lab" for="club-name">Start a new club</label>
         <input id="club-name" class="field-input" placeholder="Club name, like Tuesday Dinkers" autocomplete="off" maxlength="40">
-        <label class="lab" for="club-new-pin">Organizer PIN (optional)</label>
-        <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
-        <p class="note">With a PIN, only people who know it can delete or restore games. You can add one later.</p></form>${err}
+        <label class="lab" for="club-new-pin">Organizer PIN</label>
+        <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="Leave blank to get a code"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
+        <p class="note">Every club has an organizer. Only people with the PIN can delete or restore games, change the code or run events. Choose 4 to 8 digits, or leave it blank and we'll make an organizer code for you.</p></form>${err}
       ${club ? '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button></div>' : ''}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
       <p>${c.pending ? `${c.pending.type === 'roster-del' ? `Removing saved players from ${esc(club.name)}` : `${{ delete: 'Deleting', restore: 'Restoring', edit: 'Editing' }[c.pending.type]} games in ${esc(club.name)}`} needs the organizer PIN.` : `Unlock this phone to edit, delete and restore games and remove saved players in ${esc(club.name)}.`} This phone remembers it until you lock it again.</p>
       <form class="club-form" data-form="pin-unlock"><label class="lab" for="pin-input">PIN</label>
         <div class="add-player"><input id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password" placeholder="4 to 8 digits"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${c.pending ? ({ delete: 'Delete game', restore: 'Restore game', edit: 'Save changes', 'roster-del': 'Remove player' }[c.pending.type]) : 'Unlock'}</button></div></form>${err}
+      <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
+  } else if (c.view === 'rotate') {
+    body = `<h2 id="club-h">Change the club code?</h2>
+      <p>${esc(club.name)} gets a new code. The old code, the invite link and any QR code or TV display page that use it will stop working. After the overlap below, anyone still using the old one is locked out until you give them the new code. Games, players and ratings stay as they are.</p>
+      <form class="club-form" data-form="code-rotate"><label class="lab" for="rot-grace">Keep the old code working for</label>
+        <select id="rot-grace" class="field-input"><option value="0">No overlap, stop it now</option><option value="15">15 minutes</option><option value="60" selected>1 hour</option><option value="1440">24 hours</option></select>
+        ${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Change club code</button></form>
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
   } else if (c.view === 'setpin') {
     body = `<h2 id="club-h">${club.hasPin ? 'Change organizer PIN' : 'Set an organizer PIN'}</h2>
@@ -2097,12 +2128,15 @@ function renderClub() {
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
+      ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
+      ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p></div>` : ''}
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
         <p>${!club.hasPin ? (canSetFirstPin() ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : `Anyone with the club code can delete games. Only the phone that created ${esc(club.name)} can set a PIN.`) : isCreator() ? 'This phone created the club, so it can always delete and restore games and reset the PIN, even if the PIN is forgotten.' : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
         <div class="org-btns">${!club.hasPin ? (canSetFirstPin() ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>' : '')
           : isCreator() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button>'
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
+      ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
       ${clubData && shopHidden() && (club.hasPin || isCreator()) ? `<button class="btn btn-soft block" data-act="shop-admin-open">Set up shop</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
@@ -2142,14 +2176,14 @@ async function clubCreate(name, pin) {
   name = String(name || '').trim();
   pin = String(pin || '').trim();
   if (!name) { clubSheet.error = 'Give your club a name.'; renderClub(); return; }
-  if (pin && !/^\d{4,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits. Leave it blank to skip.'; renderClub(); return; }
+  if (pin && !/^\d{4,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits. Leave it blank and we will make a code for you.'; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
     const data = await api('club', { method: 'POST', body: JSON.stringify(pin ? { name, pin } : { name }) });
     rememberOwner(data.club.code, data.ownerToken);
-    if (pin) rememberPin(data.club.code, pin);
+    rememberPin(data.club.code, pin || data.organizerCode);
     await joinClub(data.club.code, data.club.name);
-    clubSheet = { view: 'club' };
+    clubSheet = { view: 'club', ...(data.organizerCode ? { newOrganizerCode: data.organizerCode } : {}) };
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
   afterJoin();
 }
@@ -4738,9 +4772,10 @@ document.addEventListener('click', e => {
   }
   if (ds.edit) { openEdit(ds.edit); return; }
   if (ds.restore) { withPin({ type: 'restore', id: ds.restore }); return; }
+  if (ds.act === 'code-rotate-open') { clubSheet = { view: 'rotate' }; renderClub(); return; }
   if (ds.act && ds.act.startsWith('pin-')) {
     const a = ds.act;
-    if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && clubSheet.view === 'setpin') ? { view: 'club' } : null;
+    if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && (clubSheet.view === 'setpin' || clubSheet.view === 'rotate')) ? { view: 'club' } : null;
     if (a === 'pin-set-open') clubSheet = { view: 'setpin' };
     if (a === 'pin-unlock-open') clubSheet = { view: 'unlock', back: 'club' };
     if (a === 'pin-lock') { forgetPin(); clubSheet = { view: 'club', msg: 'This phone is locked. Deleting games needs the PIN again.' }; }
@@ -4871,6 +4906,7 @@ document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
+  if (form.matches('[data-form="code-rotate"]')) { e.preventDefault(); codeRotate($('#rot-grace').value); return; }
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
   if (form.matches('[data-form="av-emoji"]')) {

@@ -1,8 +1,10 @@
 // GET  /api/club?code=ABC123                         -> club name, whether it has a PIN, games (newest first), saved players, recently deleted
-// POST /api/club {name, pin?}                        -> creates a club (optionally with an organizer PIN), returns its code
+// POST /api/club {name, pin?}                        -> creates a club with an organizer PIN (the one given, or a generated 8-digit organizer code returned once as organizerCode), returns its code
+// POST /api/club {code, action: 'rotate-code', pin?, ownerToken?, graceMinutes?} -> organizer only: gives the club a new code; the old one keeps working for graceMinutes (default 60, at most 1440), then stops
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
-import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, cleanPin, hashPin, requirePin, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
+import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
+import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
 import { XP, LEVEL_MAX, PRESTIGE_DINKS, CATALOG, EARN, SPIN_WHEEL, shopSettings, computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_PRIZES, SEASON_MIN_GAMES } from './_dinks.js';
 
@@ -27,20 +29,34 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'POST') {
     const body = await readBody(req);
-    if (body.action === 'verify-pin' || body.action === 'set-pin') {
-      const code = cleanCode(body.code);
-      const club = await requireClub(code, req);
+    if (body.action === 'verify-pin' || body.action === 'set-pin' || body.action === 'rotate-code') {
+      const club = await requireClub(cleanCode(body.code), req);
+      const code = club.code; // permanent key
       if (body.action === 'verify-pin') {
         if (!club.pin_hash) throw fail(400, "This club doesn't have an organizer PIN yet.");
         await requirePin(club, body.pin, req);
         return send(res, 200, { ok: true });
+      }
+      if (body.action === 'rotate-code') {
+        await requireOrganizer(club, body.pin, req, body.ownerToken);
+        const grace = body.graceMinutes === undefined ? 60 : Math.trunc(Number(body.graceMinutes));
+        if (!Number.isFinite(grace) || grace < 0 || grace > 1440) throw fail(400, 'The overlap must be between 0 and 1,440 minutes.');
+        const current = club.public_code || club.code;
+        let fresh = null;
+        for (let i = 0; i < 8 && !fresh; i++) { const c = newCode(); if (!(await codeTaken(sql, c))) fresh = c; }
+        if (!fresh) throw fail(500, 'Could not create a club code.');
+        // Retire the old code first, then switch: a failure in between leaves the club on its old code.
+        const until = await sql`INSERT INTO club_aliases (code, club, expires_at) VALUES (${current}, ${code}, now() + ${grace + ' minutes'}::interval) ON CONFLICT (code) DO UPDATE SET expires_at = EXCLUDED.expires_at RETURNING expires_at`;
+        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code`;
+        if (!rows.length) throw fail(409, 'The club code was just changed by someone else. Reload and check the new code.');
+        return send(res, 200, { ok: true, club: publicClub(rows[0]), oldCode: current, oldCodeUntil: new Date(until[0].expires_at).getTime() });
       }
       const pin = cleanPin(body.pin);
       if (club.pin_hash) {
         // Changing a PIN needs the current one.
         await requirePin(club, body.oldPin, req, body.ownerToken); // the creating phone can reset a forgotten PIN
         await sql`UPDATE clubs SET pin_hash = ${hashPin(pin)} WHERE code = ${code}`;
-        return send(res, 200, { ok: true, club: { code, name: club.name, hasPin: true, openClaim: false } });
+        return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }) });
       }
       // The first PIN: only the phone that created the club (it holds the creator token) may set it.
       // Older clubs made before creator tokens existed can be claimed once by any member, who then becomes the creator.
@@ -55,23 +71,26 @@ export default handler(async (req, res) => {
         ? await sql`UPDATE clubs SET pin_hash = ${hashPin(pin)}, owner_hash = ${hashToken(ownerToken)} WHERE code = ${code} AND pin_hash IS NULL AND owner_hash IS NULL RETURNING code`
         : await sql`UPDATE clubs SET pin_hash = ${hashPin(pin)} WHERE code = ${code} AND pin_hash IS NULL RETURNING code`;
       if (!rows.length) throw fail(409, 'Someone just set a PIN for this club. Ask your organizer for it.');
-      return send(res, 200, { ok: true, club: { code, name: club.name, hasPin: true, openClaim: false }, ...(ownerToken ? { ownerToken } : {}) });
+      return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), ...(ownerToken ? { ownerToken } : {}) });
     }
     const name = cleanName(body.name); // same cleanup as player names: no control or invisible characters
     if (!name) throw fail(400, 'Give your club a name.');
-    const pinHash = body.pin ? hashPin(cleanPin(body.pin)) : null;
+    // Every new club has an organizer credential: the PIN given, or a generated 8-digit organizer code shown once.
+    const organizerCode = body.pin ? null : String(randomInt(0, 1e8)).padStart(8, '0');
+    const pinHash = hashPin(organizerCode || cleanPin(body.pin));
     const ownerToken = newOwnerToken();
     for (let i = 0; i < 5; i++) {
       const code = newCode();
-      const rows = await sql`INSERT INTO clubs (code, name, pin_hash, owner_hash) VALUES (${code}, ${name}, ${pinHash}, ${hashToken(ownerToken)}) ON CONFLICT DO NOTHING RETURNING code, name, pin_hash, owner_hash`;
-      if (rows.length) return send(res, 201, { club: publicClub(rows[0]), ownerToken });
+      if (await codeTaken(sql, code)) continue;
+      const rows = await sql`INSERT INTO clubs (code, name, pin_hash, owner_hash) VALUES (${code}, ${name}, ${pinHash}, ${hashToken(ownerToken)}) ON CONFLICT DO NOTHING RETURNING code, name, pin_hash, owner_hash, public_code`;
+      if (rows.length) return send(res, 201, { club: publicClub(rows[0]), ownerToken, ...(organizerCode ? { organizerCode } : {}) });
     }
     throw fail(500, 'Could not create a club code.');
   }
   if (req.method !== 'GET') throw fail(405, 'Method not allowed.');
   const url = new URL(req.url, 'http://x');
-  const code = cleanCode(url.searchParams.get('code'));
-  const club = await requireClub(code, req);
+  const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
+  const code = club.code;
   const [games, deleted, roster, purchases, [shopRow]] = await Promise.all([
     sql`SELECT data FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,

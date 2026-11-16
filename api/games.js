@@ -10,8 +10,8 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'DELETE') {
     const url = new URL(req.url, 'http://x');
-    const code = cleanCode(url.searchParams.get('code'));
-    const club = await requireClub(code, req);
+    const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
+    const code = club.code; // the club's permanent key, even when an old club code was used
     await requirePin(club, pinFrom(req), req, ownerFrom(req));
     const id = String(url.searchParams.get('id') || '');
     const rows = await sql`UPDATE games SET deleted_at = now() WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id`;
@@ -20,8 +20,8 @@ export default handler(async (req, res) => {
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
-  const code = cleanCode(body.code);
-  const club = await requireClub(code, req);
+  const club = await requireClub(cleanCode(body.code), req);
+  const code = club.code; // the club's permanent key, even when an old club code was used
 
   if (body.restore) {
     await requirePin(club, body.pin ?? pinFrom(req), req, body.ownerToken ?? ownerFrom(req));
