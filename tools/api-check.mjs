@@ -554,5 +554,54 @@ await step('report endpoint: 204 and nothing sent when ERROR_REPORT_URL is unset
   assert.equal(g, 405);
 });
 
+const transfer = await load('transfer');
+const xfer = (body, h = {}) => call(transfer, 'POST', { body, headers: h });
+await step('transfer: stores a blob once, hands it over once, then it is gone', async () => {
+  const id = 'a'.repeat(64), blob = 'QUJD';
+  ok(await xfer({ action: 'create', id, blob }));
+  const [row] = await pg.query('SELECT id_hash, blob FROM transfers').then(r => r.rows);
+  assert.notEqual(row.id_hash, id, 'the id is stored hashed');
+  assert.equal(ok(await xfer({ action: 'claim', id })).blob, blob);
+  assert.equal((await xfer({ action: 'claim', id })).status, 404);
+  assert.equal((await xfer({ action: 'create', id: 'zz', blob })).status, 400);
+});
+await step('transfer: an expired code is refused', async () => {
+  const id = 'b'.repeat(64);
+  ok(await xfer({ action: 'create', id, blob: 'QUJD' }));
+  await pg.query("UPDATE transfers SET expires_at = now() - interval '1 minute'");
+  assert.equal((await xfer({ action: 'claim', id })).status, 404);
+});
+await step('transfer: wrong codes are rate limited per address, and making codes too', async () => {
+  const h = { 'x-real-ip': '203.0.113.9' };
+  let last;
+  for (let i = 0; i < 12; i++) last = await xfer({ action: 'claim', id: i.toString(16).padStart(64, '0') }, h);
+  assert.equal(last.status, 429);
+  const h2 = { 'x-real-ip': '203.0.113.10' };
+  for (let i = 0; i < 10; i++) ok(await xfer({ action: 'create', id: (i + 100).toString(16).padStart(64, '0'), blob: 'QUJD' }, h2));
+  assert.equal((await xfer({ action: 'create', id: 'c'.repeat(64), blob: 'QUJD' }, h2)).status, 429);
+});
+await step('recovery code: only the creator makes one; single use; expires; stored hashed; follows a rotated code', async () => {
+  const c = ok(await call(club, 'POST', { body: { name: 'Recovery club' } }), 201);
+  const cc = c.club.code;
+  assert.equal((await xfer({ action: 'recovery-create', code: cc, ownerToken: 'nope' })).status, 403);
+  const made = ok(await xfer({ action: 'recovery-create', code: cc, ownerToken: c.ownerToken }));
+  const [{ recovery_hash }] = await pg.query('SELECT recovery_hash FROM clubs WHERE code = $1', [cc]).then(r => r.rows);
+  assert.ok(recovery_hash && !made.recovery.replace(/-/g, '').includes(recovery_hash));
+  assert.equal((await xfer({ action: 'recovery-redeem', code: cc, recovery: 'AAAA-AAAA-AAAA-AAAA' })).status, 403);
+  const got = ok(await xfer({ action: 'recovery-redeem', code: cc, recovery: made.recovery.toLowerCase() }));
+  assert.ok(got.ownerToken && got.ownerToken !== c.ownerToken);
+  assert.equal((await xfer({ action: 'recovery-redeem', code: cc, recovery: made.recovery })).status, 403, 'single use');
+  // the new token is the creator token now, the old one is not
+  assert.equal((await xfer({ action: 'recovery-create', code: cc, ownerToken: c.ownerToken })).status, 403);
+  const again = ok(await xfer({ action: 'recovery-create', code: cc, ownerToken: got.ownerToken }));
+  await pg.query("UPDATE clubs SET recovery_expires = now() - interval '1 day' WHERE code = $1", [cc]);
+  assert.equal((await xfer({ action: 'recovery-redeem', code: cc, recovery: again.recovery })).status, 403, 'expired');
+  // after a code rotation the typed (public) code still resolves
+  const again2 = ok(await xfer({ action: 'recovery-create', code: cc, ownerToken: got.ownerToken }));
+  const rot = ok(await call(club, 'POST', { body: { code: cc, action: 'rotate-code', graceMinutes: 0, ownerToken: got.ownerToken } }));
+  const back = ok(await xfer({ action: 'recovery-redeem', code: rot.club.code, recovery: again2.recovery }));
+  assert.equal(back.club.code, rot.club.code);
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

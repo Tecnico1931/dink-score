@@ -1950,6 +1950,54 @@ const ShareLink = {
   qrSvg(qr, link) { const q = qr(0, 'M'); q.addData(link); q.make(); return q.createSvgTag({ cellSize: 8, margin: 32, scalable: true }); }
 };
 /*SHARELINK-END*/
+/*MOVE-START*/
+// Moving to a new phone: the transfer code never leaves the two phones. Both derive a lookup id and an AES key from it;
+// the server only sees the id and an encrypted bundle (see api/transfer.js). Free of app globals so the tests can load it.
+const Move = {
+  ALPHA: 'ABCDEFGHJKMNPQRSTUVWXYZ23456789',
+  newCode() {
+    let out = '';
+    while (out.length < 12) for (const b of crypto.getRandomValues(new Uint8Array(24))) if (b < 248 && out.length < 12) out += Move.ALPHA[b % 31];
+    return out.replace(/(.{4})(?=.)/g, '$1-');
+  },
+  clean(raw) { const c = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return c.length === 12 && [...c].every(ch => Move.ALPHA.includes(ch)) ? c : ''; },
+  async bits(code, salt) {
+    const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(code), 'PBKDF2', false, ['deriveBits']);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', iterations: 100000, salt: new TextEncoder().encode(salt) }, k, 256));
+  },
+  async id(raw) { return [...await Move.bits(Move.clean(raw), 'dink-move-id')].map(b => b.toString(16).padStart(2, '0')).join(''); },
+  async key(code) { return crypto.subtle.importKey('raw', await Move.bits(code, 'dink-move-key'), 'AES-GCM', false, ['encrypt', 'decrypt']); },
+  async seal(raw, payload) {
+    const code = Move.clean(raw), iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await Move.key(code), new TextEncoder().encode(JSON.stringify(payload))));
+    const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+    let s = ''; for (const b of all) s += String.fromCharCode(b);
+    return btoa(s);
+  },
+  async open(raw, blob) {
+    const code = Move.clean(raw), all = Uint8Array.from(atob(blob), ch => ch.charCodeAt(0));
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, await Move.key(code), all.slice(12));
+    return JSON.parse(new TextDecoder().decode(pt));
+  },
+  // What this phone holds per club: the player claim, the creator token and the remembered organizer PIN.
+  pack(clubs, me, owners, pins) {
+    return { v: 1, clubs: clubs.map(c => ({ code: c.code, name: c.name, me: me[c.code] || null, owner: owners[c.code] || null, pin: pins[c.code] || null })) };
+  },
+  // Folds a received bundle into this phone's own records. Anything this phone already has for a club is kept. Returns how many clubs were added.
+  merge(payload, clubs, me, owners, pins) {
+    if (!payload || payload.v !== 1 || !Array.isArray(payload.clubs)) throw new Error('That transfer was not valid.');
+    let added = 0;
+    for (const c of payload.clubs.slice(0, 50)) {
+      if (!c || !/^[A-Z0-9]{6}$/.test(String(c.code))) continue;
+      if (!clubs.some(x => x.code === c.code)) { clubs.push({ code: c.code, name: String(c.name || c.code).slice(0, 60) }); added++; }
+      if (c.me && typeof c.me.name === 'string' && /^[0-9a-f]{48}$/.test(String(c.me.token)) && !me[c.code]) me[c.code] = { name: c.me.name.slice(0, 40), token: c.me.token };
+      if (/^[0-9a-f]{48}$/.test(String(c.owner)) && !owners[c.code]) owners[c.code] = c.owner;
+      if (/^\d{4,8}$/.test(String(c.pin)) && !pins[c.code]) pins[c.code] = String(c.pin);
+    }
+    return added;
+  }
+};
+/*MOVE-END*/
 function inviteLink() { return ShareLink.join(location.origin, club && club.code); }
 // Keep the address bar on the open club's join link, so copying the URL shares it. Waits for checkInvite to read a link first.
 let urlReady = false;
@@ -2080,6 +2128,54 @@ async function codeRotate(grace) {
     render();
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
 }
+// Moving to a new phone (see the MOVE block and api/transfer.js).
+async function moveOut() {
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const code = Move.newCode();
+    const blob = await Move.seal(code, Move.pack(clubs, me, owners, pins));
+    await api('transfer', { method: 'POST', body: JSON.stringify({ action: 'create', id: await Move.id(code), blob }) });
+    let qr = ''; try { qr = ShareLink.qrSvg(qrcode, location.origin + '/#move=' + code); } catch {}
+    clubSheet = { view: 'move-out', code, qr };
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  renderClub();
+}
+function adoptMoved() {
+  store.set('pb.clubs', clubs); store.set('pb.me', me); store.set('pb.owners', owners); store.set('pb.pins', pins);
+}
+async function moveIn(raw) {
+  const code = Move.clean(raw);
+  if (!code) { clubSheet.error = 'Transfer codes are 12 letters and numbers.'; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const data = await api('transfer', { method: 'POST', body: JSON.stringify({ action: 'claim', id: await Move.id(code) }) });
+    let payload; try { payload = await Move.open(code, data.blob); } catch { throw new Error('That code did not unlock the transfer.'); }
+    const added = Move.merge(payload, clubs, me, owners, pins);
+    adoptMoved();
+    const first = club || clubs[0];
+    if (first) await joinClub(first.code, first.name);
+    clubSheet = { view: 'club', msg: `Moved ${added} club${added === 1 ? '' : 's'} to this phone. Organizer access and player claims came with them.` };
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  afterJoin();
+}
+async function recoveryMake() {
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const data = await api('transfer', { method: 'POST', body: JSON.stringify({ action: 'recovery-create', code: club.code, ownerToken: owners[club.code] || '' }) });
+    clubSheet = { view: 'recovery', recovery: data.recovery, recoveryExpires: data.expires };
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  renderClub();
+}
+async function recoverClub(clubCode, raw) {
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const data = await api('transfer', { method: 'POST', body: JSON.stringify({ action: 'recovery-redeem', code: clubCode, recovery: raw }) });
+    rememberOwner(data.club.code, data.ownerToken);
+    await joinClub(data.club.code, data.club.name);
+    clubSheet = { view: 'club', msg: 'Organizer access is back on this phone. Set a new PIN if the old one may have been seen.' };
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  afterJoin();
+}
 async function pinSet(oldPin, pin, again) {
   pin = String(pin || '').trim();
   if (!/^\d{4,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 4 to 8 digits.'; renderClub(); return; }
@@ -2131,6 +2227,28 @@ function renderClub() {
     body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
       <div class="btns"><button class="btn btn-blue" data-act="club-join-invite">Join ${esc(c.joinName)}</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
+  } else if (c.view === 'move-out') {
+    body = `<h2 id="club-h">Move to a new phone</h2>
+      <p>This copies your clubs, player claims and organizer access to another phone. No account needed. The code works once, for 10 minutes, then it is gone. Your clubs stay on this phone too.</p>
+      ${c.code ? `<div class="field"><span class="lab">On the new phone, open Dink Score, choose Join a club, then Moving from another phone, and type</span><p class="club-code" style="font-size:28px;letter-spacing:.08em;font-weight:800;text-align:center">${esc(c.code)}</p>${c.qr ? `<div class="qr" style="max-width:220px;margin:0 auto">${c.qr}</div><p class="note" style="text-align:center">or scan this with the new phone's camera.</p>` : ''}</div>` : `<form class="club-form" data-form="move-out">${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Make a transfer code</button></form>`}
+      <div class="btns"><button class="btn btn-soft" data-act="move-close">${c.code ? 'Done' : 'Cancel'}</button></div>`;
+  } else if (c.view === 'move-in') {
+    body = `<h2 id="club-h">Moving from another phone</h2>
+      <p>On the old phone, open the club screen and choose Move to a new phone. Type the code it shows.</p>
+      <form class="club-form" data-form="move-in"><label class="lab" for="move-code">Transfer code</label>
+        <div class="add-player"><input id="move-code" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" maxlength="14" value="${esc(c.moveCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Move</button></div></form>
+      <div class="or"><span>or</span></div>
+      <form class="club-form" data-form="recover"><label class="lab" for="rec-club">Lost the old phone? Use the club's recovery code</label>
+        <input id="rec-club" class="field-input" placeholder="6-character club code" autocomplete="off" autocapitalize="characters" maxlength="7">
+        <div class="add-player"><input id="rec-code" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" maxlength="19"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Restore</button></div>
+        <p class="note">Only the person who created the club has one. It restores organizer access, not your player claim.</p></form>${err}
+      <div class="btns"><button class="btn btn-soft" data-act="move-close">Cancel</button></div>`;
+  } else if (c.view === 'recovery') {
+    body = `<h2 id="club-h">Creator recovery code</h2>
+      <p>If you lose this phone, this code gives you back organizer access to ${esc(club.name)} on a new one. Print it or write it down and keep it somewhere safe. It works once, expires in 90 days, and making a new one cancels this one.</p>
+      ${c.recovery ? `<div class="field print-me"><p class="club-code" style="font-size:22px;letter-spacing:.06em;font-weight:800;text-align:center">${esc(c.recovery)}</p><p class="note" style="text-align:center">${esc(club.name)} (club code ${esc(club.code)}). Valid until ${esc(new Date(c.recoveryExpires).toLocaleDateString())}.</p></div>
+        <div class="btns"><button class="btn btn-ink" data-act="move-print">Print</button><button class="btn btn-soft" data-act="move-back">Done</button></div>`
+      : `<form class="club-form" data-form="recovery-make">${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Make a recovery code</button></form><div class="btns"><button class="btn btn-soft" data-act="move-back">Cancel</button></div>`}`;
   } else if (!club || c.view === 'add') {
     body = `<h2 id="club-h">${club ? 'Add another club' : c.reason === 'save' ? 'Save to a club' : 'Play as a club'}</h2>
       ${club ? `<p class="need-club">You'll stay in ${esc(club.name)} too. Switch between your clubs from the club screen.</p>` : ''}
@@ -2144,6 +2262,7 @@ function renderClub() {
         <label class="lab" for="club-new-pin">Organizer PIN</label>
         <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="Leave blank to get a code"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
         <p class="note">Every club has an organizer. Only people with the PIN can delete or restore games, change the code or run events. Choose 4 to 8 digits, or leave it blank and we'll make an organizer code for you.</p></form>${err}
+      <button class="link" data-act="move-in-open">Moving from another phone?</button>
       ${club ? '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button></div>' : ''}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
@@ -2191,6 +2310,8 @@ function renderClub() {
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
       ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
+      ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
+      <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
       ${clubData && shopHidden() && (club.hasPin || isCreator()) ? `<button class="btn btn-soft block" data-act="shop-admin-open">Set up shop</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
@@ -2273,6 +2394,9 @@ async function clubCreate(name, pin) {
 // Invite links look like /?club=ABC123
 async function checkInvite() {
   if (!API_OK) return;
+  // A scanned transfer QR carries the code in the address fragment, which never reaches the server.
+  const mv = /^#move=([A-Za-z0-9-]+)$/.exec(location.hash);
+  if (mv) { history.replaceState(null, '', location.pathname + location.search); clubSheet = { view: 'move-in', moveCode: mv[1] }; renderClub(); return; }
   const params = new URLSearchParams(location.search);
   const code = ShareLink.fromSearch(location.search);
   if (!code) return;
@@ -4894,6 +5018,12 @@ document.addEventListener('click', e => {
   if (ds.edit) { openEdit(ds.edit); return; }
   if (ds.restore) { withPin({ type: 'restore', id: ds.restore }); return; }
   if (ds.act === 'code-rotate-open') { clubSheet = { view: 'rotate' }; renderClub(); return; }
+  if (ds.act === 'move-out-open') { clubSheet = { view: 'move-out' }; renderClub(); return; }
+  if (ds.act === 'move-in-open') { clubSheet = { view: 'move-in' }; renderClub(); return; }
+  if (ds.act === 'recovery-open') { clubSheet = { view: 'recovery' }; renderClub(); return; }
+  if (ds.act === 'move-back') { clubSheet = { view: 'club' }; renderClub(); return; }
+  if (ds.act === 'move-close') { clubSheet = club ? { view: 'club' } : { view: 'add' }; renderClub(); return; }
+  if (ds.act === 'move-print') { window.print(); return; }
   if (ds.act && ds.act.startsWith('pin-')) {
     const a = ds.act;
     if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && (clubSheet.view === 'setpin' || clubSheet.view === 'rotate')) ? { view: 'club' } : null;
@@ -5030,6 +5160,10 @@ document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
+  if (form.matches('[data-form="move-out"]')) { e.preventDefault(); moveOut(); return; }
+  if (form.matches('[data-form="move-in"]')) { e.preventDefault(); moveIn($('#move-code').value); return; }
+  if (form.matches('[data-form="recover"]')) { e.preventDefault(); recoverClub($('#rec-club').value, $('#rec-code').value); return; }
+  if (form.matches('[data-form="recovery-make"]')) { e.preventDefault(); recoveryMake(); return; }
   if (form.matches('[data-form="code-rotate"]')) { e.preventDefault(); codeRotate($('#rot-grace').value); return; }
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
