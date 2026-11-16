@@ -1,5 +1,5 @@
 // Events: tournaments and rotating-partner sessions with several games at once. Body for POST: {code, action, ...}
-// GET  /api/events?code=ABC123                 -> the club's events, newest first (a short summary of each)
+// GET  /api/events?code=ABC123                 -> the club's events, newest first, 50 a page (a short summary of each); add &offset=50 for the next page, `more` says if there is one
 // GET  /api/events?code=ABC123&id=e123         -> one event in full: rounds or bracket, courts, scores, standings
 //   create        {event, pin|ownerToken}                  -> organizer: starts an event (see createEvent in _events.js)
 //   result        {id, matchId, score:[a,b], startedAt?, endedAt?, rallies?, live?}  -> anyone in the club: a finished match.
@@ -22,6 +22,7 @@ import { newShareToken } from './_share.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
 import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, correctResult, startKnockout, endEvent, view } from './_events.js';
 
+const PAGE = 50; // events per page of the list
 const MAX_EVENTS = 100; // per club, not counting deleted ones
 const sheetCalls = new Map(); // club -> times of recent sheet reads; a small brake on top of the organizer check
 const throttleSheet = code => {
@@ -93,8 +94,10 @@ export default handler(async (req, res) => {
       if (!row) throw fail(404, 'That event no longer exists.');
       return send(res, 200, { event: view(row.data) });
     }
-    const rows = await sql`SELECT data FROM events WHERE club = ${code} AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 50`;
-    return send(res, 200, { events: rows.map(summary) });
+    // A page at a time, newest first, so every event up to MAX_EVENTS can be reached: ?offset=50 is the second page.
+    const offset = Math.min(Math.max(parseInt(url.searchParams.get('offset'), 10) || 0, 0), MAX_EVENTS);
+    const rows = await sql`SELECT data FROM events WHERE club = ${code} AND deleted_at IS NULL ORDER BY updated_at DESC, id LIMIT ${PAGE + 1} OFFSET ${offset}`;
+    return send(res, 200, { events: rows.slice(0, PAGE).map(summary), more: rows.length > PAGE });
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);

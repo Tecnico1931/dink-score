@@ -463,6 +463,25 @@ await step('a stranger on a rotated club still needs the organizer for organizer
   assert.equal((await call(club, 'POST', { body: { code: ra.club.code, action: 'set-pin', pin: '1212', oldPin: '0000' } })).status, 403);
   assert.equal((await call(club, 'GET', { query: '?code=' + b.club.code })).json.club.code, b.club.code);
 });
+await step('the event list pages through every event the club keeps (60 and up to the 100 limit)', async () => {
+  const page = async offset => ok(await call(events, 'GET', { query: `?code=${code}${offset == null ? '' : '&offset=' + offset}` }));
+  const mk = i => create({ name: 'Paging ' + i, format: 'roundrobin', partners: 'rotating', rotation: 'auto', players, rounds: 3 });
+  const walk = async () => { const ids = []; let off = 0, p; do { p = await page(off); assert.ok(p.events.length <= 50); ids.push(...p.events.map(e => e.id)); off += p.events.length; } while (p.more); return ids; };
+  let n = (await walk()).length;
+  for (; n < 60; n++) assert.equal((await mk(n)).status, 201);
+  let ids = await walk();
+  assert.equal(ids.length, 60, 'all 60 events are reachable');
+  assert.equal(new Set(ids).size, 60, 'no event repeats or is skipped across pages');
+  assert.equal((await page()).events.length, 50);
+  assert.equal((await page()).more, true);
+  assert.equal((await page(50)).events.length, 10);
+  assert.equal((await page(50)).more, false);
+  for (; n < 100; n++) assert.equal((await mk(n)).status, 201);
+  ids = await walk();
+  assert.equal(new Set(ids).size, 100, 'all 100 events are reachable');
+  assert.equal((await mk(100)).status, 400, 'the 101st is refused');
+  assert.equal((await page(-5)).events.length, 50, 'a bad offset falls back to the first page');
+});
 globalThis.fetch = realFetch;
 
 await step('report endpoint: 204 and nothing sent when ERROR_REPORT_URL is unset; rejects GET', async () => {
