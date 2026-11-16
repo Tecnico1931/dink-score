@@ -1040,6 +1040,20 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 <div id="sheet6"></div>
 <div id="tour"></div>
 
+<script>
+// Optional error reporting: sends uncaught errors to /api/report, which forwards them only if the server has
+// ERROR_REPORT_URL set (docs/ops.md). No query string or club data is sent. At most 5 per page load.
+(function () {
+  var left = 5;
+  function send(o) {
+    if (left-- <= 0) return;
+    try { o.page = location.pathname; fetch('/api/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o), keepalive: true }).catch(function () {}); } catch (e) {}
+  }
+  window.addEventListener('error', function (e) { send({ message: e.message, source: e.filename, line: e.lineno, col: e.colno, stack: e.error && e.error.stack }); });
+  window.addEventListener('unhandledrejection', function (e) { var r = e.reason; send({ message: r && r.message || String(r), stack: r && r.stack }); });
+})();
+</script>
+
 <script id="engine">
 /*ENGINE-START*/
 const PB = (() => {

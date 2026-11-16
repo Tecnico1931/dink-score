@@ -1,0 +1,38 @@
+name: Nightly database backup
+on:
+  schedule: [{ cron: '17 3 * * *' }]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - name: Skip when no secret is configured
+        id: gate
+        run: |
+          if [ -z "$DATABASE_URL" ]; then echo "DATABASE_URL secret not set; backup skipped (see docs/ops.md)."; echo "run=false" >> "$GITHUB_OUTPUT"; else echo "run=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Install a pg_dump matching the server
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          sudo apt-get install -y curl ca-certificates >/dev/null
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update >/dev/null && sudo apt-get install -y postgresql-client-17 >/dev/null
+      - name: pg_dump
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          set -o pipefail
+          pg_dump --format=custom --no-owner --no-privileges "$DATABASE_URL" > dink-score-$(date -u +%F).dump
+          test -s dink-score-*.dump
+          ls -l dink-score-*.dump
+      - uses: actions/upload-artifact@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          name: dink-score-db-backup
+          path: dink-score-*.dump
+          retention-days: 14
+          if-no-files-found: error
