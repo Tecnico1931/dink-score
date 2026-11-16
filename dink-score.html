@@ -420,6 +420,10 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .code-card { background: var(--surface-2); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .code-card .code { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 52px; letter-spacing: .08em; line-height: 1; user-select: all; }
 .code-card p { font-size: 14px; }
+.share-card { align-items: center; text-align: center; }
+.share-card .invite, .share-card .btn.block { align-self: stretch; }
+.share-qr { background: #fff; border-radius: 16px; padding: 10px; width: min(280px, 100%); box-sizing: border-box; }
+.share-qr svg { display: block; width: 100%; height: auto; }
 .invite { display: flex; gap: 8px; }
 .invite input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
 .upload-card { border: 2px dashed color-mix(in srgb, var(--blue) 45%, transparent); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
@@ -1860,7 +1864,42 @@ function profileButtonHTML() {
   return `<button class="me-btn${name ? frameClass(name) : ''}" data-act="me-open" aria-label="${label}">${inner}</button>`;
 }
 function updateSyncPill() { const el = document.querySelector('header.top .sync'); if (el) el.outerHTML = syncPillHTML(); }
-function inviteLink() { return location.origin + '/?club=' + (club ? club.code : ''); }
+/*SHARELINK-START*/
+// The join link for a club (/?club=CODE, handled by checkInvite) and its QR code. Pure, so test/sharelink.test.js can load this block alone.
+const ShareLink = {
+  code: raw => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+  join(origin, code) { const c = ShareLink.code(code); return c ? String(origin).replace(/\/+$/, '') + '/?club=' + c : ''; },
+  fromSearch: search => ShareLink.code(new URLSearchParams(search).get('club')),
+  // qr is the vendored qrcode-generator. Margin is the 4-module quiet zone; the sheet draws it on white so it scans in the dark theme.
+  qrSvg(qr, link) { const q = qr(0, 'M'); q.addData(link); q.make(); return q.createSvgTag({ cellSize: 8, margin: 32, scalable: true }); }
+};
+/*SHARELINK-END*/
+function inviteLink() { return ShareLink.join(location.origin, club && club.code); }
+// Keep the address bar on the open club's join link, so copying the URL shares it. Waits for checkInvite to read a link first.
+let urlReady = false;
+function syncUrl() {
+  try {
+    if (!urlReady || !API_OK || new URLSearchParams(location.search).has('display')) return;
+    const want = location.pathname + (club ? '?club=' + club.code : '') + location.hash;
+    if (location.pathname + location.search + location.hash !== want) history.replaceState(null, '', want);
+  } catch {}
+}
+// The share sheet for the live game. Joining a club is what shares a game: games end up in the club's record, and anyone with the code can join and score.
+function shareSheetHTML(c) {
+  if (!club) return `<h2 id="club-h">Share this game</h2>
+    <p>This game is only on this phone. Start a club or join one and other players can join it with a code or QR code. This game is saved to the club's record when it ends.</p>
+    <div class="btns"><button class="btn btn-blue" data-act="club-open">Join or start a club</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
+  const link = inviteLink();
+  let qr = '';
+  try { qr = ShareLink.qrSvg(qrcode, link); } catch {}
+  return `<h2 id="club-h">Invite players to ${esc(club.name)}</h2>
+    <div class="code-card share-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
+      ${qr ? `<div class="share-qr" role="img" aria-label="QR code for the club join link">${qr}</div>` : ''}
+      <p>Scan with another phone's camera, or send the link. They join ${esc(club.name)} and can see its games and add scores. Games you score here are saved to the club when they end. Anyone with the code can join.</p>
+      <div class="invite"><input id="invite-link" readonly value="${esc(link)}" aria-label="Join link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div>
+      ${navigator.share ? '<button class="btn btn-blue block" data-act="club-native-share">Share…</button>' : ''}</div>
+    <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
 // Opens a club on this phone (joining it if it's new), keeping every other club this phone is in.
 async function joinClub(code, name) {
   stashClubCache();
@@ -1989,6 +2028,8 @@ function renderClub() {
     body = membersHTML(c);
   } else if (c.view === 'watch' && club) {
     body = watchHTML(c);
+  } else if (c.view === 'share') {
+    body = shareSheetHTML(c);
   } else if (c.view === 'invite') {
     body = `<h2 id="club-h">Join ${esc(c.joinName)}?</h2>
       <p>You'll see the club's games, saved players and leaderboard, and anything you score will be shared with everyone in it. No account needed.</p>${err}
@@ -2032,7 +2073,7 @@ function renderClub() {
       <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
-        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
+        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
@@ -2095,7 +2136,7 @@ async function clubCreate(name, pin) {
 async function checkInvite() {
   if (!API_OK) return;
   const params = new URLSearchParams(location.search);
-  const code = (params.get('club') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const code = ShareLink.fromSearch(location.search);
   if (!code) return;
   try { history.replaceState(null, '', location.pathname); } catch {}
   if (club && club.code === code) return;
@@ -2122,6 +2163,7 @@ function eventsTabView() {
 }
 
 function render() {
+  syncUrl();
   const y = document.body.scrollTop;
   const noShop = shopHidden();
   if ((noShop && tab === 'shop') || (!club && tab === 'events')) tab = 'play';
@@ -2370,6 +2412,7 @@ const ICON = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v7h14v-7"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>'
 };
 let lastTap = null; // where the last rally tap landed, for the ripple
@@ -2429,7 +2472,7 @@ function renderCourt() {
     <div class="court-top">
       <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
       <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${live.event ? esc(live.event.name) + ': ' : ''}${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
-      <div class="cright"><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
+      <div class="cright"><button class="icon-btn" data-act="club-share" aria-label="Share this game: join code and QR">${ICON.share}</button><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
     </div>
     ${half(0)}
     <div class="net" aria-live="polite">
@@ -4687,6 +4730,11 @@ document.addEventListener('click', e => {
       try { navigator.clipboard.writeText(link).then(done, () => { const i = $('#invite-link'); if (i) i.select(); }); } catch { const i = $('#invite-link'); if (i) i.select(); }
       return;
     }
+    if (a === 'club-share') { clubSheet = { view: 'share' }; }
+    if (a === 'club-native-share') {
+      try { navigator.share({ title: club.name, text: `Join ${club.name} on Dink Score. Code ${club.code}`, url: inviteLink() }).catch(() => {}); } catch {}
+      return;
+    }
     if (a === 'club-watch') { clubSheet = { view: 'watch' }; renderClub(); return; }
     renderClub(); return;
   }
@@ -4978,5 +5026,5 @@ if (live && live.state.winner === null && live.open) keepAwake(true);
 render();
 if (importedCount) showToast(`Moved ${importedCount} game${importedCount === 1 ? '' : 's'} from the old site`, false);
 if (club) { flush(); refreshClub(); }
-checkInvite();
+checkInvite().finally(() => { urlReady = true; syncUrl(); });
 </script>
