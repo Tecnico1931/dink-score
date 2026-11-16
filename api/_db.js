@@ -54,6 +54,14 @@ export function ensureSchema() {
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS pin_hash text`; // organizer PIN, salted scrypt hash
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS owner_hash text`; // hash of the creating phone's token
+      // Moving to a new phone (api/transfer.js): encrypted one-time bundles, and a hashed single-use creator recovery code.
+      await q`CREATE TABLE IF NOT EXISTS transfers (
+        id_hash text PRIMARY KEY,
+        blob text NOT NULL,
+        expires_at timestamptz NOT NULL
+      )`;
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_hash text`;
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_expires timestamptz`;
       // Shop: organizer settings on the club, claimed names and equipped items on saved players, purchases.
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS shop jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS claim_hash text`; // hash of the token on the phone that claimed this name

@@ -1926,6 +1926,54 @@ const ShareLink = {
   qrSvg(qr, link) { const q = qr(0, 'M'); q.addData(link); q.make(); return q.createSvgTag({ cellSize: 8, margin: 32, scalable: true }); }
 };
 /*SHARELINK-END*/
+/*MOVE-START*/
+// Moving to a new phone: the transfer code never leaves the two phones. Both derive a lookup id and an AES key from it;
+// the server only sees the id and an encrypted bundle (see api/transfer.js). Free of app globals so the tests can load it.
+const Move = {
+  ALPHA: 'ABCDEFGHJKMNPQRSTUVWXYZ23456789',
+  newCode() {
+    let out = '';
+    while (out.length < 12) for (const b of crypto.getRandomValues(new Uint8Array(24))) if (b < 248 && out.length < 12) out += Move.ALPHA[b % 31];
+    return out.replace(/(.{4})(?=.)/g, '$1-');
+  },
+  clean(raw) { const c = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return c.length === 12 && [...c].every(ch => Move.ALPHA.includes(ch)) ? c : ''; },
+  async bits(code, salt) {
+    const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(code), 'PBKDF2', false, ['deriveBits']);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', iterations: 100000, salt: new TextEncoder().encode(salt) }, k, 256));
+  },
+  async id(raw) { return [...await Move.bits(Move.clean(raw), 'dink-move-id')].map(b => b.toString(16).padStart(2, '0')).join(''); },
+  async key(code) { return crypto.subtle.importKey('raw', await Move.bits(code, 'dink-move-key'), 'AES-GCM', false, ['encrypt', 'decrypt']); },
+  async seal(raw, payload) {
+    const code = Move.clean(raw), iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await Move.key(code), new TextEncoder().encode(JSON.stringify(payload))));
+    const all = new Uint8Array(12 + ct.length); all.set(iv); all.set(ct, 12);
+    let s = ''; for (const b of all) s += String.fromCharCode(b);
+    return btoa(s);
+  },
+  async open(raw, blob) {
+    const code = Move.clean(raw), all = Uint8Array.from(atob(blob), ch => ch.charCodeAt(0));
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: all.slice(0, 12) }, await Move.key(code), all.slice(12));
+    return JSON.parse(new TextDecoder().decode(pt));
+  },
+  // What this phone holds per club: the player claim, the creator token and the remembered organizer PIN.
+  pack(clubs, me, owners, pins) {
+    return { v: 1, clubs: clubs.map(c => ({ code: c.code, name: c.name, me: me[c.code] || null, owner: owners[c.code] || null, pin: pins[c.code] || null })) };
+  },
+  // Folds a received bundle into this phone's own records. Anything this phone already has for a club is kept. Returns how many clubs were added.
+  merge(payload, clubs, me, owners, pins) {
+    if (!payload || payload.v !== 1 || !Array.isArray(payload.clubs)) throw new Error('That transfer was not valid.');
+    let added = 0;
+    for (const c of payload.clubs.slice(0, 50)) {
+      if (!c || !/^[A-Z0-9]{6}$/.test(String(c.code))) continue;
+      if (!clubs.some(x => x.code === c.code)) { clubs.push({ code: c.code, name: String(c.name || c.code).slice(0, 60) }); added++; }
+      if (c.me && typeof c.me.name === 'string' && /^[0-9a-f]{48}$/.test(String(c.me.token)) && !me[c.code]) me[c.code] = { name: c.me.name.slice(0, 40), token: c.me.token };
+      if (/^[0-9a-f]{48}$/.test(String(c.owner)) && !owners[c.code]) owners[c.code] = c.owner;
+      if (/^\d{4,8}$/.test(String(c.pin)) && !pins[c.code]) pins[c.code] = String(c.pin);
+    }
+    return added;
+  }
+};
+/*MOVE-END*/
 function inviteLink() { return ShareLink.join(location.origin, club && club.code); }
 // Keep the address bar on the open club's join link, so copying the URL shares it. Waits for checkInvite to read a link first.
 let urlReady = false;
