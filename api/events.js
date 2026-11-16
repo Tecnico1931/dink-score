@@ -2,8 +2,9 @@
 // GET  /api/events?code=ABC123                 -> the club's events, newest first, 50 a page (a short summary of each); add &offset=50 for the next page, `more` says if there is one
 // GET  /api/events?code=ABC123&id=e123         -> one event in full: rounds or bracket, courts, scores, standings
 //   create        {event, pin|ownerToken}                  -> organizer: starts an event (see createEvent in _events.js)
-//   result        {id, matchId, score:[a,b], startedAt?, endedAt?, rallies?, live?}  -> anyone in the club: a finished match.
+//   result        {id, matchId, score:[a,b], startedAt?, endedAt?, rallies?, live?}  -> players in the match or an organizer (any club member if the event allows it): a finished match.
 //                 It is also saved to the club's games, once (the game id comes from the event and match).
+//   results-by    {id, who:'players'|'club'}                -> organizer: who may enter results (players in the match + organizers, or any club member)
 //   next-round    {id}                                      -> organizer: plans the next round of a rotating-partner event
 //   set-round     {id, round, matches:[{teams}]}            -> organizer: picks the pairings of a round nobody has scored
 //   publish-round {id, round}                               -> organizer: opens a manual round for scoring
@@ -17,10 +18,10 @@
 //   public-logos  {id, on}                                  -> organizer: show or hide team logos on the public bracket page
 // create may carry teamMeta ([{name, logo}] for each of its manual teams), publicLogos and refs ({player: DUPR ID}, reference only).
 // Organizer actions need the creating phone's token or the organizer PIN, like the shop settings.
-import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, cleanGame, cleanName, reserveGames, releaseGames, verifiedSender } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, reserveGames, releaseGames, verifiedSender } from './_db.js';
 import { newShareToken } from './_share.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
-import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, correctResult, startKnockout, endEvent, view } from './_events.js';
+import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, checkResultActor, setResultsBy, correctResult, startKnockout, endEvent, view } from './_events.js';
 
 const PAGE = 50; // events per page of the list
 const MAX_EVENTS = 100; // per club, not counting deleted ones
@@ -119,8 +120,14 @@ export default handler(async (req, res) => {
 
   const id = String(body.id || '');
   if (action === 'result') {
-    // Anyone in the club can enter a result, like adding a game. Fixing one later is an organizer action.
-    const { event, out } = await mutate(sql, code, id, ev => recordResult(ev, String(body.matchId || ''), body, now));
+    // Players in the match and organizers by default; any club member when the organizer allowed it. Fixing one later is an organizer action.
+    const sender = await verifiedSender(sql, club, code, body);
+    let organizer = sender === 'organizer';
+    if (!organizer && club.pin_hash && body.pin) { // a wrong PIN is just not an organizer here (still counted against the PIN limits)
+      try { await requirePin(club, body.pin, req, body.ownerToken); organizer = true; } catch (e) { if (e.status === 429) throw e; }
+    }
+    const actor = { organizer, name: sender && sender !== 'organizer' ? sender : null };
+    const { event, out } = await mutate(sql, code, id, ev => { checkResultActor(ev, String(body.matchId || ''), actor); return recordResult(ev, String(body.matchId || ''), body, now); });
     await recordGame(sql, club, code, event, out.game, body, now);
     return send(res, 200, { event: view(event) });
   }
@@ -135,6 +142,10 @@ export default handler(async (req, res) => {
     const [row] = await sql`SELECT refs FROM events WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL`;
     if (!row) throw fail(404, 'That event no longer exists.');
     return send(res, 200, { refs: row.refs || {} });
+  }
+  if (action === 'results-by') {
+    const { event } = await mutate(sql, code, id, ev => setResultsBy(ev, body.who, now));
+    return send(res, 200, { event: view(event) });
   }
   if (action === 'public-logos') {
     const { event } = await mutate(sql, code, id, ev => { ev.publicLogos = body.on === true; ev.updatedAt = now; });

@@ -1847,7 +1847,7 @@ function flush() {
         else if (op.type === 'delete') await api(`games?code=${code}&id=${encodeURIComponent(op.id)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
-        else if (op.type === 'event-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'result', id: op.eventId, matchId: op.matchId, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, live: op.live }, senderCreds(code))) });
+        else if (op.type === 'event-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'result', id: op.eventId, matchId: op.matchId, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, live: op.live, pin: pins[code] || '' }, senderCreds(code))) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
@@ -2655,8 +2655,21 @@ function ratingPreview(s) {
    undo intents there; this phone polls for them and applies them with PB.rally, so the scoring
    rules live in exactly one place and a watch tap changes nothing until this phone takes it.
    Event matches are not watch-scored: they already report to the event. */
-let watchAck = 0, publishedLiveId = null, publishTimer = null;
+let watchAck = 0, publishedLiveId = null, publishedSecret = null, publishTimer = null;
 const liveGameId = () => 'live-' + live.state.startedAt.toString(36);
+// Each live game has its own short-lived secret, made here and shown on the watch page. A watch must name the game and carry it,
+// and this phone drops any intent whose signature does not match, so a tap meant for one court can never score another.
+function liveSecret() {
+  if (!live.secret) { const b = crypto.getRandomValues(new Uint8Array(10)); live.secret = Array.from(b, x => 'abcdefghjkmnpqrstuvwxyz23456789'[x % 31]).join(''); }
+  return live.secret;
+}
+async function intentOk(it, game, secret) {
+  if (!it || it.g !== game || typeof it.sig !== 'string') return false;
+  try {
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${secret}:${it.n}:${it.kind}:${it.side}:${game}`));
+    return Array.from(new Uint8Array(h), x => x.toString(16).padStart(2, '0')).join('') === it.sig;
+  } catch { return false; }
+}
 function schedulePublishLive() {
   if (!API_OK || !club) return;
   clearTimeout(publishTimer);
@@ -2666,11 +2679,11 @@ async function publishLive() {
   if (!API_OK || !club) return;
   try {
     if (live && !live.event) {
-      publishedLiveId = liveGameId();
-      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'state', id: publishedLiveId, state: live.state, ack: watchAck }) });
+      publishedLiveId = liveGameId(); publishedSecret = liveSecret();
+      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'state', id: publishedLiveId, secret: publishedSecret, state: live.state, ack: watchAck }) });
     } else if (publishedLiveId) {
-      const id = publishedLiveId; publishedLiveId = null; watchAck = 0;
-      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'end', id }) });
+      const id = publishedLiveId, secret = publishedSecret; publishedLiveId = null; publishedSecret = null; watchAck = 0;
+      await api('live', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'end', id, secret }) });
     }
   } catch {}
 }
@@ -2689,14 +2702,15 @@ function applyWatchIntent(it) {
 setInterval(async () => {
   if (!API_OK || !club || !live || live.event || !live.open || document.hidden) return;
   try {
-    const d = await api('live?code=' + club.code + '&id=' + encodeURIComponent(liveGameId()));
+    const game = liveGameId(), secret = liveSecret();
+    const d = await api('live?code=' + club.code + '&id=' + encodeURIComponent(game) + '&secret=' + encodeURIComponent(secret));
     const fresh = (d.intents || []).filter(i => i.n > watchAck).sort((a, b) => a.n - b.n);
-    for (const it of fresh) { applyWatchIntent(it); watchAck = Math.max(watchAck, it.n); }
+    for (const it of fresh) { if (await intentOk(it, game, secret)) applyWatchIntent(it); watchAck = Math.max(watchAck, it.n); } // unsigned or foreign intents are skipped, never applied
     if (fresh.length) schedulePublishLive();
   } catch {}
 }, 4000);
 
-function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), open: live.open, event: live.event || null } : null); schedulePublishLive(); }
+function persistLive() { store.set('pb.live', live ? { state: live.state, stack: live.stack.slice(-200), open: live.open, event: live.event || null, secret: live.secret || null } : null); schedulePublishLive(); }
 let toastTimer;
 function showToast(msg, inCourt = true) {
   if (inCourt && live) { live.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (live) { live.toast = null; renderCourt(); } }, 3500); return; }
@@ -3642,16 +3656,18 @@ function shopAdminHTML(c) {
     <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 function watchHTML(c) {
+  const gameOn = !!(live && !live.event);
   const url = location.origin + '/api/live';
   const fields = rows => rows.map(r => `<div class="watch-field"><span>${esc(r[0])}</span><b>${esc(r[1])}</b><small>${esc(r[2])}</small></div>`).join('');
   const recipe = (name, rows) => `<div class="ev-card" style="margin-top:10px"><h3 style="margin-top:0">${esc(name)}</h3>${fields(rows)}</div>`;
   return `<h2 id="club-h">Score from your watch</h2>
   <p>A prototype. While you score a game on this phone, an Apple Watch can send the points: the watch asks, this phone applies the scoring rules and keeps the record. Keep this phone nearby with the game open; points land within a few seconds.</p>
   <p>Make three shortcuts in the Shortcuts app on your iPhone. In each one, add the action <b>Get Contents of URL</b> and set the URL to <b>${esc(url)}</b>. Tap Show More, choose Method <b>POST</b> and Request Body <b>JSON</b>, and add the fields listed below. Then add <b>Get Dictionary Value</b> (key <b>say</b>, from Contents of URL) and <b>Show Result</b> after it, so the watch reads the score back. In the shortcut's settings, turn on <b>Show on Apple Watch</b>.</p>
-  ${recipe('Top point: the top team on the scoring screen scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['side', '0', 'Number']])}
-  ${recipe('Bottom point: the bottom team scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['side', '1', 'Number']])}
-  ${recipe('Undo: take back the last rally', [['code', club.code, 'Text'], ['action', 'undo', 'Text']])}
-  <p class="note" style="margin-top:12px">Top and bottom are the two halves of the scoring screen. Anyone with the club code can send points this way, the same trust as adding a game.</p>
+  ${gameOn ? `<div class="ev-card"><h3 style="margin-top:0">This game's name and secret</h3>${fields([['game', liveGameId(), 'Text'], ['secret', liveSecret(), 'Text']])}<p class="note">Every shortcut needs both. They belong to the game on this phone right now; a new game gets a new secret, so update the shortcuts when you start one. Only people you give the secret to can send points to this game.</p></div>` : `<p class="note"><b>Start a club game first.</b> Each game gets its own name and secret, shown here once it is running, and the shortcuts below need both. Event matches are not watch-scored.</p>`}
+  ${recipe('Top point: the top team on the scoring screen scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text'], ['side', '0', 'Number']])}
+  ${recipe('Bottom point: the bottom team scores', [['code', club.code, 'Text'], ['action', 'point', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text'], ['side', '1', 'Number']])}
+  ${recipe('Undo: take back the last rally', [['code', club.code, 'Text'], ['action', 'undo', 'Text'], ['game', gameOn ? liveGameId() : 'live-…', 'Text'], ['secret', gameOn ? liveSecret() : '…', 'Text']])}
+  <p class="note" style="margin-top:12px">Top and bottom are the two halves of the scoring screen. The club code alone is not enough: the phone ignores any tap that does not carry this game's secret.</p>
   <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 function membersHTML(c) {
@@ -3990,7 +4006,7 @@ document.addEventListener('touchend', e => {
 }, { passive: true });
 
 /* ---------- events: tournaments and rotating doubles ---------- */
-// An organizer sets an event up; anyone in the club can score its matches. The server keeps the rounds, courts and
+// An organizer sets an event up; the players in a match and organizers score it (or any member, if the organizer allows). The server keeps the rounds, courts and
 // standings and, when a match is finished, adds it to the club's games itself, so this screen never saves a game twice.
 const EV_FORMATS = [['roundrobin', 'Round robin'], ['pool_knockout', 'Pool + knockout'], ['single_elim', 'Single elim'], ['double_elim', 'Double elim']];
 const EV_FORMAT_NAME = { roundrobin: 'Round robin', pool_knockout: 'Pool play + knockout', single_elim: 'Single elimination', double_elim: 'Double elimination' };
@@ -4154,6 +4170,7 @@ function evNewHTML(s) {
     <div class="seg-row" style="margin:0"><div class="field"><span class="lab">Play to</span>${evSeg('target', [[11, '11'], [15, '15'], [21, '21']], f.target)}</div>
       <div class="field" style="margin:0"><span class="lab">Win by</span>${evSeg('winBy', [[2, '2'], [1, '1']], f.winBy)}</div></div>
     <div class="field"><span class="lab">Scoring</span>${evSeg('scoring', [['sideout', 'Side-out'], ['rally', 'Rally']], f.scoring)}</div>
+    <div class="field"><label class="imp-check"><input type="checkbox" data-ev-input="results-any" ${f.resultsAny ? 'checked' : ''}> Let any club member enter results</label><p class="note">${f.resultsAny ? 'Anyone who has joined the club can enter any match result.' : 'Only the players in a match and organizers can enter its result. You can change this later.'}</p></div>
     ${evImportHTML(f)}
     ${imp ? '' : `<div class="field"><div class="rhead"><span class="lab">Players (${n})</span><span><button type="button" class="link" data-ev="pick-all">All</button> <button type="button" class="link" data-ev="pick-none">None</button></span></div>
       <div class="chips">${chips || '<span class="note">Add the players below.</span>'}</div>${teamsPreview}
@@ -4409,12 +4426,13 @@ function evDetailHTML(s) {
     out.push(`<section class="ev-sec" aria-labelledby="ev-rd"><h3 id="ev-rd">${ev.knockout ? 'Pool play rounds' : 'All rounds'}</h3>${ev.rounds.map(r => `<details class="ev-more"><summary>${esc(r.title)}${r.status === 'done' ? ' · done' : ''}</summary><ul class="games">${r.matches.map(m => evMatchHTML(ev, m, org, !nowIds.has(m.id))).join('')}</ul>${r.byes.length ? `<p class="note">Sitting out: ${esc(r.byes.join(', '))}</p>` : ''}</details>`).join('')}</section>`);
   }
   if (org && !live) out.push(duprHTML(ev));
+  if (org) out.push(evWhoHTML(s, true));
   out.push(dssoEventHTML(ev, org));
   if (org) {
     out.push(`<div class="ev-card">${live ? `<button class="btn btn-soft block" data-ev="end">${s.armEnd ? 'Tap again to finish the event' : 'Finish the event now'}</button>` : ''}
       <button class="btn btn-line-danger block" data-ev="delete">${s.armDelete ? 'Tap again to delete the event' : 'Delete the event'}</button><p class="note">Games already played stay in the club record.</p></div>`);
   } else if (live) {
-    out.push(`<p class="note">Anyone in the club can score a match. Organizers run the rounds.${club.hasPin ? ' <button class="link" data-ev="unlock">Unlock this phone</button>' : ''}</p>`);
+    out.push(`<p class="note">${ev.resultsBy === 'club' ? 'Anyone in the club can score a match.' : 'The players in a match can score it.'} Organizers run the rounds.${club.hasPin ? ' <button class="link" data-ev="unlock">Unlock this phone</button>' : ''}</p>`);
   }
   return out.join('\n');
 }
@@ -4464,6 +4482,12 @@ function evRosterHTML(s) {
   return `<section class="ev-card" aria-labelledby="ev-ros"><h3 id="ev-ros">${ev.partners === 'fixed' ? 'Teams' : 'Players'}</h3><ul class="imp-roster">${rows.join('')}</ul>
     ${has ? '<p class="note">DUPR IDs are a private reference for organizers: unverified, not checked with DUPR, never sent to DUPR and never shown on the public page.</p>' : ''}</section>`;
 }
+// Who may enter results: shown to everyone, with the switch for organizers. The server enforces it either way.
+function evWhoHTML(s, org) {
+  const ev = s.event, any = ev.resultsBy === 'club';
+  return `<div class="ev-card"><h3>Who can enter results</h3><p class="note">${any ? 'Any club member can enter a result for any match.' : 'The players in a match and organizers can enter its result. Other club members can watch but not score.'}</p>
+    ${org ? `<div class="ev-actions"><button class="btn btn-soft ev-small" data-ev="results-toggle" aria-pressed="${any}" ${s.busy ? 'disabled' : ''}>${any ? 'Limit to the players and organizers' : 'Let any club member enter results'}</button></div>` : ''}</div>`;
+}
 function evLogosHTML(s) {
   const ev = s.event;
   if (!ev || !(ev.teamInfo || []).some(i => i.logo)) return '';
@@ -4505,6 +4529,7 @@ function evBracketHTML(s) {
     out.push(`<div class="ev-narrow"><section class="bk-sec" id="bk-ko" aria-labelledby="bk-ko-h"><div class="ev-card" role="status"><h3 id="bk-ko-h">The knockout is not drawn yet</h3><p class="note">${ev.poolDone ? (org ? 'Pool play is finished. Start the knockout from the event page and the bracket appears here.' : 'Pool play is finished. The organizer starts the knockout next, and the bracket appears here.') : `It appears here when pool play ends: the top ${ev.advance} ${ev.partners === 'fixed' ? 'teams' : 'teams of players'} play single elimination, best seed against the lowest.`}</p></div></section></div>`);
   }
   const tail = [];
+  tail.push(evWhoHTML(s, org));
   if (org) tail.push(evShareHTML(s) + evLogosHTML(s));
   if (tail.length) out.push(`<div class="ev-narrow">${tail.join('')}</div>`);
   if (sel) {
@@ -4595,7 +4620,7 @@ async function evCreate() {
   }
   const players = imp ? imp.players : f.players;
   const body = { action: 'create', event: { name: f.name, format: f.format, partners: rotating ? 'rotating' : 'fixed', rotation: imp && imp.rotation || f.rotation, courts: f.courts, rounds: rotating ? (f.rounds || evDefaultRounds(players.length)) : undefined,
-    advance: f.advance, target: f.target, scoring: f.scoring, winBy: f.winBy, players } };
+    advance: f.advance, target: f.target, scoring: f.scoring, winBy: f.winBy, resultsBy: f.resultsAny ? 'club' : 'players', players } };
   if (imp && imp.teams) { Object.assign(body.event, { teams: imp.teams, teamMeta: imp.teamMeta, publicLogos: !!f.imp.publicLogos }); }
   else if (!rotating && f.rotation === 'manual') body.event.teams = Array.from({ length: Math.floor(players.length / 2) }, (_, i) => [players[2 * i], players[2 * i + 1]]);
   if (imp && Object.keys(imp.refs).length) body.event.refs = imp.refs; // private reference only; the server keeps it apart from the event
@@ -4678,6 +4703,7 @@ function evAct(a, d) {
   else if (a === 'share-open' || a === 'share-new' || a === 'share-off') evShare(a);
   else if (a === 'share-hide') { s.share = null; s.arm = ''; renderEvents(true); }
   else if (a === 'share-copy') evCopyLink();
+  else if (a === 'results-toggle') evOrg({ action: 'results-by', id: ev.id, who: ev.resultsBy === 'club' ? 'players' : 'club' }, ev.resultsBy === 'club' ? 'Only the players and organizers can enter results' : 'Any club member can enter results');
   else if (a === 'logos-toggle') evOrg({ action: 'public-logos', id: ev.id, on: !ev.publicLogos }, ev.publicLogos ? 'Logos hidden on the public page' : 'Logos shown on the public page');
   else if (a === 'live') evScoreLive(d.m);
   else if (a === 'enter' || a === 'fix') {
@@ -4747,6 +4773,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   if (e.target.dataset && e.target.dataset.evFile === 'imp' && evScreen) { evImpFile(e.target); return; }
+  if (e.target.dataset && e.target.dataset.evInput === 'results-any' && evScreen && evScreen.form) { evScreen.form.resultsAny = e.target.checked; renderEvents(true); return; }
   if (e.target.dataset && e.target.dataset.evInput === 'imp-publiclogos' && evScreen && evScreen.form && evScreen.form.imp) evScreen.form.imp.publicLogos = e.target.checked;
   const t = e.target, sel = t.dataset && t.dataset.evSel;
   if (!sel || !evScreen || !evScreen.edit) return;
