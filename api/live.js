@@ -11,6 +11,7 @@
 //   POST /api/live {code, action:'rally', game, secret, side, base?}   -> the server applies the rally itself (shared scoring)
 //   POST /api/live {code, action:'unrally', game, secret, base?}       -> the server takes back the last server-applied rally
 //   POST /api/live {code, action:'ack', game, secret, ack}             -> the phone drops intents it has applied
+//   GET/POST board-*: the open play court board built on these live games, documented in _courtboard.js
 // Each live game has its own short-lived secret, made on the scoring phone and shown there (and on the watch setup page).
 // Intents must name the game and carry its secret; the club code alone is not enough, so two games at once never mix.
 // The server keeps only a hash of the secret, hands intents only to a caller who holds it, and signs each intent with it,
@@ -18,6 +19,7 @@
 import { createHash } from 'node:crypto';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp } from './_db.js';
 import { rally as rallyOf, call as pbCall } from './_pb.js';
+import { boardGet, boardAction, BOARD_ACTIONS } from './_courtboard.js';
 
 export const secretOk = v => typeof v === 'string' && /^[A-Za-z0-9]{6,32}$/.test(v);
 export const hashSecret = v => createHash('sha256').update('live:' + v).digest('hex');
@@ -55,6 +57,7 @@ export default handler(async (req, res) => {
     const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
     const code = club.code; // the club's permanent key, even when an old club code was used
     const id = String(url.searchParams.get('id') || '');
+    if (url.searchParams.get('board')) return send(res, 200, await boardGet(sql, club)); // the open play court board (see _courtboard.js)
     if (!id) {
       // The club's games going on right now: players and scores only. Anyone with the club code can
       // already see the club's finished games; a live score is no more private. Scoring one still
@@ -73,6 +76,8 @@ export default handler(async (req, res) => {
   const body = await readBody(req);
   const club = await requireClub(cleanCode(body.code), req);
   const code = club.code; // the club's permanent key, even when an old club code was used
+
+  if (BOARD_ACTIONS.includes(body.action)) return send(res, 200, await boardAction(sql, club, body, req));
 
   if (body.action === 'state') {
     const id = String(body.id || '').slice(0, 64), st = body.state;

@@ -1244,5 +1244,135 @@ await step('confirmation: the new columns and table are additive', async () => {
   assert.equal((await pg.query("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_name = 'game_audit'")).rows[0].n, 1);
 });
 
+// ---- Open play court board ----
+const cb = await (async () => {
+  const c = ok(await call(club, 'POST', { body: { name: 'Court board club', pin: '582913' } }), 201);
+  return { code: c.club.code, owner: c.ownerToken, pin: '582913' };
+})();
+const cbPost = (body) => call(live, 'POST', { body: { code: cb.code, ...body } });
+const cbOrg = { ownerToken: cb.owner };
+const cbGet = async () => ok(await call(live, 'GET', { query: `?code=${cb.code}&board=1` }));
+const cbTok = {};
+await step('court board: off until an organizer turns it on, and then only an organizer can set it up', async () => {
+  assert.equal((await cbGet()).board, null);
+  assert.equal((await cbPost({ action: 'board-config', courts: 2 })).status, 403, 'no credentials');
+  assert.equal((await cbPost({ action: 'board-config', courts: 2, pin: '000000' })).status, 403, 'wrong PIN');
+  assert.equal((await cbPost({ action: 'board-checkin', name: 'Ann' })).status, 403);
+  assert.equal((await cbPost({ action: 'board-checkin', name: 'Ann', ...cbOrg })).status, 404, 'no board yet');
+  for (const n of ['Ann', 'Bo', 'Cat', 'Dee', 'Eve', 'Fay']) cbTok[n] = ok(await call(playersApi, 'POST', { body: { code: cb.code, action: 'claim', name: n, ownerToken: cb.owner } })).playerToken;
+  assert.equal((await cbPost({ action: 'board-config', courts: 2, name: 'Ann', playerToken: cbTok.Ann })).status, 403, 'a player is not an organizer');
+  assert.equal((await cbPost({ action: 'board-config', courts: 99, ...cbOrg })).status, 400);
+  const r = ok(await cbPost({ action: 'board-config', courts: 2, ...cbOrg }));
+  assert.equal(r.board.courts.length, 2);
+  assert.equal(r.board.config.control, 'players');
+});
+await step('court board: players check themselves in; organizers check anyone in; strangers cannot', async () => {
+  assert.equal((await cbPost({ action: 'board-checkin', name: 'Ann', playerToken: cbTok.Bo })).status, 403, 'someone else\'s token');
+  assert.equal((await cbPost({ action: 'board-checkin', name: 'Ann', playerToken: 'a'.repeat(48) })).status, 403);
+  for (const n of ['Ann', 'Bo', 'Cat']) ok(await cbPost({ action: 'board-checkin', name: n, playerToken: cbTok[n] }));
+  const r = ok(await cbPost({ action: 'board-checkin', names: ['dee', 'Eve', 'Guest One', 'Guest Two'], ...cbOrg }));
+  assert.deepEqual(r.board.queue, ['Ann', 'Bo', 'Cat', 'Dee', 'Eve', 'Guest One', 'Guest Two'], 'saved spelling is used, guests as typed');
+  assert.equal(ok(await cbPost({ action: 'board-checkin', name: 'Ann', playerToken: cbTok.Ann })).board.present.length, 7, 'checking in twice changes nothing');
+  assert.equal((await cbPost({ action: 'board-checkout', name: 'Bo', target: 'Ann', playerToken: cbTok.Bo })).status, 403, 'a player checks out only themself');
+  assert.equal(ok(await cbPost({ action: 'board-checkin', name: 'Fay', playerToken: cbTok.Fay })).board.present.length, 8);
+  assert.equal(ok(await cbPost({ action: 'board-checkout', name: 'Fay', playerToken: cbTok.Fay })).board.present.length, 7);
+});
+await step('court board: a checked-in player calls a group; one who is not checked in cannot', async () => {
+  assert.equal((await cbPost({ action: 'board-call', court: 1, name: 'Fay', playerToken: cbTok.Fay })).status, 403);
+  const r = ok(await cbPost({ action: 'board-call', court: 1, name: 'Eve', playerToken: cbTok.Eve }));
+  assert.equal(r.board.courts[0].teams.flat().length, 4);
+  assert.ok(r.board.courts[0].teams.flat().includes('Ann'), 'the longest wait plays');
+  assert.equal(r.board.queue.length, 3);
+  assert.equal((await cbPost({ action: 'board-call', court: 1, ...cbOrg })).status, 409, 'court in use');
+  assert.equal((await cbPost({ action: 'board-checkout', name: 'Ann', playerToken: cbTok.Ann })).status, 409, 'on a court');
+  assert.equal((await cbGet()).version, r.version);
+});
+await step('court board: the live game being scored for those players shows on the court and decides the winner', async () => {
+  const court = (await cbGet()).board.courts[0];
+  const [A, B] = court.teams;
+  const state = (score, winner) => ({ score, winner, serving: 0, serverNum: 1, startedAt: Date.now(), cfg: { mode: 'doubles', scoring: 'rally', target: 11, teams: [B, A] } });
+  ok(await cbPost({ action: 'state', id: 'live-cb1', secret: 'secretcb1', state: state([5, 3], null) }));
+  let c = (await cbGet()).board.courts[0];
+  assert.deepEqual(c.live.score, [3, 5], 'the score follows the court\'s team order, however the scorer set the sides');
+  assert.equal(c.live.winner, null);
+  ok(await cbPost({ action: 'state', id: 'live-cb1', secret: 'secretcb1', state: state([4, 11], 1) })); // A (second in the scorer's order) won
+  c = (await cbGet()).board.courts[0];
+  assert.equal(c.live.winner, 0);
+  // the caller says team 1 won, but the referee's own game says team 0: the game wins
+  const r = ok(await cbPost({ action: 'board-finish', court: 1, winner: 1, name: 'Ann', playerToken: cbTok.Ann }));
+  assert.equal(r.board.courts[0].court, 1);
+  assert.ok(!r.board.courts[0].teams, 'court is free');
+  assert.deepEqual(r.board.queue.slice(-4), [...A, ...B], 'rotate: the winners go to the back first');
+  ok(await cbPost({ action: 'end', id: 'live-cb1', secret: 'secretcb1' }));
+});
+await step('court board: finishing without a live game needs the winner; the board never saves a game', async () => {
+  ok(await cbPost({ action: 'board-call', court: 2, ...cbOrg }));
+  assert.equal((await cbPost({ action: 'board-finish', court: 2, ...cbOrg })).status, 400);
+  assert.equal((await cbPost({ action: 'board-finish', court: 2, winner: 0, name: 'Fay', playerToken: cbTok.Fay })).status, 403);
+  const r = ok(await cbPost({ action: 'board-finish', court: 2, winner: 0, ...cbOrg }));
+  assert.ok(!r.board.courts[1].teams);
+  assert.equal((await call(club, 'GET', { query: '?code=' + cb.code })).json.games.length, 0, 'no game reached the club record');
+  assert.equal((await cbPost({ action: 'board-finish', court: 2, winner: 0, ...cbOrg })).status, 409, 'nothing to finish');
+});
+await step('court board: organizer-only control keeps players off the courts, then the setting can change back', async () => {
+  ok(await cbPost({ action: 'board-config', control: 'organizer', ...cbOrg }));
+  const r = await cbPost({ action: 'board-call', court: 1, name: 'Eve', playerToken: cbTok.Eve });
+  assert.equal(r.status, 403);
+  ok(await cbPost({ action: 'board-call', court: 1, ...cbOrg }));
+  assert.equal((await cbPost({ action: 'board-cancel', court: 1, name: 'Ann', playerToken: cbTok.Ann })).status, 403);
+  const c = ok(await cbPost({ action: 'board-cancel', court: 1, pin: cb.pin }));
+  assert.equal(c.board.courts[0].teams, undefined);
+  assert.equal(c.board.queue.length, 7, 'everyone is back in the queue');
+  assert.equal(ok(await cbPost({ action: 'board-checkin', name: 'Fay', playerToken: cbTok.Fay })).board.present.length, 8, 'checking in is still open to players');
+  ok(await cbPost({ action: 'board-config', control: 'players', ...cbOrg }));
+});
+await step('court board: settings that would strand a game are refused; winners-stay holds the court', async () => {
+  ok(await cbPost({ action: 'board-config', mode: 'winners-stay', stayLimit: 2, ...cbOrg }));
+  ok(await cbPost({ action: 'board-call', court: 2, ...cbOrg }));
+  assert.equal((await cbPost({ action: 'board-config', courts: 1, ...cbOrg })).status, 409);
+  assert.equal((await cbPost({ action: 'board-config', format: 'singles', ...cbOrg })).status, 409);
+  const before = (await cbGet()).board.courts[1].teams;
+  const r = ok(await cbPost({ action: 'board-finish', court: 2, winner: 0, ...cbOrg }));
+  assert.deepEqual(r.board.courts[1].hold, before[0]);
+  assert.equal(r.board.suggestions.find(s => s.court === 2).teams[0].join(), before[0].join(), 'the winners are the first team of the next call');
+});
+await step('court board: two phones changing it at once never lose a change', async () => {
+  const results = await Promise.all(['Cat', 'Dee', 'Eve'].map(n => cbPost({ action: 'board-rest', name: n, playerToken: cbTok[n] })));
+  for (const r of results) assert.ok(r.status === 200 || r.status === 409, JSON.stringify(r.json));
+  const b = (await cbGet()).board;
+  const all = [...b.queue, ...b.courts.flatMap(c => (c.teams ? c.teams.flat() : c.hold || []))];
+  assert.equal(new Set(all).size, all.length);
+});
+await step('court board: a renamed player is renamed on the board; an anonymised one loses their name there', async () => {
+  const names = async () => { const b = (await cbGet()).board; return [...b.present, ...b.queue, ...b.courts.flatMap(c => (c.teams ? c.teams.flat() : c.hold || []))]; };
+  assert.ok((await names()).includes('Cat'));
+  ok(await call(playersApi, 'POST', { body: { code: cb.code, action: 'rename', name: 'Cat', newName: 'Cathy', ...cbOrg } }));
+  let all = await names();
+  assert.ok(all.includes('Cathy') && !all.includes('Cat'), 'rename reaches present, queue and courts');
+  const who = ok(await call(playersApi, 'POST', { body: { code: cb.code, action: 'anonymise', name: 'Dee', ...cbOrg } }));
+  all = await names();
+  assert.ok(!all.includes('Dee') && all.includes(who.label), 'anonymise relabels the board');
+  assert.equal((await cbGet()).board.config.format, 'doubles', 'settings are never rewritten as names');
+});
+await step('court board: end of session clears it, only for organizers; courts and players stay inside limits', async () => {
+  assert.equal((await cbPost({ action: 'board-reset', name: 'Ann', playerToken: cbTok.Ann })).status, 403);
+  const r = ok(await cbPost({ action: 'board-reset', ...cbOrg }));
+  assert.equal(r.board.present.length, 0);
+  assert.equal(r.board.courts.length, 2);
+  const many = Array.from({ length: 81 }, (_, i) => 'Walk-in ' + i);
+  assert.equal((await cbPost({ action: 'board-checkin', names: many, ...cbOrg })).status, 400, 'a batch is capped');
+  const bad = await cbPost({ action: 'board-checkin', names: many.slice(0, 40), ...cbOrg });
+  assert.equal(bad.status, 200);
+  const bad2 = await cbPost({ action: 'board-checkin', names: many.slice(40, 80), ...cbOrg });
+  assert.equal(bad2.status, 200);
+  assert.equal((await cbPost({ action: 'board-checkin', name: 'One too many', ...cbOrg })).status, 409);
+});
+await step('court board: the new table is additive and goes with the club', async () => {
+  assert.equal((await pg.query("SELECT count(*)::int AS n FROM information_schema.tables WHERE table_name = 'court_boards'")).rows[0].n, 1);
+  assert.equal((await pg.query('SELECT count(*)::int AS n FROM court_boards')).rows[0].n, 1);
+  const fk = (await pg.query("SELECT confdeltype FROM pg_constraint WHERE conrelid = 'court_boards'::regclass AND contype = 'f'")).rows;
+  assert.equal(fk[0].confdeltype, 'c', 'cascades from clubs');
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

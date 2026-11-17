@@ -852,6 +852,39 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 .watch-field span { color: var(--muted); min-width: 58px; }
 .watch-field small { color: var(--muted); }
 
+/* Open play court board: in the club sheet, and on the club display page */
+.cb-courts { display: grid; gap: 10px; }
+.cb-court { background: var(--surface); border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); }
+.cb-court h3 { margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cb-team { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-weight: 600; }
+.cb-team.win { color: var(--up, #1f9d55); }
+.cb-team .n { font-size: 24px; }
+.cb-vs { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.cb-next { font-size: 14px; color: var(--muted); margin: 4px 0 8px; }
+.cb-queue { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.cb-queue li { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: var(--surface); border-radius: 12px; padding: 8px 12px; }
+.cb-queue .pos { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 22px; display: inline-block; }
+.cb-row-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.cb-row-btns .btn { flex: 1 1 120px; }
+.dsp-board { width: 100%; max-width: 150vmin; display: grid; gap: 2vmin; text-align: left; }
+.dsp-courts { display: grid; grid-template-columns: repeat(auto-fit, minmax(34vmin, 1fr)); gap: 2vmin; }
+.dsp-court { background: #17372E; border-radius: 2.4vmin; padding: 2.2vmin 2.6vmin; }
+.dsp-court h2 { font-family: var(--display); font-weight: 800; font-size: 3.2vmin; margin: 0 0 1vmin; color: #DDF247; display: flex; justify-content: space-between; }
+.dsp-court .dsp-team { display: flex; justify-content: space-between; gap: 2vmin; font-size: 3vmin; font-weight: 700; padding: .4vmin 0; }
+.dsp-court .dsp-team.win { color: #DDF247; }
+.dsp-court .dsp-score { font-family: var(--display); font-weight: 800; font-size: 4vmin; }
+.dsp-court .dsp-vs { font-size: 1.8vmin; color: #7E9284; letter-spacing: .2em; text-transform: uppercase; }
+.dsp-court .dsp-free { font-size: 2.6vmin; color: #B9C8BE; }
+.dsp-queue h2 { font-family: var(--display); font-weight: 800; font-size: 2.6vmin; margin: 0 0 1vmin; color: #B9C8BE; letter-spacing: .12em; text-transform: uppercase; }
+.dsp-chips { display: flex; flex-wrap: wrap; gap: 1vmin; }
+.dsp-chip { background: #17372E; border-radius: 99px; padding: .8vmin 2vmin; font-size: 2.6vmin; font-weight: 600; }
+.dsp-chip.next { background: #DDF247; color: #0F241E; }
+#club-display.dsp-has-board .dsp-sub, #club-display.dsp-has-board .dsp-code-lab { display: none; }
+#club-display.dsp-has-board .dsp-name { font-size: 5vmin; }
+#club-display.dsp-has-board .dsp-qr { width: min(18vh, 24vw); padding: 1.4vmin; border-radius: 1.6vmin; }
+#club-display.dsp-has-board .dsp-code { font-size: 3.4vmin; margin-top: 0; }
+#club-display.dsp-has-board .dsp-inner { justify-content: flex-start; }
+
 </style>
 
 <div class="app" id="app"></div>
@@ -859,6 +892,7 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
   <div class="dsp-inner">
     <div class="dsp-brand">DINK SCORE</div>
     <h1 class="dsp-name" id="dsp-name">Loading club…</h1>
+    <div class="dsp-board" id="dsp-board" aria-live="polite" hidden></div>
     <p class="dsp-sub">Scan to join the club and add your games</p>
     <div class="dsp-qr" id="dsp-qr" role="img" aria-label="QR code for this club's invite link"></div>
     <div class="dsp-code-lab">Club code</div>
@@ -1448,6 +1482,55 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
   }
   loadName();
   setInterval(loadName, 5 * 60 * 1000);
+  // The open play court board, when the club has one on: courts with live scores, and who is up next. Names are only ever
+  // put on the page as text. A failed poll keeps what is showing.
+  var boardEl = document.getElementById('dsp-board');
+  function mk(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; }
+  var team = function (t) { return (t || []).join(' & '); };
+  function drawBoard(b) {
+    boardEl.textContent = '';
+    el.classList.toggle('dsp-has-board', !!b);
+    boardEl.hidden = !b;
+    if (!b) return;
+    var courts = mk('div', 'dsp-courts');
+    b.courts.forEach(function (ct) {
+      var card = mk('section', 'dsp-court');
+      var sug = (b.suggestions || []).filter(function (s) { return s.court === ct.court; })[0];
+      var h = mk('h2'); h.appendChild(mk('span', '', 'Court ' + ct.court)); card.appendChild(h);
+      if (ct.teams) {
+        var lv = ct.live;
+        [0, 1].forEach(function (i) {
+          var row = mk('div', 'dsp-team' + (lv && lv.winner === i ? ' win' : ''));
+          row.appendChild(mk('span', '', team(ct.teams[i])));
+          if (lv) row.appendChild(mk('span', 'dsp-score', String(lv.score[i])));
+          card.appendChild(row);
+          if (i === 0) card.appendChild(mk('div', 'dsp-vs', 'vs'));
+        });
+      } else {
+        card.appendChild(mk('div', 'dsp-free', ct.hold ? 'Winners stay: ' + team(ct.hold) : 'Free'));
+        if (sug) card.appendChild(mk('div', 'dsp-free', 'Next: ' + team(sug.teams[0]) + ' vs ' + team(sug.teams[1])));
+      }
+      courts.appendChild(card);
+    });
+    boardEl.appendChild(courts);
+    var q = mk('section', 'dsp-queue');
+    q.appendChild(mk('h2', '', 'Waiting' + (b.queue.length ? ' (' + b.queue.length + ')' : '')));
+    var chips = mk('div', 'dsp-chips'), next = {};
+    (b.suggestions || []).forEach(function (s) { s.teams.forEach(function (t) { t.forEach(function (p) { next[p] = true; }); }); });
+    b.queue.slice(0, 30).forEach(function (p) { chips.appendChild(mk('span', 'dsp-chip' + (next[p] ? ' next' : ''), p)); });
+    if (b.queue.length > 30) chips.appendChild(mk('span', 'dsp-chip', '+' + (b.queue.length - 30) + ' more'));
+    if (!b.queue.length) chips.appendChild(mk('span', 'dsp-chip', 'Nobody waiting'));
+    q.appendChild(chips);
+    boardEl.appendChild(q);
+  }
+  function loadBoard() {
+    fetch('/api/live?code=' + code + '&board=1', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) drawBoard(d.board); })
+      .catch(function () {});
+  }
+  loadBoard();
+  setInterval(loadBoard, 5000);
 })();
 </script>
 <script>
@@ -2334,6 +2417,8 @@ function renderClub() {
     body = watchHTML(c);
   } else if (c.view === 'games' && club) {
     body = gamesHTML(c);
+  } else if (c.view === 'board' && club) {
+    body = boardHTML(c);
   } else if (c.view === 'share') {
     body = shareSheetHTML(c);
   } else if (c.view === 'invite') {
@@ -2429,7 +2514,8 @@ function renderClub() {
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
-      <button class="btn btn-soft block" data-act="club-games" style="margin-top:10px">Games going on \u2014 live scores</button>
+      <button class="btn btn-soft block" data-act="club-games" style="margin-top:10px">Games going on — live scores</button>
+      <button class="btn btn-soft block" data-act="club-board" style="margin-top:8px">Open play court board</button>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
@@ -3980,6 +4066,96 @@ async function refreshClubGames() {
   try { const d = await api('live?code=' + club.code); if (clubSheet && clubSheet.view === 'games') { clubSheet.games = d.games || []; renderClub(); } } catch {}
 }
 setInterval(() => { if (clubSheet && clubSheet.view === 'games' && club && !document.hidden) refreshClubGames(); }, 4000);
+/* ---------- open play court board ---------- */
+// Courts, a waiting queue and who plays next, kept on the server (api/_courtboard.js) so every phone and the club display show the
+// same board. The server decides who may do what; this only hides buttons that would be refused.
+const isOrg = () => !!club && !!(pins[club.code] || owners[club.code]);
+const cbNames = t => (t || []).map(esc).join(' &amp; ');
+const boardCreds = () => Object.assign({ playerName: myName() || '', playerToken: myToken() || '' }, adminCreds());
+const boardHere = b => !!myName() && b.present.some(p => sameName(p, myName()));
+const boardRunner = b => isOrg() || (b.config.control === 'players' && boardHere(b));
+function boardHTML(c) {
+  const b = c.board, org = isOrg();
+  const head = `<h2 id="club-h">Court board</h2>`;
+  const foot = `<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+  const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
+  if (b === undefined) return `${head}<p class="note">Loading…</p>${err}${foot}`;
+  if (!b) return `${head}<p>Open play with a queue: players check in, get called to a free court, and the next group is suggested when a game ends, spread so people meet new partners and opponents. It also shows on the club's TV page.</p>${err}
+    ${org ? '<button class="btn btn-ink block" data-act="board-on">Turn on the court board</button>' : '<p class="note">An organizer can turn the court board on from this screen.</p>'}${foot}`;
+  const runner = boardRunner(b), here = boardHere(b), hasName = !!myName();
+  const who = hasName ? (here
+    ? `<div class="me-row"><span>You are checked in as <b>${esc(myName())}</b></span><button class="link" data-act="board-out">Leave the board</button></div>`
+    : `<div class="me-row"><span>Playing as <b>${esc(myName())}</b></span><button class="btn btn-blue" data-act="board-in">I'm here</button></div>`)
+    : `<p class="note">Choose your name in the club to check yourself in${org ? ', or add players below' : ''}.</p>`;
+  const courts = b.courts.map(ct => {
+    const sug = (b.suggestions || []).find(s => s.court === ct.court);
+    let inner;
+    if (ct.teams) {
+      const lv = ct.live, over = lv && lv.winner !== null;
+      const teamRow = i => `<div class="cb-team${lv && lv.winner === i ? ' win' : ''}"><span>${cbNames(ct.teams[i])}</span>${lv ? `<b class="n">${Number(lv.score[i])}</b>` : ''}</div>`;
+      inner = `${teamRow(0)}<div class="cb-vs">vs</div>${teamRow(1)}`;
+      if (runner) inner += `<div class="cb-row-btns">${over
+        ? `<button class="btn btn-ink" data-act="board-finish" data-court="${ct.court}">Game over: free the court</button>`
+        : `<button class="btn btn-soft" data-act="board-finish" data-court="${ct.court}" data-winner="0">${esc(ct.teams[0][0])}'s team won</button><button class="btn btn-soft" data-act="board-finish" data-court="${ct.court}" data-winner="1">${esc(ct.teams[1][0])}'s team won</button>`}<button class="btn btn-soft" data-act="board-cancel" data-court="${ct.court}">Cancel game</button></div>`;
+      if (!lv) inner += `<p class="note" style="margin:8px 0 0">Score it from the Play tab with these players and the score shows here.</p>`;
+    } else {
+      inner = `<p style="margin:0">${ct.hold ? `<b>Winners stay:</b> ${cbNames(ct.hold)} (${Number(ct.streak)} in a row)` : 'Free'}</p>`;
+      if (sug) inner += `<p class="cb-next">Next: ${cbNames(sug.teams[0])} <span class="cb-vs">vs</span> ${cbNames(sug.teams[1])}</p>${runner ? `<button class="btn btn-blue" data-act="board-call" data-court="${ct.court}">Call them to court ${ct.court}</button>` : ''}`;
+      else inner += `<p class="cb-next">Waiting for ${ct.hold ? 'challengers' : 'more players'}.</p>`;
+    }
+    return `<section class="cb-court"><h3>Court ${ct.court}</h3>${inner}</section>`;
+  }).join('');
+  const next = new Set(b.suggestions.flatMap(s => s.teams.flat()));
+  const queue = b.queue.length ? `<ol class="cb-queue">${b.queue.map((p, i) => `<li><span><span class="pos">${i + 1}</span>${esc(p)}${youTag(p)}${next.has(p) ? ' <span class="badge on">Up next</span>' : ''}</span><span>${isMe(p) && b.queue.length > 1 ? `<button class="link" data-act="board-rest" data-name="${esc(p)}">Sit one out</button>` : ''}${org ? `<button class="link" data-act="board-remove" data-name="${esc(p)}">Remove</button>` : ''}</span></li>`).join('')}</ol>` : '<p class="note">Nobody is waiting.</p>';
+  const sel = (id, label, opts, cur) => `<label class="lab" for="${id}">${label}</label><select id="${id}" class="field-input">${opts.map(o => `<option value="${esc(o[0])}"${String(o[0]) === String(cur) ? ' selected' : ''}>${esc(o[1])}</option>`).join('')}</select>`;
+  const admin = org ? `<h3 style="margin:18px 0 6px">Organizer</h3>
+    <form class="club-form" data-form="board-add"><label class="lab" for="board-names">Check in players (names, separated by commas)</label><input id="board-names" class="field-input" autocomplete="off" placeholder="Ana, Ben, a guest"><button type="submit" class="btn btn-ink">Check them in</button></form>
+    <form class="club-form" data-form="board-config" style="margin-top:12px">
+      ${sel('board-courts', 'Courts', Array.from({ length: 12 }, (_, i) => [i + 1, String(i + 1)]), b.config.courts)}
+      ${sel('board-format', 'Format', [['doubles', 'Doubles (4 per court)'], ['singles', 'Singles (2 per court)']], b.config.format)}
+      ${sel('board-mode', 'When a game ends', [['rotate', 'Everyone goes to the back of the queue'], ['winners-stay', 'Winners stay on court']], b.config.mode)}
+      ${sel('board-stay', 'Winners stay for at most', Array.from({ length: 9 }, (_, i) => [i + 1, (i + 1) + (i ? ' games in a row' : ' game')]), b.config.stayLimit)}
+      ${sel('board-control', 'Who runs the courts', [['players', 'Any player checked in'], ['organizer', 'Organizers only']], b.config.control)}
+      <label class="lab" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="board-enabled" ${b.config.enabled ? 'checked' : ''}> Show the board (including on the TV page)</label>
+      <button type="submit" class="btn btn-soft">Save settings</button>
+    </form>
+    <button class="btn btn-soft block" style="margin-top:10px" data-act="board-reset">${c.confirmReset ? 'Tap again to clear everyone off the board' : 'End of session: clear the board'}</button>` : '';
+  return `${head}<p class="note">${b.config.format === 'singles' ? 'Singles' : 'Doubles'}, ${b.config.mode === 'winners-stay' ? `winners stay up to ${b.config.stayLimit} in a row` : 'everyone rotates'}. ${b.config.control === 'players' ? 'Any checked-in player can run the courts.' : 'Organizers run the courts.'} Finished games are saved from the Play tab as usual; the board only organizes who plays next.</p>
+    ${err}${who}<div class="cb-courts">${courts}</div>
+    <h3 style="margin:18px 0 6px">Waiting (${b.queue.length})</h3>${queue}${admin}${foot}`;
+}
+async function boardDo(action, extra) {
+  const c = clubSheet;
+  if (!c || c.view !== 'board' || !club) return;
+  try {
+    const d = await api('live', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action }, boardCreds(), extra || {})) });
+    c.board = d.board; c.error = ''; c.confirmReset = false;
+  } catch (e) { c.error = (e && e.message) || 'Could not update the board.'; }
+  if (clubSheet === c) renderClub();
+}
+function boardClick(ds) {
+  const a = ds.act, court = ds.court ? +ds.court : undefined;
+  if (a === 'board-on') return boardDo('board-config', { enabled: true });
+  if (a === 'board-in') return boardDo('board-checkin', { name: myName() });
+  if (a === 'board-out') return boardDo('board-checkout', { name: myName() });
+  if (a === 'board-rest') return boardDo('board-rest', { name: myName(), target: ds.name });
+  if (a === 'board-remove') return boardDo('board-checkout', { target: ds.name });
+  if (a === 'board-call') return boardDo('board-call', { court });
+  if (a === 'board-finish') return boardDo('board-finish', ds.winner === undefined ? { court } : { court, winner: +ds.winner });
+  if (a === 'board-cancel') return boardDo('board-cancel', { court });
+  if (a === 'board-reset') {
+    if (!clubSheet.confirmReset) { clubSheet.confirmReset = true; renderClub(); return; }
+    return boardDo('board-reset');
+  }
+}
+async function refreshBoard() {
+  const c = clubSheet;
+  if (!club || !c || c.view !== 'board') return;
+  const ae = document.activeElement;
+  if (ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName) && ae.closest('#sheet3') && c.board !== undefined) return; // don't wipe what someone is typing
+  try { const d = await api('live?code=' + club.code + '&board=1'); if (clubSheet === c) { c.board = d.board; renderClub(); } } catch (e) { if (clubSheet === c && c.board === undefined) { c.board = null; c.error = (e && e.message) || ''; renderClub(); } }
+}
+setInterval(() => { if (clubSheet && clubSheet.view === 'board' && club && !document.hidden) refreshBoard(); }, 4000);
 async function joinLiveGame(secret) {
   const c = clubSheet; if (!c || !c.joinId || !club) return;
   const sec = String(secret || '').trim();
@@ -5156,6 +5332,7 @@ document.addEventListener('click', e => {
     if (a === 'pin-lock') { forgetPin(); clubSheet = { view: 'club', msg: 'This phone is locked. Deleting games needs the PIN again.' }; }
     renderClub(); if (!clubSheet) render(); return;
   }
+  if (ds.act && ds.act.startsWith('board-')) { boardClick(ds); return; }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
     if (a === 'club-open') { saveAfterJoin = null; clubSheet = { view: 'club' }; }
@@ -5182,6 +5359,7 @@ document.addEventListener('click', e => {
     }
     if (a === 'club-watch') { clubSheet = { view: 'watch' }; renderClub(); return; }
     if (a === 'club-games') { clubSheet = { view: 'games', games: null }; renderClub(); refreshClubGames(); return; }
+    if (a === 'club-board') { clubSheet = { view: 'board', board: undefined }; renderClub(); refreshBoard(); return; }
     if (a === 'club-game-mine') { clubSheet = null; renderClub(); if (live) { live.open = true; persistLive(); keepAwake(true); render(); } return; }
     if (a === 'club-game-open') {
       if (live && (live.id || liveGameId()) === ds.game) { clubSheet = null; renderClub(); live.open = true; persistLive(); keepAwake(true); render(); return; }
@@ -5285,6 +5463,12 @@ document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
+  if (form.matches('[data-form="board-add"]')) { e.preventDefault(); const i = $('#board-names'); const names = i.value.split(',').map(s => s.trim()).filter(Boolean); i.value = ''; if (names.length) boardDo('board-checkin', { names }); return; }
+  if (form.matches('[data-form="board-config"]')) {
+    e.preventDefault();
+    boardDo('board-config', { courts: +$('#board-courts').value, format: $('#board-format').value, mode: $('#board-mode').value, stayLimit: +$('#board-stay').value, control: $('#board-control').value, enabled: $('#board-enabled').checked });
+    return;
+  }
   if (form.matches('[data-form="game-join"]')) { e.preventDefault(); joinLiveGame($('#game-secret').value); return; }
   if (form.matches('[data-form="acct-up"]')) { e.preventDefault(); acctSignUp($('#acct-name').value); return; }
   if (form.matches('[data-form="move-out"]')) { e.preventDefault(); moveOut(); return; }

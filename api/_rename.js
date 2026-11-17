@@ -2,6 +2,7 @@
 // event DUPR references, shop purchases, account links), so these rewrite them all in one transaction.
 // The pure part (rewriting one JSON document) is here so it can be tested without a database.
 import { nameKey, cleanName } from './_names.js';
+import { repair } from './_court.js';
 
 // Names sit in arrays of strings (teams, players, byes, champion, team info), never under a key of their own, so only strings
 // inside arrays are touched: an event or team that happens to be called like a player keeps its title.
@@ -71,15 +72,24 @@ export async function renamePlayer(sql, code, fromRow, toName, intoRow) {
     const refs = rewriteRefs(r.refs, map);
     if (next.changed || refs.changed) events.push({ id: r.id, data: next.value, refs: refs.changed ? refs.value : r.refs });
   }
-  return { games, events, map, fromKey, toKey };
+  // The open play court board keeps names too (who is here, the queue, the courts, the recent matches).
+  let board = null;
+  const [boardRow] = await sql`SELECT data FROM court_boards WHERE club = ${code}`;
+  if (boardRow) {
+    if (intoRow && rewriteNames(boardRow.data.courts, new Map(), watch).seen.size === 2) throw fail(409, `${fromRow.name} and ${intoRow.name} are both on a court right now, so they can't be merged yet.`);
+    const next = rewriteNames(boardRow.data, map);
+    if (next.changed) board = repair(next.value);
+  }
+  return { games, events, board, map, fromKey, toKey };
 }
 
 // The writes for a computed rename/merge, as one list for sql.transaction.
 export function renameWrites(sql, code, plan, extra = []) {
-  const { games, events, fromKey, toKey } = plan;
+  const { games, events, board, fromKey, toKey } = plan;
   const writes = [];
   if (games.length) writes.push(sql`UPDATE games g SET data = v.data FROM jsonb_to_recordset(${JSON.stringify(games)}::jsonb) AS v(id text, data jsonb) WHERE g.club = ${code} AND g.id = v.id`);
   if (events.length) writes.push(sql`UPDATE events e SET data = v.data, refs = v.refs FROM jsonb_to_recordset(${JSON.stringify(events)}::jsonb) AS v(id text, data jsonb, refs jsonb) WHERE e.club = ${code} AND e.id = v.id`);
+  if (board) writes.push(sql`UPDATE court_boards SET data = ${JSON.stringify(board)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   return writes.concat(extra);
 }

@@ -217,6 +217,13 @@ export function ensureSchema() {
       await q`CREATE INDEX IF NOT EXISTS game_audit_club_at ON game_audit (club, at DESC)`;
       // Delete club (club.js): when set, the club and everything in it is removed once this time passes. Until then an organizer can undo it.
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS delete_at timestamptz`;
+      // Open play court board (_courtboard.js): one row per club, the whole board as JSON; version guards concurrent changes.
+      await q`CREATE TABLE IF NOT EXISTS court_boards (
+        club text PRIMARY KEY REFERENCES clubs(code) ON DELETE CASCADE,
+        data jsonb NOT NULL,
+        version int NOT NULL DEFAULT 0,
+        updated_at timestamptz NOT NULL DEFAULT now()
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

@@ -26,7 +26,7 @@ export function shuffle(list, rand) {
   return a;
 }
 
-const pairKey = (a, b) => (a < b ? a + '\u0000' + b : b + '\u0000' + a);
+export const pairKey = (a, b) => (a < b ? a + '\u0000' + b : b + '\u0000' + a);
 const bump = (m, k) => m.set(k, (m.get(k) || 0) + 1);
 
 // How often each pair has partnered and faced each other, and how many byes each player has had.
