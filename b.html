@@ -24,10 +24,11 @@
   --green: #0B8562;     /* team 2 court */
   --ball: #DDF247;      /* serve, highlights */
   --ball-ink: #1B2104;
-  --up: #0B8562;
+  --up: #0A7656;
   --down: #C2372B;
   --danger: #C2372B;
   --focus: #2B49E6;
+  --blue-text: #2B49E6; /* blue as text: the dark theme needs a lighter blue than the fill */
   --shadow: 0 1px 2px rgb(14 23 38 / .06), 0 8px 24px -12px rgb(14 23 38 / .18);
   --display: "Bricolage Grotesque", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
   --ui: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -35,18 +36,25 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
-    --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
-    --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
+    --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
+    --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
     --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
-  --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
-  --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
+  --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
+  --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
   color-scheme: dark;
+}
+/* Outdoor display (a per-device setting): maximum contrast in direct sun, whatever the phone's own theme. */
+:root[data-outdoor] {
+  --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #E8E8E8; --ink: #000000; --muted: #2B2B2B; --line: #5A5A5A;
+  --blue: #0A28B8; --green: #00593F; --up: #00593F; --down: #A80000; --danger: #A80000; --focus: #0A28B8; --blue-text: #0A28B8;
+  --shadow: none;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
