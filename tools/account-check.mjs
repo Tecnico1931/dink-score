@@ -166,5 +166,62 @@ await step('rate limits: repeated wrong sign-ins from one address are stopped', 
   assert.equal(last, 429);
 });
 
+// Two addresses on one deployment (WEBAUTHN_ORIGINS). Each address has its own cookie jar, as browsers keep per host.
+const A = ORIGIN, B = 'https://dink.example.test', hostB = 'dink.example.test';
+const postAt = (origin, jarCookie, body) => call(account, 'POST', { body, jar: false, headers: { origin, ...(jarCookie ? { cookie: jarCookie } : {}) } });
+const jarOf = r => r.setCookie.split(';')[0];
+process.env.WEBAUTHN_ORIGINS = `${A},${B}`;
+
+await step('two addresses: a passkey made on A signs in on A, is refused on B; a second one made on B signs in on B', async () => {
+  const authA = makeAuthenticator({ rpId, origin: A });
+  let o = ok(await postAt(A, null, { action: 'register-options', name: 'Two Hosts' }));
+  assert.equal(o.options.rp.id, rpId);
+  const reg = await postAt(A, null, { action: 'register', challengeId: o.challengeId, credential: authA.create(o.options.challenge), name: 'Two Hosts' });
+  const jarA = jarOf(reg);
+  assert.equal(ok(reg, 201).account.passkeysHere, 1);
+  assert.equal((await pg.query(`SELECT rp_id FROM passkeys WHERE id = $1`, [authA.id])).rows[0].rp_id, rpId);
+  // A passkey with no recorded RP ID (made before the column existed) counts as the legacy address.
+  await pg.query(`UPDATE passkeys SET rp_id = NULL WHERE id = $1`, [authA.id]);
+  const loginAt = async (origin, auth) => {
+    const lo = ok(await postAt(origin, null, { action: 'login-options' }));
+    return postAt(origin, null, { action: 'login', challengeId: lo.challengeId, credential: auth.get(lo.options.challenge) });
+  };
+  assert.equal((await loginAt(A, authA)).status, 200);
+  assert.equal((await loginAt(B, authA)).status, 401); // wrong address for this passkey
+  // Session on A hands a one-time code to B; B trades it for a passkey made there.
+  const c = ok(await postAt(A, jarA, { action: 'passkey-code' })).code;
+  assert.equal((await postAt(B, null, { action: 'handoff-options', code: 'WRONGCODE1' })).status, 400);
+  const ho = ok(await postAt(B, null, { action: 'handoff-options', code: c.toLowerCase() }));
+  assert.equal(ho.options.rp.id, hostB);
+  assert.equal((await postAt(B, null, { action: 'handoff-options', code: c })).status, 400); // single use
+  const authB = makeAuthenticator({ rpId: hostB, origin: B });
+  const added = await postAt(B, null, { action: 'handoff-add', challengeId: ho.challengeId, credential: authB.create(ho.options.challenge) });
+  assert.equal(ok(added).account.passkeys, 2);
+  assert.equal(added.json.account.passkeysHere, 1);
+  assert.equal(added.json.account.host, hostB);
+  assert.equal((await loginAt(B, authB)).status, 200);
+  assert.equal((await loginAt(A, authB)).status, 401);
+  assert.equal((await loginAt(A, authA)).status, 200); // the old address keeps working
+  // Account data is shared: the session made on B reads the same account.
+  assert.equal(ok(await call(account, 'GET', { jar: false, headers: { host: hostB, cookie: jarOf(added) } })).account.name, 'Two Hosts');
+  // Cookie-authenticated POSTs from an unlisted origin are refused, on either session.
+  assert.equal((await postAt('https://evil.example', jarA, { action: 'passkey-code' })).status, 403);
+});
+
+await step('two addresses: an origin outside the list cannot register or sign in', async () => {
+  const evil = makeAuthenticator({ rpId: 'evil.example', origin: 'https://evil.example' });
+  assert.equal((await postAt('https://evil.example', null, { action: 'register-options' })).status, 403);
+  assert.equal((await postAt('https://evil.example', null, { action: 'login-options' })).status, 403);
+  const o = ok(await postAt(A, null, { action: 'register-options' }));
+  assert.equal((await postAt(A, null, { action: 'register', challengeId: o.challengeId, credential: evil.create(o.options.challenge) })).status, 400);
+});
+
+delete process.env.WEBAUTHN_ORIGINS;
+await step('legacy single pair is unchanged once WEBAUTHN_ORIGINS is unset', async () => {
+  assert.equal((await postAt(B, null, { action: 'login-options' })).status, 403);
+  const lo = ok(await postAt(A, null, { action: 'login-options' }));
+  assert.equal(lo.options.rpId, rpId);
+});
+
 console.log(`\n${passed} account checks passed`);
 process.exit(0);

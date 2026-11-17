@@ -148,6 +148,8 @@ export function ensureSchema() {
         last_used_at timestamptz
       )`;
       await q`CREATE INDEX IF NOT EXISTS passkeys_account ON passkeys (account_id)`;
+      // The RP ID a passkey was created under; null = the deployment's legacy RP ID (see account.js), so older passkeys keep verifying.
+      await q`ALTER TABLE passkeys ADD COLUMN IF NOT EXISTS rp_id text`;
       // Only the SHA-256 of the session token is stored, so a copy of the table can't be used to sign in.
       await q`CREATE TABLE IF NOT EXISTS sessions (
         id_hash text PRIMARY KEY,

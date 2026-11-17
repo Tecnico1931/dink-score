@@ -82,3 +82,30 @@ test('options ask for discoverable, user-verified passkeys with no attestation',
   assert.deepEqual(c.excludeCredentials, [{ type: 'public-key', id: 'k1' }]);
   assert.deepEqual(requestOptions({ rpId, challenge: 'c' }).allowCredentials, []);
 });
+
+test('resolveRp: legacy single pair when WEBAUTHN_ORIGINS is unset', async () => {
+  const { resolveRp } = await import('../api/_webauthn.js');
+  const r = resolveRp({}, 'https://dinkscore.vercel.app');
+  assert.deepEqual(r, { rpId: 'dinkscore.vercel.app', origin: 'https://dinkscore.vercel.app', legacyRpId: 'dinkscore.vercel.app' });
+  assert.equal(resolveRp({}, 'https://dink.raulesantos.com'), null);
+  assert.equal(resolveRp({}, undefined), null);
+  const custom = { WEBAUTHN_RP_ID: 'example.test', WEBAUTHN_ORIGIN: 'https://app.example.test' };
+  assert.equal(resolveRp(custom, 'https://app.example.test').rpId, 'example.test'); // parent-domain RP ID kept as today
+  assert.equal(resolveRp(custom, 'https://example.test'), null);
+});
+
+test('resolveRp: allow-list gives each origin its own hostname as RP ID and refuses others', async () => {
+  const { resolveRp } = await import('../api/_webauthn.js');
+  const env = { WEBAUTHN_ORIGINS: ' https://dinkscore.vercel.app , https://dink.raulesantos.com/ ' };
+  assert.equal(resolveRp(env, 'https://dinkscore.vercel.app').rpId, 'dinkscore.vercel.app');
+  assert.equal(resolveRp(env, 'https://dink.raulesantos.com').rpId, 'dink.raulesantos.com');
+  assert.equal(resolveRp(env, 'https://dink.raulesantos.com').legacyRpId, 'dinkscore.vercel.app'); // old passkeys stay on the old address
+  for (const bad of ['https://evil.example', 'http://dink.raulesantos.com', 'https://dink.raulesantos.com.evil.example', '', undefined, null]) assert.equal(resolveRp(env, bad), null);
+});
+
+test('a credential made under one RP ID does not verify under another', () => {
+  const a = makeAuthenticator({ rpId: 'dinkscore.vercel.app', origin: 'https://dinkscore.vercel.app' }), ch = newChallenge();
+  const reg = verifyRegistration({ credential: a.create(ch), challenge: ch, origin: 'https://dinkscore.vercel.app', rpId: 'dinkscore.vercel.app' });
+  const ch2 = newChallenge();
+  assert.throws(() => verifyAssertion({ credential: a.get(ch2), challenge: ch2, origin: 'https://dink.raulesantos.com', rpId: 'dink.raulesantos.com', spki: reg.spki, alg: reg.alg, signCount: 0 }));
+});

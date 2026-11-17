@@ -116,6 +116,17 @@ node build.cjs
 
 Then bump `VERSION` in `sw.js`, commit, and push. Vercel deploys from GitHub automatically.
 
+## Passkey accounts on more than one address
+
+The same deployment can be served from several addresses. Set `WEBAUTHN_ORIGINS` in Vercel to a comma-separated list of origins, for example `https://dinkscore.vercel.app,https://dink.raulesantos.com`. Each request's `Origin` header must be in the list and its hostname is the passkey RP ID. Unset, the single legacy pair applies (`WEBAUTHN_RP_ID`, default `dinkscore.vercel.app`, and `WEBAUTHN_ORIGIN`).
+
+| Variable | Meaning |
+| --- | --- |
+| `WEBAUTHN_ORIGINS` | Allowed page origins, comma-separated. Unset = legacy single address. |
+| `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN` | Legacy pair; `WEBAUTHN_RP_ID` also names the address passkeys made before this setting belong to. |
+
+A passkey works only on the address it was made on (a WebAuthn rule); sessions are per address, account data is shared. From a signed-in address, "Get a code to add a passkey on another address" makes a 5-minute one-time code to enter on the other address. Invite links, QR codes, share links and the TV page use the address the page is open on.
+
 ## Legal and privacy
 
 - `/privacy` and `/terms` are static pages (`privacy.html`, `terms.html`). They are **drafts for the site owner to review, not legal advice**, and have placeholders for the contact email and governing law.
