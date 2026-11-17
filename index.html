@@ -2046,7 +2046,7 @@ async function refreshClub() {
     const data = await api('club?code=' + asked);
     if (!club || club.code !== asked) return;
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.publicResults = !!data.club.publicResults; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.publicResults = !!data.club.publicResults; club.payLink = data.club.payLink || ''; club.note = data.club.note || ''; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
     clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, dupes: data.dupes || [], at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
@@ -2275,6 +2275,22 @@ async function pinUnlock(raw) {
     if (pending) withPin(pending); else render();
     if (clubSheet && !pending) clubSheet.msg = 'This phone is unlocked for organizer actions.';
     renderClub();
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
+}
+// The organizer's pinned note and how-to-pay link, shown to every member. Both come from the server as plain text: always escaped here,
+// and the link is only offered as a link when it is https.
+function clubInfoHTML() {
+  if (!club || (!club.note && !club.payLink)) return '';
+  const link = /^https:\/\//i.test(club.payLink || '') ? club.payLink : '';
+  return `<div class="org-card club-info">${club.note ? `<span class="lab">Pinned note</span><p style="white-space:pre-line;overflow-wrap:anywhere">${esc(club.note)}</p>` : ''}${link ? `<a class="btn btn-soft block" href="${esc(link)}" target="_blank" rel="noopener noreferrer">How to pay</a><p class="note" style="overflow-wrap:anywhere">Opens ${esc(new URL(link).host)}. Dink Score does not take payments.</p>` : ''}</div>`;
+}
+async function saveClubInfo(note, link) {
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-note', note }, adminCreds())) });
+    await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-pay-link', link }, adminCreds())) });
+    await refreshClub();
+    clubSheet = { view: 'club', msg: 'Saved.' }; render();
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
 }
 async function codeRotate(grace) {
@@ -2540,6 +2556,16 @@ function renderClub() {
     body = linksHTML(c);
   } else if (c.view === 'audit' && club) {
     body = auditHTML(c);
+  } else if (c.view === 'info' && club) {
+    body = `<h2 id="club-h">Pinned note and how to pay</h2>
+      <p class="note">Members of ${esc(club.name)} see these at the top of the club screen. Dink Score never takes payments: the link just opens your own payment page.</p>
+      <form class="club-form" data-form="club-info"><label class="lab" for="info-note">Pinned note (up to 500 characters)</label>
+        <textarea id="info-note" class="field-input" rows="4" maxlength="500" placeholder="Court times, rules, who to ask">${esc(club.note || '')}</textarea>
+        <label class="lab" for="info-link">How to pay: link (optional, https only)</label>
+        <input id="info-link" class="field-input" type="url" inputmode="url" maxlength="300" autocomplete="off" autocapitalize="off" placeholder="https://" value="${esc(club.payLink || '')}">
+        <p class="note">Leave a box empty to remove it.</p>
+        ${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Save</button></form>
+      <div class="btns"><button class="btn btn-soft" data-act="club-back">Cancel</button></div>`;
   } else if (c.view === 'members' && club) {
     body = membersHTML(c);
   } else if (c.view === 'watch' && club) {
@@ -2639,6 +2665,7 @@ function renderClub() {
     body = `<h2 id="club-h">${esc(club.name)}</h2>
       ${clubSwitcherHTML()}
       <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
+      ${clubInfoHTML()}
       ${yourDuprHTML()}
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
@@ -2664,7 +2691,7 @@ function renderClub() {
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
       <button class="btn btn-soft block" data-act="rights-open">Your data: export, anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}</button>
       <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
-      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button><button class="btn btn-soft block" data-act="links-open">Public result links</button>` : ''}
+      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button><button class="btn btn-soft block" data-act="links-open">Public result links</button><button class="btn btn-soft block" data-act="info-open">Pinned note and how to pay</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
       ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
@@ -5497,6 +5524,7 @@ document.addEventListener('click', e => {
     clubSheet.confirmRemove = null;
     adminAction({ action: 'remove', name, block: !!ds.removeBlock }, `${name} was removed`); return;
   }
+  if (ds.act === 'info-open') { clubSheet = { view: 'info' }; renderClub(); return; }
   if (ds.act === 'audit-open') { clubSheet = { view: 'audit', rows: null }; renderClub(); loadAudit(); return; }
   if (ds.act === 'confirm-setting') { setConfirmation(!club.requireConfirmation); return; }
   if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
@@ -5694,6 +5722,7 @@ document.addEventListener('submit', e => {
   if (form.matches('[data-form="recover"]')) { e.preventDefault(); recoverClub($('#rec-club').value, $('#rec-code').value); return; }
   if (form.matches('[data-form="recovery-make"]')) { e.preventDefault(); recoveryMake(); return; }
   if (form.matches('[data-form="club-delete"]')) { e.preventDefault(); rightsClubDelete($('#del-confirm').value); return; }
+  if (form.matches('[data-form="club-info"]')) { e.preventDefault(); saveClubInfo($('#info-note').value, $('#info-link').value); return; }
   if (form.matches('[data-form="code-rotate"]')) { e.preventDefault(); codeRotate($('#rot-grace').value); return; }
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
@@ -5802,7 +5831,7 @@ function dssoEventHTML(ev, org) {
   const linked = ev.players.filter(p => c.players[p.toLowerCase()]).length;
   return `<section class="ev-card" aria-labelledby="ev-dsso"><h3 id="ev-dsso">Send scores to DUPR</h3>
     <p class="note">${linked} of ${ev.players.length} players are connected to DUPR. Only matches where all four players are connected can be sent, and nothing is sent until you confirm.</p>
-    ${c.paused ? `<p class="err" role="status">Sending is paused: ${esc(c.paused.reason)}</p>` : ''}
+    ${c.paused ? `<p class="err" role="status">Sending${c.paused.club ? ' for ' + esc(c.paused.club) : ''} is paused: ${esc(c.paused.reason)}</p>` : ''}
     <div class="ev-actions"><button class="btn btn-ink ev-small" data-dsso="review-open" data-id="${esc(ev.id)}">Review and send</button></div></section>`;
 }
 const dssoCreds = () => Object.assign({ playerToken: myToken() || '' }, adminCreds());
@@ -5833,7 +5862,7 @@ function renderDsso() {
       <p class="note">${esc(u.event.name)}. Sent to DUPR: the four players’ DUPR IDs, the score, the match date and the event name. DUPR changes real ratings from these, so check them first.</p>
       ${u.error ? `<p class="err" role="alert">${esc(u.error)}</p>` : ''}
       ${!r ? '<p class="note" role="status">Loading…</p>' : `
-        ${r.paused ? `<p class="err" role="status">Sending is paused: ${esc(r.paused.reason)} It tries again later.</p>` : ''}
+        ${r.paused ? `<p class="err" role="status">Sending${r.paused.club ? ' for ' + esc(r.paused.club) : ''} is paused: ${esc(r.paused.reason)} It tries again later.</p>` : ''}
         ${u.results ? `<p class="note" role="status"><b>Done.</b> ${[['created', 'sent'], ['updated', 'updated'], ['deleted', 'removed'], ['alreadyAtDupr', 'already at DUPR'], ['failed', 'refused by DUPR'], ['retryLater', 'to retry later']].filter(([k]) => u.results[k]).map(([k, w]) => `${u.results[k]} ${w}`).join(', ') || 'Nothing to send.'}</p>` : ''}
         <p class="note"><b>${r.summary.ready}</b> ready · <b>${r.summary.blocked}</b> blocked · <b>${r.summary.sent}</b> sent${r.summary.failed ? ` · <b>${r.summary.failed}</b> refused` : ''}</p>
         ${rounds.length > 1 ? `<label class="lab" for="dsso-round">Round</label><select id="dsso-round" class="field-input" data-dsso-round><option value="">All rounds</option>${rounds.map(x => `<option value="${esc(x)}" ${u.round === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}

@@ -1151,6 +1151,24 @@ await step('setting: only an organizer can require confirmation; unconfirmed gam
   assert.ok(!cleared.games.find(x => x.id === 'conf-4').hold);
   ok(await cfPost(club, { action: 'set-confirmation', required: false, ownerToken: cf.owner }));
 });
+await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
+  const link = 'https://pay.example.com/dues';
+  assert.equal((await cfPost(club, { action: 'set-pay-link', link })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-note', note: 'Hi', pin: '000000' })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-pay-link', link: 'http://pay.example.com', ownerToken: cf.owner })).status, 400);
+  assert.equal((await cfPost(club, { action: 'set-pay-link', link: 'javascript:alert(1)', pin: cf.pin })).status, 400);
+  assert.equal((await cfPost(club, { action: 'set-note', note: 'x'.repeat(501), pin: cf.pin })).status, 400);
+  const none = await cfGet();
+  assert.ok(!('payLink' in none.club) && !('note' in none.club), 'nothing set yet');
+  assert.equal(ok(await cfPost(club, { action: 'set-pay-link', link, ownerToken: cf.owner })).payLink, link);
+  assert.equal(ok(await cfPost(club, { action: 'set-note', note: '  Dues are due Friday.\nThanks!  ', pin: cf.pin })).note, 'Dues are due Friday.\nThanks!');
+  const seen = await cfGet(); // a member with only the club code sees both
+  assert.equal(seen.club.payLink, link); assert.equal(seen.club.note, 'Dues are due Friday.\nThanks!');
+  ok(await cfPost(club, { action: 'set-pay-link', link: '', pin: cf.pin }));
+  ok(await cfPost(club, { action: 'set-note', note: '', ownerToken: cf.owner }));
+  const gone = await cfGet();
+  assert.ok(!('payLink' in gone.club) && !('note' in gone.club));
+});
 await step('duplicates: a live game and a logged copy are flagged; keep both clears the flag; deleting one clears it too', async () => {
   const live = cfGame('dup-live', { teams: [['Fay', 'Gil'], ['Hal', 'Ivy']], score: [11, 9], endedAt: now - 1800000 });
   const logged = cfGame('dup-logged', { teams: [['Hal', 'Ivy'], ['Gil', 'Fay']], score: [9, 11], endedAt: now - 1500000, logged: true });
