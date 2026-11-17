@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached on install; fonts are same-origin and cached the first time they load.
 // Bump VERSION whenever index.html changes so phones pick up the new copy.
-const VERSION = 'dink-score-v75';
+const VERSION = 'dink-score-v76';
 const SHELL = ['./', 'index.html', 'dupr-export.js', 'sheet-import.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -17,7 +17,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (url.origin === location.origin && url.pathname.startsWith('/api/')) return; // club data always comes live from the server
   if (url.origin === location.origin && url.pathname.startsWith("/_vercel/")) return; // Vercel Web Analytics
-  if (url.origin === location.origin && /^\/(b\/|privacy|terms)/.test(url.pathname)) return; // the public bracket page is its own page, never the app shell
+  if (url.origin === location.origin && /^\/(b\/|r\/|privacy|terms)/.test(url.pathname)) return; // the public bracket page is its own page, never the app shell
   if (req.mode === 'navigate') {
     // Network first for the page, so updates arrive; fall back to the cached copy offline.
     // Only a good page is kept: an error page must never become the offline copy.

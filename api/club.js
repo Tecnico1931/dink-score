@@ -10,6 +10,7 @@
 // POST /api/club {code, action: 'set-confirmation', required, pin|ownerToken} -> organizer: whether games without a confirmation count toward ratings, achievements and seasons (default: they count)
 // GET answers also carry, for each game, confirmed {by, at} and hold (true: left out of ratings until confirmed), plus dupes: pairs of game ids that look like one game recorded twice.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
+import { manageResults } from './_resultsadmin.js';
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
@@ -38,6 +39,7 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'POST') {
     const body = await readBody(req);
+    if (String(body.action || '').startsWith('results-')) return manageResults(req, res, body);
     if (body.action === 'reset-allowance') {
       const club = await requireClub(cleanCode(body.code), req);
       await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -161,6 +163,7 @@ export default handler(async (req, res) => {
   }
   if (req.method !== 'GET') throw fail(405, 'Method not allowed.');
   const url = new URL(req.url, 'http://x');
+  if (url.searchParams.get('results') === 'list') return manageResults(req, res, null);
   const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
   const code = club.code;
   if (url.searchParams.get('avatars')) {

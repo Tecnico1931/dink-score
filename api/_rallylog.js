@@ -48,3 +48,22 @@ export function checkLog(game, raw) {
   if (end.winner === null || end.winner !== game.winner || end.score[0] !== game.score[0] || end.score[1] !== game.score[1]) return null;
   return raw;
 }
+
+// What the shared result page's score-flow chart needs, from an already checked log: the lead of team 0 after each rally,
+// side-outs, and runs of 3+ unanswered points. The client's replayModel() computes the same thing from PB.rally states.
+export function flow(game, raw) {
+  const p = parseLog(raw);
+  if (!p) return null;
+  const st = replay(game, p.first, p.wins);
+  const lead = st.map(s => s.score[0] - s.score[1]);
+  const sideouts = [], runs = [];
+  let cur = null;
+  p.wins.forEach((w, k) => {
+    const a = st[k], b = st[k + 1];
+    if (b.serving !== a.serving) sideouts.push(k + 1);
+    if (b.score[0] + b.score[1] === a.score[0] + a.score[1]) return;
+    if (cur && cur.team === w) { cur.to = k + 1; cur.n++; } else { cur = { team: w, from: k + 1, to: k + 1, n: 1 }; runs.push(cur); }
+  });
+  const big = runs.filter(x => x.n >= 3);
+  return { n: p.wins.length, lead, sideouts, runs: big, best: big.reduce((a, x) => (!a || x.n > a.n ? x : a), null), span: Math.max(3, ...lead.map(Math.abs)) };
+}

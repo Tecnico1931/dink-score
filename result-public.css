@@ -1,0 +1,25 @@
+/* The public result page (/r/<token>): built into r.css by build.cjs from this file plus the shared blocks of dink-score.html. */
+/*@TOKENS*/
+* { box-sizing: border-box; }
+html { background: var(--bg); color: var(--ink); color-scheme: light dark; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+.num { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.rs { max-width: 640px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 14px; }
+.rs-brand { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.rs h1 { margin: 0; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: clamp(26px, 6vw, 38px); line-height: 1.08; letter-spacing: -.02em; overflow-wrap: anywhere; text-wrap: balance; }
+.rs h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 19px; letter-spacing: -.01em; }
+.rs-meta, .rs-note, .rs-foot { margin: 0; font-size: 14px; color: var(--muted); }
+.rs-foot { margin-top: 8px; font-size: 13px; }
+.rs-card { background: var(--surface); border-radius: 22px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+.rs-games { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.rs-line { display: grid; grid-template-columns: 8px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; color: var(--muted); }
+.rs-line .tick { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.rs-line .who { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.rs-line .pts { font-size: 40px; line-height: .95; }
+.rs-line.win { color: var(--ink); }
+.rs-line.win .pts { color: var(--ink); }
+.rs-card ul { margin: 0; }
+.rp-cur, .rp-dot { display: none; }
+/*@REPLAYCHART-CSS*/
+.rp-svg { cursor: default; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

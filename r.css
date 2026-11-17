@@ -1,0 +1,72 @@
+/* The public result page (/r/<token>): built into r.css by build.cjs from this file plus the shared blocks of dink-score.html. */
+
+:root {
+  --bg: #F2F4F7;
+  --surface: #FFFFFF;
+  --surface-2: #E9EDF2;
+  --ink: #0E1726;
+  --muted: #5D6A7B;
+  --line: #DEE4EA;
+  --blue: #2B49E6;      /* team 1 court */
+  --green: #0B8562;     /* team 2 court */
+  --ball: #DDF247;      /* serve, highlights */
+  --ball-ink: #1B2104;
+  --up: #0B8562;
+  --down: #C2372B;
+  --danger: #C2372B;
+  --focus: #2B49E6;
+  --shadow: 0 1px 2px rgb(14 23 38 / .06), 0 8px 24px -12px rgb(14 23 38 / .18);
+  --display: "Bricolage Grotesque", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --ui: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
+    --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
+    --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
+    --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
+  --blue: #3D5BFF; --green: #12A578; --ball: #DDF247; --ball-ink: #1B2104;
+  --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF;
+  --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg); color: var(--ink); color-scheme: light dark; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+.num { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.rs { max-width: 640px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 14px; }
+.rs-brand { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.rs h1 { margin: 0; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: clamp(26px, 6vw, 38px); line-height: 1.08; letter-spacing: -.02em; overflow-wrap: anywhere; text-wrap: balance; }
+.rs h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 19px; letter-spacing: -.01em; }
+.rs-meta, .rs-note, .rs-foot { margin: 0; font-size: 14px; color: var(--muted); }
+.rs-foot { margin-top: 8px; font-size: 13px; }
+.rs-card { background: var(--surface); border-radius: 22px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+.rs-games { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.rs-line { display: grid; grid-template-columns: 8px 1fr auto; gap: 12px; align-items: center; padding: 8px 0; color: var(--muted); }
+.rs-line .tick { width: 8px; height: 8px; border-radius: 2px; background: var(--c); }
+.rs-line .who { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.rs-line .pts { font-size: 40px; line-height: .95; }
+.rs-line.win { color: var(--ink); }
+.rs-line.win .pts { color: var(--ink); }
+.rs-card ul { margin: 0; }
+.rp-cur, .rp-dot { display: none; }
+
+.rp-svg { display: block; width: 100%; height: auto; touch-action: pan-y; cursor: pointer; }
+.rp-zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
+.rp-ax { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.rp-line { fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; opacity: .6; }
+.rp-run { fill: none; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+.rp-run.t0 { stroke: var(--blue); }
+.rp-run.t1 { stroke: var(--green); }
+.rp-so { stroke: var(--muted); stroke-width: 2; }
+.rp-cur { stroke: var(--ink); stroke-width: 1; }
+.rp-dot { fill: var(--ball); stroke: var(--ink); stroke-width: 2.5; }
+
+.rp-svg { cursor: default; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }

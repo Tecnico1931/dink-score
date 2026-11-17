@@ -71,6 +71,15 @@ const pub = fs.readFileSync(path.join(__dirname, 'bracket-public.html'), 'utf8')
 fs.writeFileSync(path.join(__dirname, 'b.html'), pub);
 console.log('Wrote b.html from bracket-public.html');
 
+// The public result page (/r/<token>) is built by api/_resultpublic.js; its stylesheet and chart script get the same shared pieces.
+// They are external files, so the page needs no inline script and no CSP hash.
+fs.writeFileSync(path.join(__dirname, 'r.css'), fs.readFileSync(path.join(__dirname, 'result-public.css'), 'utf8')
+  .replace('/*@TOKENS*/', () => between(body, '/*TOKENS-START*/', '/*TOKENS-END*/'))
+  .replace('/*@REPLAYCHART-CSS*/', () => between(body, '/*REPLAYCHART-CSS-START*/', '/*REPLAYCHART-CSS-END*/')));
+fs.writeFileSync(path.join(__dirname, 'r.js'), fs.readFileSync(path.join(__dirname, 'result-view.js'), 'utf8')
+  .replace('/*@REPLAYCHART*/', () => between(body, '/*REPLAYCHART-START*/', '/*REPLAYCHART-END*/')));
+console.log('Wrote r.css and r.js');
+
 // Security headers for every response, written to vercel.json (commit it: Vercel reads it before the build runs).
 // The Content-Security-Policy only runs the page's own inline scripts, matched by hash, so an injected <script> or
 // onclick="..." can't run. The hashes change whenever a script changes, which is why this file is rebuilt every time.
@@ -94,7 +103,8 @@ const csp = [
 ].join('; ');
 const vercel = {
   // /b/<token> is the public bracket page: the same shell for every token, which then asks /api/bracket for the data.
-  rewrites: [{ source: '/b/:token', destination: '/b.html' }, { source: '/privacy', destination: '/privacy.html' }, { source: '/terms', destination: '/terms.html' }],
+  // /r/<token> is a shared result: api/_resultpublic.js (via api/bracket.js) renders the page (with preview tags) and the card image.
+  rewrites: [{ source: '/b/:token', destination: '/b.html' }, { source: '/r/:token/card.png', destination: '/api/bracket?result=1&token=:token&fmt=png' }, { source: '/r/:token', destination: '/api/bracket?result=1&token=:token&fmt=html' }, { source: '/privacy', destination: '/privacy.html' }, { source: '/terms', destination: '/terms.html' }],
   headers: [{
     source: '/b/(.*)',
     headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }, { key: 'Cache-Control', value: 'no-store' }]
@@ -116,7 +126,7 @@ console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)
 const out = path.join(__dirname, 'public');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-for (const f of ['index.html', 'b.html', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js', 'privacy.html', 'terms.html', 'legal.css']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of ['index.html', 'b.html', 'r.css', 'r.js', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js', 'privacy.html', 'terms.html', 'legal.css']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
 for (const d of ['fonts', '.well-known']) {
   fs.mkdirSync(path.join(out, d), { recursive: true });

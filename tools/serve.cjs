@@ -72,6 +72,13 @@ http.createServer((req, res) => {
     import('file://' + file.replace(/\\/g, '/')).then(m => m.default(req, res)).catch(err => { console.error(err); res.writeHead(500); res.end('{"error":"Server error"}'); });
     return;
   }
+  // Shared results (same rewrites as vercel.json); with a database loaded these run the real api/bracket.js.
+  const rm = /^\/r\/([^/]+?)(\/card\.png)?\/?$/.exec(url.pathname);
+  if (rm && process.env.DATABASE_URL) {
+    req.url = `/api/bracket?result=1&token=${rm[1]}&fmt=${rm[2] ? 'png' : 'html'}`;
+    import('../api/bracket.js').then(m => m.default(req, res)).catch(err => { console.error(err); res.writeHead(500); res.end('Server error'); });
+    return;
+  }
   if (url.pathname === '/api/events') return previewEvents(req, url, res);
   if (url.pathname === '/api/bracket') {
     // The public, read-only view: the same publicView() as api/bracket.js, with the preview's in-memory events.
