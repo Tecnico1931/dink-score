@@ -4257,13 +4257,13 @@ function membersHTML(c) {
     ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></span></li>`).join('')}</ul>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
-/* ---------- public result links (api/results.js, served at /r/<token>) ---------- */
-const resultsCall = body => api('results', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
+/* ---------- public result links (api/_resultsadmin.js via api/club.js, served at /r/<token>) ---------- */
+const resultsCall = body => api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, { action: 'results-' + body.action })) });
 const resultUrl = path => location.origin + path;
 async function loadLinks() {
   const c = clubSheet;
   try {
-    const d = await api('results?code=' + encodeURIComponent(club.code) + '&list=1', { headers: { 'Content-Type': 'application/json', 'x-club-pin': pins[club.code] || '', 'x-club-owner': owners[club.code] || '' } });
+    const d = await api('club?code=' + encodeURIComponent(club.code) + '&results=list', { headers: { 'Content-Type': 'application/json', 'x-club-pin': pins[club.code] || '', 'x-club-owner': owners[club.code] || '' } });
     if (clubSheet === c) { c.data = d; c.error = ''; renderClub(); }
   } catch (err) { if (clubSheet === c) { c.error = err.message; c.data = c.data || { enabled: !!club.publicResults, links: [] }; renderClub(); } }
 }

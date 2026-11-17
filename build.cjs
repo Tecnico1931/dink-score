@@ -71,7 +71,7 @@ const pub = fs.readFileSync(path.join(__dirname, 'bracket-public.html'), 'utf8')
 fs.writeFileSync(path.join(__dirname, 'b.html'), pub);
 console.log('Wrote b.html from bracket-public.html');
 
-// The public result page (/r/<token>) is built by api/result.js; its stylesheet and chart script get the same shared pieces.
+// The public result page (/r/<token>) is built by api/_resultpublic.js; its stylesheet and chart script get the same shared pieces.
 // They are external files, so the page needs no inline script and no CSP hash.
 fs.writeFileSync(path.join(__dirname, 'r.css'), fs.readFileSync(path.join(__dirname, 'result-public.css'), 'utf8')
   .replace('/*@TOKENS*/', () => between(body, '/*TOKENS-START*/', '/*TOKENS-END*/'))
@@ -103,8 +103,8 @@ const csp = [
 ].join('; ');
 const vercel = {
   // /b/<token> is the public bracket page: the same shell for every token, which then asks /api/bracket for the data.
-  // /r/<token> is a shared result: api/result.js renders the page (with preview tags) and the card image.
-  rewrites: [{ source: '/b/:token', destination: '/b.html' }, { source: '/r/:token/card.png', destination: '/api/result?token=:token&fmt=png' }, { source: '/r/:token', destination: '/api/result?token=:token&fmt=html' }, { source: '/privacy', destination: '/privacy.html' }, { source: '/terms', destination: '/terms.html' }],
+  // /r/<token> is a shared result: api/_resultpublic.js (via api/bracket.js) renders the page (with preview tags) and the card image.
+  rewrites: [{ source: '/b/:token', destination: '/b.html' }, { source: '/r/:token/card.png', destination: '/api/bracket?result=1&token=:token&fmt=png' }, { source: '/r/:token', destination: '/api/bracket?result=1&token=:token&fmt=html' }, { source: '/privacy', destination: '/privacy.html' }, { source: '/terms', destination: '/terms.html' }],
   headers: [{
     source: '/b/(.*)',
     headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }, { key: 'Cache-Control', value: 'no-store' }]

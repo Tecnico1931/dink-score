@@ -1,11 +1,11 @@
 // The public, read-only page for one shared game or session, for anyone holding the link: no club code, no PIN, no cookies.
-//   GET /api/result?token=<token>            -> JSON (publicView of the game or session)
-//   GET /api/result?token=<token>&fmt=html   -> the page, with Open Graph / Twitter preview tags (served at /r/<token>)
-//   GET /api/result?token=<token>&fmt=png    -> the 1200x630 result card (served at /r/<token>/card.png)
+//   GET /api/bracket?result=1&token=<token>            -> JSON (publicView of the game or session)
+//   GET /api/bracket?result=1&token=<token>&fmt=html   -> the page, with Open Graph / Twitter preview tags (served at /r/<token>)
+//   GET /api/bracket?result=1&token=<token>&fmt=png    -> the 1200x630 result card (served at /r/<token>/card.png)
 // Everything comes from _result.js, which copies fields one by one. A bad, revoked or unknown token, a club with sharing
 // turned off, a club waiting to be deleted, a deleted game, or a game held for confirmation all get the same 404.
 // Limited to 60 requests a minute per network, and cached at the edge for 20 seconds (so a revoked link may still load for that long).
-import { db, handler, fail, send, clientIp, purgeMarks } from './_db.js';
+import { db, fail, clientIp, purgeMarks } from './_db.js';
 import { isShareToken } from './_share.js';
 import { gameView, sessionView, pageHTML, deadHTML, preview, cardModel, safeOrigin } from './_result.js';
 import { gameCard, sessionCard } from './_card.js';
@@ -34,7 +34,7 @@ export async function load(sql, token) {
   return rows.length ? sessionView(rows.map(r => r.data), Number(s.from_ms), Number(s.to_ms)) : null;
 }
 
-export default handler(async (req, res) => {
+export async function servePublic(req, res) {
   if (req.method !== 'GET') { res.setHeader('Allow', 'GET'); throw fail(405, 'Method not allowed.'); }
   const url = new URL(req.url, 'http://x');
   const token = url.searchParams.get('token'), fmt = url.searchParams.get('fmt') || 'json';
@@ -54,4 +54,4 @@ export default handler(async (req, res) => {
   if (fmt === 'png') { res.setHeader('Content-Type', 'image/png'); return res.end((v.kind === 'game' ? gameCard : sessionCard)(cardModel(v))); }
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify({ ...v, title: preview(v).title }));
-});
+}

@@ -1,12 +1,13 @@
-// Public result links for finished games and club sessions (the page is served by result.js).
+// Public result links for finished games and club sessions (the page is served by _resultpublic.js). Called from api/club.js,
+// so it adds no serverless function of its own (the hosting plan allows 12; see test/functions.test.js).
 // Off for every club until an organizer turns it on. Anyone in the club may make a link for one game or one day's games once
 // it is on; only organizers can turn the feature off, list the links, or revoke one.
-// POST {code, action:'set', enabled, pin|ownerToken}          -> organizer: turn public links on or off (off also revokes every link)
-// POST {code, action:'create', game}                          -> {token, path}  a link for one saved game
-// POST {code, action:'create', from, to}                      -> {token, path}  a link for the games that ended between two times (ms), at most 36 hours apart
-// POST {code, action:'revoke', token, pin|ownerToken}         -> organizer: that link stops working at once
-// GET  ?code=...&list=1 (X-Club-PIN / X-Club-Owner)           -> organizer: the active links
-import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, pinFrom, ownerFrom } from './_db.js';
+// POST /api/club {code, action:'results-set', enabled, pin|ownerToken}          -> organizer: turn public links on or off (off also revokes every link)
+// POST /api/club {code, action:'results-create', game}                          -> {token, path}  a link for one saved game
+// POST /api/club {code, action:'results-create', from, to}                      -> {token, path}  a link for the games that ended between two times (ms), at most 36 hours apart
+// POST /api/club {code, action:'results-revoke', token, pin|ownerToken}         -> organizer: that link stops working at once
+// GET  /api/club?code=...&results=list (X-Club-PIN / X-Club-Owner)           -> organizer: the active links
+import { db, send, fail, cleanCode, requireClub, requireOrganizer, pinFrom, ownerFrom } from './_db.js';
 import { audit, organizerActor } from './_audit.js';
 import { newShareToken, isShareToken } from './_share.js';
 
@@ -15,22 +16,20 @@ const MAX_SESSION_MS = 36 * 3600 * 1000;
 const pathOf = token => `/r/${token}`;
 const held = (club, confirmedBy) => !!club.require_confirmation && !confirmedBy; // a game kept out of ratings is not published either
 
-export default handler(async (req, res) => {
+export async function manageResults(req, res, body) {
   const sql = db();
-  if (req.method === 'GET') {
+  if (!body) {
     const url = new URL(req.url, 'http://x');
     const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
     await requireOrganizer(club, pinFrom(req), req, ownerFrom(req));
     const rows = await sql`SELECT token, kind, game, from_ms, to_ms, created_at FROM result_shares WHERE club = ${club.code} ORDER BY created_at DESC LIMIT ${MAX_LINKS}`;
     return send(res, 200, { enabled: !!club.public_results, links: rows.map(r => ({ token: r.token, path: pathOf(r.token), kind: r.kind, game: r.game, from: r.from_ms == null ? null : Number(r.from_ms), to: r.to_ms == null ? null : Number(r.to_ms), createdAt: new Date(r.created_at).getTime() })) });
   }
-  if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
-  const body = await readBody(req);
   const club = await requireClub(cleanCode(body.code), req);
   const code = club.code; // the club's permanent key
   const creds = [body.pin ?? pinFrom(req), body.ownerToken ?? ownerFrom(req)];
 
-  if (body.action === 'set') {
+  if (body.action === 'results-set') {
     await requireOrganizer(club, creds[0], req, creds[1]);
     if (typeof body.enabled !== 'boolean') throw fail(400, 'Say whether public links are on.');
     await sql`UPDATE clubs SET public_results = ${body.enabled} WHERE code = ${code}`;
@@ -40,7 +39,7 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true, publicResults: body.enabled });
   }
 
-  if (body.action === 'revoke') {
+  if (body.action === 'results-revoke') {
     await requireOrganizer(club, creds[0], req, creds[1]);
     if (!isShareToken(body.token)) throw fail(404, 'That link is not active.');
     const rows = await sql`DELETE FROM result_shares WHERE club = ${code} AND token = ${body.token} RETURNING game`;
@@ -49,7 +48,7 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
-  if (body.action === 'create') {
+  if (body.action === 'results-create') {
     if (!club.public_results) throw fail(403, 'Public links are off for this club. An organizer can turn them on in the club settings.');
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM result_shares WHERE club = ${code}`;
     let kind, game = null, from = null, to = null;
@@ -79,4 +78,4 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true, token: row.token, path: pathOf(row.token) });
   }
   throw fail(400, 'Unknown action.');
-});
+}

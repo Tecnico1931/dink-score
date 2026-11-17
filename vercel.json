@@ -6,11 +6,11 @@
     },
     {
       "source": "/r/:token/card.png",
-      "destination": "/api/result?token=:token&fmt=png"
+      "destination": "/api/bracket?result=1&token=:token&fmt=png"
     },
     {
       "source": "/r/:token",
-      "destination": "/api/result?token=:token&fmt=html"
+      "destination": "/api/bracket?result=1&token=:token&fmt=html"
     },
     {
       "source": "/privacy",
@@ -40,7 +40,7 @@
       "headers": [
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'sha256-ElShUWg/R0NC6WIMZp3N2FKE5siI90ZKCnHMHJYcUhk=' 'sha256-l9jxO9Mc9BZ3OprIjQPT/dOgJNycLUVb9mXnaRHliQs=' 'sha256-8wdnOjiKG6PO9DLnzYhe4ZRomMUcnDO/LhD3LXPThiQ=' 'sha256-f8rhVWs63MeUIaHTrZ539UjqK/cT3M35/SEaCiTInyA=' 'sha256-zzg00g0+F/T8z5cCRwzuHHslS0IfT+iTJw/128fggeU=' 'sha256-4unVq5spfShsnNUt3oUMXuYSx/rrCxeFssgDmJW7NuI=' 'sha256-h6jfqDH0R4PqrmHYbN0uAu8Bj85hiQhIrDyAWrWD/h4=' 'sha256-3nni+hc8xsu3FtIVY8sFaHlhC1lcbA2r0lCHHE9nCao=' 'sha256-jHDbxN9qtNaRyV35gERgfEvmJtcb240Nl4goheiT7LU=' 'sha256-yy3FX4fUKW/2jQELl7NOsRJ1ialA8QXJhP4/BTb6PPA='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src https://dashboard.dupr.com https://uat.dupr.gg; frame-ancestors 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-ElShUWg/R0NC6WIMZp3N2FKE5siI90ZKCnHMHJYcUhk=' 'sha256-l9jxO9Mc9BZ3OprIjQPT/dOgJNycLUVb9mXnaRHliQs=' 'sha256-8wdnOjiKG6PO9DLnzYhe4ZRomMUcnDO/LhD3LXPThiQ=' 'sha256-f8rhVWs63MeUIaHTrZ539UjqK/cT3M35/SEaCiTInyA=' 'sha256-zzg00g0+F/T8z5cCRwzuHHslS0IfT+iTJw/128fggeU=' 'sha256-4unVq5spfShsnNUt3oUMXuYSx/rrCxeFssgDmJW7NuI=' 'sha256-h6jfqDH0R4PqrmHYbN0uAu8Bj85hiQhIrDyAWrWD/h4=' 'sha256-c8J+A/WvzltuaMZdQcuMLkPYl1ZLafGNF68s5pQ/gbk=' 'sha256-jHDbxN9qtNaRyV35gERgfEvmJtcb240Nl4goheiT7LU=' 'sha256-yy3FX4fUKW/2jQELl7NOsRJ1ialA8QXJhP4/BTb6PPA='; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src https://dashboard.dupr.com https://uat.dupr.gg; frame-ancestors 'none'"
         },
         {
           "key": "X-Frame-Options",
