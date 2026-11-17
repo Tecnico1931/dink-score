@@ -330,6 +330,14 @@ await step('403 or 417 pauses all sending, then lifts after the cool-off; secret
   await D('send', { id: ev.id, confirm: true });
   assert.equal(st.calls.length, calls, 'nothing is sent to DUPR while paused (other events too)');
   assert.equal(st.live().filter(x => x.body.event === 'Sixth').length, 0);
+  // the pause names the club and belongs to it alone: another club is not paused and can still try to send
+  assert.match(again.json.error, /paused for DUPR check club/); assert.equal(r.paused.club, 'DUPR check club');
+  const other = ok(await call(club, 'POST', { body: { name: 'Other check club' } }), 201);
+  const oe = ok(await call(events, 'POST', { body: { code: other.club.code, action: 'create', ownerToken: other.ownerToken, event: { name: 'Elsewhere', format: 'roundrobin', rotation: 'auto', courts: 2, players: names, seed: 'else' } } }), 201).event;
+  assert.equal(ok(await call(dupr, 'GET', { query: '?code=' + other.club.code })).paused, null);
+  const oSend = await call(dupr, 'POST', { body: { code: other.club.code, action: 'send', id: oe.id, confirm: true, ownerToken: other.ownerToken } });
+  assert.notEqual(oSend.status, 503); assert.equal(ok(oSend).paused, null);
+  assert.equal((await dbRows("SELECT k FROM dupr_state WHERE k LIKE 'pause:%'")).length, 1, 'one pause row, for the refused club only');
   // 417 is its own message
   await pg.query("UPDATE dupr_state SET at = now() - interval '2 hours'");
   st.deny = 417;

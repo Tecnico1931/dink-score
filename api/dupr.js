@@ -70,8 +70,8 @@ function summarize(items) {
 }
 async function reviewBody(sql, code, ev, tz) {
   const items = await buildReview(sql, code, ev, tz);
-  const pause = await getPause(sql);
-  return { items: items.map(publicItem), summary: summarize(items), rounds: [...new Set(items.map(i => i.round))], paused: pause && { reason: pause.reason, until: pause.until }, items_: items };
+  const pause = await getPause(sql, code);
+  return { items: items.map(publicItem), summary: summarize(items), rounds: [...new Set(items.map(i => i.round))], paused: pause && { reason: pause.reason, club: pause.club, until: pause.until }, items_: items };
 }
 
 // ---- sending: every match is written as 'pending' first, then DUPR is called, then the answer is saved ----
@@ -102,9 +102,9 @@ async function claimSent(sql, code, it) {
   return r.length > 0;
 }
 
-async function sendEvent(sql, cfg, code, ev, body) {
-  const pause = await getPause(sql);
-  if (pause) throw fail(503, `Sending to DUPR is paused: ${pause.reason} It will try again after ${new Date(pause.until).toISOString().slice(11, 16)} UTC.`);
+async function sendEvent(sql, cfg, code, clubName, ev, body) {
+  const pause = await getPause(sql, code);
+  if (pause) throw fail(503, `Sending to DUPR is paused for ${pause.club || clubName}: ${pause.reason} It will try again after ${new Date(pause.until).toISOString().slice(11, 16)} UTC.`);
   const items = await buildReview(sql, code, ev, cleanZone(body.tz));
   const only = Array.isArray(body.matchIds) ? new Set(body.matchIds.map(String)) : null;
   const todo = items.filter(i => (!only || only.has(i.matchId)) && (i.state === 'ready' || (body.retryFailed === true && i.state === 'failed')));
@@ -112,15 +112,15 @@ async function sendEvent(sql, cfg, code, ev, body) {
   const secrets = [cfg.key, cfg.secret];
   const stop = { v: false };
 
-  // A failure of a whole call: the account is refused (pause everything), DUPR is unreachable (stop and keep the rows
+  // A failure of a whole call: the account is refused (pause this club), DUPR is unreachable (stop and keep the rows
   // pending), or the match itself is refused.
   async function wholeFailure(err, rows, onPermanent) {
     if (!(err instanceof DuprError)) throw err;
     const msg = redact(err.message, secrets);
     if (err.kind === 'pause' || err.kind === 'reauth') {
       const reason = err.upstream === 417 ? 'DUPR says the app\'s account has expired (417).' : err.upstream === 403 ? 'DUPR refused this app\'s request (403): the app may lack permission to send matches.' : 'DUPR did not accept the app\'s credentials.';
-      await setPause(sql, reason, err.upstream);
-      out.paused = { reason }; stop.v = true;
+      await setPause(sql, code, clubName, reason, err.upstream);
+      out.paused = { reason, club: clubName }; stop.v = true;
       for (const it of rows) await markError(sql, code, it.gameId, reason);
       out.retryLater += rows.length;
     } else if (err.kind === 'retry') {
@@ -209,9 +209,9 @@ export default handler(async (req, res) => {
     const club = await requireClub(cleanCode(new URL(req.url, 'http://x').searchParams.get('code')), req);
     const code = club.code; // the club's permanent key, even when an old club code was used
     const rows = await sql`SELECT name_key, dupr_snapshot FROM roster WHERE club = ${code} AND dupr_id IS NOT NULL`;
-    const pause = await getPause(sql);
+    const pause = await getPause(sql, code);
     return send(res, 200, Object.assign({ enabled: true }, publicConfig(cfg), {
-      paused: pause && { reason: pause.reason, until: pause.until },
+      paused: pause && { reason: pause.reason, club: pause.club, until: pause.until },
       players: Object.fromEntries(rows.map(r => [r.name_key, ratingView(r.dupr_snapshot) || { rating: { doubles: null, singles: null }, provisional: { doubles: false, singles: false }, at: null, needsRelink: false }]))
     }));
   }
@@ -275,7 +275,7 @@ export default handler(async (req, res) => {
     const ev = await loadEvent(sql, code, body.id);
     if (action === 'send') {
       if (body.confirm !== true) throw fail(400, 'Confirm before sending scores to DUPR.');
-      const results = await sendEvent(sql, cfg, code, ev, body);
+      const results = await sendEvent(sql, cfg, code, club.name, ev, body);
       const r = await reviewBody(sql, code, ev, cleanZone(body.tz));
       delete r.items_;
       return send(res, 200, Object.assign({ ok: true, results }, r));

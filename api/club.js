@@ -9,8 +9,12 @@
 // GET  /api/club?code=ABC123&avatars=1               -> the photo avatars, kept out of the main response: {photos: {name: {v, value}}}
 // POST /api/club {code, action: 'set-confirmation', required, pin|ownerToken} -> organizer: whether games without a confirmation count toward ratings, achievements and seasons (default: they count)
 // GET answers also carry, for each game, confirmed {by, at} and hold (true: left out of ratings until confirmed), plus dupes: pairs of game ids that look like one game recorded twice.
+// POST /api/club {code, action: 'set-pay-link', link, pin|ownerToken} -> organizer: an optional https "how to pay" link for dues or court fees (empty clears it); the app takes no payments
+// POST /api/club {code, action: 'set-note', note, pin|ownerToken}      -> organizer: a pinned note (plain text, 500 characters, empty clears it) shown to every member
+//   Both come back to members as payLink and note on `club` in GET answers.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
 import { manageResults } from './_resultsadmin.js';
+import { cleanPayLink, cleanNote } from './_clubinfo.js';
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
@@ -54,6 +58,16 @@ export default handler(async (req, res) => {
       await sql`UPDATE clubs SET require_confirmation = ${body.required} WHERE code = ${club.code}`;
       if (!!club.require_confirmation !== body.required) await audit(sql, club.code, '', 'setting', await organizerActor(club, body.ownerToken), { requireConfirmation: !!club.require_confirmation }, { requireConfirmation: body.required });
       return send(res, 200, { ok: true, requireConfirmation: body.required });
+    }
+    if (body.action === 'set-pay-link' || body.action === 'set-note') {
+      const club = await requireClub(cleanCode(body.code), req);
+      await requireOrganizer(club, body.pin, req, body.ownerToken);
+      const isLink = body.action === 'set-pay-link';
+      let value;
+      try { value = (isLink ? cleanPayLink : cleanNote)(isLink ? body.link : body.note); } catch (e) { throw fail(400, e.message); }
+      if (isLink) await sql`UPDATE clubs SET pay_link = ${value || null} WHERE code = ${club.code}`;
+      else await sql`UPDATE clubs SET pinned_note = ${value || null} WHERE code = ${club.code}`;
+      return send(res, 200, isLink ? { ok: true, payLink: value } : { ok: true, note: value });
     }
     if (body.action === 'export' || body.action === 'delete-club' || body.action === 'cancel-delete-club') {
       const club = await requireClub(cleanCode(body.code), req);
@@ -117,7 +131,7 @@ export default handler(async (req, res) => {
         if (!fresh) throw fail(500, 'Could not create a club code.');
         // Retire the old code first, then switch: a failure in between leaves the club on its old code.
         const until = await sql`INSERT INTO club_aliases (code, club, expires_at) VALUES (${current}, ${code}, now() + ${grace + ' minutes'}::interval) ON CONFLICT (code) DO UPDATE SET expires_at = EXCLUDED.expires_at RETURNING expires_at`;
-        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code, require_confirmation, delete_at`;
+        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code, require_confirmation, public_results, pay_link, pinned_note, delete_at`;
         if (!rows.length) throw fail(409, 'The club code was just changed by someone else. Reload and check the new code.');
         return send(res, 200, { ok: true, club: publicClub(rows[0]), oldCode: current, oldCodeUntil: new Date(until[0].expires_at).getTime() });
       }

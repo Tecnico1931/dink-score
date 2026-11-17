@@ -43,14 +43,15 @@ export async function linkMap(sql, club) {
   return new Map(rows.map(r => [r.name_key, r.dupr_id]));
 }
 
-// Sending is paused club-wide-and-beyond after DUPR answers 403 or 417 (the key lacks permission, or the account expired).
+// Sending is paused for one club after DUPR answers 403 or 417 (the key lacks permission, or the account expired); other clubs keep sending.
 // It lifts itself after an hour so a fix on DUPR's side takes effect without a redeploy; the next send simply tries again.
+// `club` is the permanent club code; the row key is 'pause:<club>' (an old global 'pause' row is never read).
 const PAUSE_MS = 60 * 60 * 1000;
-export async function getPause(sql) {
-  const [row] = await sql`SELECT v, at FROM dupr_state WHERE k = 'pause' AND at > now() - interval '60 minutes'`;
-  return row ? { reason: row.v.reason, status: row.v.status || null, at: new Date(row.at).getTime(), until: new Date(row.at).getTime() + PAUSE_MS } : null;
+export async function getPause(sql, club) {
+  const [row] = await sql`SELECT v, at FROM dupr_state WHERE k = ${'pause:' + club} AND at > now() - interval '60 minutes'`;
+  return row ? { reason: row.v.reason, club: row.v.club || null, status: row.v.status || null, at: new Date(row.at).getTime(), until: new Date(row.at).getTime() + PAUSE_MS } : null;
 }
-export async function setPause(sql, reason, status) {
-  await sql`INSERT INTO dupr_state (k, v, at) VALUES ('pause', ${JSON.stringify({ reason: String(reason).slice(0, 200), status: status || null })}::jsonb, now())
+export async function setPause(sql, club, clubName, reason, status) {
+  await sql`INSERT INTO dupr_state (k, v, at) VALUES (${'pause:' + club}, ${JSON.stringify({ reason: String(reason).slice(0, 200), club: String(clubName).slice(0, 80), status: status || null })}::jsonb, now())
     ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v, at = now()`;
 }
