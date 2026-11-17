@@ -8,28 +8,33 @@
 //   login-options                            -> passkey request options
 //   login {challengeId, credential}          -> starts a session
 //   logout                                   -> ends this session
-//   passkey-options / passkey-add            -> (signed in) add another passkey to the account
+//   passkey-options / passkey-add            -> (signed in) add another passkey to the account (for this address)
+//   passkey-code                             -> (signed in) one-time code to add a passkey from another address
+//   handoff-options {code} / handoff-add     -> (other address, signed out) trade that code for a passkey made there, then sign in
 //   claim {items: [{code, ownerToken?, playerName?, playerToken?}]}
 //                                            -> (signed in) links club identities this phone can already prove it holds
 //   restore {items: [{code, kind, name?}]}   -> (signed in) hands a new phone fresh tokens for identities linked earlier
 //   delete-account                           -> removes the account, its passkeys, sessions and links (clubs are untouched)
 //
-// Sign-in is a passkey only: no passwords. RP ID and origin come from the deployment host (WEBAUTHN_RP_ID, WEBAUTHN_ORIGIN).
+// Sign-in is a passkey only: no passwords. The RP ID and origin come from the request's Origin header, which must
+// be in WEBAUTHN_ORIGINS (comma-separated; RP ID = its hostname). Unset, one legacy pair: WEBAUTHN_RP_ID, WEBAUTHN_ORIGIN.
+// A passkey belongs to the RP ID it was created under (passkeys.rp_id; null = the legacy RP ID) and only works on that address.
 // Hook for email magic links (not built: needs a custom domain and a mail provider): add an `email-start` / `email-finish`
 // pair that ends in startSession(res, accountId), exactly as `login` does below, and a verified `email` column on accounts.
 import { createHash, randomBytes } from 'node:crypto';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp, cleanName, nameKey, hashToken, newOwnerToken, tokenMatches } from './_db.js';
-import { b64u, newChallenge, creationOptions, requestOptions, verifyRegistration, verifyAssertion } from './_webauthn.js';
+import { b64u, newChallenge, creationOptions, requestOptions, verifyRegistration, verifyAssertion, resolveRp } from './_webauthn.js';
 
 const COOKIE = '__Host-dink_session'; // __Host-: Secure, Path=/, no Domain, so no sibling host can set or read it
 const SESSION_DAYS = 30;
 const MAX_IDENTITIES = 100, MAX_CLAIMS_PER_CALL = 30, MAX_PASSKEYS = 10;
 
-export function config() {
-  const rpId = process.env.WEBAUTHN_RP_ID || 'dinkscore.vercel.app';
-  return { rpId, origin: process.env.WEBAUTHN_ORIGIN || 'https://' + rpId, rpName: 'Dink Score' };
+export function config(req) {
+  const rp = resolveRp(process.env, (req.headers || {}).origin);
+  return rp && { ...rp, rpName: 'Dink Score' };
 }
 
+const legacyConfig = () => resolveRp({ ...process.env, WEBAUTHN_ORIGINS: '' }, process.env.WEBAUTHN_ORIGIN || 'https://' + (process.env.WEBAUTHN_RP_ID || 'dinkscore.vercel.app'));
 const sha = s => createHash('sha256').update(s).digest('hex');
 const cleanLabel = raw => cleanName(raw).slice(0, 40);
 
@@ -66,9 +71,11 @@ async function sessionAccount(sql, req) {
   return row || null;
 }
 
-// Cookie-authenticated changes must come from our own page: the Origin header has to be ours.
+// Cookie-authenticated changes must come from our own page: the Origin header has to be one of ours.
 function sameOrigin(req) {
-  if ((req.headers || {}).origin !== config().origin) throw fail(403, 'That request did not come from the Dink Score page.');
+  const cfg = config(req);
+  if (!cfg) throw fail(403, 'That request did not come from the Dink Score page.');
+  return cfg;
 }
 
 async function newChallengeRow(sql, kind, accountId) {
@@ -91,25 +98,29 @@ const identityRows = (sql, accountId) => sql`
   WHERE i.account_id = ${accountId} ORDER BY c.name, i.kind, i.name_key`;
 const fresh = row => row.proof === (row.kind === 'organizer' ? row.owner_hash : row.claim_hash);
 
-async function view(sql, account) {
+async function view(sql, account, cfg) {
   const rows = await identityRows(sql, account.id);
-  const [{ n }] = await sql`SELECT count(*)::int AS n FROM passkeys WHERE account_id = ${account.id}`;
+  const [{ n, here }] = await sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE coalesce(rp_id, ${cfg.legacyRpId}) = ${cfg.rpId})::int AS here FROM passkeys WHERE account_id = ${account.id}`;
   return {
-    account: { name: account.display_name, passkeys: n, createdAt: account.created_at },
+    // `passkeysHere`: passkeys that work on the address this request came from (a passkey works only where it was made).
+    account: { name: account.display_name, passkeys: n, passkeysHere: here, host: cfg.rpId, createdAt: account.created_at },
     // `stale` = the organizer released the name or the club's creating phone changed since it was linked: it can't be restored.
     identities: rows.map(r => ({ code: r.code, club: r.club_name, kind: r.kind, name: r.kind === 'player' ? r.player_name : null, stale: !fresh(r) }))
   };
 }
 
 export default handler(async (req, res) => {
-  const sql = db(), cfg = config();
-  const publicConfig = { rpId: cfg.rpId, origin: cfg.origin };
+  const sql = db();
   if (req.method === 'GET') {
+    // A GET carries no Origin header: use the page's own host, else the legacy pair (nothing is verified on a GET).
+    const cfg = resolveRp(process.env, 'https://' + String((req.headers || {}).host || '').toLowerCase()) || legacyConfig();
+    const publicConfig = { rpId: cfg.rpId, origin: cfg.origin };
     const account = await sessionAccount(sql, req);
-    return send(res, 200, account ? { config: publicConfig, ...(await view(sql, account)) } : { config: publicConfig, account: null, identities: [] });
+    return send(res, 200, account ? { config: publicConfig, ...(await view(sql, account, cfg)) } : { config: publicConfig, account: null, identities: [] });
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
-  sameOrigin(req);
+  const cfg = sameOrigin(req);
+  const publicConfig = { rpId: cfg.rpId, origin: cfg.origin };
   const body = await readBody(req);
   const action = String(body.action || '');
 
@@ -131,9 +142,9 @@ export default handler(async (req, res) => {
     if (used) throw fail(409, 'That passkey is already used by an account. Sign in instead.');
     // One statement, so an account never exists without its passkey (a clash on the passkey id fails the whole statement).
     await sql`WITH a AS (INSERT INTO accounts (id, display_name) VALUES (${ch.account_id}, ${name}) RETURNING id)
-      INSERT INTO passkeys (id, account_id, public_key, alg, sign_count, transports) SELECT ${reg.credId}, a.id, ${reg.spki}, ${reg.alg}, ${reg.signCount}, ${reg.transports} FROM a`;
+      INSERT INTO passkeys (id, account_id, public_key, alg, sign_count, transports, rp_id) SELECT ${reg.credId}, a.id, ${reg.spki}, ${reg.alg}, ${reg.signCount}, ${reg.transports}, ${cfg.rpId} FROM a`;
     await startSession(sql, res, ch.account_id);
-    return send(res, 201, { config: publicConfig, ...(await view(sql, { id: ch.account_id, display_name: name, created_at: new Date() })) });
+    return send(res, 201, { config: publicConfig, ...(await view(sql, { id: ch.account_id, display_name: name, created_at: new Date() }, cfg)) });
   }
   if (action === 'login-options') {
     await throttle(sql, req, 'opts', 30, '15 minutes');
@@ -144,11 +155,11 @@ export default handler(async (req, res) => {
     const forgive = await throttle(sql, req, 'fail', 10, '15 minutes'); // only wrong answers keep their mark
     const ch = await takeChallenge(sql, body.challengeId, 'login');
     const cred = body.credential || {};
-    const [pk] = typeof cred.id === 'string' && cred.id.length < 1400 ? await sql`SELECT id, account_id, public_key, alg, sign_count FROM passkeys WHERE id = ${cred.id}` : [];
+    const [pk] = typeof cred.id === 'string' && cred.id.length < 1400 ? await sql`SELECT id, account_id, public_key, alg, sign_count, coalesce(rp_id, ${cfg.legacyRpId}) AS rp_id FROM passkeys WHERE id = ${cred.id}` : [];
     const bad = fail(401, 'That passkey is not linked to an account here.');
-    if (!pk) throw bad;
+    if (!pk || pk.rp_id !== cfg.rpId) throw bad; // a passkey only works on the address it was made on
     let out;
-    try { out = verifyAssertion({ credential: cred, challenge: ch.challenge, origin: cfg.origin, rpId: cfg.rpId, spki: pk.public_key, alg: pk.alg, signCount: pk.sign_count }); }
+    try { out = verifyAssertion({ credential: cred, challenge: ch.challenge, origin: cfg.origin, rpId: pk.rp_id, spki: pk.public_key, alg: pk.alg, signCount: pk.sign_count }); }
     catch { throw bad; }
     if (out.userHandle && out.userHandle !== pk.account_id) throw bad;
     // Compare-and-set the counter, so a replayed or cloned assertion racing this one can't both succeed.
@@ -157,7 +168,34 @@ export default handler(async (req, res) => {
     await forgive();
     const [account] = await sql`SELECT id, display_name, created_at FROM accounts WHERE id = ${pk.account_id}`;
     await startSession(sql, res, account.id);
-    return send(res, 200, { config: publicConfig, ...(await view(sql, account)) });
+    return send(res, 200, { config: publicConfig, ...(await view(sql, account, cfg)) });
+  }
+  // Adding a passkey on another address: the session cookie is per host, so an address with no passkey yet has no session to add from.
+  // A signed-in address mints a one-time code (5 minutes); the other address trades it for a registration ceremony on that account.
+  if (action === 'handoff-options') {
+    const forgive = await throttle(sql, req, 'fail', 10, '15 minutes'); // only wrong codes keep their mark
+    const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const [row] = code.length === 10 ? await sql`DELETE FROM auth_challenges WHERE id = ${'h-' + code} AND kind = 'handoff' AND created_at > now() - interval '5 minutes' RETURNING account_id` : [];
+    if (!row) throw fail(400, 'That code is wrong or expired. Make a new one on the other address.');
+    await forgive();
+    const [acc] = await sql`SELECT id, display_name FROM accounts WHERE id = ${row.account_id}`;
+    if (!acc) throw fail(400, 'That code is wrong or expired. Make a new one on the other address.');
+    const ids = (await sql`SELECT id FROM passkeys WHERE account_id = ${acc.id}`).map(r => r.id);
+    if (ids.length >= MAX_PASSKEYS) throw fail(400, 'An account can have up to 10 passkeys.');
+    const ch = await newChallengeRow(sql, 'handoff-reg', acc.id);
+    return send(res, 200, { challengeId: ch.id, options: creationOptions({ rpId: cfg.rpId, rpName: cfg.rpName, userId: acc.id, userName: acc.display_name || 'Dink Score player', challenge: ch.challenge, excludeIds: ids }) });
+  }
+  if (action === 'handoff-add') {
+    await throttle(sql, req, 'new', 10, '1 hour');
+    const ch = await takeChallenge(sql, body.challengeId, 'handoff-reg');
+    let reg;
+    try { reg = verifyRegistration({ credential: body.credential, challenge: ch.challenge, origin: cfg.origin, rpId: cfg.rpId }); }
+    catch { throw fail(400, 'That passkey could not be verified. Try again.'); }
+    const rows = await sql`INSERT INTO passkeys (id, account_id, public_key, alg, sign_count, transports, rp_id) VALUES (${reg.credId}, ${ch.account_id}, ${reg.spki}, ${reg.alg}, ${reg.signCount}, ${reg.transports}, ${cfg.rpId}) ON CONFLICT DO NOTHING RETURNING id`;
+    if (!rows.length) throw fail(409, 'That passkey is already used by an account.');
+    const [account] = await sql`SELECT id, display_name, created_at FROM accounts WHERE id = ${ch.account_id}`;
+    await startSession(sql, res, account.id);
+    return send(res, 200, { config: publicConfig, ...(await view(sql, account, cfg)) });
   }
   if (action === 'logout') {
     const token = cookieOf(req);
@@ -170,9 +208,16 @@ export default handler(async (req, res) => {
   const account = await sessionAccount(sql, req);
   if (!account) throw fail(401, 'Sign in first.');
 
+  if (action === 'passkey-code') {
+    await throttle(sql, req, 'opts', 30, '15 minutes');
+    const code = b64u(randomBytes(8)).toUpperCase().replace(/[^A-Z0-9]/g, 'X').slice(0, 10);
+    await sql`DELETE FROM auth_challenges WHERE created_at < now() - interval '10 minutes'`;
+    await sql`INSERT INTO auth_challenges (id, challenge, kind, account_id) VALUES (${'h-' + code}, '', 'handoff', ${account.id})`;
+    return send(res, 200, { code });
+  }
   if (action === 'passkey-options') {
     await throttle(sql, req, 'opts', 30, '15 minutes');
-    const ids = (await sql`SELECT id FROM passkeys WHERE account_id = ${account.id}`).map(r => r.id);
+    const ids = (await sql`SELECT id FROM passkeys WHERE account_id = ${account.id}`).map(r => r.id); // all of them, so no authenticator re-registers one
     if (ids.length >= MAX_PASSKEYS) throw fail(400, 'An account can have up to 10 passkeys.');
     const ch = await newChallengeRow(sql, 'passkey', account.id);
     return send(res, 200, { challengeId: ch.id, options: creationOptions({ rpId: cfg.rpId, rpName: cfg.rpName, userId: account.id, userName: account.display_name || 'Dink Score player', challenge: ch.challenge, excludeIds: ids }) });
@@ -183,9 +228,9 @@ export default handler(async (req, res) => {
     let reg;
     try { reg = verifyRegistration({ credential: body.credential, challenge: ch.challenge, origin: cfg.origin, rpId: cfg.rpId }); }
     catch { throw fail(400, 'That passkey could not be verified. Try again.'); }
-    const rows = await sql`INSERT INTO passkeys (id, account_id, public_key, alg, sign_count, transports) VALUES (${reg.credId}, ${account.id}, ${reg.spki}, ${reg.alg}, ${reg.signCount}, ${reg.transports}) ON CONFLICT DO NOTHING RETURNING id`;
+    const rows = await sql`INSERT INTO passkeys (id, account_id, public_key, alg, sign_count, transports, rp_id) VALUES (${reg.credId}, ${account.id}, ${reg.spki}, ${reg.alg}, ${reg.signCount}, ${reg.transports}, ${cfg.rpId}) ON CONFLICT DO NOTHING RETURNING id`;
     if (!rows.length) throw fail(409, 'That passkey is already used by an account.');
-    return send(res, 200, await view(sql, account));
+    return send(res, 200, await view(sql, account, cfg));
   }
   if (action === 'delete-account') {
     await sql`DELETE FROM accounts WHERE id = ${account.id}`; // sessions, passkeys and links go with it
@@ -217,7 +262,7 @@ export default handler(async (req, res) => {
       }
       if (!any) skipped.push({ code: String(it.code), reason: 'this phone no longer holds that name' });
     }
-    return send(res, 200, { linked, skipped, ...(await view(sql, account)) });
+    return send(res, 200, { linked, skipped, ...(await view(sql, account, cfg)) });
   }
 
   if (action === 'restore') {

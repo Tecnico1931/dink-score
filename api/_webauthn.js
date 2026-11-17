@@ -123,3 +123,17 @@ export function creationOptions({ rpId, rpName, userId, userName, challenge, exc
   };
 }
 export const requestOptions = ({ rpId, challenge }) => ({ rpId, challenge, timeout: 120000, userVerification: 'required', allowCredentials: [] });
+
+// Which RP ID and origin a request may use. WEBAUTHN_ORIGINS (comma-separated origins) is an allow-list: the request's Origin header must
+// be in it and the RP ID is that origin's hostname. Unset, the single legacy pair applies exactly as before (WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN).
+// `legacyRpId` is what a passkey with no recorded RP ID was created under. Returns null when the origin is not allowed.
+export function resolveRp(env, origin) {
+  const legacyRpId = env.WEBAUTHN_RP_ID || 'dinkscore.vercel.app';
+  const list = String(env.WEBAUTHN_ORIGINS || '').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean);
+  if (!list.length) {
+    const only = env.WEBAUTHN_ORIGIN || 'https://' + legacyRpId;
+    return origin === only ? { rpId: legacyRpId, origin: only, legacyRpId } : null;
+  }
+  if (typeof origin !== 'string' || !list.includes(origin)) return null;
+  try { return { rpId: new URL(origin).hostname, origin, legacyRpId }; } catch { return null; }
+}

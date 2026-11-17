@@ -2417,6 +2417,17 @@ function acctSignIn() {
     return acctSyncMsg(restored, await acctClaim());
   });
 }
+function acctHandoffCode() {
+  return acctRun(async () => { const d = await acctPost({ action: 'passkey-code' }); return `Code ${d.code.slice(0, 5)}-${d.code.slice(5)}. On the other address open Account, choose "Have a code from another address", and enter it within 5 minutes.`; });
+}
+function acctHandoffJoin(code) {
+  return acctRun(async () => {
+    const o = await acctPost({ action: 'handoff-options', code });
+    acct = await acctPost({ action: 'handoff-add', challengeId: o.challengeId, credential: await passkeyCreate(o.options) });
+    const restored = await acctRestore();
+    return acctSyncMsg(restored, await acctClaim());
+  });
+}
 function acctOut() { return acctRun(async () => { await acctPost({ action: 'logout' }); acct = null; return 'Signed out. Your clubs on this phone still work.'; }); }
 function acctAddPasskey() {
   return acctRun(async () => {
@@ -2441,10 +2452,12 @@ function accountHTML(c) {
     const ids = acct.identities || [];
     return `<h2 id="club-h">Your account</h2>${note}${err}
       <p>Signed in as <b>${esc(acct.account.name)}</b>. ${acct.account.passkeys} passkey${acct.account.passkeys === 1 ? '' : 's'}.</p>
+      <p class="note">A passkey works only on the web address it was made on${acct.account.host ? ` (this one is ${esc(acct.account.host)})` : ''}. Your account and clubs are the same on every address, but you sign in with a passkey made on the address you are using.${acct.account.passkeysHere === 0 ? ' You have no passkey for this address yet.' : ''}</p>
       <div class="field"><span class="lab">Linked to your account</span>${ids.length ? `<ul class="deleted">${ids.map(i => `<li><span>${esc(i.club)}: ${i.kind === 'organizer' ? 'organizer access (club creator)' : esc(i.name || 'player name')}${i.stale ? ' (no longer valid)' : ''}</span></li>`).join('')}</ul>` : '<p class="note">Nothing yet.</p>'}
         <button class="btn btn-ink block" data-act="acct-claim" ${c.busy ? 'disabled' : ''}>Link this phone's clubs</button>
         <p class="note">Links the club names and organizer access this phone already holds, so they come back on a new phone when you sign in.</p></div>
-      <button class="btn btn-soft block" data-act="acct-passkey" ${c.busy ? 'disabled' : ''}>Add another passkey</button>
+      <button class="btn btn-soft block" data-act="acct-passkey" ${c.busy ? 'disabled' : ''}>${acct.account.passkeysHere === 0 ? 'Add a passkey on this address' : 'Add another passkey'}</button>
+      <button class="btn btn-soft block" data-act="acct-code" ${c.busy ? 'disabled' : ''}>Get a code to add a passkey on another address</button>
       <button class="btn btn-soft block" data-act="acct-out" ${c.busy ? 'disabled' : ''}>Sign out</button>
       <button class="btn btn-line-danger block" data-act="acct-delete" ${c.busy ? 'disabled' : ''}>${c.confirmDelete ? 'Tap again to delete the account' : 'Delete account'}</button>
       <p class="note">Deleting removes the account and its passkeys. Clubs, games and ratings stay where they are.</p>${back}`;
@@ -2454,7 +2467,10 @@ function accountHTML(c) {
       <div class="add-player"><input id="acct-name" placeholder="Your name" autocomplete="name" maxlength="40"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
       <p class="note">Your clubs and names on this phone are linked to it.</p></form>
     <div class="or"><span>or</span></div>
-    <button class="btn btn-ink block" data-act="acct-in" ${c.busy ? 'disabled' : ''}>Sign in with a passkey</button>${back}`;
+    <button class="btn btn-ink block" data-act="acct-in" ${c.busy ? 'disabled' : ''}>Sign in with a passkey</button>
+    <p class="note">A passkey works only on the web address it was made on${acct && acct.config ? ` (this one is ${esc(acct.config.rpId)})` : ''}. If your account has no passkey for this address yet, get a code from the address where you are signed in.</p>
+    <form class="club-form" data-form="acct-join"><label class="lab" for="acct-code">Have a code from another address?</label>
+      <div class="add-player"><input id="acct-code" placeholder="Code" autocomplete="off" autocapitalize="characters" maxlength="12"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Add passkey here</button></div></form>${back}`;
 }
 async function pinSet(oldPin, pin, again) {
   pin = String(pin || '').trim();
@@ -5485,6 +5501,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'acct-open') { acctOpen(); return; }
   if (ds.act === 'acct-close') { clubSheet = club ? { view: 'club' } : { view: 'add' }; renderClub(); return; }
   if (ds.act === 'acct-in') { acctSignIn(); return; }
+  if (ds.act === 'acct-code') { acctHandoffCode(); return; }
   if (ds.act === 'acct-out') { acctOut(); return; }
   if (ds.act === 'acct-passkey') { acctAddPasskey(); return; }
   if (ds.act === 'acct-claim') { acctRun(async () => { const n = await acctClaim(); return n ? `Linked ${n} club name${n === 1 ? '' : 's'} from this phone.` : 'Nothing new to link on this phone.'; }); return; }
@@ -5646,6 +5663,7 @@ document.addEventListener('submit', e => {
     return;
   }
   if (form.matches('[data-form="game-join"]')) { e.preventDefault(); joinLiveGame($('#game-secret').value); return; }
+  if (form.matches('[data-form="acct-join"]')) { e.preventDefault(); acctHandoffJoin($('#acct-code').value); return; }
   if (form.matches('[data-form="acct-up"]')) { e.preventDefault(); acctSignUp($('#acct-name').value); return; }
   if (form.matches('[data-form="move-out"]')) { e.preventDefault(); moveOut(); return; }
   if (form.matches('[data-form="move-in"]')) { e.preventDefault(); moveIn($('#move-code').value); return; }
