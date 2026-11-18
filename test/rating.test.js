@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { START, replay } from '../api/_progress.js';
 
-// The client's copy of the rating engine, pulled out of dink-score.html so both copies are held to the same numbers.
+// The client's copy of the rating engine (the DR block, generated from rating-engine.js), pulled out of dink-score.html so the app's copy is held to the same numbers as the server's import.
 const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
 const DR = new Function(html.match(/const DR = \(\(\) => \{[\s\S]*?\n\}\)\(\);/)[0].replace('const DR =', 'return') );
 const client = DR();
