@@ -9,15 +9,17 @@
 // GET  /api/club?code=ABC123&avatars=1               -> the photo avatars, kept out of the main response: {photos: {name: {v, value}}}
 //   GET answers carry an ETag; If-None-Match with it gets an empty 304 when nothing changed (Sync v2, see _sync.js). No tag sent: the full answer, as before.
 // POST /api/club {code, action: 'set-confirmation', required, pin|ownerToken} -> organizer: whether games without a confirmation count toward ratings, achievements and seasons (default: they count)
+// GET  /api/club?code=ABC123&analytics=1&tz=Europe/London (X-Club-PIN / X-Club-Owner) -> organizer: attendance by week, retention and busiest hours (totals only, see _analytics.js)
 // GET answers also carry, for each game, confirmed {by, at} and hold (true: left out of ratings until confirmed), plus dupes: pairs of game ids that look like one game recorded twice.
 // POST /api/club {code, action: 'set-pay-link', link, pin|ownerToken} -> organizer: an optional https "how to pay" link for dues or court fees (empty clears it); the app takes no payments
 // POST /api/club {code, action: 'set-note', note, pin|ownerToken}      -> organizer: a pinned note (plain text, 500 characters, empty clears it) shown to every member
 //   Both come back to members as payLink and note on `club` in GET answers.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
 import { manageResults } from './_resultsadmin.js';
+import { analyticsRoute } from './_analytics.js';
 import { tagOf, sameTag, notModified, clubDigest, BUCKET_MS } from './_sync.js';
 import { cleanPayLink, cleanNote } from './_clubinfo.js';
-import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
+import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, pinFrom, ownerFrom, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
 import { audit, organizerActor } from './_audit.js';
@@ -183,6 +185,10 @@ export default handler(async (req, res) => {
   if (url.searchParams.get('results') === 'list') return manageResults(req, res, null);
   const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
   const code = club.code;
+  if (url.searchParams.get('analytics')) {
+    await requireOrganizer(club, pinFrom(req), req, ownerFrom(req));
+    return send(res, 200, await analyticsRoute(sql, club, url.searchParams.get('tz')));
+  }
   if (url.searchParams.get('avatars')) {
     // Photos are the only large part of a player, so they come separately; `v` is a short fingerprint the app compares
     // with the one in the main response to know when a cached photo is stale. The browser keeps this answer and

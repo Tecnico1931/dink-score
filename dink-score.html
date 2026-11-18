@@ -500,6 +500,18 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .mem-who .avatar-mini { width: 34px; height: 34px; font-size: 12px; --r: 23px; }
 .mem-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
 .mem-name { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; min-width: 0; }
+/* ANALYTICS: organizer analytics sheet (api/_analytics.js) */
+.an-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 10px 0; }
+.an-stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+.an-stat b { display: block; font-family: var(--display); font-size: 22px; }
+.an-stat span { font-size: 13px; color: var(--muted); }
+.an-week { display: grid; grid-template-columns: 56px 1fr 84px; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; }
+.an-bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; display: flex; }
+.an-bar i { display: block; height: 100%; background: var(--blue); }
+.an-bar i + i { background: var(--green); }
+.an-heat { border-collapse: separate; border-spacing: 2px; width: 100%; font-size: 12px; color: var(--muted); }
+.an-heat td { height: 16px; border-radius: 3px; background: var(--line); padding: 0; }
+.an-heat th { font-weight: 400; text-align: left; padding-right: 4px; }
 .mem-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .mem-acts { display: flex; flex-wrap: wrap; gap: 4px 14px; padding-left: 44px; font-size: 13px; }
 .org-btns { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -2909,6 +2921,8 @@ function renderClub() {
     body = whoamiHTML(c);
   } else if (c.view === 'links' && club) {
     body = linksHTML(c);
+  } else if (c.view === 'analytics' && club) {
+    body = analyticsHTML(c);
   } else if (c.view === 'audit' && club) {
     body = auditHTML(c);
   } else if (c.view === 'info' && club) {
@@ -3070,7 +3084,7 @@ function renderClub() {
       <button class="btn btn-soft block" data-act="rights-open">Your data: export, anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}</button>
       <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button><button class="btn btn-soft block" data-act="links-open">Public result links</button><button class="btn btn-soft block" data-act="info-open">Pinned note and how to pay</button>` : ''}
-      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button>` : ''}
+      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button><button class="btn btn-soft block" data-act="analytics-open">Attendance and busiest hours</button>` : ''}
       ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
       <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
@@ -4804,6 +4818,41 @@ function membersHTML(c) {
     ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></span></li>`).join('')}</ul>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
+/* ---------- organizer analytics (api/_analytics.js via GET api/club?analytics=1; totals only, organizers only) ---------- */
+async function loadAnalytics() {
+  const c = clubSheet;
+  let tz = 'UTC'; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { /* UTC */ }
+  try {
+    const d = await api('club?code=' + encodeURIComponent(club.code) + '&analytics=1&tz=' + encodeURIComponent(tz), { headers: { 'Content-Type': 'application/json', 'x-club-pin': pins[club.code] || '', 'x-club-owner': owners[club.code] || '' } });
+    if (clubSheet === c) { c.data = d; c.error = ''; renderClub(); }
+  } catch (err) { if (clubSheet === c) { c.error = err.message; renderClub(); } }
+}
+function analyticsHTML(c) {
+  const d = c.data, back = '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>';
+  const head = '<h2 id="club-h">Attendance and busiest hours</h2>';
+  if (c.error) return `${head}<p class="err" role="alert">${esc(c.error)}</p>${back}`;
+  if (!d) return `${head}<p class="note">Loading…</p>${back}`;
+  if (!d.games) return `${head}<p class="note">No games in the last ${d.weeksShown} weeks yet.</p>${back}`;
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const hr = h => (h % 12 || 12) + (h < 12 ? ' am' : ' pm');
+  const maxP = Math.max(1, ...d.weeks.map(w => w.players));
+  const weeks = d.weeks.map(w => `<div class="an-week"><span>${esc(new Date(w.start + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }))}</span><span class="an-bar" aria-hidden="true"><i style="width:${100 * w.returning / maxP}%"></i><i style="width:${100 * w.newPlayers / maxP}%"></i></span><span>${w.players} player${w.players === 1 ? '' : 's'}, ${w.games} game${w.games === 1 ? '' : 's'}${w.newPlayers ? `, ${w.newPlayers} new` : ''}</span></div>`).join('');
+  const peak = Math.max(1, ...d.busiest.grid.flat());
+  const heat = `<table class="an-heat" aria-hidden="true">${d.busiest.grid.map((row, i) => `<tr><th>${DAYS[i]}</th>${row.slice(6, 23).map(n => `<td style="${n ? `background:color-mix(in srgb, var(--blue) ${Math.max(15, Math.round(100 * n / peak))}%, var(--line))` : ''}"></td>`).join('')}</tr>`).join('')}<tr><th></th><td colspan="17" style="background:none;text-align:left">6 am to 10 pm</td></tr></table>`;
+  const r = d.retention;
+  return `${head}<p class="note">Totals from the games your club has saved, for organizers only. No player is listed. Times are in this phone's time zone (${esc(d.tz)}).</p>
+    <div class="an-stats">
+      <div class="an-stat"><b>${d.games}</b><span>games, last ${d.weeksShown} weeks</span></div>
+      <div class="an-stat"><b>${d.avgPlayersPerDay}</b><span>players per play day (${d.playDays} days)</span></div>
+      <div class="an-stat"><b>${r.rate == null ? 'n/a' : r.rate + '%'}</b><span>came back for another week${r.cohort ? ` (${r.cameBack} of ${r.cohort})` : ''}</span></div>
+      <div class="an-stat"><b>${r.active}</b><span>played in the last ${d.activeWeeks} weeks${r.lapsed ? `; ${r.lapsed} did not return after the ${d.activeWeeks} before` : ''}</span></div>
+      ${d.avgMinutes ? `<div class="an-stat"><b>${d.avgMinutes} min</b><span>average live game</span></div>` : ''}
+    </div>
+    <h3 class="lab">Players each week</h3>${weeks}
+    <p class="note">Blue: players who had played before. Green: new to the club that week.</p>
+    <h3 class="lab" style="margin-top:16px">Busiest hours</h3>${heat}
+    <ol class="mem-list">${d.busiest.top.map(t => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${FULL[t.day]}, ${hr(t.hour)}</span><span class="mem-meta">${t.games} game${t.games === 1 ? '' : 's'} started</span></span></li>`).join('')}</ol>${back}`;
+}
 /* ---------- public result links (api/_resultsadmin.js via api/club.js, served at /r/<token>) ---------- */
 const resultsCall = body => api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, { action: 'results-' + body.action })) });
 const resultUrl = path => location.origin + path;
@@ -5921,6 +5970,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'share-link') { makeShareLink(); return; }
   if (ds.act === 'share-link-copy') { copyText(shareSheet.link); return; }
   if (ds.act === 'share-link-go') { try { navigator.share({ title: 'Dink Score result', url: shareSheet.link }).catch(() => {}); } catch {} return; }
+  if (ds.act === 'analytics-open') { clubSheet = { view: 'analytics', data: null, error: '' }; renderClub(); loadAnalytics(); return; }
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); loadMembers(); return; }
   if (ds.act === 'member-leave') { memberLeave(el); return; }
   if (ds.role) { adminAction({ action: 'set-role', name: ds.role, role: ds.to }, ds.to === 'organizer' ? `${ds.role} is now an organizer` : `${ds.role} is a regular member again`); return; }
