@@ -1,37 +1,11 @@
 // Dink Rating replay, achievements, weekly challenges, and seasons, worked out on the server from the club's games.
 // Not a route (files starting with "_"). The app's copies of these rules live in dink-score.html.
 
-// --- Dink Rating forecast (same maths as DR in dink-score.html) ---
-export const START = 2, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20, DAY = 864e5;
-const key = n => String(n).normalize('NFC').trim().toLowerCase();
-const expShare = gap => 1 / (1 + Math.pow(10, -gap / SCALE));
-function reliability(p, now) {
-  if (!p || !p.games) return 0;
-  const volume = Math.min(1, p.games / FULL);
-  const days = (now - p.last) / DAY;
-  return volume * (days <= 30 ? 1 : Math.max(0.4, 1 - (days - 30) / 180));
-}
+// --- Dink Rating: the engine is api/_rating.js (shared with the app's copy, pinned by test/rating.test.js) ---
+import { compute, START, DAY, key } from './_rating.js';
+export { START, DAY };
 // Replays games in order: the expected share for team 0 in each game, each player's rating after it, and final tables.
-export function replay(sorted) {
-  const tables = { doubles: new Map(), singles: new Map() };
-  const pA = {}, after = {};
-  for (const g of sorted) {
-    const tot = g.score[0] + g.score[1];
-    if (!tot) continue;
-    const T = tables[g.mode === 'singles' ? 'singles' : 'doubles'];
-    const get = n => { const k = key(n); if (!T.has(k)) T.set(k, { key: k, name: String(n).trim(), rating: START, games: 0, last: g.endedAt }); return T.get(k); };
-    const teams = g.teams.map(t => t.map(get));
-    const tr = teams.map(t => t.reduce((s, p) => s + p.rating, 0) / t.length);
-    const e = expShare(tr[0] - tr[1]);
-    const sA = g.score[0] / tot;
-    const updates = [];
-    teams.forEach((t, ti) => t.forEach(p => updates.push([p, Math.min(MAX, Math.max(MIN, p.rating + (0.06 + 0.24 * (1 - reliability(p, g.endedAt))) * (ti === 0 ? sA - e : e - sA)))])));
-    after[g.id] = {};
-    for (const [p, next] of updates) { p.rating = next; p.games++; p.last = g.endedAt; after[g.id][p.key] = next; }
-    pA[g.id] = e;
-  }
-  return { pA, after, tables };
-}
+export const replay = sorted => { const { pA, after, tables } = compute(sorted); return { pA, after, tables }; };
 // ============================================================================================================
 // Achievements, weekly challenges and seasons. Worked out here on the server from the club's games, so
 // they can't be faked or drift from what the app shows (the app displays what the server sends).

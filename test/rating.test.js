@@ -35,3 +35,38 @@ test('server and client replay a long history to identical ratings, never below 
     assert.ok(p.rating >= 2 && p.rating <= 8);
   }
 });
+
+import { compute, CAP, PROVISIONAL, VERSION, isProvisional } from '../api/_rating.js';
+
+test('v2: a blowout counts no more than 11-3, on both copies; cap 1 is exactly v1', () => {
+  assert.equal(VERSION, 2);
+  assert.ok(Math.abs(CAP - 11 / 14) < 1e-12);
+  const r = (games, opt) => compute(games, opt).tables.doubles.get('a').rating;
+  const rc = games => client.compute(games).tables.doubles.get('a').rating;
+  const [g11_3, g11_0, g11_9] = [[11, 3], [11, 0], [11, 9]].map(s => [game('g', s, 1e12)]);
+  assert.equal(r(g11_0), r(g11_3));
+  assert.equal(rc(g11_0), rc(g11_3));
+  assert.ok(r(g11_0, { cap: 1 }) > r(g11_3), 'without the cap a shutout moves more');
+  assert.ok(r(g11_9) < r(g11_3), 'a close win still moves less than 11-3');
+  assert.equal(client.compute(g11_0, { cap: 1 }).tables.doubles.get('a').rating, r(g11_0, { cap: 1 }));
+  // the cap is symmetric: losing 0-11 hurts team 0 no more than losing 3-11
+  assert.equal(compute([game('g', [0, 11], 1e12)]).changes.g.list[0].after, compute([game('g', [3, 11], 1e12)]).changes.g.list[0].after);
+});
+
+test('v2: provisional until 10 games', () => {
+  assert.equal(PROVISIONAL, 10);
+  assert.equal(client.PROVISIONAL, 10);
+  const games = Array.from({ length: 11 }, (_, i) => game('g' + i, [11, 5], 1e12 + i * 36e5));
+  const at = n => compute(games.slice(0, n)).tables.doubles.get('a');
+  assert.equal(isProvisional(at(9)), true);
+  assert.equal(isProvisional(at(10)), false);
+  assert.equal(client.isProvisional(client.compute(games.slice(0, 9)).tables.doubles.get('a')), true);
+  assert.equal(client.isProvisional(client.compute(games.slice(0, 10)).tables.doubles.get('a')), false);
+  assert.equal(isProvisional(undefined), true);
+});
+
+test('names are keyed the same way on both copies (accents compose, case and spaces ignored)', () => {
+  const g = [{ id: 'x', mode: 'singles', score: [11, 5], endedAt: 1e12, teams: [['Zoé '], ['B']] }, { id: 'y', mode: 'singles', score: [11, 5], endedAt: 1e12 + 1, teams: [['  zoé'], ['B']] }];
+  assert.equal(compute(g).tables.singles.size, 2);
+  assert.equal(client.compute(g).tables.singles.size, 2);
+});

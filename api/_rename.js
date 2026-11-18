@@ -2,6 +2,7 @@
 // event DUPR references, shop purchases, account links), so these rewrite them all in one transaction.
 // The pure part (rewriting one JSON document) is here so it can be tested without a database.
 import { nameKey, cleanName } from './_names.js';
+import { dropRatings } from './_rating_store.js';
 import { repair } from './_court.js';
 
 // Names sit in arrays of strings (teams, players, byes, champion, team info), never under a key of their own, so only strings
@@ -92,6 +93,7 @@ export function renameWrites(sql, code, plan, extra = []) {
   if (board) writes.push(sql`UPDATE court_boards SET data = ${JSON.stringify(board)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code}`);
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
+  writes.push(...dropRatings(sql, code)); // stored ratings carry names: rebuilt from the renamed games on the next read
   return writes.concat(extra);
 }
 export { cleanName };
