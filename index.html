@@ -493,6 +493,15 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .share-qr svg { display: block; width: 100%; height: auto; }
 .invite { display: flex; gap: 8px; }
 .invite input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
+.pk-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.pk-banner .pk-code { font-family: var(--display); letter-spacing: .08em; color: var(--blue-text); }
+.pk-banner > span:last-child { color: var(--muted); text-align: right; }
+.pk-h { margin: 16px 0 6px; font-size: 15px; }
+.pk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pk-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 14px; }
+.pk-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.pk-table th, .pk-table td { padding: 6px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+.pk-table th:first-child, .pk-table td:first-child { text-align: left; }
 .upload-card { border: 2px dashed color-mix(in srgb, var(--blue) 45%, transparent); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .upload-card .btn { padding: 11px 16px; border-radius: 12px; font-size: 15px; margin-top: 4px; }
 .club-form { display: flex; flex-direction: column; gap: 8px; }
@@ -1097,6 +1106,12 @@ const Heal = (() => {
       Array.isArray(s.right) && s.right.length === 2 && num(s.serving) !== null && num(s.server) !== null && num(s.serverNum) !== null &&
       (s.winner === null || s.winner === 0 || s.winner === 1);
   }
+  // The pickup session this phone is in (see "pickup sessions" below). pending: finished games the server has not taken yet.
+  function pickup(p) {
+    if (!isObj(p) || !/^[A-Z0-9]{8}$/.test(String(p.code)) || num(p.expiresAt) === null) return null;
+    return { code: p.code, name: str(p.name, 40), expiresAt: p.expiresAt, skew: num(p.skew) === null ? 0 : p.skew, host: /^[0-9a-f]{48}$/.test(String(p.host)) ? p.host : '',
+      players: strs(p.players).slice(0, 30), games: games(p.games).ok.slice(0, 100), pending: games(p.pending).ok.slice(0, 100), saved: map(p.saved) };
+  }
   function live(l) {
     if (!isObj(l) || !state(l.state)) return null;
     return Object.assign({}, l, { stack: (Array.isArray(l.stack) ? l.stack : []).filter(state) });
@@ -1112,7 +1127,7 @@ const Heal = (() => {
     } catch {}
   }
   // Recovery actions. They take the storage so tests can run them on a fake one.
-  const KEEP = ['pb.outbox', 'pb.games', 'pb.quarantine', 'pb.live'];
+  const KEEP = ['pb.outbox', 'pb.games', 'pb.quarantine', 'pb.live', 'pb.pickup']; // pb.pickup holds the starting phone's key and games not yet sent
   function clearClub(st) {
     let code = null;
     try { const c = JSON.parse(st.getItem('pb.club') || 'null'); code = isObj(c) && typeof c.code === 'string' ? c.code : null; } catch {}
@@ -1155,7 +1170,7 @@ const Heal = (() => {
     try { if (a === 'clear') clearClub(localStorage); else if (a === 'reset') resetAll(localStorage); } catch {}
     return hardReload();
   }
-  return { SCHEMA, isObj, map, strs, str, game, games, op, outbox, club, clubs, clubData, setup, state, live, quarantine, clearClub, resetAll, ack, panel, show, hide, act, hardReload,
+  return { SCHEMA, isObj, map, strs, str, game, games, op, outbox, club, clubs, clubData, pickup, setup, state, live, quarantine, clearClub, resetAll, ack, panel, show, hide, act, hardReload,
     // Wrap one piece of drawing: if it throws, the rest of the screen still works and this part shows the recovery panel.
     guard(fn, label) { try { return fn(); } catch (err) { setTimeout(() => { throw err; }); return `<section class="card">${panel(err, true)}</section>`; } } };
 })();
@@ -1783,6 +1798,7 @@ function persistRoster() {
   if (profileDoc) { const snap = roster.slice(); rosterWriting = rosterWriting.then(() => profileDoc.set({ roster: snap })).catch(() => {}); }
 }
 function addToRoster(names) {
+  if (pickup) { pickupAddNames(names); return; }
   let changed = false;
   for (const raw of names) {
     const n = String(raw || '').trim().slice(0, 40);
@@ -1793,6 +1809,7 @@ function addToRoster(names) {
   if (changed) { if (club) roster.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); else persistRoster(); }
 }
 function removeFromRoster(name) {
+  if (pickup) return;
   // In a club with a PIN, removing a saved player is an organizer action: withPin asks for the PIN first if needed.
   if (club && club.hasPin && !hasOrganizer()) { withPin({ type: 'roster-del', name }); return; }
   roster = roster.filter(r => !sameName(r, name));
@@ -1809,7 +1826,7 @@ function chipsHTML(names, mode, scope) {
   const n = mode === 'doubles' ? 2 : 1;
   const inUse = name => [0, 1].some(t => names[t].slice(0, n).some(v => sameName(v || '', name)));
   const editing = scope === 'setup' && rosterEdit;
-  return roster.map(name => {
+  return rosterNames().map(name => {
     const p = DR.lookup(tables, mode, name);
     return `<button type="button" class="chip-btn ${editing ? 'editing' : ''}" data-pick="${esc(name)}" data-scope="${scope}" aria-pressed="${!editing && inUse(name)}" ${editing ? `aria-label="Remove ${esc(name)}"` : ''}>${esc(name)}${p && p.games && !editing ? `<span class="r">${r2(p.rating)}</span>` : ''}</button>`;
   }).join('');
@@ -1854,6 +1871,7 @@ async function uploadLocalOnly() {
   }
 }
 async function saveGame(rec) {
+  if (pickup) { pickupSave(rec); return; } // while this phone is in a pickup session, results go to the session only (never a club or the saved players)
   if (club) { queueOp({ type: 'game', game: Object.assign({}, rec, senderGuess(rec)) }); addToRoster([...rec.teams[0], ...rec.teams[1]]); return; }
   localGames = [rec, ...localGames.filter(g => g.id !== rec.id)].slice(0, 1000);
   store.set('pb.games', localGames);
@@ -2095,6 +2113,9 @@ const ShareLink = {
   code: raw => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
   join(origin, code) { const c = ShareLink.code(code); return c ? String(origin).replace(/\/+$/, '') + '/?club=' + c : ''; },
   fromSearch: search => ShareLink.code(new URLSearchParams(search).get('club')),
+  // A pickup session link (/?session=CODE, 8 characters; see checkInvite).
+  session(origin, code) { const c = ShareLink.code(code); return c ? String(origin).replace(/\/+$/, '') + '/?session=' + c : ''; },
+  sessionFromSearch: search => ShareLink.code(new URLSearchParams(search).get('session')),
   // qr is the vendored qrcode-generator. Margin is the 4-module quiet zone; the sheet draws it on white so it scans in the dark theme.
   qrSvg(qr, link) { const q = qr(0, 'M'); q.addData(link); q.make(); return q.createSvgTag({ cellSize: 8, margin: 32, scalable: true }); }
 };
@@ -2147,6 +2168,227 @@ const Move = {
   }
 };
 /*MOVE-END*/
+/* ---------- pickup sessions ---------- */
+// A 24-hour session with its own code and QR, for playing with people outside your club (api/_sessions.js). While this phone is in
+// one, finished games go to the session and nowhere else: not the open club, not this phone's saved players. "Save to a club"
+// (a member's own choice) is the only way results leave the session. The server deletes a session 24 hours after it was made.
+/*PICKUP-START*/
+// Pure helpers, so test/pickup.test.js can load this block alone.
+const Pickup = {
+  clean: raw => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, ''),
+  isCode: raw => /^[A-Z0-9]{8}$/.test(Pickup.clean(raw)),
+  // Milliseconds left by the server's clock. skew is how far ahead of this phone's clock the server was at its last answer.
+  left: (p, now) => p.expiresAt - (now + (p.skew || 0)),
+  leftText(ms) {
+    if (ms <= 0) return 'Ended';
+    const m = Math.max(1, Math.ceil(ms / 60000));
+    return (m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min') + ' left';
+  },
+  // Wins, losses and point difference per player, best first. Names that differ only in case or spacing are one player.
+  standings(games) {
+    const by = new Map();
+    for (const g of games) for (const t of [0, 1]) for (const raw of g.teams[t]) {
+      const key = String(raw).trim().toLowerCase().replace(/\s+/g, ' ');
+      const r = by.get(key) || { name: raw, w: 0, l: 0, diff: 0 };
+      if (g.score[t] > g.score[1 - t]) r.w++; else r.l++;
+      r.diff += g.score[t] - g.score[1 - t];
+      by.set(key, r);
+    }
+    return [...by.values()].sort((a, b) => b.w - a.w || b.diff - a.diff || a.l - b.l || a.name.localeCompare(b.name));
+  }
+};
+/*PICKUP-END*/
+let pickup = API_OK ? Heal.pickup(store.get('pb.pickup', null)) : null; // { code, name, expiresAt, skew, host (the starting phone's key, or ''), players, games, pending, saved }
+if (pickup && Pickup.left(pickup, Date.now()) <= 0) pickup = null; // over while this phone was away
+store.set('pb.pickup', pickup);
+let pickupSaveAfter = false, pickupFlushing = false;
+const rosterNames = () => (pickup ? pickup.players : roster); // who the name pickers offer
+const savePickup = () => store.set('pb.pickup', pickup);
+const pickupPost = body => api('live', { method: 'POST', body: JSON.stringify(body) });
+// The session's games as this phone sees them: the server's plus ones still waiting to be sent, newest first.
+function pickupGames() {
+  const have = new Set(pickup.games.map(g => g.id));
+  return pickup.pending.filter(g => !have.has(g.id)).concat(pickup.games).sort((a, b) => b.endedAt - a.endedAt);
+}
+// Takes in what the server says the session looks like now.
+function pickupAdopt(v) {
+  if (!pickup || !v || !v.session || v.session.code !== pickup.code) return;
+  pickup.expiresAt = v.session.expiresAt; pickup.skew = v.session.now - Date.now(); pickup.name = v.session.name || '';
+  pickup.players = (v.players || []).slice(0, 30); pickup.games = (v.games || []).slice(0, 100);
+  savePickup(); pickupRedraw();
+}
+function pickupRedraw() {
+  const b = $('#pk-banner'); if (b) b.outerHTML = pickupBannerHTML();
+  if (clubSheet && clubSheet.view === 'pickup') renderClub();
+}
+function pickupEnded(msg) {
+  pickup = null; savePickup();
+  if (clubSheet && clubSheet.view === 'pickup') clubSheet = null;
+  showToast(msg || 'Your pickup session ended. Its results are deleted unless they were saved to a club.', false);
+  render(); renderClub();
+}
+function pickupBegin(v, host) {
+  pickup = Heal.pickup({ code: v.session.code, name: v.session.name, expiresAt: v.session.expiresAt, skew: v.session.now - Date.now(), host, players: v.players, games: v.games, pending: [], saved: {} });
+  rosterEdit = false; savePickup();
+}
+// Names typed on this phone join the session's list, and the server's answer is the list from then on.
+function pickupAddNames(names) {
+  for (const raw of names) {
+    const n = String(raw || '').trim().slice(0, 40);
+    if (!n || isDefaultName(n) || pickup.players.some(r => sameName(r, n)) || pickup.players.length >= 30) continue;
+    pickup.players.push(n);
+    pickupPost({ action: 'session-join', code: pickup.code, name: n }).then(pickupAdopt, err => { if (err.status === 404) pickupEnded(); });
+  }
+  pickup.players.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })); savePickup();
+}
+function pickupSave(rec) {
+  const { rallyLog, ...g } = rec; // a session keeps results, not replays
+  pickup.pending = pickup.pending.filter(x => x.id !== g.id).concat(g); savePickup();
+  pickupFlush(); pickupRedraw();
+}
+// Sends waiting games in order. No signal, server trouble or a rate limit: they wait and are tried again. A refusal is told to the person, not retried.
+async function pickupFlush() {
+  if (!pickup || pickupFlushing || !pickup.pending.length) return;
+  pickupFlushing = true;
+  try {
+    while (pickup && pickup.pending.length) {
+      const g = pickup.pending[0];
+      try {
+        const v = await pickupPost({ action: 'session-game', code: pickup.code, game: g });
+        if (!pickup) return;
+        pickup.pending = pickup.pending.filter(x => x.id !== g.id); pickupAdopt(v);
+      } catch (err) {
+        if (err.status === 404) { pickupEnded('Your pickup session ended before the last game was added.'); return; }
+        if (err.offline || err.status >= 500 || err.status === 429) break;
+        pickup.pending = pickup.pending.filter(x => x.id !== g.id); savePickup();
+        showToast('A game was not added to the session: ' + err.message, false);
+      }
+    }
+  } finally { pickupFlushing = false; }
+  if (pickup) { savePickup(); pickupRedraw(); }
+}
+async function pickupRefresh() {
+  if (!pickup) return;
+  if (Pickup.left(pickup, Date.now()) <= 0) { pickupEnded(); return; }
+  try { pickupAdopt(await api('live?session=' + pickup.code)); }
+  catch (err) { if (err.status === 404) pickupEnded(); }
+}
+function pickupBannerHTML() {
+  if (!pickup) return '';
+  const n = pickupGames().length;
+  return `<button type="button" class="pk-banner" id="pk-banner" data-act="pk-open"><span><b>${esc(pickup.name || 'Pickup session')}</b> <span class="pk-code">${esc(pickup.code)}</span></span><span>${esc(Pickup.leftText(Pickup.left(pickup, Date.now())))} · ${n} game${n === 1 ? '' : 's'}</span></button>`;
+}
+async function pickupStart(rawName, rawMe) {
+  const name = String(rawName || '').trim(), me = String(rawMe || '').trim();
+  if (gameInProgress()) { clubSheet.error = 'Finish or end the game in progress first.'; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    let v = await pickupPost({ action: 'session-create', name });
+    const host = v.hostToken;
+    if (me) { try { v = await pickupPost({ action: 'session-join', code: v.session.code, name: me }); } catch {} }
+    pickupBegin(v, host);
+    clubSheet = { view: 'pickup' }; showToast('Pickup session started', false);
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  render(); renderClub();
+}
+async function pickupJoinCode(raw, rawName) {
+  const code = Pickup.clean(raw), name = String(rawName || '').trim();
+  if (!Pickup.isCode(code)) { clubSheet.error = 'Session codes are 8 letters and numbers.'; renderClub(); return; }
+  if (gameInProgress()) { clubSheet.error = 'Finish or end the game in progress first.'; renderClub(); return; }
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const v = name ? await pickupPost({ action: 'session-join', code, name }) : await api('live?session=' + code);
+    pickupBegin(v, '');
+    clubSheet = { view: 'pickup' }; showToast('Joined the pickup session', false);
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
+  render(); renderClub();
+}
+// Puts every game of the session into the open club through the normal games route (the same game ids, so saving twice adds nothing twice).
+async function pickupSaveToClub() {
+  if (!pickup) return;
+  if (!club) { pickupSaveAfter = true; clubSheet = { view: 'add', reason: 'pickup' }; renderClub(); return; }
+  const c = clubSheet && clubSheet.view === 'pickup' ? clubSheet : (clubSheet = { view: 'pickup' });
+  const games = pickupGames(), to = { code: club.code, name: club.name };
+  if (!games.length) { c.msg = 'No games to save yet.'; renderClub(); return; }
+  c.busy = true; c.error = ''; c.msg = ''; renderClub();
+  try {
+    let saved = 0;
+    for (let i = 0; i < games.length; i += 400) saved += (await api('games', { method: 'POST', body: JSON.stringify(Object.assign({ code: to.code, games: games.slice(i, i + 400) }, senderCreds(to.code))) })).saved || 0;
+    if (pickup) { pickup.saved[to.code] = Date.now(); savePickup(); }
+    c.msg = saved ? `Saved ${saved} game${saved === 1 ? '' : 's'} to ${to.name}.` : `${to.name} already has these games.`;
+    if (club && club.code === to.code) await refreshClub();
+  } catch (err) { c.error = err.message; }
+  c.busy = false; renderClub();
+}
+function pickupSheetHTML(c) {
+  const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
+  if (!pickup) {
+    return `<h2 id="club-h">${c.joinName ? 'Join ' + esc(c.joinName) + '?' : 'Pickup session'}</h2>
+      <p>Playing with people you don't know? A pickup session is a shared space with its own code and QR code. Everyone who joins can add games and see the results. It lasts 24 hours, then it is deleted. It is not part of any club unless someone saves it to one.</p>${err}
+      <form class="club-form" data-form="pk-join"><label class="lab" for="pk-code">Join with a code</label>
+        <input id="pk-code" class="field-input" placeholder="8-character code" autocomplete="off" autocapitalize="characters" maxlength="10" value="${esc(c.joinCode || '')}">
+        <label class="lab" for="pk-join-me">Your name (optional)</label>
+        <div class="add-player"><input id="pk-join-me" placeholder="So others can pick you" autocomplete="off" maxlength="40"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
+      <div class="or"><span>or</span></div>
+      <form class="club-form" data-form="pk-start"><label class="lab" for="pk-name">Start a new session</label>
+        <input id="pk-name" class="field-input" placeholder="Name, like Saturday morning (optional)" autocomplete="off" maxlength="40">
+        <input id="pk-me" class="field-input" placeholder="Your name (optional)" autocomplete="off" maxlength="40" aria-label="Your name (optional)">
+        <button type="submit" class="btn btn-blue" ${c.busy ? 'disabled' : ''}>Start a session</button></form>
+      <div class="btns"><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
+  }
+  const link = ShareLink.session(location.origin, pickup.code);
+  let qr = ''; try { qr = ShareLink.qrSvg(qrcode, link); } catch {}
+  const games = pickupGames(), table = Pickup.standings(games), host = !!pickup.host, waiting = pickup.pending.length;
+  const row = g => `<li><span>${esc(teamLabel(g.teams[0]))} <b>${Number(g.score[0])}–${Number(g.score[1])}</b> ${esc(teamLabel(g.teams[1]))}</span>${host ? `<button type="button" class="link" data-act="pk-del" data-id="${esc(g.id)}" aria-label="Remove this game from the session">Remove</button>` : ''}</li>`;
+  return `<h2 id="club-h">${esc(pickup.name || 'Pickup session')}</h2>
+    <div class="code-card share-card"><span class="lab">Session code</span><span class="code">${esc(pickup.code)}</span>
+      ${qr ? `<div class="share-qr" role="img" aria-label="QR code for the pickup session link">${qr}</div>` : ''}
+      <p><b>${esc(Pickup.leftText(Pickup.left(pickup, Date.now())))}.</b> Then the session and its results are deleted. Anyone with the code can join and add games. It is not part of a club.</p>
+      <div class="invite"><input id="pk-link" readonly value="${esc(link)}" aria-label="Session link"><button class="btn btn-ink" data-act="pk-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div>
+      ${navigator.share ? '<button class="btn btn-blue block" data-act="pk-native-share">Share…</button>' : ''}</div>
+    ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}${err}
+    <button class="btn btn-ink block" data-act="pk-play" style="margin-top:10px">Start a game</button>
+    <h3 class="pk-h">Results</h3>
+    ${games.length ? `<ul class="pk-list">${games.map(row).join('')}</ul>` : '<p class="note">No games yet. Games finished on any phone in this session show up here.</p>'}
+    ${waiting ? `<p class="note" role="status">${waiting} game${waiting === 1 ? '' : 's'} on this phone will be added when there is signal.</p>` : ''}
+    ${table.length ? `<h3 class="pk-h">Standings</h3><table class="pk-table"><thead><tr><th scope="col">Player</th><th scope="col">W</th><th scope="col">L</th><th scope="col">+/−</th></tr></thead><tbody>${table.map(r => `<tr><td>${esc(r.name)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${pickup.players.length ? `<h3 class="pk-h">Players (${pickup.players.length})</h3><p class="note">${esc(pickup.players.join(', '))}</p>` : ''}
+    <div class="upload-card" style="margin-top:14px"><b>Keep these results</b>
+      <p>${club ? `Add ${games.length === 1 ? 'this game' : 'these ' + games.length + ' games'} to ${esc(club.name)}. The players' names join the club's saved players, and the games count in its record.${pickup.saved[club.code] ? ' Saved here before: saving again adds nothing twice.' : ''}` : 'Results are deleted when the session ends. Join or start a club to keep them.'}</p>
+      <button class="btn btn-blue" data-act="pk-save" ${c.busy || !games.length ? 'disabled' : ''}>${club ? 'Save to ' + esc(club.name) : 'Save to a club'}</button></div>
+    <div class="btns">${host ? `<button class="btn ${c.confirmEnd ? 'btn-line-danger' : 'btn-soft'}" data-act="pk-end">${c.confirmEnd ? 'Tap again to end it for everyone' : 'End session now'}</button>` : ''}
+      <button class="btn ${c.confirmLeave ? 'btn-line-danger' : 'btn-soft'}" data-act="pk-leave">${c.confirmLeave ? 'Tap again to leave' : 'Leave session'}</button>
+      <button class="btn btn-ink" data-act="club-close">Done</button></div>`;
+}
+function pickupClick(ds) {
+  const a = ds.act, c = clubSheet;
+  if (a === 'pk-open') { clubSheet = { view: 'pickup' }; renderClub(); pickupRefresh(); return; }
+  if (!c || c.view !== 'pickup' || !pickup) return;
+  if (a === 'pk-copy') {
+    const link = ShareLink.session(location.origin, pickup.code);
+    const done = () => { c.copied = true; renderClub(); setTimeout(() => { if (clubSheet === c) { c.copied = false; renderClub(); } }, 2000); };
+    try { navigator.clipboard.writeText(link).then(done, () => { const i = $('#pk-link'); if (i) i.select(); }); } catch { const i = $('#pk-link'); if (i) i.select(); }
+    return;
+  }
+  if (a === 'pk-native-share') { try { navigator.share({ title: pickup.name || 'Pickup session', text: `Join our pickup games on Dink Score. Code ${pickup.code}`, url: ShareLink.session(location.origin, pickup.code) }).catch(() => {}); } catch {} return; }
+  if (a === 'pk-play') { clubSheet = null; tab = 'play'; store.set('pb.tab', tab); render(); renderClub(); try { document.body.scrollTo(0, 0); } catch {} return; }
+  if (a === 'pk-save') { pickupSaveToClub(); return; }
+  if (a === 'pk-del' && pickup.host) {
+    pickupPost({ action: 'session-game-delete', code: pickup.code, id: ds.id, hostToken: pickup.host }).then(pickupAdopt, err => { if (err.status === 404) pickupEnded(); else { c.error = err.message; renderClub(); } });
+    return;
+  }
+  if (a === 'pk-leave') {
+    if (!c.confirmLeave) { c.confirmLeave = true; c.msg = `${pickup.host ? 'You started this session, so this phone is the only one that can end it early. ' : ''}${pickup.pending.length ? 'Games not sent yet will be lost. ' : ''}Tap again to leave. The session goes on for everyone else until it ends.`; renderClub(); return; }
+    pickup = null; savePickup(); clubSheet = null; render(); renderClub(); showToast('Left the pickup session', false); return;
+  }
+  if (a === 'pk-end' && pickup.host) {
+    if (!c.confirmEnd) { c.confirmEnd = true; c.msg = 'This deletes the session and its results for everyone. Save them to a club first to keep them. Tap again to end it.'; renderClub(); return; }
+    pickupPost({ action: 'session-end', code: pickup.code, hostToken: pickup.host }).then(() => true, err => err.status === 404 ? true : (c.error = err.message, c.confirmEnd = false, renderClub(), false)).then(done => {
+      if (!done) return;
+      pickup = null; savePickup(); clubSheet = null; render(); renderClub(); showToast('Pickup session ended', false);
+    });
+  }
+}
 function inviteLink() { return ShareLink.join(location.origin, club && club.code); }
 // Keep the address bar on the open club's join link, so copying the URL shares it. Waits for checkInvite to read a link first.
 let urlReady = false;
@@ -2574,6 +2816,8 @@ function renderClub() {
     body = gamesHTML(c);
   } else if (c.view === 'board' && club) {
     body = boardHTML(c);
+  } else if (c.view === 'pickup') {
+    body = pickupSheetHTML(c);
   } else if (c.view === 'share') {
     body = shareSheetHTML(c);
   } else if (c.view === 'invite') {
@@ -2605,9 +2849,10 @@ function renderClub() {
         <div class="btns"><button class="btn btn-ink" data-act="move-print">Print</button><button class="btn btn-soft" data-act="move-back">Done</button></div>`
       : `<form class="club-form" data-form="recovery-make">${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Make a recovery code</button></form><div class="btns"><button class="btn btn-soft" data-act="move-back">Cancel</button></div>`}`;
   } else if (!club || c.view === 'add') {
-    body = `<h2 id="club-h">${club ? 'Add another club' : c.reason === 'save' ? 'Save to a club' : 'Play as a club'}</h2>
+    body = `<h2 id="club-h">${club ? 'Add another club' : c.reason === 'save' || c.reason === 'pickup' ? 'Save to a club' : 'Play as a club'}</h2>
       ${club ? `<p class="need-club">You'll stay in ${esc(club.name)} too. Switch between your clubs from the club screen.</p>` : ''}
       ${c.reason === 'save' ? `<p class="need-club">Your game is saved on this phone. Join a club with its code, or start one, and the game is added to its shared record.</p>` : ''}
+      ${c.reason === 'pickup' ? `<p class="need-club">Join a club with its code, or start one, and the pickup session's games are added to its shared record. The players' names join the club's saved players.</p>` : ''}
       <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
       <form class="club-form" data-form="club-join"><label class="lab" for="club-code">Join with a code</label>
         <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
@@ -2617,6 +2862,7 @@ function renderClub() {
         <label class="lab" for="club-new-pin">Organizer PIN</label>
         <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="Leave blank to get a code"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
         <p class="note">Every club has an organizer. Only people with the PIN can delete or restore games, change the code or run events. Choose 6 to 8 digits, or leave it blank and we'll make an organizer code for you.</p></form>${err}
+      <button class="link" data-act="pk-open">Playing with people you don't know? Pickup session</button>
       <button class="link" data-act="move-in-open">Moving from another phone?</button>
       <button class="link" data-act="acct-open">Account (optional): keep your clubs across phones</button>
       ${club ? '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button></div>' : ''}`;
@@ -2672,6 +2918,7 @@ function renderClub() {
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
       <button class="btn btn-soft block" data-act="club-games" style="margin-top:10px">Games going on — live scores</button>
       <button class="btn btn-soft block" data-act="club-board" style="margin-top:8px">Open play court board</button>
+      <button class="btn btn-soft block" data-act="pk-open" style="margin-top:8px">Pickup session: play with people outside the club</button>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
       ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
@@ -2753,6 +3000,7 @@ async function clubJoinByCode(raw) {
 // After joining: first "Who are you?", then on to whatever brought them here (logging a result, starting a game).
 function afterJoin() {
   if (club && !myName() && !whoamiSkipped()) { clubSheet = { view: 'whoami', afterJoin: true }; render(); renderClub(); return; }
+  if (club && pickup && pickupSaveAfter) { pickupSaveAfter = false; clubSheet = { view: 'pickup' }; render(); renderClub(); pickupSaveToClub(); return; }
   if (club && saveAfterJoin) { const ids = saveAfterJoin; saveAfterJoin = null; clubSheet = { view: 'club', msg: 'Adding your game…' }; render(); renderClub(); uploadLocalGames(ids); return; }
   render(); renderClub();
 }
@@ -2777,6 +3025,14 @@ async function checkInvite() {
   // A scanned transfer QR carries the code in the address fragment, which never reaches the server.
   const mv = /^#move=([A-Za-z0-9-]+)$/.exec(location.hash);
   if (mv) { history.replaceState(null, '', location.pathname + location.search); clubSheet = { view: 'move-in', moveCode: mv[1] }; renderClub(); return; }
+  const sess = ShareLink.sessionFromSearch(location.search);
+  if (sess) { // a pickup session link or QR: show the join sheet with the code filled in
+    try { history.replaceState(null, '', location.pathname); } catch {}
+    if (pickup) { clubSheet = { view: 'pickup', ...(pickup.code === sess ? {} : { error: 'This phone is already in a pickup session. Leave it first to join another.' }) }; renderClub(); return; }
+    clubSheet = { view: 'pickup', joinCode: sess, busy: true }; renderClub();
+    try { clubSheet = { view: 'pickup', joinCode: sess, joinName: (await api('live?session=' + sess)).session.name }; } catch (err) { clubSheet = { view: 'pickup', joinCode: sess, error: err.message }; }
+    renderClub(); return;
+  }
   const params = new URLSearchParams(location.search);
   const code = ShareLink.fromSearch(location.search);
   if (!code) return;
@@ -2790,6 +3046,10 @@ async function checkInvite() {
 }
 if (API_OK) setInterval(() => { if (club && document.visibilityState === 'visible') { if (outbox.length) flush(); if (!clubOps().length) refreshClub(); } }, 15000);
 document.addEventListener('visibilitychange', () => { if (club && document.visibilityState === 'visible') { flush(); refreshClub(); } });
+if (API_OK) setInterval(() => { if (pickup && document.visibilityState === 'visible') { pickupFlush(); pickupRefresh(); } }, 15000);
+document.addEventListener('visibilitychange', () => { if (pickup && document.visibilityState === 'visible') { pickupFlush(); pickupRefresh(); } });
+window.addEventListener('online', () => { if (pickup) pickupFlush(); });
+if (pickup) pickupRefresh();
 window.addEventListener('online', () => { if (club) flush(); });
 
 /* ---------- views ---------- */
@@ -2916,8 +3176,8 @@ function teamCard(t) {
 }
 
 function playView() {
-  const games = allGames();
-  return `${homeTiles(ratedGames())}
+  const games = allGames(), names = rosterNames();
+  return `${pickupBannerHTML()}${homeTiles(ratedGames())}
   <section class="card" aria-labelledby="new-h">
     <div class="new-head"><h2 id="new-h">New game</h2><button type="button" class="link" data-act="clear-names" ${setup.names.flat().some(n => n && n.trim()) ? '' : 'hidden'}>Clear names</button></div>
     <div class="field" style="margin-top:14px"><span class="lab">Format</span>${seg('data-set-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], setup.mode)}</div>
@@ -2926,14 +3186,16 @@ function playView() {
     <div class="seg-row"><div class="field" style="margin:0"><span class="lab">Play to</span>${seg('data-set-target', [[11, '11'], [15, '15'], [21, '21']], setup.target)}</div>
       <div class="field" style="margin:0"><span class="lab">Win by</span>${seg('data-set-winBy', [[2, '2'], [1, '1']], setup.winBy)}</div></div>
     <div class="teams">${teamCard(0)}<button type="button" class="swap" data-act="swap" aria-label="Swap teams">⇅</button>${teamCard(1)}</div>
-    <div class="roster"><div class="rhead"><span class="lab">${roster.length ? (rosterEdit ? 'Tap a name to remove it' : 'Saved players') : 'Saved players'}</span>
-      ${roster.length ? `<button type="button" class="link" data-act="roster-edit">${rosterEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
-      ${roster.length ? `<div class="chips">${chipsHTML(setup.names, setup.mode, 'setup')}</div>` : `<p class="note">Names you play with are saved here automatically.</p>`}
+    <div class="roster"><div class="rhead"><span class="lab">${pickup ? 'Players in this session' : names.length ? (rosterEdit ? 'Tap a name to remove it' : 'Saved players') : 'Saved players'}</span>
+      ${names.length && !pickup ? `<button type="button" class="link" data-act="roster-edit">${rosterEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
+      ${names.length ? `<div class="chips">${chipsHTML(setup.names, setup.mode, 'setup')}</div>` : `<p class="note">${pickup ? 'Names show up here as people join and play.' : 'Names you play with are saved here automatically.'}</p>`}
       <form class="add-player" data-form="add-player"><input id="new-player" placeholder="Add a player" autocomplete="off" aria-label="New player name" maxlength="40"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px">Save</button></form></div>
     <div id="forecast">${forecastHTML()}</div>
-    <datalist id="roster-list">${roster.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
+    <datalist id="roster-list">${names.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
     <button class="btn btn-ink block start" data-act="start"><span class="ball"></span>Start game</button>
-    ${API_OK && !club ? `<p class="note" style="margin-top:8px;text-align:center">No club needed. Games stay on this phone until you save them to a club.</p>` : ''}
+    ${API_OK && !club && !pickup ? `<p class="note" style="margin-top:8px;text-align:center">No club needed. Games stay on this phone until you save them to a club.</p>` : ''}
+    ${API_OK && !pickup ? `<p class="note" style="margin-top:8px;text-align:center"><button type="button" class="link" data-act="pk-open">Playing with people you don't know? Start a pickup session</button></p>` : ''}
+    ${pickup ? `<p class="note" style="margin-top:8px;text-align:center">Games you finish are added to the pickup session, not to a club.</p>` : ''}
   </section>
   ${games.length ? `<section><div class="sec-head"><h2>Recent</h2><button class="link" data-tab-go="history">See all</button></div><ul class="games" style="margin-top:10px">${games.slice(0, 3).map(gameItem).join('')}</ul></section>` : ''}`;
 }
@@ -3136,10 +3398,10 @@ function renderCourt() {
       ${resultBlock(cfg.teams, s.score, w)}
       <div class="facts"><div><b>${s.rallies}</b><small>Rallies</small></div><div><b>${minutes(s)} min</b><small>Duration</small></div><div><b>${cfg.scoring === 'rally' ? 'Rally' : 'Side-out'}</b><small>To ${cfg.target}</small></div></div>
       ${ratingPreview(s)}
-      ${API_OK && !club && !live.event ? '<p class="note">No club yet, so this game is saved on this phone.</p>' : ''}
+      ${pickup ? '<p class="note">This game is added to your pickup session.</p>' : API_OK && !club && !live.event ? '<p class="note">No club yet, so this game is saved on this phone.</p>' : ''}
       <div class="btns">${live.event ? '' : '<button class="btn btn-ball" data-act="rematch">Save and rematch</button>'}
         <button class="btn ${live.event ? 'btn-ball' : 'btn-ink'}" data-act="finish">${live.event ? 'Save result' : 'Save and finish'}</button>
-        ${API_OK && !club && !live.event ? '<button class="btn btn-blue" data-act="finish-club">Save to a club</button>' : ''}
+        ${API_OK && !club && !pickup && !live.event ? '<button class="btn btn-blue" data-act="finish-club">Save to a club</button>' : ''}
         <button class="btn btn-soft" data-act="undo">Undo last rally</button></div></div></div>`;
   } else if (live.confirmEnd) {
     sheet = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="end-h"><span class="grip"></span>
@@ -3224,8 +3486,8 @@ async function intentOk(it, game, secret) {
     return Array.from(new Uint8Array(h), x => x.toString(16).padStart(2, '0')).join('') === it.sig;
   } catch { return false; }
 }
-const isShared = () => !!(live && live.shared && club && API_OK);
-function markShared() { if (live && club && API_OK && !live.event) { live.shared = true; live.id = liveGameId(); if (live.version === undefined) live.version = 0; } }
+const isShared = () => !!(live && live.shared && club && !pickup && API_OK);
+function markShared() { if (live && club && !pickup && API_OK && !live.event) { live.shared = true; live.id = liveGameId(); if (live.version === undefined) live.version = 0; } }
 function schedulePublishLive() {
   if (!API_OK || !club) return;
   clearTimeout(publishTimer);
@@ -3379,8 +3641,8 @@ function renderLog() {
     <div class="seg-row" style="margin:0"><div class="field" style="margin:0"><span class="lab">Format</span>${seg('data-log-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], f.mode, 'sm')}</div>
       <div class="field" style="margin:0"><span class="lab">Played to</span>${seg('data-log-target', [[11, '11'], [15, '15'], [21, '21']], f.target, 'sm')}</div></div>
     <div class="log-teams">${team(0)}${team(1)}</div>
-    ${roster.length ? `<div class="field" style="margin:0"><span class="lab">Saved players</span><div class="chips">${chipsHTML(f.names, f.mode, 'log')}</div></div>` : ''}
-    <datalist id="roster-list-log">${roster.map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
+    ${rosterNames().length ? `<div class="field" style="margin:0"><span class="lab">${pickup ? 'Players in this session' : 'Saved players'}</span><div class="chips">${chipsHTML(f.names, f.mode, 'log')}</div></div>` : ''}
+    <datalist id="roster-list-log">${rosterNames().map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
     <div class="field" style="margin:0"><label class="lab" for="log-when">Finished at</label><div class="when"><input type="datetime-local" id="log-when" data-log-when value="${esc(f.when)}"></div></div>
     ${f.error ? `<p class="err" role="alert">${esc(f.error)}</p>` : ''}
     <button type="submit" class="btn btn-blue block">${f.editId ? 'Save changes' : 'Save result'}</button></form></div>`;
@@ -3843,7 +4105,7 @@ function canShareFiles() {
 function openShare(g, pending) {
   let theme = store.get('pb.shareTheme', 'night');
   if (theme !== 'day') theme = 'night';
-  shareSheet = { data: shareCardData(g, pending), theme, url: null, file: null, token: 0, gameId: pending || !club ? null : g.id, link: null };
+  shareSheet = { data: shareCardData(g, pending), theme, url: null, file: null, token: 0, gameId: pending || !club || pickup ? null : g.id, link: null };
   renderShare();
   updateSharePreview();
 }
@@ -5573,10 +5835,11 @@ document.addEventListener('click', e => {
     renderClub(); if (!clubSheet) render(); return;
   }
   if (ds.act && ds.act.startsWith('board-')) { boardClick(ds); return; }
+  if (ds.act && ds.act.startsWith('pk-')) { pickupClick(ds); return; }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
-    if (a === 'club-open') { saveAfterJoin = null; clubSheet = { view: 'club' }; }
-    if (a === 'club-close') { saveAfterJoin = null; clubSheet = null; if (renderPending) safeRender(); }
+    if (a === 'club-open') { saveAfterJoin = null; pickupSaveAfter = false; clubSheet = { view: 'club' }; }
+    if (a === 'club-close') { saveAfterJoin = null; pickupSaveAfter = false; clubSheet = null; if (renderPending) safeRender(); }
     if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
     if (a === 'club-upload') { uploadLocalGames(); return; }
     if (a === 'club-add') { if (gameInProgress()) { clubSheet.msg = 'Finish or end the game in progress before adding a club.'; renderClub(); return; } clubSheet = { view: 'add' }; }
@@ -5707,6 +5970,8 @@ document.addEventListener('input', e => {
 document.addEventListener('submit', e => {
   const form = e.target;
   if (form.matches('[data-form="log"]')) { e.preventDefault(); submitLog(); return; }
+  if (form.matches('[data-form="pk-join"]')) { e.preventDefault(); pickupJoinCode($('#pk-code').value, $('#pk-join-me').value); return; }
+  if (form.matches('[data-form="pk-start"]')) { e.preventDefault(); pickupStart($('#pk-name').value, $('#pk-me').value); return; }
   if (form.matches('[data-form="club-join"]')) { e.preventDefault(); clubSheet.joinCode = $('#club-code').value; clubJoinByCode(clubSheet.joinCode); return; }
   if (form.matches('[data-form="board-add"]')) { e.preventDefault(); const i = $('#board-names'); const names = i.value.split(',').map(s => s.trim()).filter(Boolean); i.value = ''; if (names.length) boardDo('board-checkin', { names }); return; }
   if (form.matches('[data-form="board-config"]')) {

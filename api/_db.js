@@ -242,6 +242,30 @@ export function ensureSchema() {
       )`;
       await q`CREATE UNIQUE INDEX IF NOT EXISTS result_shares_game ON result_shares (club, game) WHERE game IS NOT NULL`;
       await q`CREATE UNIQUE INDEX IF NOT EXISTS result_shares_session ON result_shares (club, from_ms, to_ms) WHERE game IS NULL`;
+      // Pickup sessions (_sessions.js): 24 hours, their own code, no link to any club (so no club cascade or export involves them).
+      // Rows are refused once expires_at has passed and deleted as the app is used; the children go with the session.
+      await q`CREATE TABLE IF NOT EXISTS pickup_sessions (
+        code text PRIMARY KEY,
+        name text NOT NULL DEFAULT '',
+        host_hash text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS pickup_sessions_expires ON pickup_sessions (expires_at)`;
+      await q`CREATE TABLE IF NOT EXISTS pickup_players (
+        session text NOT NULL REFERENCES pickup_sessions(code) ON DELETE CASCADE,
+        name_key text NOT NULL,
+        name text NOT NULL,
+        joined_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (session, name_key)
+      )`;
+      await q`CREATE TABLE IF NOT EXISTS pickup_games (
+        session text NOT NULL REFERENCES pickup_sessions(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        data jsonb NOT NULL,
+        ended_at bigint NOT NULL,
+        PRIMARY KEY (session, id)
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -275,11 +299,11 @@ export async function readBody(req) {
 // Club codes: 6 characters from a 31-letter alphabet without look-alikes (no 0/O, 1/I/L): about 887 million codes.
 // Guessing is throttled per network address (see requireClub), which makes enumerating codes impractical.
 const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-export function newCode() {
+export function newCode(len = 6) { // pickup sessions ask for 8 (see _sessions.js)
   let out = '';
-  while (out.length < 6) {
+  while (out.length < len) {
     for (const b of crypto.getRandomValues(new Uint8Array(12))) {
-      if (b < 248 && out.length < 6) out += ALPHA[b % 31]; // 248 = 8 x 31, so every letter is equally likely
+      if (b < 248 && out.length < len) out += ALPHA[b % 31]; // 248 = 8 x 31, so every letter is equally likely
     }
   }
   return out;

@@ -1518,5 +1518,125 @@ await step('public results: the new column and table are additive and cascade fr
   assert.ok(fk.length && fk.every(r => r.delete_rule === 'CASCADE'));
 });
 
+// ---- Pickup sessions (api/_sessions.js, reached through api/live.js) ----
+const pk = (body, headers) => call(live, 'POST', { body, headers });
+const pkGet = (c, headers) => call(live, 'GET', { query: '?session=' + c, headers });
+const pkGame = (id, extra = {}) => ({ id, mode: 'doubles', teams: [['Ann', 'Bo'], ['Cat', 'Dee']], score: [11, 6], endedAt: Date.now() - 60000, startedAt: Date.now() - 600000, ...extra });
+const sessionRows = async () => (await pg.query('SELECT (SELECT count(*)::int FROM pickup_sessions) AS s, (SELECT count(*)::int FROM pickup_players) AS p, (SELECT count(*)::int FROM pickup_games) AS g')).rows[0];
+let ps;
+await step('pickup: anyone can start a session; it gets an 8 character code and a host token, and lasts 24 hours', async () => {
+  const before = Date.now();
+  ps = ok(await pk({ action: 'session-create', name: 'Saturday pickup' }));
+  assert.match(ps.session.code, /^[A-HJKMNP-Z2-9]{8}$/);
+  assert.match(ps.hostToken, /^[0-9a-f]{48}$/);
+  assert.ok(Math.abs(ps.session.expiresAt - (before + 864e5)) < 5000);
+  assert.deepEqual(ps.players, []); assert.deepEqual(ps.games, []);
+  assert.equal(JSON.stringify(ps).includes('host_hash'), false);
+  const got = ok(await pkGet(ps.session.code.toLowerCase()));
+  assert.equal(got.session.name, 'Saturday pickup');
+  assert.equal(JSON.stringify(got).includes(ps.hostToken), false, 'the host token only ever comes back at creation');
+});
+await step('pickup: bad, unknown and club-shaped codes are refused, and a session code is no club code', async () => {
+  assert.equal((await pkGet('ABC')).status, 400);
+  assert.equal((await pkGet('A'.repeat(8))).status, 404);
+  assert.equal((await call(club, 'GET', { query: '?code=' + ps.session.code })).status, 400);
+  assert.equal((await pk({ action: 'session-join', code: code, name: 'Zed' })).status, 400, 'a club code is not a session code');
+});
+await step('pickup: joining adds a name once (case and spacing ignored); games add their players', async () => {
+  const c = ps.session.code;
+  ok(await pk({ action: 'session-join', code: c, name: 'Sam  Lee' }));
+  const r = ok(await pk({ action: 'session-join', code: c, name: 'sam lee' }));
+  assert.deepEqual(r.players, ['Sam Lee']);
+  assert.equal((await pk({ action: 'session-join', code: c, name: '   ' })).status, 400);
+  const g = ok(await pk({ action: 'session-game', code: c, game: pkGame('pk-one') }));
+  assert.equal(g.saved, 1);
+  assert.deepEqual(g.players.sort(), ['Ann', 'Bo', 'Cat', 'Dee', 'Sam Lee']);
+  assert.equal(g.games.length, 1);
+  assert.equal(g.games[0].winner, 0);
+});
+await step('pickup: a game is validated like a club game, a retry adds nothing, and the cap holds', async () => {
+  const c = ps.session.code;
+  assert.equal((await pk({ action: 'session-game', code: c, game: pkGame('pk-bad', { score: [11, 11] }) })).status, 400);
+  assert.equal((await pk({ action: 'session-game', code: c, game: pkGame('x') })).status, 400);
+  assert.equal(ok(await pk({ action: 'session-game', code: c, game: pkGame('pk-one', { score: [2, 11] }) })).saved, 0, 'same id: the first result stands');
+  assert.equal(ok(await pkGet(c)).games.length, 1);
+  await pg.query(`INSERT INTO pickup_games (session, id, data, ended_at) SELECT $1, 'fill' || g, '{}'::jsonb, g FROM generate_series(1, 99) g`, [c]);
+  assert.equal((await pk({ action: 'session-game', code: c, game: pkGame('pk-over') })).status, 400, 'a hundred games is the most');
+  await pg.query("DELETE FROM pickup_games WHERE id LIKE 'fill%'");
+  for (let i = 0; i < 25; i++) ok(await pk({ action: 'session-join', code: c, name: 'Extra ' + i }));
+  assert.equal((await pk({ action: 'session-join', code: c, name: 'One too many' })).status, 400, 'thirty players is the most');
+  assert.equal(ok(await pkGet(c)).players.length, 30);
+});
+await step('pickup: only the starting phone can remove a game or end the session', async () => {
+  const c = ps.session.code;
+  assert.equal((await pk({ action: 'session-game-delete', code: c, id: 'pk-one' })).status, 403);
+  assert.equal((await pk({ action: 'session-game-delete', code: c, id: 'pk-one', hostToken: 'a'.repeat(48) })).status, 403);
+  assert.equal((await pk({ action: 'session-end', code: c, hostToken: owner })).status, 403, 'a club creator token is not a host token');
+  assert.equal(ok(await pk({ action: 'session-game-delete', code: c, id: 'pk-one', hostToken: ps.hostToken })).games.length, 0);
+  assert.equal((await pk({ action: 'session-end', code: c })).status, 403);
+});
+await step('pickup: nothing about a session reaches a club', async () => {
+  const before = await clubGames();
+  const rosterBefore = ok(await call(club, 'GET', { query: '?code=' + code })).roster;
+  const c = ok(await pk({ action: 'session-create' })).session.code;
+  ok(await pk({ action: 'session-game', code: c, game: pkGame('pk-leak', { teams: [['Leak One', 'Leak Two'], ['Leak Three', 'Leak Four']] }) }));
+  const after = ok(await call(club, 'GET', { query: '?code=' + code }));
+  assert.equal(after.games.length, before.length);
+  assert.deepEqual(after.roster, rosterBefore);
+  assert.equal(JSON.stringify(after).includes('Leak'), false);
+  assert.equal((await pg.query("SELECT count(*)::int AS n FROM games WHERE id = 'pk-leak'")).rows[0].n, 0);
+  assert.equal((await pg.query("SELECT count(*)::int AS n FROM roster WHERE name LIKE 'Leak%'")).rows[0].n, 0);
+  assert.equal((await pg.query("SELECT count(*)::int AS n FROM live_games WHERE id = 'pk-leak'")).rows[0].n, 0);
+});
+await step('pickup: a member saves a session into a club through the normal games route, once however often it is sent', async () => {
+  const lk = (await pg.query("SELECT session FROM pickup_games WHERE id = 'pk-leak'")).rows[0].session;
+  const [g] = ok(await pkGet(lk)).games;
+  const body = { code, games: [g], ownerToken: owner };
+  assert.equal(ok(await call(games, 'POST', { body })).saved, 1);
+  assert.equal(ok(await call(games, 'POST', { body })).saved, 0);
+  assert.equal((await clubGames()).filter(x => x.id === 'pk-leak').length, 1);
+});
+await step('pickup: the server ends a session after 24 hours, whatever any page says', async () => {
+  const c = ps.session.code;
+  await pg.query("UPDATE pickup_sessions SET expires_at = now() + interval '1 minute' WHERE code = $1", [c]);
+  assert.equal((await pkGet(c)).status, 200);
+  await pg.query("UPDATE pickup_sessions SET expires_at = now() - interval '1 second' WHERE code = $1", [c]);
+  const rowsBefore = await sessionRows();
+  assert.ok(rowsBefore.p > 0 && rowsBefore.g > 0);
+  assert.equal((await pkGet(c)).status, 404);
+  assert.equal((await pk({ action: 'session-join', code: c, name: 'Late' })).status, 404);
+  assert.equal((await pk({ action: 'session-game', code: c, game: pkGame('pk-late') })).status, 404);
+  assert.equal((await pg.query('SELECT count(*)::int AS n FROM pickup_sessions WHERE code = $1', [c])).rows[0].n, 0, 'the expired session is deleted when asked for');
+  assert.equal((await pg.query('SELECT count(*)::int AS n FROM pickup_players WHERE session = $1', [c])).rows[0].n, 0);
+  assert.equal((await pg.query('SELECT count(*)::int AS n FROM pickup_games WHERE session = $1', [c])).rows[0].n, 0);
+});
+await step('pickup: ending a session deletes it and everything in it at once', async () => {
+  const s = ok(await pk({ action: 'session-create' }));
+  ok(await pk({ action: 'session-game', code: s.session.code, game: pkGame('pk-end') }));
+  assert.equal(ok(await pk({ action: 'session-end', code: s.session.code, hostToken: s.hostToken })).ended, true);
+  assert.equal((await pkGet(s.session.code)).status, 404);
+  assert.equal((await pg.query('SELECT count(*)::int AS n FROM pickup_games WHERE session = $1', [s.session.code])).rows[0].n, 0);
+});
+await step('pickup: wrong codes are limited per network like club codes, and starting sessions is limited', async () => {
+  const same = { 'x-real-ip': '10.88.0.1' };
+  let last;
+  for (let i = 0; i < 22; i++) last = await pkGet('B'.repeat(8), same);
+  assert.equal(last.status, 429);
+  const real = ok(await pk({ action: 'session-create' }, { 'x-real-ip': '10.88.3.1' })).session.code;
+  assert.equal((await pkGet(real, same)).status, 429, 'a locked network is refused even for a real code');
+  assert.equal((await pkGet('B'.repeat(8), { 'x-real-ip': '10.88.0.2' })).status, 404, 'another network is not affected');
+  const mk = { 'x-real-ip': '10.88.1.1' };
+  for (let i = 0; i < 10; i++) ok(await pk({ action: 'session-create' }, mk));
+  assert.equal((await pk({ action: 'session-create' }, mk)).status, 429);
+  const live1 = ok(await pk({ action: 'session-create' }, { 'x-real-ip': '10.88.2.1' })).session.code;
+  assert.equal((await pk({ action: 'session-bogus', code: live1 }, { 'x-real-ip': '10.88.2.1' })).status, 400);
+});
+await step('pickup: the tables are additive, hold no club key and cascade from the session', async () => {
+  const cols = (await pg.query("SELECT column_name FROM information_schema.columns WHERE table_name IN ('pickup_sessions', 'pickup_players', 'pickup_games')")).rows.map(r => r.column_name);
+  assert.ok(!cols.includes('club'), 'no column ties a session to a club');
+  const fk = (await pg.query("SELECT tc.table_name, rc.delete_rule FROM information_schema.referential_constraints rc JOIN information_schema.table_constraints tc ON tc.constraint_name = rc.constraint_name WHERE tc.table_name IN ('pickup_players', 'pickup_games')")).rows;
+  assert.equal(fk.length, 2); assert.ok(fk.every(r => r.delete_rule === 'CASCADE'));
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

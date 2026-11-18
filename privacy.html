@@ -45,6 +45,7 @@
 <li>Club data is kept while the club exists. There is not yet an automatic expiry for inactive clubs.</li>
 <li>Failed-attempt network addresses are cleared after about a day (the cleanup runs as the app is used, so a few may linger a little longer).</li>
 <li>Deleted games and ended shared bracket or result links stop being shown immediately (a result page may stay in a cache for up to 20 seconds); backups kept by the database provider may hold older copies for a limited time.</li>
+<li><b>Pickup sessions.</b> A pickup session holds the names people type in and the games they add, under its own 8-character code and with no link to any club. It is refused and deleted 24 hours after it starts (the removal runs as the app is used, and an expired session is refused at once), or sooner when the phone that started it ends it. It reaches a club only if a club member saves its games there, which adds the players' names to that club.</li>
 <li>A club an organizer deletes stays usable for 24 hours, so the deletion can be undone. After that its games, players, events, bracket links, result links, live games and the court board are removed from the database (the removal runs as the app is used, and an expired club is refused at once). Backups kept by the database provider may hold older copies for a limited time.</li>
 </ul>
 
