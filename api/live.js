@@ -12,6 +12,7 @@
 //   POST /api/live {code, action:'unrally', game, secret, base?}       -> the server takes back the last server-applied rally
 //   POST /api/live {code, action:'ack', game, secret, ack}             -> the phone drops intents it has applied
 //   GET/POST board-*: the open play court board built on these live games, documented in _courtboard.js
+//   POST push-status | push-subscribe | push-unsubscribe: opt-in "you're up" notifications, documented in _push.js
 //   GET ?session=CODE and POST session-*: pickup sessions (24 hours, no club), documented in _sessions.js
 // Each live game has its own short-lived secret, made on the scoring phone and shown there (and on the watch setup page).
 // Intents must name the game and carry its secret; the club code alone is not enough, so two games at once never mix.
@@ -22,6 +23,7 @@ import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp } f
 import { rally as rallyOf, call as pbCall } from './_pb.js';
 import { boardGet, boardAction, BOARD_ACTIONS } from './_courtboard.js';
 import { sessionGet, sessionAction } from './_sessions.js';
+import { pushAction, PUSH_ACTIONS } from './_push.js';
 
 export const secretOk = v => typeof v === 'string' && /^[A-Za-z0-9]{6,32}$/.test(v);
 export const hashSecret = v => createHash('sha256').update('live:' + v).digest('hex');
@@ -82,6 +84,7 @@ export default handler(async (req, res) => {
   const code = club.code; // the club's permanent key, even when an old club code was used
 
   if (BOARD_ACTIONS.includes(body.action)) return send(res, 200, await boardAction(sql, club, body, req));
+  if (PUSH_ACTIONS.includes(body.action)) return send(res, 200, await pushAction(sql, club, body, req)); // opt-in notifications (see _push.js)
 
   if (body.action === 'state') {
     const id = String(body.id || '').slice(0, 64), st = body.state;

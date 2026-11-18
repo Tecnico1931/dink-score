@@ -3,6 +3,13 @@
 ## CI (`.github/workflows/ci.yml`)
 Runs on every PR and push to `main`: `npm test`, the PGlite API checks (`tools/api-check.mjs`, pglite installed in CI), `tools/dupr-check.mjs` (mock only), a `node build.cjs` drift check (fails if generated files differ from what is committed), and, on PRs, `tools/check-version.mjs` (fails when shipped files changed but `sw.js` `VERSION` did not). Locally: `node tools/check-version.mjs origin/main`.
 
+## Push notifications (off until the keys are set)
+`api/_push.js` sends opt-in "round published" and "court free" notifications (standard Web Push, VAPID, no dependency). Until all three environment variables exist the feature stays off: the app says notifications are not set up and nothing is sent or stored. To switch it on:
+1. `node tools/vapid-keys.mjs` prints a fresh key pair. Nothing is written to disk; treat the private key like a password and never commit it.
+2. In Vercel (Project -> Settings -> Environment Variables, Production) add `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (`mailto:` an address you read, or an `https://` URL). Redeploy.
+3. Keep the same pair afterwards: a new pair makes every saved subscription stop working (phones would need to turn notifications off and on again).
+Phones subscribe per club and name (the `push_subs` table, cascades with the club); dead subscriptions are removed when the push service answers 404 or 410. iPhones only get notifications from the Home Screen app. `node tools/push-check.mjs` runs the checks with a mocked sender.
+
 ## Error reporting (off by default)
 Set `ERROR_REPORT_URL` (an `https://` endpoint that accepts a JSON POST: a Sentry-style relay, a Slack/Discord-compatible webhook proxy, your own collector) in the Vercel project environment. Nothing else to configure; no vendor key is in the repo. Unset = nothing is sent.
 - Server: any unhandled 500 in `handler()` posts `{kind:'server', message, stack, at}`.
