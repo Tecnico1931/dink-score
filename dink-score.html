@@ -2434,6 +2434,77 @@ const DeviceGames = {
   select: (games, ids) => (ids ? games.filter(g => ids.includes(g.id)) : games.slice())
 };
 /*DEVICEGAMES-END*/
+/*MYGAMES-START*/
+// My games across clubs: this phone's own games from every club it is linked to a player in, read from the copies already kept on the phone (no new server call).
+// Pure, so test/mygames.test.js can load this block with the rating engine. Pickup sessions are not read: their games count once saved to a club.
+const MyGames = {
+  same: (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase(),
+  // clubs: [{ code, name }]; me: { [code]: { name } }; gamesOf(code): that club's games, or null when none are kept on this phone yet.
+  collect(DR, clubs, me, gamesOf) {
+    const out = [];
+    for (const c of clubs) {
+      const player = me[c.code] && me[c.code].name;
+      if (!player) continue; // not linked to a player in this club: nothing here is yours
+      const all = gamesOf(c.code);
+      const res = { code: c.code, club: c.name, player, loaded: !!all, rows: [], rating: { doubles: null, singles: null }, wins: 0, losses: 0 };
+      out.push(res);
+      if (!all) continue;
+      const ok = all.filter(g => g && Array.isArray(g.teams) && g.teams.length === 2 && g.teams.every(Array.isArray) && Array.isArray(g.score) && Number.isFinite(g.endedAt));
+      const { tables, changes } = DR.compute(ok.filter(g => !g.hold));
+      for (const mode of ['doubles', 'singles']) { const p = DR.lookup(tables, mode, player); if (p) res.rating[mode] = { rating: p.rating, games: p.games }; }
+      for (const g of ok) {
+        const side = g.teams.findIndex(t => t.some(n => MyGames.same(n, player)));
+        if (side < 0) continue;
+        const won = g.score[0] === g.score[1] ? null : g.score[side] > g.score[1 - side];
+        const ch = (changes[g.id] || { list: [] }).list.find(x => MyGames.same(x.name, player));
+        res.rows.push({ id: g.id, at: g.endedAt, mode: g.mode === 'singles' ? 'singles' : 'doubles', partner: g.teams[side].filter(n => !MyGames.same(n, player)).join(' & '), against: g.teams[1 - side].join(' & '), mine: g.score[side], theirs: g.score[1 - side], won, after: ch ? ch.after : null, hold: !!g.hold });
+        if (!g.hold && won === true) res.wins++;
+        if (!g.hold && won === false) res.losses++;
+      }
+      res.rows.sort((a, b) => b.at - a.at);
+    }
+    return out;
+  },
+  flat: results => results.flatMap(r => r.rows.map(x => Object.assign({ club: r.club, player: r.player }, x))).sort((a, b) => b.at - a.at),
+  date: ms => { const d = new Date(ms), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; },
+  // [header, value(row)] for toCsv in dupr-export.js, which neutralises = + - @ at the start of a cell
+  COLUMNS: [
+    ['Club', r => r.club], ['Date', r => MyGames.date(r.at)], ['Format', r => r.mode], ['Player', r => r.player],
+    ['Partner', r => r.partner], ['Opponents', r => r.against], ['Score for', r => r.mine], ['Score against', r => r.theirs],
+    ['Result', r => (r.won === null ? 'Tie' : r.won ? 'Win' : 'Loss')], ['Rating after', r => (r.after === null ? '' : r.after.toFixed(2))],
+    ['Counts toward rating', r => (r.hold ? 'No, waiting for confirmation' : 'Yes')]
+  ]
+};
+/*MYGAMES-END*/
+function myGamesData() {
+  return MyGames.collect(DR, clubs, me, code => {
+    if (club && code === club.code) return clubGames();
+    const d = cachedClub(code); return d ? d.games : null;
+  });
+}
+function myGamesHTML(c) {
+  const res = myGamesData(), total = res.reduce((s, r) => s + r.rows.length, 0);
+  const cards = res.map(r => {
+    const rt = ['doubles', 'singles'].filter(m => r.rating[m]).map(m => `${m === 'doubles' ? 'Doubles' : 'Singles'} <b>${r2(r.rating[m].rating)}</b> (${r.rating[m].games})`).join(' · ');
+    const shown = (c.all || {})[r.code] ? r.rows : r.rows.slice(0, 8);
+    return `<div class="org-card"><div class="org-head"><span class="lab">${esc(r.club)}</span></div>
+      <p>You are <b>${esc(r.player)}</b> here.${r.loaded ? '' : ' Open this club once on this phone to load its games.'}</p>
+      ${r.loaded ? `<p>${rt ? `Rating: ${rt}. ` : ''}${r.wins} won, ${r.losses} lost.</p>` : ''}
+      ${shown.length ? `<ul class="club-list">${shown.map(x => `<li><span><b>${x.mine}–${x.theirs} ${x.won === null ? 'tie' : x.won ? 'win' : 'loss'}</b><small>${esc(new Date(x.at).toLocaleDateString([], { dateStyle: 'medium' }))} · ${esc(x.partner ? 'with ' + x.partner + ' ' : '')}vs ${esc(x.against)}${x.hold ? ' · waiting for confirmation' : ''}</small></span></li>`).join('')}</ul>` : r.loaded ? '<p class="note">No games of yours here yet.</p>' : ''}
+      ${r.rows.length > 8 && !(c.all || {})[r.code] ? `<button class="link" data-act="club-mine-more" data-code="${esc(r.code)}">Show all ${r.rows.length}</button>` : ''}</div>`;
+  }).join('');
+  return `<h2 id="club-h">My games</h2>
+    <p class="note">Your own games from every club this phone is linked to a player in, from the copy kept on this phone. Pickup sessions show up once saved to a club. Nobody else's games are shown.</p>
+    ${res.length ? cards : '<p>This phone isn\'t linked to a player in any club yet. Open a club and choose your name.</p>'}
+    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+    <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button>${total ? '<button class="btn btn-ink" data-act="club-mine-csv">Download CSV</button>' : ''}</div>`;
+}
+async function myGamesCsv() {
+  try {
+    const m = await import('./dupr-export.js');
+    saveFile(m.toCsv(MyGames.flat(myGamesData()), MyGames.COLUMNS), `dink-score-my-games-${MyGames.date(Date.now())}.csv`, 'text/csv;charset=utf-8');
+  } catch { clubSheet.error = 'Could not make the file. Try again.'; renderClub(); }
+}
 async function uploadLocalGames(ids) {
   if (!club || uploading) return;
   const games = DeviceGames.select(store.get('pb.games', []), ids);
@@ -2790,6 +2861,8 @@ function renderClub() {
     body = watchHTML(c);
   } else if (c.view === 'games' && club) {
     body = gamesHTML(c);
+  } else if (c.view === 'mine') {
+    body = myGamesHTML(c);
   } else if (c.view === 'board' && club) {
     body = boardHTML(c);
   } else if (c.view === 'pickup') {
@@ -2894,6 +2967,7 @@ function renderClub() {
         <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Score from your Apple Watch (prototype)</button></p></div>
       <button class="btn btn-soft block" data-act="club-games" style="margin-top:10px">Games going on — live scores</button>
       <button class="btn btn-soft block" data-act="club-board" style="margin-top:8px">Open play court board</button>
+      <button class="btn btn-soft block" data-act="club-mine" style="margin-top:8px">My games across clubs</button>
       <button class="btn btn-soft block" data-act="pk-open" style="margin-top:8px">Pickup session: play with people outside the club</button>
       ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
@@ -5838,6 +5912,9 @@ document.addEventListener('click', e => {
     }
     if (a === 'club-watch') { clubSheet = { view: 'watch' }; renderClub(); return; }
     if (a === 'club-games') { clubSheet = { view: 'games', games: null }; renderClub(); refreshClubGames(); return; }
+    if (a === 'club-mine') { clubSheet = { view: 'mine' }; renderClub(); return; }
+    if (a === 'club-mine-csv') { myGamesCsv(); return; }
+    if (a === 'club-mine-more') { clubSheet.all = Object.assign({}, clubSheet.all, { [ds.code]: true }); renderClub(); return; }
     if (a === 'club-board') { clubSheet = { view: 'board', board: undefined }; renderClub(); refreshBoard(); return; }
     if (a === 'club-game-mine') { clubSheet = null; renderClub(); if (live) { live.open = true; persistLive(); keepAwake(true); render(); } return; }
     if (a === 'club-game-open') {
