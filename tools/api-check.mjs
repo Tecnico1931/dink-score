@@ -1716,5 +1716,46 @@ await step('sync: photo avatars revalidate with an ETag and a private cache, and
   assert.ok(!JSON.stringify(main.json).includes('AAAAAAAA'), 'the main answer still carries a fingerprint, never the photo');
 });
 
+// Dink Rating v2: stored history rebuilt from the full game list, one-time changelog, history line, provisional label.
+await step('Dink Rating v2: stored ratings, provisional label, one changelog row, history line, dropped on rename', async () => {
+  const mkc = ok(await call(club, 'POST', { body: { name: 'Rating v2 club', pin: '246810' } }), 201);
+  const rc = mkc.club.code, pin = { pin: '246810' };
+  const t0 = Date.now() - 40 * 36e5;
+  const rg = (i, score) => ({ id: 'rv2-' + i, mode: 'singles', teams: [['Rae'], ['Sol']], score, endedAt: t0 + i * 36e5 });
+  ok(await call(games, 'POST', { body: { code: rc, games: Array.from({ length: 12 }, (_, i) => rg(i, i === 0 ? [11, 0] : [11, 6])) } }));
+  const get = () => call(club, 'GET', { query: '?code=' + rc });
+  const a = ok(await get());
+  assert.equal(a.ratings.version, 2);
+  assert.equal(a.ratings.provisionalBelow, 10);
+  assert.equal(a.ratings.players.singles.rae.games, 12);
+  assert.equal(a.ratings.players.singles.rae.provisional, false);
+  assert.ok(a.ratings.players.singles.rae.rating > 2 && a.ratings.players.singles.sol.rating === 2);
+  assert.ok(a.ratings.changelog && a.ratings.changelog.version === 2 && a.ratings.changelog.moves.singles.rae[1] < a.ratings.changelog.moves.singles.rae[0], 'the 11-0 is capped, so Rae moved down from the old rating');
+  const first = a.ratings.changelog.at;
+  // same answer again: one changelog row, nothing rebuilt; a new game rebuilds history but not the changelog
+  ok(await call(games, 'POST', { body: { code: rc, games: [rg(13, [4, 11])] } }));
+  const b = ok(await get());
+  assert.equal(b.ratings.players.singles.rae.games, 13);
+  assert.equal(b.ratings.changelog.at, first);
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM rating_changelog WHERE club = $1`, [rc])).rows[0].n, 1);
+  // the stored copy matches the engine over the club's games
+  const eng = await import(pathToFileURL(path.join(root, 'api', '_rating.js')).href);
+  const want = eng.compute(b.games).tables.singles.get('rae').rating;
+  assert.ok(Math.abs(b.ratings.players.singles.rae.rating - Math.round(want * 100) / 100) < 1e-9);
+  const h = ok(await call(games, 'GET', { query: `?code=${rc}&rating=Rae&mode=singles` }));
+  assert.equal(h.points.length, 13);
+  assert.equal(h.points.at(-1)[1], b.ratings.players.singles.rae.rating);
+  // fewer than 10 games is provisional
+  const tp = ok(await call(games, 'POST', { body: { code: rc, games: [{ id: 'rv2-p', mode: 'singles', teams: [['New'], ['Rae']], score: [11, 9], endedAt: t0 + 30 * 36e5 }] } }));
+  assert.equal(ok(await get()).ratings.players.singles.new.provisional, true);
+  // renaming drops the stored copy (it carries names) and the next read rebuilds it under the new name
+  ok(await call(playersApi, 'POST', { body: { code: rc, action: 'rename', name: 'New', newName: 'Fresh', ...pin } }));
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM rating_history WHERE club = $1`, [rc])).rows[0].n, 0);
+  const c = ok(await get());
+  assert.ok(c.ratings.players.singles.fresh && !c.ratings.players.singles.new);
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM rating_changelog WHERE club = $1`, [rc])).rows[0].n, 1, 'no second changelog row after a rebuild');
+  void tp;
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

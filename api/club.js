@@ -24,6 +24,7 @@ import { audit, organizerActor } from './_audit.js';
 import { counts, findDuplicates } from './_confirm.js';
 import { DELETE_UNDO_HOURS, gamesCsv } from './_privacy.js';
 import { computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_MIN_GAMES } from './_progress.js';
+import { refreshRatings, ratingsFor } from './_rating_store.js';
 
 // Achievements, this week's challenges, and trophies for every player, as the server counts them.
 function progressFor(games) {
@@ -213,6 +214,8 @@ export default handler(async (req, res) => {
   // marked `hold` and left out of achievements here and of ratings in the app.
   const required = !!club.require_confirmation;
   const gamesIn = games.map(r => ({ ...r.data, ...(r.confirmed_by ? { confirmed: { by: r.confirmed_by, at: new Date(r.confirmed_at).getTime() } } : {}), ...(r.dup_ok ? { dupOk: true } : {}) }));
+  // Stored Dink Rating v2 history (rebuilt first if the games changed); the app falls back to its own replay if this fails.
+  const ratings = await refreshRatings(sql, club).then(() => ratingsFor(sql, club)).catch(() => null);
   const gamesOut = gamesIn.map((g, i) => { const o = { ...g }; if (games[i].replay) o.replay = true; if (!counts(g, required)) o.hold = true; return o; });
   send(res, 200, {
     club: publicClub(club),
@@ -224,6 +227,7 @@ export default handler(async (req, res) => {
     renamed: Object.fromEntries(renamed.map(r => [r.old_key, r.new_name])),
     // Who has claimed a name (never the claim itself), plus pictures and self-reported DUPR numbers.
     players: roster.map(r => ({ name: r.name, claimed: r.claimed, ...(r.role ? { role: r.role } : {}), avatar: r.avatar || null, dupr: duprFrom(r.dupr_rating) })),
-    progress: progressFor(gamesIn.filter(g => counts(g, required)))
+    progress: progressFor(gamesIn.filter(g => counts(g, required))),
+    ratings
   });
 });

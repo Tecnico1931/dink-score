@@ -9,11 +9,13 @@
 // or the creating phone's token (X-Club-Owner header, or "ownerToken" in the body).
 // POST   /api/games {code, confirm: id, playerName+playerToken | pin | ownerToken} -> confirms a game: a player on the other team from whoever recorded it, or an organizer
 // POST   /api/games {code, keepBoth: [idA, idB], pin|ownerToken}  -> organizer: these two similar games are really two games, stop flagging them
+// GET    /api/games?code=ABC123&rating=Name[&mode=singles] -> {points: [[ended at, rating after]]}: that player's stored Dink Rating line, oldest first
 // GET    /api/games?code=ABC123&audit=1[&id=g123]  -> organizer only: the history of changes to games (who, what, when, before and after), newest first
 import { checkLog } from './_rallylog.js';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, requireOrganizer, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, coOrganizer, verifiedSender } from './_db.js';
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 import { confirmBlocker } from './_confirm.js';
+import { refreshRatings, historyOf } from './_rating_store.js';
 
 export default handler(async (req, res) => {
   const sql = db();
@@ -39,6 +41,11 @@ export default handler(async (req, res) => {
         ? await sql`SELECT id, game, action, actor, at, before, after, note FROM game_audit WHERE club = ${club.code} AND game = ${String(only)} ORDER BY id DESC LIMIT 100`
         : await sql`SELECT id, game, action, actor, at, before, after, note FROM game_audit WHERE club = ${club.code} ORDER BY id DESC LIMIT 200`;
       return send(res, 200, { audit: rows.map(r => ({ id: Number(r.id), game: r.game, action: r.action, actor: r.actor, at: new Date(r.at).getTime(), before: r.before, after: r.after, note: r.note })) });
+    }
+    if (url.searchParams.get('rating')) {
+      // One player's stored rating line: [[ended at, rating after]], oldest first (the newest 200 games).
+      await refreshRatings(sql, club);
+      return send(res, 200, { points: await historyOf(sql, club, url.searchParams.get('mode'), nameKey(String(url.searchParams.get('rating')))) });
     }
     const [row] = await sql`SELECT rally_log FROM games WHERE club = ${club.code} AND id = ${String(url.searchParams.get('id') || '')} AND deleted_at IS NULL`;
     if (!row) throw fail(404, 'That game no longer exists.');

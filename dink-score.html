@@ -235,6 +235,8 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .prow .rating { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
 .badge { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px; }
 .badge.prov { background: var(--surface-2); color: var(--muted); }
+.note-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); font-size: 14px; }
+.note-card p { margin: 0; }
 .badge.hot { background: var(--ball); color: var(--ball-ink); }
 .delta { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .delta.up { color: var(--up); }
@@ -1061,7 +1063,7 @@ const Heal = (() => {
   function clubData(d, code) {
     if (!isObj(d) || typeof d.code !== 'string' || (code && d.code !== code)) return null;
     if (num(d.v) !== null && d.v > SCHEMA) return null;
-    return Object.assign({}, d, { v: SCHEMA, games: games(d.games).ok, deleted: games(d.deleted).ok, roster: strs(d.roster), players: list(d.players, player).ok, progress: isObj(d.progress) ? d.progress : null, at: num(d.at) === null ? 0 : d.at });
+    return Object.assign({}, d, { v: SCHEMA, games: games(d.games).ok, deleted: games(d.deleted).ok, roster: strs(d.roster), players: list(d.players, player).ok, progress: isObj(d.progress) ? d.progress : null, ratings: isObj(d.ratings) ? d.ratings : null, at: num(d.at) === null ? 0 : d.at });
   }
   const names = () => [['', ''], ['', '']];
   function setup(s, defaults) {
@@ -1234,13 +1236,15 @@ const Scoring = {
    - Each game has an expected share of points: share = 1 / (1 + 10^(-gap / 2.8)).
      A 0.50 rating gap expects roughly 11-7.
    - After the game: change = K x (actual share - expected share). Beat the forecast and you go up, even in a loss.
+     v2: the actual share is capped at 11-3 (about 0.79), so a blowout counts no more than 11-3. Under 10 games a player is provisional.
    - K shrinks as reliability grows: K = 0.06 + 0.24 x (1 - reliability).
    - Reliability = min(1, games / 20), fading after 30 days without a game (never below 40% of its value).
    Ratings are always recomputed by replaying saved games in order, so deleting a game corrects everything after it. */
 const DR = (() => {
-  const START = 2, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20;
+  const VERSION = 2, START = 2, MIN = 2, MAX = 8, SCALE = 2.8, FULL = 20, PROVISIONAL = 10, CAP = 11 / 14; // same numbers as api/_rating.js
   const DAY = 864e5;
-  const key = n => String(n).trim().toLowerCase();
+  const key = n => String(n).normalize('NFC').trim().toLowerCase();
+  const isProvisional = p => !p || p.games < PROVISIONAL;
   const expShare = gap => 1 / (1 + Math.pow(10, -gap / SCALE));
   function reliability(p, now) {
     if (!p || !p.games) return 0;
@@ -1251,7 +1255,7 @@ const DR = (() => {
   }
   const kFactor = rel => 0.06 + 0.24 * (1 - rel);
   const clamp = r => Math.min(MAX, Math.max(MIN, r));
-  function compute(games) {
+  function compute(games, { cap = CAP } = {}) {
     const tables = { doubles: new Map(), singles: new Map() };
     const changes = {};
     const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
@@ -1267,7 +1271,7 @@ const DR = (() => {
       const teams = g.teams.map(t => t.map(get));
       const tr = teams.map(t => t.reduce((s, p) => s + p.rating, 0) / t.length);
       const pA = expShare(tr[0] - tr[1]);
-      const sA = g.score[0] / tot;
+      const sA = Math.min(cap, Math.max(1 - cap, g.score[0] / tot));
       const list = [];
       const updates = [];
       teams.forEach((t, ti) => {
@@ -1299,7 +1303,7 @@ const DR = (() => {
     const loser = Math.min(target - 1, Math.round(target * (1 - pf) / pf));
     return { pA, fav, score: fav === 0 ? [target, loser] : [loser, target], ratings: tr };
   }
-  return { compute, forecast, lookup, reliability, expShare, START };
+  return { compute, forecast, lookup, reliability, expShare, isProvisional, key, START, VERSION, PROVISIONAL };
 })();
 
 /*ENGINE-END*/
@@ -2069,7 +2073,7 @@ async function refreshClub() {
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
     club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.publicResults = !!data.club.publicResults; club.payLink = data.club.payLink || ''; club.note = data.club.note || ''; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
-    clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, dupes: data.dupes || [], at: Date.now() }, club.code);
+    clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], progress: data.progress || null, ratings: data.ratings || null, dupes: data.dupes || [], at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
     roster = rosterFromClub();
     followRenames(data.renamed);
@@ -3394,6 +3398,15 @@ function leaderStats(games, mode) {
     return Object.assign({}, p, e, { rel: Math.round(DR.reliability(p, now) * 100) });
   }).sort((a, b) => b.rating - a.rating);
 }
+// Dink Rating v2 changelog: shown once per phone and club, with this phone's own old and new rating when the server has them.
+const ratingNoteKey = () => club ? 'pb.ratingNote.' + club.code : '';
+function ratingNoteHTML() {
+  const cl = club && clubData && clubData.ratings && clubData.ratings.changelog;
+  if (!cl || store.get(ratingNoteKey(), 0) >= cl.version) return '';
+  const k = myName() ? DR.key(myName()) : '';
+  const mine = ['doubles', 'singles'].filter(m => cl.moves && cl.moves[m] && cl.moves[m][k]).map(m => `${m === 'doubles' ? 'Doubles' : 'Singles'} ${r2(cl.moves[m][k][0])} to ${r2(cl.moves[m][k][1])}`);
+  return `<section class="note-card" role="status"><p><b>Dink Rating got an update.</b> A blowout now counts no more than an 11-3 win, and a player is Provisional until ${DR.PROVISIONAL} games.${mine.length ? ` Your rating: ${mine.join(', ')}.` : ''}</p><button class="btn btn-soft" data-act="rating-note-ok">Got it</button></section>`;
+}
 function leadersView() {
   const info = club ? progressInfo() : null;
   const season = info && lbScope === 'season' ? info.season : null;
@@ -3401,7 +3414,7 @@ function leadersView() {
   const rows = leaderStats(games, ratingMode);
   const scope = info ? seg('data-lbscope', [['season', esc(info.season.name)], ['all', 'All time']], lbScope, 'sm') : '';
   const sub = season ? `${esc(season.name)} ends in ${daysLeft(season.end)} day${daysLeft(season.end) === 1 ? '' : 's'}. Everyone starts at 2.00 and only games sent from a club player's phone count. The top 3 with ${season.minGames}+ games win a trophy.` : `Ranked by Dink Rating from every saved ${ratingMode} game.`;
-  const head = `<section><div class="sec-head"><h2>Leaderboard</h2>${seg('data-rmode', [['doubles', 'Doubles'], ['singles', 'Singles']], ratingMode, 'sm')}</div>${scope ? `<div style="margin-top:10px">${scope}</div>` : ''}<p class="sub">${sub}</p></section>`;
+  const head = ratingNoteHTML() + `<section><div class="sec-head"><h2>Leaderboard</h2>${seg('data-rmode', [['doubles', 'Doubles'], ['singles', 'Singles']], ratingMode, 'sm')}</div>${scope ? `<div style="margin-top:10px">${scope}</div>` : ''}<p class="sub">${sub}</p></section>`;
   if (!rows.length) return head + `<div class="empty"><p>${season ? `No ${ratingMode} games from a club player's phone yet this season.` : `No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.`}</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>` + (info ? pastChampionsHTML(ratingMode) : '');
   if (!rows.length) return head + `<div class="empty"><p>No rated ${ratingMode} players yet. Name the players before a game, or log a result, to put them on the board.</p><button class="btn btn-ink" data-tab-go="play">Start a game</button></div>`;
   const podium = rows.slice(0, 3);
@@ -3411,7 +3424,7 @@ function leadersView() {
       <span class="avatar">${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
       <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
   const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini">${avatarInner(p.name)}</span>
-      <span class="pinfo"><span class="pname">${esc(p.name)}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (p.rel < 60 ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
+      <span class="pinfo"><span class="pname">${esc(p.name)}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (DR.isProvisional(p) ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
@@ -3439,7 +3452,8 @@ function rulesView() {
       <p>Dink Rating is this app's own skill rating, built on the same ideas as the big rating systems. It runs from 2.00 to 8.00, and everyone starts at 2.00. Doubles and singles are rated separately.</p>
       <ul><li>Before each game, the app forecasts the score from the players' ratings. A team's rating is the average of its two players.</li>
         <li>After the game, your rating moves by how far you beat or missed that forecast. Losing 9–11 to a much stronger team can raise your rating. Winning 11–9 when you were expected to win 11–4 can lower it.</li>
-        <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Below 60% your rating is provisional and moves faster.</li>
+        <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Until your tenth game your rating is marked Provisional, and it moves faster while reliability is low.</li>
+        <li>A blowout counts no more than an 11–3 win: the score share used for your rating is capped at about 79%, so running up the score doesn't help.</li>
         <li>Logged results count the same as games scored live.</li></ul></div>
     <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
     <div class="rule" id="rules-dupr"><h3>Set up DUPR</h3>
@@ -4980,7 +4994,7 @@ function renderProfile() {
   } else {
     const chart = ratingChart(pr.series);
     chartGeo = chart.geo; chartSeries = pr.series;
-    body = `<div class="pf-hero"><span class="rt">${r2(pr.p.rating)}</span><span class="meta">${deltaHTML(pr.p.delta)}<span>${pr.rel < 60 ? 'Provisional, ' : ''}${pr.rel}% reliable</span></span></div>
+    body = `<div class="pf-hero"><span class="rt">${r2(pr.p.rating)}</span><span class="meta">${deltaHTML(pr.p.delta)}<span>${DR.isProvisional(pr.p) ? `Provisional, under ${DR.PROVISIONAL} games, ` : ''}${pr.rel}% reliable</span></span></div>
       <div class="pf-stats"><div><b>${games}</b><small>Games</small></div><div><b>${pr.w}–${pr.l}</b><small>Won–lost</small></div><div><b>${Math.round(100 * pr.w / games)}%</b><small>Win rate</small></div><div><b>${diff > 0 ? '+' : ''}${diff}</b><small>Points +/−</small></div></div>
       ${club ? trophiesHTML(pr.name) : ''}
       <div class="chart-card"><h3>Rating over time</h3>${chart.svg}<div class="chart-tip" hidden></div></div>
@@ -5967,6 +5981,7 @@ document.addEventListener('click', e => {
     if (a === 'pin-lock') { forgetPin(); clubSheet = { view: 'club', msg: 'This phone is locked. Deleting games needs the PIN again.' }; }
     renderClub(); if (!clubSheet) render(); return;
   }
+  if (ds.act === 'rating-note-ok') { const cl = clubData && clubData.ratings && clubData.ratings.changelog; if (cl) store.set(ratingNoteKey(), cl.version); render(); return; }
   if (ds.act && ds.act.startsWith('board-')) { boardClick(ds); return; }
   if (ds.act && ds.act.startsWith('pk-')) { pickupClick(ds); return; }
   if (ds.act && ds.act.startsWith('club-')) {

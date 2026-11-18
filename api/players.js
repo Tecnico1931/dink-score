@@ -18,6 +18,7 @@ import { cleanDupr, duprFrom } from './_dupr.js';
 import { newAnonLabel, renameDeep, likeFor } from './_privacy.js';
 import { renamePlayer, renameWrites } from './_rename.js';
 import { MEMBER_ACTIONS, memberAction, audit } from './_members.js';
+import { dropRatings } from './_rating_store.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -183,7 +184,7 @@ export default handler(async (req, res) => {
     for (const r of caud) {
       ops.push(sql`UPDATE club_audit SET actor = ${actorTo(r.actor)}, actor_name = ${noteTo(r.actor_name)}, target = ${noteTo(r.target)}, detail = ${r.detail ? json(renameDeep(r.detail, k, label)) : null}::jsonb WHERE id = ${r.id}`);
     }
-    ops.push(sql`DELETE FROM name_changes WHERE club = ${code} AND old_key = ${k}`);
+    ops.push(sql`DELETE FROM name_changes WHERE club = ${code} AND old_key = ${k}`, ...dropRatings(sql, code));
     for (const r of chg) if (nameKey(r.new_name) === k) ops.push(sql`UPDATE name_changes SET new_name = ${label} WHERE club = ${code} AND old_key = ${r.old_key}`);
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM push_subs WHERE club = ${code} AND name_key = ${k}`);

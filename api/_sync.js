@@ -5,7 +5,7 @@
 // the app sends If-None-Match itself. A client that sends no tag gets the same full answer as before.
 import { createHash } from 'node:crypto';
 
-export const SYNC_V = 1; // bump when an answer's shape changes, so every held tag stops matching
+export const SYNC_V = 2; // bump when an answer's shape changes, so every held tag stops matching
 export const BUCKET_MS = 10 * 60 * 1000; // answers that depend on the clock (ratings reliability) are refreshed at least this often
 
 export const tagOf = (scope, text) => 'W/"' + createHash('sha256').update(`${SYNC_V}|${scope}|${text}`).digest('base64url').slice(0, 24) + '"';

@@ -277,6 +277,31 @@ export function ensureSchema() {
         ended_at bigint NOT NULL,
         PRIMARY KEY (session, id)
       )`;
+      // Dink Rating v2 (api/_rating_store.js): rebuilt from the games, so every table here can be dropped and refilled.
+      await q`CREATE TABLE IF NOT EXISTS rating_state (
+        club text PRIMARY KEY REFERENCES clubs(code) ON DELETE CASCADE,
+        version int NOT NULL,
+        digest text NOT NULL,
+        built_at timestamptz NOT NULL DEFAULT now()
+      )`;
+      await q`CREATE TABLE IF NOT EXISTS rating_history (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        mode text NOT NULL,
+        pkey text NOT NULL,
+        n int NOT NULL,
+        game_id text NOT NULL,
+        at bigint NOT NULL,
+        rating float8 NOT NULL,
+        name text NOT NULL,
+        PRIMARY KEY (club, mode, pkey, n)
+      )`;
+      await q`CREATE TABLE IF NOT EXISTS rating_changelog (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        version int NOT NULL,
+        at timestamptz NOT NULL DEFAULT now(),
+        moves jsonb NOT NULL,
+        PRIMARY KEY (club, version)
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
