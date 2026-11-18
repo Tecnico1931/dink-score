@@ -8,6 +8,8 @@
 //   rounds: [{ n, title, status, matches: [match], byes: [names] }],   // round robin / pool play
 //   bracket: null | { kind, size, count, teams, matches },              // knockout / elimination (see _bracket.js)
 //   champion: null | [names], createdAt, updatedAt,
+//   seeding: 'rating' | undefined, seeds: [team rating, ...]   // fixed teams only: teams are in seed order (strongest first, by Dink Rating when the event was made); seeds[i] is teams[i]'s rating
+//   division: { n, of, label }                                 // set when the event is one division of a split event (see _seeding.js)
 //   teamInfo: [{ players: [a, b], name, logo }], publicLogos   // optional team names and logos (from a sheet import); logos only reach the public page when publicLogos is true
 // }
 // A DUPR ID typed in a sheet is NOT part of the event: it is a private reference kept in its own column (events.refs).
@@ -17,6 +19,7 @@ import { planRound, validateRound } from './_rotation.js';
 import { pairTeams, roundRobin, standings, teamId } from './_schedule.js';
 import * as B from './_bracket.js';
 import { cleanLogoUrl, cleanDupr } from '../sheet-import.js';
+import { seedTeams } from './_seeding.js';
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
 export const FORMATS = ['roundrobin', 'pool_knockout', 'single_elim', 'double_elim'];
@@ -65,7 +68,12 @@ export function createEvent(input, now = Date.now(), rand = Math.random) {
       ev.teamInfo = buildTeamInfo(ev.teams, input.teamMeta);
       ev.publicLogos = input.publicLogos !== false;
     }
+    if (input.seeding === 'rating' && input.ratings) {
+      const s = seedTeams(ev.teams, input.ratings);
+      ev.teams = s.teams; ev.seeds = s.seeds; ev.seeding = 'rating';
+    }
   }
+  if (input.division && Number.isInteger(input.division.n) && Number.isInteger(input.division.of)) ev.division = { n: input.division.n, of: input.division.of, label: String(input.division.label || '').slice(0, 20) };
   if (elimination) {
     startBracket(ev, ev.teams, format === 'double_elim' ? 'double' : 'single');
     return ev;

@@ -772,6 +772,7 @@ button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font:
 .ev-game .meta { padding-left: 18px; }
 .ev-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ev-small { padding: 12px 16px; font-size: 15px; border-radius: 14px; }
+.ev-seedpv { margin: 8px 0 0; padding-left: 18px; }
 .ev-entry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ev-entry label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 500; color: var(--muted); min-width: 0; border-left: 5px solid var(--c); padding-left: 10px; }
 .ev-entry label span { overflow-wrap: anywhere; }
@@ -5146,7 +5147,7 @@ const canOrganize = () => !!club && (!!owners[club.code] || (!!club.hasPin && !!
 const evCall = body => api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, adminCreds())) });
 const evTeamName = (t, ev) => (t ? BK.teamName(ev, t) : 'To be decided'); // a team's name from the sheet, else its players
 function evNewForm() {
-  return { name: '', format: 'roundrobin', partners: 'rotating', rotation: 'auto', courts: 2, rounds: null, advance: 4, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, players: [], imp: null, error: '', busy: false };
+  return { name: '', format: 'roundrobin', partners: 'rotating', rotation: 'auto', courts: 2, rounds: null, advance: 4, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, players: [], imp: null, seeding: false, divisions: 0, seedPv: null, error: '', busy: false };
 }
 const evDefaultRounds = n => Math.min(15, Math.max(3, n - 1));
 
@@ -5261,6 +5262,17 @@ function evListHTML(s) {
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}${make}
     ${s.list === null ? '<p class="note">Loading events…</p>' : items ? `<div class="ev-sec">${items}</div>${s.more ? `<button class="btn btn-soft block" data-ev="more" ${s.loadingMore ? 'disabled' : ''}>${s.loadingMore ? 'Loading…' : 'Show more events'}</button>` : ''}` : '<div class="empty"><p>No events yet. An organizer can run a round robin with rotating partners, a pool play and knockout, or a single or double elimination bracket.</p></div>'}`;
 }
+// Seeding and divisions from Dink Rating. The ratings are the club's, read by the server when the event is made.
+function evSeedingHTML(f, n, elim, fixed, imported) {
+  if (imported) return '';
+  const canDivide = !(fixed && f.rotation === 'manual');
+  const pv = f.seedPv, rate = p => `${esc(p.name)} ${p.rating.toFixed(2)}${p.provisional ? ' (provisional)' : ''}`;
+  const pvHTML = !pv ? '' : pv.divisions ? `<ul class="note ev-seedpv">${pv.divisions.map(d => `<li><b>${esc(d.label)}</b>: ${d.players.map(rate).join(', ')}</li>`).join('')}</ul>`
+    : `<ul class="note ev-seedpv"><li>${pv.players.map(rate).join('</li><li>')}</li></ul>`;
+  return `${elim ? `<div class="field"><label class="imp-check"><input type="checkbox" data-ev-input="seeding" ${f.seeding ? 'checked' : ''}> Seed teams by rating</label><p class="note">${f.seeding ? 'The strongest team is seed 1, by Dink Rating. Players without games count as 2.00.' : 'Teams are seeded in the order they are formed.'}</p></div>` : ''}
+    ${canDivide ? `<div class="field"><span class="lab">Divisions</span>${evSeg('divisions', [[0, 'One event'], [2, '2'], [3, '3'], [4, '4']], f.divisions)}<p class="note">${f.divisions ? `Splits the players by Dink Rating into ${f.divisions} events, the strongest in Division A.` : 'Everyone plays in one event.'}</p></div>` : ''}
+    ${n >= 4 && (f.seeding || f.divisions) ? `<div class="field"><button type="button" class="btn btn-soft ev-small" data-ev="seed-pv" ${f.busy ? 'disabled' : ''}>Preview ratings${f.divisions ? ' and divisions' : ''}</button>${pvHTML}</div>` : ''}`;
+}
 function evNewHTML(s) {
   const f = s.form, n = f.players.length, rotating = f.partners === 'rotating' && (f.format === 'roundrobin' || f.format === 'pool_knockout');
   const elim = f.format === 'single_elim' || f.format === 'double_elim';
@@ -5285,6 +5297,7 @@ function evNewHTML(s) {
     <div class="seg-row" style="margin:0"><div class="field"><span class="lab">Play to</span>${evSeg('target', [[11, '11'], [15, '15'], [21, '21']], f.target)}</div>
       <div class="field" style="margin:0"><span class="lab">Win by</span>${evSeg('winBy', [[2, '2'], [1, '1']], f.winBy)}</div></div>
     <div class="field"><span class="lab">Scoring</span>${evSeg('scoring', [['sideout', 'Side-out'], ['rally', 'Rally']], f.scoring)}</div>
+    ${evSeedingHTML(f, n, elim, fixed, !!imp)}
     <div class="field"><label class="imp-check"><input type="checkbox" data-ev-input="results-any" ${f.resultsAny ? 'checked' : ''}> Let any club member enter results</label><p class="note">${f.resultsAny ? 'Anyone who has joined the club can enter any match result.' : 'Only the players in a match and organizers can enter its result. You can change this later.'}</p></div>
     ${evImportHTML(f)}
     ${imp ? '' : `<div class="field"><div class="rhead"><span class="lab">Players (${n})</span><span><button type="button" class="link" data-ev="pick-all">All</button> <button type="button" class="link" data-ev="pick-none">None</button></span></div>
@@ -5493,6 +5506,7 @@ function evDetailHTML(s) {
   out.push(`<div class="ev-card"><div class="ev-item-head"><b>${esc(EV_FORMAT_NAME[ev.format])}</b><span class="badge ${live ? 'hot' : 'prov'}">${live ? 'Live' : 'Finished'}</span></div>
     <span class="note">${ev.partners === 'rotating' ? 'Partners rotate' : 'Fixed teams'} · ${ev.players.length} players · ${ev.courts} court${ev.courts === 1 ? '' : 's'} · to ${ev.target}, ${ev.scoring === 'rally' ? 'rally' : 'side-out'}, win by ${ev.winBy}</span>
     <span class="note">${esc(evProgress({ status: ev.status, champion: null, stage: ev.stage, round: (ev.rounds.find(r => r.status !== 'done') || ev.rounds[ev.rounds.length - 1] || { n: 1 }).n, roundsPlanned: ev.roundsPlanned }))}</span>
+    ${ev.division || ev.seeding ? `<span class="note">${ev.division ? esc(ev.division.label) + ` (${ev.division.n} of ${ev.division.of}, by rating)` : ''}${ev.division && ev.seeding ? ' · ' : ''}${ev.seeding ? 'Seeded by Dink Rating' : ''}</span>` : ''}
     <div class="ev-actions"><button class="btn btn-soft ev-small" data-ev="brackets">${ICON.bracket}Brackets</button></div></div>`);
   if (ev.status === 'done' && ev.champion) out.push(`<div class="ev-champ" role="status">${BK.logoHTML(ev, ev.champion, true) || '<span class="ball"></span>'}<div><small>${ev.knockout ? 'Champions' : ev.partners === 'fixed' ? 'Top team' : 'Top player'}</small><b>${esc(BK.teamName(ev, ev.champion))}</b></div></div>`);
   if (org) out.push(evRosterHTML(s));
@@ -5723,6 +5737,13 @@ async function evOrg(body, ok) {
   }
   s.busy = false; renderEvents(true);
 }
+async function evSeedPreview(f) {
+  if (f.busy) return;
+  f.busy = true; f.error = ''; renderEvents(true);
+  try { f.seedPv = await evCall({ action: 'seed-preview', players: f.players, divisions: f.divisions || undefined, partners: evRotating(f) ? 'rotating' : 'fixed', format: f.format }); }
+  catch (err) { if (err.status === 403) forgetPin(); f.error = err.message; }
+  f.busy = false; renderEvents(true);
+}
 async function evCreate() {
   const s = evScreen, f = s.form;
   if (f.busy) return;
@@ -5739,12 +5760,14 @@ async function evCreate() {
   if (imp && imp.teams) { Object.assign(body.event, { teams: imp.teams, teamMeta: imp.teamMeta, publicLogos: !!f.imp.publicLogos }); }
   else if (!rotating && f.rotation === 'manual') body.event.teams = Array.from({ length: Math.floor(players.length / 2) }, (_, i) => [players[2 * i], players[2 * i + 1]]);
   if (imp && Object.keys(imp.refs).length) body.event.refs = imp.refs; // private reference only; the server keeps it apart from the event
-  if (!rotating && !(imp && imp.teams) && f.rotation === 'auto') body.event.ratings = Object.fromEntries(leaderStats(ratedGames(), 'doubles').map(p => [p.name, p.rating]));
+  if (!imp && f.seeding && (f.format === 'single_elim' || f.format === 'double_elim')) body.event.seeding = 'rating';
+  if (!imp && f.divisions && (rotating || f.rotation !== 'manual')) body.event.divisions = f.divisions; // the server reads the ratings itself (balanced teams and seeds too), never from this phone
   f.busy = true; f.error = ''; renderEvents(true);
   try {
     const data = await evCall(body);
-    evScreen = { view: 'detail', id: data.event.id, event: data.event, list: null, error: '' };
-    showToast('Event started', false);
+    evScreen = data.events && data.events.length > 1 ? { view: 'list', list: null, error: '' } : { view: 'detail', id: data.event.id, event: data.event, list: null, error: '' };
+    showToast(data.events && data.events.length > 1 ? `${data.events.length} division events started` : 'Event started', false);
+    if (evScreen.view === 'list') evLoadList();
     evSummaryRefresh();
     evRefsLoad(evScreen);
   } catch (err) {
@@ -5787,17 +5810,19 @@ function evAct(a, d) {
     const f = s.form;
     if (evImpAct(a, d, f)) return;
     if (a === 'set') {
-      const num = ['courts', 'rounds', 'advance', 'target', 'winBy'].includes(d.k);
+      const num = ['courts', 'rounds', 'advance', 'target', 'winBy', 'divisions'].includes(d.k);
       f[d.k] = num ? +d.v : d.v;
       if (d.k === 'format' && (d.v === 'single_elim' || d.v === 'double_elim')) f.partners = 'fixed';
-      f.error = '';
+      f.error = ''; f.seedPv = null;
     }
+    if (a === 'seed-pv') { evSeedPreview(f); return; }
     if (a === 'step') {
       const cur = d.k === 'rounds' ? (f.rounds || evDefaultRounds(f.players.length || 8)) : f[d.k];
       const lim = { courts: [1, 8], rounds: [1, 30], advance: [2, 16] }[d.k];
       f[d.k] = Math.min(lim[1], Math.max(lim[0], cur + (+d.d)));
     }
     if (a === 'pick') {
+      f.seedPv = null;
       const i = f.players.findIndex(x => sameName(x, d.pl));
       if (i >= 0) f.players.splice(i, 1); else f.players.push(d.pl);
     }
@@ -5888,6 +5913,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   if (e.target.dataset && e.target.dataset.evFile === 'imp' && evScreen) { evImpFile(e.target); return; }
+  if (e.target.dataset && e.target.dataset.evInput === 'seeding' && evScreen && evScreen.form) { evScreen.form.seeding = e.target.checked; evScreen.form.seedPv = null; renderEvents(true); return; }
   if (e.target.dataset && e.target.dataset.evInput === 'results-any' && evScreen && evScreen.form) { evScreen.form.resultsAny = e.target.checked; renderEvents(true); return; }
   if (e.target.dataset && e.target.dataset.evInput === 'imp-publiclogos' && evScreen && evScreen.form && evScreen.form.imp) evScreen.form.imp.publicLogos = e.target.checked;
   const t = e.target, sel = t.dataset && t.dataset.evSel;

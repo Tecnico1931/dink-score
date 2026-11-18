@@ -1773,5 +1773,47 @@ await step('analytics: organizers only, totals only, no player named', async () 
   assert.equal(ok(await call(club, 'GET', { query: `?code=${a.club.code}&analytics=1&tz=Bad/Zone`, headers: { 'x-club-owner': a.ownerToken } })).tz, 'UTC');
 });
 
+// Event seeding and divisions from Dink Rating (L8): ratings are read on the server, never sent by the phone.
+await step('seeding: server ratings seed fixed teams, split divisions, preview writes nothing, phone-sent ratings are ignored', async () => {
+  const sc = ok(await call(club, 'POST', { body: { name: 'Seeding club', pin: '246810' } }), 201);
+  const scode = sc.club.code, creds = { pin: '246810' };
+  const ev = (action, extra) => call(events, 'POST', { body: { code: scode, action, ...extra, ...creds } });
+  const t0 = Date.now() - 40 * 864e5, strong = ['Ann', 'Bo', 'Cy', 'Di'], weak = ['Ed', 'Flo', 'Gus', 'Hal'];
+  const gs = Array.from({ length: 12 }, (_, i) => ({ id: 'sd-' + i, mode: 'doubles', teams: [strong.slice(0, 2), weak.slice(0, 2)], score: [11, 4], winner: 0, endedAt: t0 + i * 36e5 }))
+    .concat(Array.from({ length: 6 }, (_, i) => ({ id: 'sd2-' + i, mode: 'doubles', teams: [strong.slice(2), weak.slice(2)], score: [11, 6], winner: 0, endedAt: t0 + 20 * 36e5 + i * 36e5 })));
+  ok(await call(games, 'POST', { body: { code: scode, games: gs } }));
+  const players = [...weak, ...strong];
+  // preview: ranked by the stored rating, strongest first, nothing created
+  const pv = ok(await ev('seed-preview', { players, divisions: 2, partners: 'fixed' }));
+  assert.deepEqual(pv.players.slice(0, 2).map(p => p.name).sort(), ['Ann', 'Bo']);
+  assert.equal(pv.divisions.length, 2);
+  assert.deepEqual(pv.divisions[0].players.map(p => p.name).sort(), [...strong].sort());
+  assert.ok(pv.players.find(p => p.name === 'Ann').rating > pv.players.find(p => p.name === 'Hal').rating);
+  assert.equal(ok(await call(events, 'GET', { query: '?code=' + scode })).events.length, 0);
+  assert.equal((await call(events, 'POST', { body: { code: scode, action: 'seed-preview', players } })).status, 403);
+  // a seeded bracket: team ratings come from the server, a phone's own numbers change nothing
+  const lie = Object.fromEntries(players.map((p, i) => [p, i]));
+  const seeded = ok(await ev('create', { event: { name: 'Seeded cup', format: 'single_elim', rotation: 'manual', teams: [['Ed', 'Flo'], ['Gus', 'Hal'], ['Cy', 'Di'], ['Ann', 'Bo']], players, seeding: 'rating', ratings: lie, courts: 2 } }), 201).event;
+  assert.deepEqual(seeded.teams[0].slice().sort(), ['Ann', 'Bo']);
+  assert.deepEqual(seeded.teams[1].slice().sort(), ['Cy', 'Di']);
+  assert.equal(seeded.seeding, 'rating');
+  assert.ok(seeded.seeds[0] > seeded.seeds[3]);
+  // divisions: one event per division, strongest in A
+  const split = ok(await ev('create', { event: { name: 'Club cup', format: 'single_elim', rotation: 'auto', players, divisions: 2, courts: 2 } }), 201);
+  assert.equal(split.events.length, 2);
+  assert.deepEqual(split.events.map(e => e.name), ['Club cup · Division A', 'Club cup · Division B']);
+  assert.deepEqual(split.events[0].players.slice().sort(), [...strong].sort());
+  assert.equal(split.events[1].division.label, 'Division B');
+  const list = ok(await call(events, 'GET', { query: '?code=' + scode })).events;
+  assert.equal(list.length, 3);
+  assert.ok(list.some(e => e.division && e.division.n === 2));
+  // too few players for the divisions asked: refused, nothing created
+  assert.equal((await ev('create', { event: { name: 'Too thin', format: 'roundrobin', rotation: 'auto', players: strong, divisions: 2 } })).status, 400);
+  assert.equal(ok(await call(events, 'GET', { query: '?code=' + scode })).events.length, 3);
+  // the public bracket carries no rating or division numbers
+  const share = ok(await ev('share', { id: seeded.id })).shareToken;
+  assert.ok(!/seeds|seeding|rating/.test(JSON.stringify(ok(await call(bracket, 'GET', { query: '?token=' + share })))));
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
