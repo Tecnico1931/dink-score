@@ -22,6 +22,7 @@ import { checkLog } from './_rallylog.js';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, nameKey, reserveGames, releaseGames, verifiedSender } from './_db.js';
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 import { newShareToken } from './_share.js';
+import { notify, roundMessages } from './_push.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
 import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, checkResultActor, setResultsBy, correctResult, startKnockout, endEvent, view } from './_events.js';
 
@@ -175,6 +176,10 @@ export default handler(async (req, res) => {
   };
   if (actions[action]) {
     const { event } = await mutate(sql, code, id, actions[action]);
+    if (action === 'next-round' || action === 'publish-round') { // a round just opened: its players hear their court (opt-in, see _push.js)
+      const round = event.rounds.find(r => r.n === (action === 'publish-round' ? Number(body.round) : event.rounds.length));
+      if (round && round.status === 'live') await notify(sql, code, roundMessages(event, round));
+    }
     return send(res, 200, { event: view(event) });
   }
   if (action === 'share' || action === 'share-new' || action === 'share-off') {

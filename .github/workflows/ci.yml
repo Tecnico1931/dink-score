@@ -21,6 +21,8 @@ jobs:
         run: node tools/account-check.mjs
       - name: Data rights checks (export, anonymise, delete club)
         run: node tools/rights-check.mjs
+      - name: Push notification checks (mocked sender)
+        run: node tools/push-check.mjs
       - name: DUPR checks (mock only)
         run: node tools/dupr-check.mjs
       - name: Generated files are up to date

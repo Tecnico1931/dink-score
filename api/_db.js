@@ -259,6 +259,17 @@ export function ensureSchema() {
         joined_at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (session, name_key)
       )`;
+      // Push notifications (_push.js): one row per phone that opted in for a club, tied to the claimed player name. Cascades with the club.
+      await q`CREATE TABLE IF NOT EXISTS push_subs (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        endpoint text NOT NULL,
+        name_key text NOT NULL,
+        p256dh text NOT NULL,
+        auth text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, endpoint)
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS push_subs_club_name ON push_subs (club, name_key)`;
       await q`CREATE TABLE IF NOT EXISTS pickup_games (
         session text NOT NULL REFERENCES pickup_sessions(code) ON DELETE CASCADE,
         id text NOT NULL,

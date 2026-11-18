@@ -186,6 +186,7 @@ export default handler(async (req, res) => {
     ops.push(sql`DELETE FROM name_changes WHERE club = ${code} AND old_key = ${k}`);
     for (const r of chg) if (nameKey(r.new_name) === k) ops.push(sql`UPDATE name_changes SET new_name = ${label} WHERE club = ${code} AND old_key = ${r.old_key}`);
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
+    ops.push(sql`DELETE FROM push_subs WHERE club = ${code} AND name_key = ${k}`);
     if (!row && !touched) throw fail(404, 'No player has that name in this club.');
     ops.push(sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${k}`);
     ops.push(sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${k}`);

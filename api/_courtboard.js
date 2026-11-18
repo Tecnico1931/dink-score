@@ -14,6 +14,7 @@
 import { fail, requireOrganizer, tokenMatches, cleanName, nameKey } from './_db.js';
 import { audit } from './_members.js';
 import * as C from './_court.js';
+import { notify, courtFreeMessages } from './_push.js';
 
 export const BOARD_ACTIONS = ['board-config', 'board-checkin', 'board-checkout', 'board-rest', 'board-call', 'board-finish', 'board-cancel', 'board-reset'];
 const FRESH_MS = 6 * 60 * 60 * 1000;
@@ -113,6 +114,7 @@ export async function boardAction(sql, club, body, req) {
     const upd = await sql`UPDATE court_boards SET data = ${JSON.stringify(next)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code} AND version = ${row.version} RETURNING version`;
     if (upd.length) {
       if (action === 'board-reset') await audit(sql, code, org, 'court-board-reset', null, null);
+      if (action === 'board-finish') await notify(sql, code, courtFreeMessages(board, next)); // whoever is next for the freed court (opt-in, see _push.js)
       return { ok: true, ...(await boardGet(sql, club)) };
     }
   }

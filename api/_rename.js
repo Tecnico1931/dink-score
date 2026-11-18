@@ -90,6 +90,7 @@ export function renameWrites(sql, code, plan, extra = []) {
   if (games.length) writes.push(sql`UPDATE games g SET data = v.data FROM jsonb_to_recordset(${JSON.stringify(games)}::jsonb) AS v(id text, data jsonb) WHERE g.club = ${code} AND g.id = v.id`);
   if (events.length) writes.push(sql`UPDATE events e SET data = v.data, refs = v.refs FROM jsonb_to_recordset(${JSON.stringify(events)}::jsonb) AS v(id text, data jsonb, refs jsonb) WHERE e.club = ${code} AND e.id = v.id`);
   if (board) writes.push(sql`UPDATE court_boards SET data = ${JSON.stringify(board)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code}`);
+  writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   return writes.concat(extra);
 }
