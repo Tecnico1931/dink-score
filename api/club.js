@@ -7,6 +7,7 @@
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'reset-allowance', pin|ownerToken} -> organizer: ends a "too many games just now" pause
 // GET  /api/club?code=ABC123&avatars=1               -> the photo avatars, kept out of the main response: {photos: {name: {v, value}}}
+//   GET answers carry an ETag; If-None-Match with it gets an empty 304 when nothing changed (Sync v2, see _sync.js). No tag sent: the full answer, as before.
 // POST /api/club {code, action: 'set-confirmation', required, pin|ownerToken} -> organizer: whether games without a confirmation count toward ratings, achievements and seasons (default: they count)
 // GET answers also carry, for each game, confirmed {by, at} and hold (true: left out of ratings until confirmed), plus dupes: pairs of game ids that look like one game recorded twice.
 // POST /api/club {code, action: 'set-pay-link', link, pin|ownerToken} -> organizer: an optional https "how to pay" link for dues or court fees (empty clears it); the app takes no payments
@@ -14,6 +15,7 @@
 //   Both come back to members as payLink and note on `club` in GET answers.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
 import { manageResults } from './_resultsadmin.js';
+import { tagOf, sameTag, notModified, clubDigest, BUCKET_MS } from './_sync.js';
 import { cleanPayLink, cleanNote } from './_clubinfo.js';
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
@@ -182,10 +184,24 @@ export default handler(async (req, res) => {
   const code = club.code;
   if (url.searchParams.get('avatars')) {
     // Photos are the only large part of a player, so they come separately; `v` is a short fingerprint the app compares
-    // with the one in the main response to know when a cached photo is stale.
-    const rows = await sql`SELECT name, left(md5(avatar->>'value'), 8) AS v, avatar->>'value' AS value FROM roster WHERE club = ${code} AND avatar->>'type' = 'photo' LIMIT ${MAX_PHOTOS}`;
-    return send(res, 200, { photos: Object.fromEntries(rows.map(r => [r.name, { v: r.v, value: r.value }])) });
+    // with the one in the main response to know when a cached photo is stale. The browser keeps this answer and
+    // revalidates it with its ETag, so photos cross the network once per change, not once per launch.
+    const prints = await sql`SELECT name, left(md5(avatar->>'value'), 8) AS v FROM roster WHERE club = ${code} AND avatar->>'type' = 'photo' ORDER BY lower(name) LIMIT ${MAX_PHOTOS}`;
+    const tag = tagOf(code + ':avatars', JSON.stringify(prints));
+    if (sameTag(req, tag)) return notModified(res, tag, 'private, no-cache');
+    const rows = await sql`SELECT name, left(md5(avatar->>'value'), 8) AS v, avatar->>'value' AS value FROM roster WHERE club = ${code} AND avatar->>'type' = 'photo' ORDER BY lower(name) LIMIT ${MAX_PHOTOS}`;
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.setHeader('ETag', tag);
+    return res.end(JSON.stringify({ photos: Object.fromEntries(rows.map(r => [r.name, { v: r.v, value: r.value }])) }));
   }
+  // Nothing changed since the caller's last answer: say so before reading any game (see _sync.js). The tag is made from a
+  // digest taken first, so a change landing mid-request only ever makes the next poll fetch once more, never miss it.
+  const now = Date.now();
+  const tag = tagOf(code, [await clubDigest(sql, code), JSON.stringify(publicClub(club)), weekOf(now).id, seasonOf(now).id, Math.floor(now / BUCKET_MS)].join('#'));
+  if (sameTag(req, tag)) return notModified(res, tag);
+  res.setHeader('ETag', tag);
   const [games, deleted, roster, renamed] = await Promise.all([
     // rally_log itself stays out of this payload (GET /api/games?id= has it); a game just says whether it can be replayed.
     sql`SELECT data, rally_log IS NOT NULL AS replay, confirmed_by, confirmed_at, dup_ok FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,

@@ -11,6 +11,7 @@
 //   POST /api/live {code, action:'rally', game, secret, side, base?}   -> the server applies the rally itself (shared scoring)
 //   POST /api/live {code, action:'unrally', game, secret, base?}       -> the server takes back the last server-applied rally
 //   POST /api/live {code, action:'ack', game, secret, ack}             -> the phone drops intents it has applied
+//   Every GET answer here carries an ETag and honours If-None-Match with an empty 304 (Sync v2, see _sync.js).
 //   GET/POST board-*: the open play court board built on these live games, documented in _courtboard.js
 //   POST push-status | push-subscribe | push-unsubscribe: opt-in "you're up" notifications, documented in _push.js
 //   GET ?session=CODE and POST session-*: pickup sessions (24 hours, no club), documented in _sessions.js
@@ -24,6 +25,7 @@ import { rally as rallyOf, call as pbCall } from './_pb.js';
 import { boardGet, boardAction, BOARD_ACTIONS } from './_courtboard.js';
 import { sessionGet, sessionAction } from './_sessions.js';
 import { pushAction, PUSH_ACTIONS } from './_push.js';
+import { replyTagged } from './_sync.js';
 
 export const secretOk = v => typeof v === 'string' && /^[A-Za-z0-9]{6,32}$/.test(v);
 export const hashSecret = v => createHash('sha256').update('live:' + v).digest('hex');
@@ -58,11 +60,11 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'GET') {
     const url = new URL(req.url, 'http://x');
-    if (url.searchParams.has('session')) return send(res, 200, await sessionGet(sql, url.searchParams.get('session'), req)); // pickup sessions: no club involved (see _sessions.js)
+    if (url.searchParams.has('session')) return replyTagged(req, res, 'session:' + url.searchParams.get('session'), await sessionGet(sql, url.searchParams.get('session'), req)); // pickup sessions: no club involved (see _sessions.js)
     const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
     const code = club.code; // the club's permanent key, even when an old club code was used
     const id = String(url.searchParams.get('id') || '');
-    if (url.searchParams.get('board')) return send(res, 200, await boardGet(sql, club)); // the open play court board (see _courtboard.js)
+    if (url.searchParams.get('board')) return replyTagged(req, res, code + ':board', await boardGet(sql, club)); // the open play court board (see _courtboard.js)
     if (!id) {
       // The club's games going on right now: players and scores only. Anyone with the club code can
       // already see the club's finished games; a live score is no more private. Scoring one still
@@ -70,12 +72,12 @@ export default handler(async (req, res) => {
       const since = new Date(Date.now() - FRESH_MS).toISOString();
       const rows = await sql`SELECT id, state, updated_at FROM live_games WHERE club = ${code} AND updated_at > ${since} ORDER BY updated_at DESC LIMIT ${MAX_LIVE_ROWS}`;
       const games = rows.map(r => ({ id: r.id, teams: r.state.cfg.teams, score: r.state.score, serving: r.state.serving, serverNum: r.state.serverNum, winner: r.state.winner, mode: r.state.cfg.mode, scoring: r.state.cfg.scoring, target: r.state.cfg.target, startedAt: r.state.startedAt, updatedAt: new Date(r.updated_at).getTime() }));
-      return send(res, 200, { games });
+      return replyTagged(req, res, code + ':live', { games });
     }
     const [row] = await sql`SELECT state, intents, secret_hash, version FROM live_games WHERE club = ${code} AND id = ${id}`;
     if (!row) return send(res, 200, { state: null, intents: [], version: 0 });
     await requireSecret(sql, req, row, url.searchParams.get('secret'));
-    return send(res, 200, { state: row.state, intents: row.intents, version: row.version });
+    return replyTagged(req, res, code + ':game:' + id, { state: row.state, intents: row.intents, version: row.version });
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);

@@ -358,14 +358,22 @@ const MAX_FAILS = 20; // wrong codes allowed per network address per 15 minutes
 export async function requireClub(code, req) {
   const sql = db();
   const ip = clientIp(req);
-  // Record the attempt first, then count, so simultaneous guesses all see each other.
-  // A correct code removes its own record, so only wrong codes count toward the limit.
-  const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ip}) RETURNING id`;
-  const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`;
-  if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
+  // Only wrong codes are marked. A right code costs two parallel reads and no writes, which matters because every poll from every
+  // phone comes through here. A wrong code (or a request from a network already over the limit) records its mark first, then counts,
+  // so simultaneous guesses all see each other; a locked network is refused, right code or wrong, and its tries keep counting.
+  const miss = async () => {
+    const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${ip}) RETURNING id`;
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`;
+    return { id, n };
+  };
   // The code people type is the current public code (or, for a club never rotated, its original code), or a retired
   // code still inside its overlap. `code` on the returned row is always the permanent key: use it for every query.
-  let rows = await sql`SELECT code, name, pin_hash, owner_hash, public_code, require_confirmation, public_results, pay_link, pinned_note, delete_at FROM clubs WHERE coalesce(public_code, code) = ${code}`;
+  const [[{ n: recent }], found] = await Promise.all([
+    sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`,
+    sql`SELECT code, name, pin_hash, owner_hash, public_code, require_confirmation, public_results, pay_link, pinned_note, delete_at FROM clubs WHERE coalesce(public_code, code) = ${code}`
+  ]);
+  if (recent >= MAX_FAILS) { await miss(); throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.'); }
+  let rows = found;
   if (!rows.length) {
     rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, c.require_confirmation, c.public_results, c.pay_link, c.pinned_note, c.delete_at, a.expires_at AS old_code_until
       FROM club_aliases a JOIN clubs c ON c.code = a.club WHERE a.code = ${code} AND a.expires_at > now()`;
@@ -377,9 +385,10 @@ export async function requireClub(code, req) {
   }
   await purgeMarks(sql);
   if (!rows.length) {
+    const { n } = await miss();
+    if (n > MAX_FAILS) throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.');
     throw fail(404, 'No club has that code. Check it and try again.');
   }
-  await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
   return rows[0]; // includes pin_hash: use publicClub() before sending a club to the app
 }
 // openClaim: an older club with no creator on record and no PIN yet, where any member may set the first PIN.
