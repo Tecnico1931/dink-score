@@ -302,6 +302,18 @@ export function ensureSchema() {
         moves jsonb NOT NULL,
         PRIMARY KEY (club, version)
       )`;
+      // Leagues and ladders (see _leagues.js): one JSON document each, version-guarded like events. Their matches also become rows in `games`.
+      await q`CREATE TABLE IF NOT EXISTS leagues (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        data jsonb NOT NULL,
+        version int NOT NULL DEFAULT 1,
+        status text NOT NULL DEFAULT 'live',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        deleted_at timestamptz,
+        PRIMARY KEY (club, id)
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

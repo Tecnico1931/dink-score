@@ -1815,5 +1815,69 @@ await step('seeding: server ratings seed fixed teams, split divisions, preview w
   assert.ok(!/seeds|seeding|rating/.test(JSON.stringify(ok(await call(bracket, 'GET', { query: '?token=' + share })))));
 });
 
+await step('leagues and ladders: organizers create, results reach the record once, ranks and seasons move', async () => {
+  const lc = ok(await call(club, 'POST', { body: { name: 'League check club' } }), 201), lcode = lc.club.code, lown = { ownerToken: lc.ownerToken };
+  const lg = (action, extra = {}, creds = lown) => call(events, 'POST', { body: { code: lcode, action, ...extra, ...creds } });
+  const lgames = async () => ok(await call(club, 'GET', { query: '?code=' + lcode })).games;
+  const six = ['Ann', 'Bo', 'Cat', 'Dev', 'Eli', 'Fay'];
+  // organizers only, and the details are checked
+  assert.equal((await lg('league-create', { league: { kind: 'league', name: 'Nope', mode: 'singles', players: six } }, {})).status, 403);
+  assert.equal((await lg('league-create', { league: { kind: 'league', name: 'Thin', mode: 'singles', players: six, divisions: 3 } })).status, 400);
+  const league = ok(await lg('league-create', { league: { kind: 'league', name: 'Tuesday league', season: 'Autumn 1', mode: 'singles', players: six, divisions: 2, target: 11 } }), 201).league;
+  assert.equal(league.tables.length, 2);
+  assert.equal(league.weeks.flatMap(w => w.matches).length, 6);
+  assert.equal(ok(await call(club, 'GET', { query: '?code=' + lcode })).roster.length, 6, 'players join the roster');
+  // a match: scored once, retried safely, never twice in the record
+  const m = league.weeks[0].matches[0], body = { id: league.id, matchId: m.id, score: [11, 4], endedAt: Date.now() };
+  const done = ok(await lg('league-result', body)).league;
+  assert.equal(done.tables.flatMap(t => t.rows).filter(r => r.played).length, 2);
+  ok(await lg('league-result', body));
+  let g = await lgames();
+  assert.equal(g.length, 1);
+  assert.equal(g[0].id, `${league.id}-${m.id}`);
+  assert.equal(g[0].event.name, 'Tuesday league');
+  assert.equal(g[0].mode, 'singles');
+  assert.equal((await lg('league-result', { ...body, score: [2, 11] })).status, 409);
+  // an unlinked phone can't score a match it is not in; a correction is organizer-only and updates the same game
+  assert.equal((await call(events, 'POST', { body: { code: lcode, action: 'league-result', id: league.id, matchId: league.weeks[0].matches[1].id, score: [11, 1] } })).status, 403);
+  assert.equal((await lg('league-correct', { id: league.id, matchId: m.id, score: [3, 11] }, {})).status, 403);
+  ok(await lg('league-correct', { id: league.id, matchId: m.id, score: [3, 11] }));
+  g = await lgames();
+  assert.equal(g.length, 1); assert.deepEqual(g[0].score, [3, 11]);
+  // play the rest, season finishes, next season moves people between divisions
+  for (const w of league.weeks) for (const x of w.matches) if (x.id !== m.id) ok(await lg('league-result', { id: league.id, matchId: x.id, score: [11, 5], endedAt: Date.now() }));
+  const fin = ok(await call(events, 'GET', { query: `?code=${lcode}&league=${league.id}` })).league;
+  assert.equal(fin.status, 'done');
+  assert.equal((await lgames()).length, 6);
+  const next = ok(await lg('league-next-season', { id: league.id }), 201).league;
+  assert.equal(next.season, 'Autumn 2'); assert.equal(next.status, 'live'); assert.equal(next.previous, league.id);
+  assert.equal((await lg('league-next-season', { id: league.id })).status, 409, 'only one next season');
+  // a ladder: challenge rules, retry key, order, season close
+  const ladder = ok(await lg('league-create', { league: { kind: 'ladder', name: 'Ladder', mode: 'singles', players: six, jump: 2 } }), 201).league;
+  const top = ladder.rows.map(r => r.name);
+  const ch = (key, c, d, score) => lg('league-result', { id: ladder.id, key, challenger: [c], defender: [d], score, endedAt: Date.now() });
+  assert.equal((await ch('key1', top[5], top[0], [11, 3])).status, 409, 'too far up');
+  const after = ok(await ch('key2', top[2], top[0], [11, 3])).league;
+  assert.equal(after.rows[0].name, top[2]);
+  ok(await ch('key2', top[2], top[0], [11, 3]));
+  assert.equal((await lgames()).length, 7, 'a retry adds no game');
+  assert.equal(ok(await call(events, 'GET', { query: `?code=${lcode}&league=${ladder.id}` })).league.results.length, 1);
+  const closed = ok(await lg('league-end', { id: ladder.id })).league;
+  assert.equal(closed.season, 'Season 2'); assert.equal(closed.results.length, 0); assert.equal(closed.rows[0].name, top[2]);
+  // the list, 304 when nothing changed, export, rename, delete
+  const list = await call(events, 'GET', { query: `?code=${lcode}&leagues=1` });
+  assert.equal(ok(list).leagues.length, 3);
+  assert.equal((await call(events, 'GET', { query: `?code=${lcode}&leagues=1`, headers: { 'if-none-match': list.headers.etag } })).status, 304);
+  const exp = ok(await call(club, 'POST', { body: { code: lcode, action: 'export', ...lown } }));
+  assert.equal(exp.leagues.length, 3);
+  ok(await call(playersApi, 'POST', { body: { code: lcode, action: 'rename', name: top[2], newName: 'Zed Renamed', ...lown } }));
+  const renamed = ok(await call(events, 'GET', { query: `?code=${lcode}&league=${ladder.id}` })).league;
+  assert.equal(renamed.rows[0].name, 'Zed Renamed');
+  assert.ok(!JSON.stringify(renamed).includes(`"${top[2]}"`));
+  ok(await lg('league-delete', { id: ladder.id }));
+  assert.equal(ok(await call(events, 'GET', { query: `?code=${lcode}&leagues=1` })).leagues.length, 2);
+  assert.equal((await lg('league-delete', { id: ladder.id })).status, 404);
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

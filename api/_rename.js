@@ -58,7 +58,8 @@ export async function renamePlayer(sql, code, fromRow, toName, intoRow) {
   const watch = intoRow ? [fromKey, toKey] : [];
   const gameRows = await sql`SELECT id, data FROM games WHERE club = ${code}`;
   const eventRows = await sql`SELECT id, data, refs FROM events WHERE club = ${code}`;
-  const games = [], events = [];
+  const leagueRows = await sql`SELECT id, data FROM leagues WHERE club = ${code}`;
+  const games = [], events = [], leagues = [];
   for (const r of gameRows) {
     if (intoRow) {
       const s = rewriteNames(r.data.teams, new Map(), watch).seen;
@@ -73,6 +74,12 @@ export async function renamePlayer(sql, code, fromRow, toName, intoRow) {
     const refs = rewriteRefs(r.refs, map);
     if (next.changed || refs.changed) events.push({ id: r.id, data: next.value, refs: refs.changed ? refs.value : r.refs });
   }
+  // Leagues and ladders keep names in their entries, matches and results, like events.
+  for (const r of leagueRows) {
+    if (intoRow && rewriteNames(r.data, new Map(), watch).seen.size === 2) throw fail(409, `${fromRow.name} and ${intoRow.name} are in the same league or ladder, so they are different people and can't be merged.`);
+    const next = rewriteNames(r.data, map);
+    if (next.changed) leagues.push({ id: r.id, data: next.value });
+  }
   // The open play court board keeps names too (who is here, the queue, the courts, the recent matches).
   let board = null;
   const [boardRow] = await sql`SELECT data FROM court_boards WHERE club = ${code}`;
@@ -81,15 +88,16 @@ export async function renamePlayer(sql, code, fromRow, toName, intoRow) {
     const next = rewriteNames(boardRow.data, map);
     if (next.changed) board = repair(next.value);
   }
-  return { games, events, board, map, fromKey, toKey };
+  return { games, events, leagues, board, map, fromKey, toKey };
 }
 
 // The writes for a computed rename/merge, as one list for sql.transaction.
 export function renameWrites(sql, code, plan, extra = []) {
-  const { games, events, board, fromKey, toKey } = plan;
+  const { games, events, leagues, board, fromKey, toKey } = plan;
   const writes = [];
   if (games.length) writes.push(sql`UPDATE games g SET data = v.data FROM jsonb_to_recordset(${JSON.stringify(games)}::jsonb) AS v(id text, data jsonb) WHERE g.club = ${code} AND g.id = v.id`);
   if (events.length) writes.push(sql`UPDATE events e SET data = v.data, refs = v.refs FROM jsonb_to_recordset(${JSON.stringify(events)}::jsonb) AS v(id text, data jsonb, refs jsonb) WHERE e.club = ${code} AND e.id = v.id`);
+  if (leagues.length) writes.push(sql`UPDATE leagues l SET data = v.data, version = l.version + 1 FROM jsonb_to_recordset(${JSON.stringify(leagues)}::jsonb) AS v(id text, data jsonb) WHERE l.club = ${code} AND l.id = v.id`);
   if (board) writes.push(sql`UPDATE court_boards SET data = ${JSON.stringify(board)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code}`);
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);

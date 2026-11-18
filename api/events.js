@@ -18,11 +18,12 @@
 //   sheet-fetch   {url}                                     -> organizer: reads a shared Google Sheet as CSV text (see _gsheet.js); answers {csv}. Creates nothing.
 //   refs          {id}                                      -> organizer: the private DUPR reference IDs typed in the imported sheet: {refs}
 //   public-logos  {id, on}                                  -> organizer: show or hide team logos on the public bracket page
+//   league-*      leagues and ladders (list and one: GET ?leagues=1, ?league=<id>); see _leagues.js for the actions
 // create may carry teamMeta ([{name, logo}] for each of its manual teams), publicLogos and refs ({player: DUPR ID}, reference only).
 // Organizer actions need the creating phone's token or the organizer PIN, like the club's other organizer settings.
-import { checkLog } from './_rallylog.js';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanGame, cleanName, nameKey, reserveGames, releaseGames, verifiedSender } from './_db.js';
-import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, requirePin, cleanName, nameKey, verifiedSender } from './_db.js';
+import { recordGame, correctGame, addToRoster } from './_gamesave.js';
+import { leagueGet, leagueAction, LEAGUE_ACTIONS } from './_leagues.js';
 import { newShareToken } from './_share.js';
 import { notify, roundMessages } from './_push.js';
 import { replyTagged } from './_sync.js';
@@ -64,43 +65,13 @@ async function mutate(sql, code, id, fn) {
   throw fail(409, 'Several people changed this event at once. Try again.');
 }
 
-// Puts a finished match into the club's games. Safe to repeat: the game id is the same every time, so it is stored once.
-async function recordGame(sql, club, code, event, game, body, now, rallyLog) {
-  const g = Object.assign(cleanGame(game), { event: { id: event.id, name: event.name } });
-  g.receivedAt = now;
-  const sender = await verifiedSender(sql, club, code, body);
-  if (sender) g.scoredBy = sender;
-  const windowStart = await reserveGames(code, 1);
-  let inserted = 0;
-  try {
-    // Event matches count without a separate confirmation (the event's organizer controls who may enter results), and an
-    // organizer's own entry is marked confirmed like any other game.
-    const confirmedBy = sender === 'organizer' ? 'organizer' : null;
-    const rows = await sql`INSERT INTO games (club, id, data, ended_at, rally_log, confirmed_by, confirmed_at) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt}, ${checkLog(g, rallyLog)}, ${confirmedBy}::text, CASE WHEN ${confirmedBy}::text IS NULL THEN NULL ELSE now() END)
-      ON CONFLICT (club, id) DO NOTHING RETURNING id`;
-    inserted = rows.length;
-    if (inserted) await audit(sql, code, g.id, 'create', senderActor(sender), null, snapshot(g), 'event match');
-  } finally {
-    await releaseGames(code, 1 - inserted, windowStart);
-  }
-  return inserted;
-}
-
-async function addToRoster(sql, code, names) {
-  let [{ n }] = await sql`SELECT count(*)::int AS n FROM roster WHERE club = ${code}`;
-  for (const name of names) {
-    if (n >= 300) break;
-    const added = await sql`INSERT INTO roster (club, name_key, name) VALUES (${code}, ${nameKey(name)}, ${cleanName(name)}) ON CONFLICT DO NOTHING RETURNING name_key`;
-    n += added.length;
-  }
-}
-
 export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'GET') {
     const url = new URL(req.url, 'http://x');
     const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
     const code = club.code; // the club's permanent key, even when an old club code was used
+    if (url.searchParams.get('league') || url.searchParams.get('leagues')) return leagueGet(sql, club, req, res, url.searchParams);
     const id = url.searchParams.get('id');
     if (id) {
       const [row] = await sql`SELECT data FROM events WHERE club = ${code} AND id = ${String(id)} AND deleted_at IS NULL`;
@@ -118,6 +89,10 @@ export default handler(async (req, res) => {
   const code = club.code; // the club's permanent key, even when an old club code was used
   const now = Date.now();
   const action = String(body.action || '');
+  if (LEAGUE_ACTIONS.includes(action)) {
+    const out = await leagueAction(sql, club, body, req, { now });
+    return send(res, out.status || 200, out.body);
+  }
 
   if (action === 'create') {
     await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -191,11 +166,7 @@ export default handler(async (req, res) => {
   }
   if (action === 'correct') {
     const { event, out } = await mutate(sql, code, id, ev => correctResult(ev, String(body.matchId || ''), body.score, now));
-    // Same game id, new score. Keeps who sent it and when it arrived; does nothing if the game was deleted from the record.
-    const g = cleanGame(out.game);
-    const [old] = await sql`SELECT data FROM games WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
-    await sql`UPDATE games SET data = data || ${JSON.stringify(g)}::jsonb, ended_at = ${g.endedAt}, rally_log = NULL WHERE club = ${code} AND id = ${g.id} AND deleted_at IS NULL`;
-    if (old) await audit(sql, code, g.id, 'edit', await organizerActor(club, body.ownerToken), snapshot(old.data), snapshot(Object.assign({}, old.data, g)), 'event score corrected');
+    await correctGame(sql, club, code, out.game, body, 'event score corrected');
     return send(res, 200, { event: view(event) });
   }
   const actions = {

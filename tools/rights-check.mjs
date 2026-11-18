@@ -65,6 +65,7 @@ ok(await call(games, 'POST', { body: { code, games: [
   gm('g-one', [['Ana', 'Ben'], ['Cy', 'Di']], [11, 7], 1), gm('g-two', [['Ana', 'Cy'], ['Ben', 'Di']], [9, 11], 2),
   gm('g-three', [['Ben', 'Cy'], ['Di', 'Gus']], [11, 4], 3), gm('g-four', [['=SUM(1+1)', 'Gus'], ['Ben', 'Cy']], [11, 6], 4)] } }));
 const ev = ok(await call(events, 'POST', { body: { code, action: 'create', ...ORG, event: { name: 'Friday round robin', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Ana', 'Ben', 'Cy', 'Di'], seed: 'r' } } }), 201).event;
+ok(await call(events, 'POST', { body: { code, action: 'league-create', ...ORG, league: { kind: 'ladder', name: 'Ladder', mode: 'singles', players: ['Ana', 'Ben', 'Cy', 'Di'] } } }), 201);
 await pg.query(`UPDATE events SET refs = '{"Ana":"1234567","Ben":"7654321"}'::jsonb WHERE club = (SELECT code FROM clubs LIMIT 1)`);
 await pg.query(`UPDATE roster SET avatar = '{"type":"emoji","value":"🔥"}'::jsonb, dupr_rating = 3.5 WHERE name_key = 'ana'`);
 await pg.query(`INSERT INTO accounts (id, display_name) VALUES ('acct1', 'x')`);
@@ -80,6 +81,7 @@ await step('player export: only the phone that holds the name gets it, and it ha
   assert.equal(d.player.duprSelfReported.rating ?? d.player.duprSelfReported, d.player.duprSelfReported.rating ?? 3.5);
   assert.deepEqual(d.games.map(g => g.id).sort(), ['g-one', 'g-two']);
   assert.equal(d.events.length, 1);
+  assert.equal(d.leagues.length, 1);
   assert.ok(!/pin_hash|owner_hash|claim_hash|ownerToken/.test(text(d)));
 });
 
@@ -105,6 +107,8 @@ await step('anonymise: own phone replaces the name everywhere; others\' games an
   for (let i = 0; i < after.length; i++) assert.equal(text(after[i].data), text(before[i].data).replaceAll('"Ana"', `"${label}"`), after[i].id); // same games, only that name changed
   const evNow = (await pg.query(`SELECT data, refs, version FROM events`)).rows[0];
   assert.ok(!/Ana/.test(text(evNow.data)) && text(evNow.data).includes(label));
+  const lgNow = (await pg.query(`SELECT data FROM leagues`)).rows[0];
+  assert.ok(!/Ana/.test(text(lgNow.data)) && text(lgNow.data).includes(label), 'a ladder entry is relabelled too');
   assert.equal(text(evNow.refs), '{"Ben":"7654321"}'); // the DUPR reference for that name is gone
   assert.equal((await pg.query(`SELECT 1 FROM roster WHERE name_key = 'ana'`)).rows.length, 0); // picture, DUPR number and phone link go with it
   assert.equal((await pg.query(`SELECT 1 FROM account_identities`)).rows.length, 0);
@@ -139,6 +143,7 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.equal(viaOwner.format, 'dink-score-club-export');
   assert.equal(viaOwner.games.length, 4);
   assert.equal(viaOwner.events.length, 1);
+  assert.equal(viaOwner.leagues.length, 1);
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
@@ -193,7 +198,7 @@ await step('delete club: once the window has passed everything is removed, and t
   ok(await C('delete-club', { confirm: 'Rights check club', ...ORG }));
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'roster', 'events', 'live_games', 'account_identities', 'club_aliases']) {
+  for (const t of ['clubs', 'games', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }
