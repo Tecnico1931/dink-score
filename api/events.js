@@ -23,6 +23,7 @@ import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrgan
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 import { newShareToken } from './_share.js';
 import { notify, roundMessages } from './_push.js';
+import { replyTagged } from './_sync.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
 import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, checkResultActor, setResultsBy, correctResult, startKnockout, endEvent, view } from './_events.js';
 
@@ -100,12 +101,12 @@ export default handler(async (req, res) => {
     if (id) {
       const [row] = await sql`SELECT data FROM events WHERE club = ${code} AND id = ${String(id)} AND deleted_at IS NULL`;
       if (!row) throw fail(404, 'That event no longer exists.');
-      return send(res, 200, { event: view(row.data) });
+      return replyTagged(req, res, code + ':event:' + id, { event: view(row.data) });
     }
     // A page at a time, newest first, so every event up to MAX_EVENTS can be reached: ?offset=50 is the second page.
     const offset = Math.min(Math.max(parseInt(url.searchParams.get('offset'), 10) || 0, 0), MAX_EVENTS);
     const rows = await sql`SELECT data FROM events WHERE club = ${code} AND deleted_at IS NULL ORDER BY updated_at DESC, id LIMIT ${PAGE + 1} OFFSET ${offset}`;
-    return send(res, 200, { events: rows.slice(0, PAGE).map(summary), more: rows.length > PAGE });
+    return replyTagged(req, res, code + ':events:' + offset, { events: rows.slice(0, PAGE).map(summary), more: rows.length > PAGE });
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);

@@ -42,9 +42,10 @@ let ip = 0;
 async function call(handler, method, { query = '', body, headers = {} } = {}) {
   const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.0.0.' + (++ip % 200), ...headers }, body };
   let status = 0, text = '';
-  const res = { statusCode: 0, setHeader() {}, end(t) { status = res.statusCode; text = t; } };
+  const out = {};
+  const res = { statusCode: 0, setHeader(k, v) { out[k.toLowerCase()] = v; }, end(t) { status = res.statusCode; text = t || ''; } };
   await handler(req, res);
-  return { status, json: JSON.parse(text) };
+  return { status, json: text ? JSON.parse(text) : null, headers: out, bytes: Buffer.byteLength(text) };
 }
 const ok = (r, want = 200) => { assert.equal(r.status, want, JSON.stringify(r.json)); return r.json; };
 
@@ -1636,6 +1637,83 @@ await step('pickup: the tables are additive, hold no club key and cascade from t
   assert.ok(!cols.includes('club'), 'no column ties a session to a club');
   const fk = (await pg.query("SELECT tc.table_name, rc.delete_rule FROM information_schema.referential_constraints rc JOIN information_schema.table_constraints tc ON tc.constraint_name = rc.constraint_name WHERE tc.table_name IN ('pickup_players', 'pickup_games')")).rows;
   assert.equal(fk.length, 2); assert.ok(fk.every(r => r.delete_rule === 'CASCADE'));
+});
+
+// Sync v2 (api/_sync.js): ETag + 304 on the polled GETs, never across clubs, never stale.
+const cget = (c, extra = {}) => call(club, 'GET', { query: '?code=' + c, headers: extra });
+await step('sync: a club answer carries an ETag; the held tag gets an empty 304, and no tag gets the full answer as before', async () => {
+  const full = await cget(code);
+  assert.equal(full.status, 200);
+  assert.match(full.headers.etag, /^W\/"/);
+  assert.equal(full.headers['cache-control'], 'no-store');
+  assert.ok(Array.isArray(full.json.games) && full.json.club.code === code, 'old clients still get the whole shape');
+  const same = await cget(code, { 'if-none-match': full.headers.etag });
+  assert.equal(same.status, 304);
+  assert.equal(same.bytes, 0);
+  assert.equal(same.headers.etag, full.headers.etag);
+  assert.equal((await cget(code)).status, 200, 'a caller without the tag is never short-changed');
+});
+await step('sync: any change to games, roster, settings or deletions ends the 304', async () => {
+  const held = (await cget(code)).headers.etag;
+  const stale = async why => { const r = await cget(code, { 'if-none-match': held }); assert.equal(r.status, 200, why); return r; };
+  const g = id => ({ id, mode: 'doubles', teams: [['Ana', 'Ben'], ['Cy', 'Di']], score: [11, 7], endedAt: Date.now(), startedAt: Date.now() - 600000 });
+  ok(await call(games, 'POST', { body: { code, games: [g('sync-g1')] } }));
+  const afterAdd = await stale('a new game');
+  const t1 = afterAdd.headers.etag;
+  assert.equal((await cget(code, { 'if-none-match': t1 })).status, 304);
+  ok(await call(club, 'POST', { body: { code, action: 'set-note', note: 'Court 3 is wet', ownerToken: owner } }));
+  const t2 = (await cget(code, { 'if-none-match': t1 })); assert.equal(t2.status, 200, 'the pinned note is part of the answer');
+  await pg.query("UPDATE roster SET avatar = '{\"type\":\"emoji\",\"value\":\"x\"}'::jsonb WHERE club = $1 AND name_key = 'ana'", [code]);
+  const t3 = await cget(code, { 'if-none-match': t2.headers.etag }); assert.equal(t3.status, 200, 'an avatar change');
+  await pg.query("UPDATE games SET deleted_at = now() WHERE club = $1 AND id = 'sync-g1'", [code]);
+  const t4 = await cget(code, { 'if-none-match': t3.headers.etag }); assert.equal(t4.status, 200, 'a deleted game');
+  assert.equal((await cget(code, { 'if-none-match': t4.headers.etag })).status, 304);
+});
+await step('sync: one club\'s tag never matches another club, even with identical content', async () => {
+  const other = ok(await call(club, 'POST', { body: { name: 'Other sync club' } }), 201);
+  const a = await cget(code), b = await cget(other.club.code);
+  assert.notEqual(a.headers.etag, b.headers.etag);
+  assert.equal((await cget(other.club.code, { 'if-none-match': a.headers.etag })).status, 200, "club A's tag must not 304 club B");
+  assert.equal((await cget(code, { 'if-none-match': b.headers.etag })).status, 200);
+  const l1 = await call(live, 'GET', { query: '?code=' + code }), l2 = await call(live, 'GET', { query: '?code=' + other.club.code });
+  assert.equal(l1.json.games.length, 0); assert.equal(l2.json.games.length, 0);
+  assert.notEqual(l1.headers.etag, l2.headers.etag, 'two empty live lists are still scoped per club');
+  assert.equal((await call(live, 'GET', { query: '?code=' + other.club.code, headers: { 'if-none-match': l1.headers.etag } })).status, 200);
+});
+await step('sync: a wrong club code still gets its 404 and no tag, with or without If-None-Match', async () => {
+  const full = await cget(code);
+  const r = await cget('ZZZZZZ', { 'if-none-match': full.headers.etag });
+  assert.equal(r.status, 404);
+  assert.equal(r.headers.etag, undefined);
+});
+await step('sync: live, board and event answers 304 when unchanged and wake up on change', async () => {
+  const lv = () => call(live, 'GET', { query: '?code=' + code });
+  const l0 = await lv();
+  assert.equal((await call(live, 'GET', { query: '?code=' + code, headers: { 'if-none-match': l0.headers.etag } })).status, 304);
+  const st = { cfg: { teams: [['Ana', 'Ben'], ['Cy', 'Di']], mode: 'doubles', scoring: 'side-out', target: 11 }, score: [0, 0], serving: 0, serverNum: 1, winner: null, startedAt: Date.now() };
+  ok(await call(live, 'POST', { body: { code, action: 'state', id: 'live-sync1', secret: 'abcdef12', state: st, ack: 0 } }));
+  assert.equal((await call(live, 'GET', { query: '?code=' + code, headers: { 'if-none-match': l0.headers.etag } })).status, 200, 'a new live game');
+  const one = await call(live, 'GET', { query: '?code=' + code + '&id=live-sync1&secret=abcdef12' });
+  assert.equal((await call(live, 'GET', { query: '?code=' + code + '&id=live-sync1&secret=abcdef12', headers: { 'if-none-match': one.headers.etag } })).status, 304);
+  assert.equal((await call(live, 'GET', { query: '?code=' + code + '&id=live-sync1&secret=wrong999', headers: { 'if-none-match': one.headers.etag } })).status, 403, 'the right tag does not replace the secret');
+  const bd = await call(live, 'GET', { query: '?code=' + code + '&board=1' });
+  assert.equal((await call(live, 'GET', { query: '?code=' + code + '&board=1', headers: { 'if-none-match': bd.headers.etag } })).status, 304);
+  const ev = await call(events, 'GET', { query: '?code=' + code });
+  assert.match(ev.headers.etag, /^W\//);
+  assert.equal((await call(events, 'GET', { query: '?code=' + code, headers: { 'if-none-match': ev.headers.etag } })).status, 304);
+});
+await step('sync: photo avatars revalidate with an ETag and a private cache, and change when a photo does', async () => {
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(200);
+  await pg.query("UPDATE roster SET avatar = jsonb_build_object('type', 'photo', 'value', $2::text) WHERE club = $1 AND name_key = 'ben'", [code, photo]);
+  const a = await call(club, 'GET', { query: '?code=' + code + '&avatars=1' });
+  assert.equal(a.status, 200); assert.equal(a.headers['cache-control'], 'private, no-cache');
+  assert.equal(a.json.photos.Ben.value, photo);
+  const same = await call(club, 'GET', { query: '?code=' + code + '&avatars=1', headers: { 'if-none-match': a.headers.etag } });
+  assert.equal(same.status, 304); assert.equal(same.bytes, 0);
+  await pg.query("UPDATE roster SET avatar = jsonb_build_object('type', 'photo', 'value', $2::text) WHERE club = $1 AND name_key = 'ben'", [code, photo + 'B']);
+  assert.equal((await call(club, 'GET', { query: '?code=' + code + '&avatars=1', headers: { 'if-none-match': a.headers.etag } })).status, 200);
+  const main = await cget(code);
+  assert.ok(!JSON.stringify(main.json).includes('AAAAAAAA'), 'the main answer still carries a fingerprint, never the photo');
 });
 
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);

@@ -1635,9 +1635,16 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
     q.appendChild(chips);
     boardEl.appendChild(q);
   }
+  // Sends the last answer's ETag back: an unchanged board comes back as an empty 304 and is not redrawn (Sync v2).
+  var boardTag = '';
   function loadBoard() {
-    fetch('/api/live?code=' + code + '&board=1', { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    fetch('/api/live?code=' + code + '&board=1', { cache: 'no-store', headers: boardTag ? { 'If-None-Match': boardTag } : {} })
+      .then(function (r) {
+        if (r.status === 304) return null;
+        if (!r.ok) return null;
+        boardTag = r.headers.get('ETag') || '';
+        return r.json();
+      })
       .then(function (d) { if (d) drawBoard(d.board); })
       .catch(function () {});
   }
@@ -1967,7 +1974,15 @@ function rosterFromClub() {
   }
   return list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 }
+// Sync v2: polled GETs send the ETag of the last answer they got (kept in memory, by full path, so one club's tag is never
+// offered for another's address). An empty 304 means "unchanged": the caller gets the same data again, flagged `notModified`
+// (non-enumerable) so a poller can skip redrawing. A server that sends no ETag is simply asked in full every time.
+const etags = new Map();
 async function api(path, opts = {}) {
+  const method = String(opts.method || 'GET').toUpperCase();
+  const tagged = method === 'GET' && (!opts.cache || opts.cache === 'no-store'); // a call that opts into the browser cache lets the browser revalidate it
+  const known = tagged ? etags.get(path) : null;
+  if (known) opts = Object.assign({}, opts, { headers: Object.assign({ 'If-None-Match': known.tag }, opts.headers || { 'Content-Type': 'application/json' }) });
   let res;
   // A request that hangs (weak signal at the courts) gives up after 15 seconds and counts as offline, so syncing retries
   // instead of waiting on it forever.
@@ -1977,9 +1992,18 @@ async function api(path, opts = {}) {
     res = await fetch('/api/' + path, Object.assign({ headers: { 'Content-Type': 'application/json' }, cache: 'no-store' }, ctrl ? { signal: ctrl.signal } : {}, opts));
   } catch { throw Object.assign(new Error("Can't reach the server. Check your connection."), { offline: true }); }
   finally { if (timer) clearTimeout(timer); }
-  let body = {};
-  try { body = await res.json(); } catch {}
-  if (!res.ok) throw Object.assign(new Error(body.error || 'Something went wrong. Try again.'), { status: res.status, data: body });
+  if (res.status === 304 && known) {
+    const same = JSON.parse(known.text);
+    Object.defineProperty(same, 'notModified', { value: true });
+    return same;
+  }
+  let body = {}, text = '';
+  try { text = await res.text(); body = JSON.parse(text); } catch {}
+  if (!res.ok) { if (tagged) etags.delete(path); throw Object.assign(new Error(body.error || 'Something went wrong. Try again.'), { status: res.status, data: body }); }
+  if (tagged) {
+    const tag = res.headers.get('ETag');
+    if (tag && text) { etags.delete(path); etags.set(path, { tag, text }); if (etags.size > 40) etags.delete(etags.keys().next().value); } else etags.delete(path);
+  }
   return body;
 }
 function queueOp(op) {
@@ -2048,7 +2072,7 @@ async function loadPhotos() {
   const want = (clubData && clubData.players || []).filter(p => p.avatar && p.avatar.type === 'photo' && !p.avatar.value);
   if (!want.length || !club) return;
   try {
-    const { photos } = await api('club?code=' + club.code + '&avatars=1');
+    const { photos } = await api('club?code=' + club.code + '&avatars=1', { cache: 'default' }); // the browser keeps and revalidates these (the server sends an ETag)
     for (const [name, ph] of Object.entries(photos || {})) photoCache[name.toLowerCase()] = ph;
     let changed = false;
     for (const p of want) { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) { p.avatar.value = c.value; changed = true; } }
@@ -2056,6 +2080,7 @@ async function loadPhotos() {
   } catch (e) { /* pictures are optional: initials show until the next refresh */ }
 }
 let refreshing = false;
+let calmPolls = 0; // club answers in a row that came back unchanged; the poll timer stretches its gap while this grows
 async function refreshClub() {
   if (!club || refreshing) return;
   refreshing = true; clubState = 'syncing'; updateSyncPill();
@@ -2063,6 +2088,8 @@ async function refreshClub() {
     const asked = club && club.code;
     const data = await api('club?code=' + asked);
     if (!club || club.code !== asked) return;
+    if (data.notModified) { calmPolls++; clubState = 'idle'; updateSyncPill(); return; } // the server says nothing changed since the last answer: nothing to redo
+    calmPolls = 0;
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
     club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.publicResults = !!data.club.publicResults; club.payLink = data.club.payLink || ''; club.note = data.club.note || ''; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
@@ -3168,8 +3195,12 @@ async function checkInvite() {
   } catch (err) { clubSheet = { view: 'club', joinCode: code, error: err.message }; }
   renderClub();
 }
-if (API_OK) setInterval(() => { if (club && document.visibilityState === 'visible') { if (outbox.length) flush(); if (!clubOps().length) refreshClub(); } }, 15000);
-document.addEventListener('visibilitychange', () => { if (club && document.visibilityState === 'visible') { flush(); refreshClub(); } });
+// Sync v2: every 15 s while the app is open, but while nothing changes the gap stretches (15 s, then 30 s after 8 quiet answers,
+// then 60 s after 20). Any change, coming back to the app or saving something starts it over. Quiet answers are empty 304s.
+let calmWait = 0;
+const calmEvery = () => calmPolls < 8 ? 1 : calmPolls < 20 ? 2 : 4;
+if (API_OK) setInterval(() => { if (club && document.visibilityState === 'visible') { if (outbox.length) flush(); if (!clubOps().length && ++calmWait >= calmEvery()) { calmWait = 0; refreshClub(); } } }, 15000);
+document.addEventListener('visibilitychange', () => { if (club && document.visibilityState === 'visible') { calmPolls = 0; calmWait = 0; flush(); refreshClub(); } });
 if (API_OK) setInterval(() => { if (pickup && document.visibilityState === 'visible') { pickupFlush(); pickupRefresh(); } }, 15000);
 document.addEventListener('visibilitychange', () => { if (pickup && document.visibilityState === 'visible') { pickupFlush(); pickupRefresh(); } });
 window.addEventListener('online', () => { if (pickup) pickupFlush(); });
