@@ -1757,5 +1757,21 @@ await step('Dink Rating v2: stored ratings, provisional label, one changelog row
   void tp;
 });
 
+// ---- organizer analytics (L7): totals for organizers only ----
+await step('analytics: organizers only, totals only, no player named', async () => {
+  const a = ok(await call(club, 'POST', { body: { name: 'Analytics check club' } }), 201);
+  const q = `?code=${a.club.code}&analytics=1&tz=Europe/London`;
+  const t = Date.now() - 36e5;
+  ok(await call(games, 'POST', { body: { code: a.club.code, games: [{ id: 'an-g1', mode: 'singles', teams: [['Ivy'], ['Jon']], score: [11, 4], endedAt: t, startedAt: t - 6e5 }] } }));
+  assert.equal((await call(club, 'GET', { query: q })).status, 403, 'a member with only the code');
+  assert.equal((await call(club, 'GET', { query: q, headers: { 'x-club-pin': '000000' } })).status, 403, 'wrong PIN');
+  const d = ok(await call(club, 'GET', { query: q, headers: { 'x-club-owner': a.ownerToken } }));
+  assert.equal(d.games, 1);
+  assert.equal(d.weeks.at(-1).players, 2);
+  assert.equal(d.tz, 'Europe/London');
+  assert.ok(!/Ivy|Jon/.test(JSON.stringify(d)), 'no player names in the answer');
+  assert.equal(ok(await call(club, 'GET', { query: `?code=${a.club.code}&analytics=1&tz=Bad/Zone`, headers: { 'x-club-owner': a.ownerToken } })).tz, 'UTC');
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
