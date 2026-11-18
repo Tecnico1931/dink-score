@@ -6,7 +6,21 @@ const fs = require('fs');
 const path = require('path');
 
 const src = process.argv[2] || path.join(__dirname, 'dink-score.html');
-const body = fs.readFileSync(src, 'utf8');
+let body = fs.readFileSync(src, 'utf8');
+
+// The app's Dink Rating engine (the `DR` block) is rating-engine.js, the same file the server imports (api/_rating.js).
+// Paste it between RATING-START/END in the source page, so dink-score.html stays one self-contained file the tests can load.
+{
+  const eng = fs.readFileSync(path.join(__dirname, 'rating-engine.js'), 'utf8');
+  const exp = eng.match(/^export \{ (.+) \};\s*$/m);
+  if (!exp) throw new Error('rating-engine.js needs one "export { ... };" line');
+  const code = eng.replace(exp[0], '').replace(/^\/\/ The one Dink Rating[\s\S]*?keep it one line\.\n/, '').trimEnd().replace(/^(?=.)/gm, '  ');
+  const dr = `/*RATING-START*/\n// Generated from rating-engine.js by build.cjs: edit that file, not this block.\nconst DR = (() => {\n${code}\n  return { ${exp[1]} };\n})();\n/*RATING-END*/`;
+  const i = body.indexOf('/*RATING-START*/'), j = body.indexOf('/*RATING-END*/');
+  if (i < 0 || j < i) throw new Error('Missing RATING-START/END in ' + path.basename(src));
+  const next = body.slice(0, i) + dr + body.slice(j + '/*RATING-END*/'.length);
+  if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated the DR block in', path.basename(src), 'from rating-engine.js'); }
+}
 
 const head = `<!doctype html>
 <html lang="en">
