@@ -12,6 +12,7 @@
 //   POST /api/live {code, action:'unrally', game, secret, base?}       -> the server takes back the last server-applied rally
 //   POST /api/live {code, action:'ack', game, secret, ack}             -> the phone drops intents it has applied
 //   GET/POST board-*: the open play court board built on these live games, documented in _courtboard.js
+//   GET ?session=CODE and POST session-*: pickup sessions (24 hours, no club), documented in _sessions.js
 // Each live game has its own short-lived secret, made on the scoring phone and shown there (and on the watch setup page).
 // Intents must name the game and carry its secret; the club code alone is not enough, so two games at once never mix.
 // The server keeps only a hash of the secret, hands intents only to a caller who holds it, and signs each intent with it,
@@ -20,6 +21,7 @@ import { createHash } from 'node:crypto';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp } from './_db.js';
 import { rally as rallyOf, call as pbCall } from './_pb.js';
 import { boardGet, boardAction, BOARD_ACTIONS } from './_courtboard.js';
+import { sessionGet, sessionAction } from './_sessions.js';
 
 export const secretOk = v => typeof v === 'string' && /^[A-Za-z0-9]{6,32}$/.test(v);
 export const hashSecret = v => createHash('sha256').update('live:' + v).digest('hex');
@@ -54,6 +56,7 @@ export default handler(async (req, res) => {
   const sql = db();
   if (req.method === 'GET') {
     const url = new URL(req.url, 'http://x');
+    if (url.searchParams.has('session')) return send(res, 200, await sessionGet(sql, url.searchParams.get('session'), req)); // pickup sessions: no club involved (see _sessions.js)
     const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
     const code = club.code; // the club's permanent key, even when an old club code was used
     const id = String(url.searchParams.get('id') || '');
@@ -74,6 +77,7 @@ export default handler(async (req, res) => {
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
+  if (typeof body.action === 'string' && body.action.startsWith('session-')) return send(res, 200, await sessionAction(sql, body, req));
   const club = await requireClub(cleanCode(body.code), req);
   const code = club.code; // the club's permanent key, even when an old club code was used
 
