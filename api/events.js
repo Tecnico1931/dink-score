@@ -1,7 +1,9 @@
 // Events: tournaments and rotating-partner sessions with several games at once. Body for POST: {code, action, ...}
 // GET  /api/events?code=ABC123                 -> the club's events, newest first, 50 a page (a short summary of each); add &offset=50 for the next page, `more` says if there is one
 // GET  /api/events?code=ABC123&id=e123         -> one event in full: rounds or bracket, courts, scores, standings
-//   create        {event, pin|ownerToken}                  -> organizer: starts an event (see createEvent in _events.js)
+//   create        {event, pin|ownerToken}                  -> organizer: starts an event (see createEvent in _events.js). event.seeding 'rating' seeds fixed teams (bracket seed 1 = strongest); event.divisions (2-4)
+//                 splits the players by rating into one event per division and answers {event, events}. Ratings are always the club's own Dink Rating, read here, never sent by the phone.
+//   seed-preview  {players, divisions?, partners?, format?, rotation?, pin|ownerToken}  -> organizer: each player's rating and, with divisions, who would go where. Writes nothing.
 //   result        {id, matchId, score:[a,b], startedAt?, endedAt?, rallies?, live?}  -> players in the match or an organizer (any club member if the event allows it): a finished match.
 //                 It is also saved to the club's games, once (the game id comes from the event and match).
 //   results-by    {id, who:'players'|'club'}                -> organizer: who may enter results (players in the match + organizers, or any club member)
@@ -25,6 +27,8 @@ import { newShareToken } from './_share.js';
 import { notify, roundMessages } from './_push.js';
 import { replyTagged } from './_sync.js';
 import { fetchSheetCsv, sheetCsvUrl } from './_gsheet.js';
+import { refreshRatings, ratingsFor } from './_rating_store.js';
+import { ratingMap, divisionInputs, splitDivisions } from './_seeding.js';
 import { cleanRefs, createEvent, startNextRound, setRound, publishRound, recordResult, checkResultActor, setResultsBy, correctResult, startKnockout, endEvent, view } from './_events.js';
 
 const PAGE = 50; // events per page of the list
@@ -40,7 +44,7 @@ function summary(row) {
   const e = row.data;
   const current = e.rounds.find(r => r.status !== 'done') || e.rounds[e.rounds.length - 1]; // for fixed teams every round exists from the start
   return { id: e.id, name: e.name, format: e.format, partners: e.partners, status: e.status, players: e.players.length, courts: e.courts,
-    round: current ? current.n : 0, roundsPlanned: e.roundsPlanned, stage: e.stage, champion: e.champion || null, createdAt: e.createdAt, updatedAt: e.updatedAt };
+    round: current ? current.n : 0, roundsPlanned: e.roundsPlanned, stage: e.stage, division: e.division || null, champion: e.champion || null, createdAt: e.createdAt, updatedAt: e.updatedAt };
 }
 
 // Reads an event, lets fn change it, and saves it only if nobody else saved first (the version number); otherwise
@@ -119,8 +123,24 @@ export default handler(async (req, res) => {
     await requireOrganizer(club, body.pin, req, body.ownerToken);
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM events WHERE club = ${code} AND deleted_at IS NULL`;
     if (n >= MAX_EVENTS) throw fail(400, `A club can keep up to ${MAX_EVENTS} events. Delete an old one first.`);
-    const event = createEvent(body.event, now);
-    const refs = cleanRefs(body.event && body.event.refs, event.players);
+    const input = body.event && typeof body.event === 'object' ? { ...body.event } : body.event;
+    if (input && (input.seeding === 'rating' || input.divisions || input.rotation === 'auto')) {
+      const stored = await refreshRatings(sql, club).then(() => ratingsFor(sql, club));
+      input.ratings = ratingMap(stored, (Array.isArray(input.players) ? input.players : []).map(cleanName).filter(Boolean));
+    }
+    if (input && input.divisions) {
+      const made = divisionInputs(input, input.ratings, now).map((d, i) => {
+        try { return createEvent(d, now + i); } catch (e) { throw fail(e.status || 400, `${d.division.label}: ${e.message}`); }
+      });
+      if (n + made.length > MAX_EVENTS) throw fail(400, `A club can keep up to ${MAX_EVENTS} events. Delete an old one first.`);
+      for (const ev of made) {
+        await sql`INSERT INTO events (club, id, data, status) VALUES (${code}, ${ev.id}, ${JSON.stringify(ev)}::jsonb, ${ev.status})`;
+        await addToRoster(sql, code, ev.players);
+      }
+      return send(res, 201, { event: view(made[0]), events: made.map(view) });
+    }
+    const event = createEvent(input, now);
+    const refs = cleanRefs(input && input.refs, event.players);
     await sql`INSERT INTO events (club, id, data, status, refs) VALUES (${code}, ${event.id}, ${JSON.stringify(event)}::jsonb, ${event.status}, ${Object.keys(refs).length ? JSON.stringify(refs) : null}::jsonb)`;
     await addToRoster(sql, code, event.players);
     return send(res, 201, { event: view(event) });
@@ -141,6 +161,16 @@ export default handler(async (req, res) => {
   }
 
   await requireOrganizer(club, body.pin, req, body.ownerToken);
+  if (action === 'seed-preview') {
+    const players = [...new Set((Array.isArray(body.players) ? body.players : []).slice(0, 64).map(cleanName).filter(Boolean))];
+    const stored = await refreshRatings(sql, club).then(() => ratingsFor(sql, club));
+    const ratings = ratingMap(stored, players), doubles = stored.players.doubles;
+    const row = p => { const r = doubles[nameKey(p)]; return { name: p, rating: ratings[p], games: r ? r.games : 0, provisional: !r || r.provisional }; };
+    const fixed = body.partners === 'fixed' || body.format === 'single_elim' || body.format === 'double_elim';
+    const out = { players: players.map(row).sort((a, b) => b.rating - a.rating), provisionalBelow: stored.provisionalBelow };
+    if (body.divisions) out.divisions = splitDivisions(players, ratings, body.divisions, { fixed }).map(d => ({ label: d.label, players: d.players.map(row) }));
+    return send(res, 200, out);
+  }
   if (action === 'sheet-fetch') {
     sheetCsvUrl(body.url); // a bad link is refused before it counts against the limit
     throttleSheet(code);
