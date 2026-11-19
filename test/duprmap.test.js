@@ -135,11 +135,14 @@ test('DUPR response shapes: ratings, entitlements, config', () => {
     delete process.env.DUPR_CLIENT_KEY; delete process.env.DUPR_CLIENT_SECRET; delete process.env.DUPR_ENV;
     assert.equal(config(), null);
     process.env.DUPR_CLIENT_KEY = 'k-key'; assert.equal(config(), null);
-    process.env.DUPR_CLIENT_SECRET = 'a-secret'; assert.equal(config().env, 'uat');
+    process.env.DUPR_CLIENT_SECRET = 'a-secret'; assert.equal(config().env, 'prod');
+    assert.equal(publicConfig(config()).loginOrigin, 'https://dashboard.dupr.com');
+    process.env.DUPR_ENV = 'uat'; assert.equal(config().env, 'uat');
     const pub = publicConfig(config());
     assert.equal(pub.loginOrigin, 'https://uat.dupr.gg'); assert.equal(pub.loginUrl, 'https://uat.dupr.gg/login-external-app/' + encodeURIComponent(Buffer.from('k-key').toString('base64')));
     assert.ok(!JSON.stringify(pub).includes('a-secret'));
     process.env.DUPR_ENV = 'prod'; assert.equal(publicConfig(config()).loginOrigin, 'https://dashboard.dupr.com');
-    process.env.DUPR_ENV = 'weird'; assert.equal(config().env, 'uat');
+    process.env.DUPR_ENV = 'test'; assert.equal(config().env, 'uat');
+    process.env.DUPR_ENV = 'weird'; assert.equal(config().env, 'prod');
   } finally { for (const [n, v] of [['DUPR_CLIENT_KEY', keep.k], ['DUPR_CLIENT_SECRET', keep.s], ['DUPR_ENV', keep.e]]) { if (v === undefined) delete process.env[n]; else process.env[n] = v; } }
 });
