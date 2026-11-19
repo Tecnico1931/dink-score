@@ -81,10 +81,11 @@ export default handler(async (req, res) => {
       if (body.action !== 'export' && who.by === 'organizer') throw fail(403, 'Only the club creator or the organizer PIN can delete the club.');
       const code = club.code;
       if (body.action === 'export') {
-        const [games, roster, events, trail, gameTrail] = await Promise.all([
+        const [games, roster, events, leagues, trail, gameTrail] = await Promise.all([
           sql`SELECT data, deleted_at, rally_log FROM games WHERE club = ${code} ORDER BY ended_at DESC`,
           sql`SELECT name, claim_hash IS NOT NULL AS claimed, avatar, dupr_rating, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name)`,
           sql`SELECT id, data, status, created_at, updated_at, deleted_at FROM events WHERE club = ${code} ORDER BY created_at`,
+          sql`SELECT id, data, status, created_at, deleted_at FROM leagues WHERE club = ${code} ORDER BY created_at`,
           sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id`,
           sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`
         ]);
@@ -102,6 +103,7 @@ export default handler(async (req, res) => {
           players: roster.map(r => ({ name: r.name, linkedToPhone: r.claimed, avatar: r.avatar || null, duprSelfReported: duprFrom(r.dupr_rating), role: r.role || 'player', removed: !!r.blocked_at })),
           games: games.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
           events: events.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, event: r.data })),
+          leagues: leagues.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, league: r.data })),
           // Who changed what. Actors are kinds of credential ('creator', 'organizer-pin', 'player:<name>'), never tokens or PINs.
           memberLog: trail.map(r => ({ at: new Date(r.at).toISOString(), actor: r.actor, actorName: r.actor_name, action: r.action, target: r.target, detail: r.detail })),
           gameLog: gameTrail.map(r => ({ game: r.game, at: new Date(r.at).toISOString(), action: r.action, actor: r.actor, before: r.before, after: r.after, note: r.note }))

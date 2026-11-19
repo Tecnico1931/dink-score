@@ -11,14 +11,42 @@ let securityHeaders = [];
 try { securityHeaders = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers.find(h => h.source === '/(.*)').headers; } catch {}
 // Stand-in events for the preview: kept in memory and run by the same pure modules as api/events.js, with no
 // organizer checks. Finished matches also land in the stand-in club's games, like the real API does.
-const preview = { games: [], events: new Map(), roster: new Set(), shares: new Map(), refs: new Map() }; // shares: token -> event id; refs: event id -> private DUPR reference IDs
+const preview = { games: [], events: new Map(), leagues: new Map(), roster: new Set(), shares: new Map(), refs: new Map() }; // shares: token -> event id; refs: event id -> private DUPR reference IDs
 // The preview never calls Google: a sheet link is run through the real link checks (api/_gsheet.js) and then answered by this canned sheet.
 const SHEET_STUB = process.env.SHEET_STUB_CSV || 'Team,Player 1,Player 2,DUPR ID 1,DUPR ID 2,Logo URL\r\nNet Ninjas,Ana Lopez,Ben Ruiz,K4M2P9,R7T3QX,https://example.com/logos/net-ninjas.png\r\nDrop Shots,Cy Park,Di Wu,,,\r\nKitchen Crew,Ed Fox,Flo Kim,,,https://example.com/logos/kitchen.png\r\nLob City,Gus Hart,Hal Moss,,,\r\n';
 const stubFetch = async () => ({ status: 200, headers: { get: k => (k.toLowerCase() === 'content-type' ? 'text/csv; charset=utf-8' : null) }, body: new Response(SHEET_STUB).body });
+// Leagues and ladders in the preview: the real pure rules (api/_league.js), no organizer checks, ratings all equal.
+function previewLeague(L, b, send, now) {
+  const ORG = { organizer: true, name: null };
+  const keep = out => { if (!out || !out.game) return; const g = Object.assign({}, out.game, { winner: out.game.score[0] > out.game.score[1] ? 0 : 1, event: { id: out.league.id, name: out.league.name }, receivedAt: now });
+    const i = preview.games.findIndex(x => x.id === g.id); if (i >= 0) preview.games[i] = Object.assign(preview.games[i], g); else preview.games.unshift(g); };
+  if (b.action === 'league-create') {
+    const input = b.league || {}, made = input.kind === 'ladder' ? L.createLadder(input, {}, now) : L.createLeague(input, {}, now);
+    preview.leagues.set(made.id, made); made.entries.flat().forEach(p => preview.roster.add(p));
+    return send(201, { league: L.view(made) });
+  }
+  const lg = preview.leagues.get(b.id);
+  if (!lg) return send(404, { error: 'That league no longer exists.' });
+  if (b.action === 'league-delete') { preview.leagues.delete(b.id); return send(200, { ok: true }); }
+  if (b.action === 'league-next-season') { const n = L.nextSeason(lg, b, now); preview.leagues.set(n.id, n); return send(201, { league: L.view(n) }); }
+  if (b.action === 'league-result') keep(lg.kind === 'ladder' ? L.recordChallenge(lg, b, now, ORG) : L.recordLeagueResult(lg, String(b.matchId || ''), b, now, ORG));
+  else if (b.action === 'league-correct') keep(L.correctLeagueResult(lg, String(b.matchId || ''), b.score, now));
+  else if (b.action === 'league-results-by') L.setResultsBy(lg, b.who, now);
+  else if (b.action === 'league-end') { if (lg.kind === 'ladder') L.closeLadderSeason(lg, b.season || undefined, now); else L.endSeason(lg, now); }
+  else return send(400, { error: 'Unknown action.' });
+  send(200, { league: L.view(lg) });
+}
 function previewEvents(req, url, res) {
   const send = (status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   Promise.all([import('../api/_events.js'), import('../api/_share.js'), import('../api/_gsheet.js')]).then(([E, S, G]) => {
     const fail = err => send(err.status || 500, { error: err.message });
+    if (req.method === 'GET' && (url.searchParams.get('league') || url.searchParams.get('leagues'))) {
+      return import('../api/_league.js').then(L => {
+        const id = url.searchParams.get('league');
+        if (id) return preview.leagues.has(id) ? send(200, { league: L.view(preview.leagues.get(id)) }) : send(404, { error: 'That league no longer exists.' });
+        send(200, { leagues: [...preview.leagues.values()].map(L.summary) });
+      }).catch(fail);
+    }
     if (req.method === 'GET') {
       const id = url.searchParams.get('id');
       if (id) return preview.events.has(id) ? send(200, { event: E.view(preview.events.get(id)) }) : send(404, { error: 'That event no longer exists.' });
@@ -30,6 +58,7 @@ function previewEvents(req, url, res) {
     req.on('end', () => {
       try {
         const b = JSON.parse(data || '{}'), now = Date.now();
+        if (/^league-/.test(String(b.action))) return import('../api/_league.js').then(L => previewLeague(L, b, send, now)).catch(fail);
         const keep = out => { if (!out || !out.game) return; const g = Object.assign({}, out.game, { winner: out.game.score[0] > out.game.score[1] ? 0 : 1, event: { id: out.event.id, name: out.event.name }, receivedAt: now });
           const i = preview.games.findIndex(x => x.id === g.id); if (i >= 0) preview.games[i] = Object.assign(preview.games[i], g); else preview.games.unshift(g); };
         if (b.action === 'create') {

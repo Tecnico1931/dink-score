@@ -5,7 +5,7 @@
 //   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
-//   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events you are in
+//   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events, leagues and ladders you are in
 //   anonymise {name, playerToken | pin|ownerToken}    -> replaces the name everywhere in the club with "Former player XXXXX", removes the saved
 //                                                       player (picture, DUPR, phone link). Games stay, so other people's ratings don't change.
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
@@ -133,9 +133,10 @@ export default handler(async (req, res) => {
     if (body.action === 'export' && !own) throw fail(403, 'This phone isn\'t linked to that player. Pick your name in the club first.');
     if (!own) await requireOrganizer(club, body.pin, req, body.ownerToken);
     const like = likeFor(k);
-    const [games, events] = await Promise.all([
+    const [games, events, leagues] = await Promise.all([
       sql`SELECT id, data, deleted_at, rally_log FROM games WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
-      sql`SELECT id, data, refs FROM events WHERE club = ${code} AND lower(data::text) LIKE ${like}`
+      sql`SELECT id, data, refs FROM events WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
+      sql`SELECT id, data FROM leagues WHERE club = ${code} AND lower(data::text) LIKE ${like}`
     ]);
     const mine = games.filter(r => ((r.data && r.data.teams) || []).flat().some(n => nameKey(n) === k));
     if (body.action === 'export') {
@@ -144,7 +145,8 @@ export default handler(async (req, res) => {
         player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, duprSelfReported: duprFrom(row.dupr_rating),
           duprLink: row.dupr_id ? { duprId: row.dupr_id, linkedAt: row.dupr_linked_at, ratings: row.dupr_snapshot || null } : null } : { name: cleanName(body.name) },
         games: mine.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
-        events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status }))
+        events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status })),
+        leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status }))
       });
     }
     // Anonymise: one random label everywhere the name appears, so that person's games stay linked to each other and to the
@@ -165,6 +167,7 @@ export default handler(async (req, res) => {
       const d = renameDeep(r.data, k, label), refs = r.refs && Object.fromEntries(Object.entries(r.refs).filter(([n]) => nameKey(n) !== k));
       if (json(d) !== json(r.data) || json(refs) !== json(r.refs)) { touched++; ops.push(sql`UPDATE events SET data = ${json(d)}::jsonb, refs = ${refs ? json(refs) : null}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code} AND id = ${r.id}`); }
     }
+    for (const r of leagues) { const d = renameDeep(r.data, k, label); if (json(d) !== json(r.data)) { touched++; ops.push(sql`UPDATE leagues SET data = ${json(d)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code} AND id = ${r.id}`); } }
     for (const r of await sql`SELECT data FROM court_boards WHERE club = ${code} AND lower(data::text) LIKE ${like}`) ops.push(sql`UPDATE court_boards SET data = ${json({ ...renameDeep(r.data, k, label), config: r.data.config })}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code}`);
     for (const r of live) ops.push(sql`UPDATE live_games SET state = ${json(renameDeep(r.state, k, label))}::jsonb, stack = ${json(renameDeep(r.stack, k, label))}::jsonb WHERE club = ${code} AND id = ${r.id}`);
     if (dupr[0].has && row && row.dupr_id) ops.push(sql`UPDATE dupr_matches SET payload = NULL WHERE club = ${code} AND payload IS NOT NULL AND payload::text LIKE ${'%' + String(row.dupr_id).replace(/[\\%_]/g, '\\$&') + '%'}`);
@@ -266,7 +269,7 @@ export default handler(async (req, res) => {
     }
     try { await sql.transaction(renameWrites(sql, code, plan, extra)); }
     catch (e) { if (e && e.code === '23505') throw fail(409, 'Someone changed this player at the same time. Try again.'); throw e; }
-    return send(res, 200, { ok: true, name: toName, games: plan.games.length, events: plan.events.length });
+    return send(res, 200, { ok: true, name: toName, games: plan.games.length, events: plan.events.length, leagues: plan.leagues.length });
   }
 
   throw fail(400, 'Unknown action.');
