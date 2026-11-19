@@ -124,7 +124,9 @@ test('secrets and tokens are redacted', () => {
 
 test('DUPR response shapes: ratings, entitlements, config', () => {
   assert.equal(parseRating('3.5204'), 3.52); assert.equal(parseRating('NR'), null); assert.equal(parseRating(null), null); assert.equal(parseRating(12), null);
-  assert.deepEqual(parseUserDetail({ result: { ratings: { doubles: '3.520', singles: 'NR', isDoublesReliable: false } } }), { rating: { doubles: 3.52, singles: null }, provisional: { doubles: true, singles: false } });
+  assert.deepEqual(parseUserDetail({ result: { ratings: { doubles: '3.520', singles: 'NR', isDoublesReliable: false } } }), { rating: { doubles: 3.52, singles: null }, provisional: { doubles: true, singles: false }, reliability: { doubles: null, singles: null } });
+  assert.deepEqual(parseUserDetail({ result: { fullName: 'X', gender: 'F', birthYear: 1980, ratings: { doublesReliabilityScore: '87.46', singlesReliabilityScore: 120 } } }).reliability, { doubles: 87.5, singles: null });
+  assert.deepEqual(Object.keys(parseUserDetail({ result: { fullName: 'X', gender: 'F', birthYear: 1980, location: 'Y' } })).sort(), ['provisional', 'rating', 'reliability']);
   assert.deepEqual(parseUserDetail({ result: { doublesRating: 3.8, singlesRating: 4.25, doublesProvisional: true } }).rating, { doubles: 3.8, singles: 4.25 });
   assert.deepEqual(parseEntitlements({ subscriptions: [{ entitlements: { tournaments: ['BASIC_L1', 'PREMIUM_L1'] } }] }), ['BASIC_L1', 'PREMIUM_L1']);
   assert.equal(parseEntitlements({}), null);

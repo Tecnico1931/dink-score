@@ -5,7 +5,7 @@
 //   link    {playerName, playerToken|pin|ownerToken, userToken}  -> the phone that claimed the name (or an organizer) links it to
 //                                                                  the DUPR account that just signed in. userToken is used once and not kept.
 //   unlink  {playerName, playerToken|pin|ownerToken}              -> forgets the DUPR id and rating of that player
-//   refresh {playerName}                                          -> reads the player's current DUPR ratings (cached for 15 minutes)
+//   refresh {playerName}                                          -> reads the player's current DUPR ratings (cached for 6 hours)
 //   review  {id, tz?, pin|ownerToken}                             -> organizer: every finished match of event `id`, ready or blocked and why
 //   send    {id, tz?, confirm:true, matchIds?, retryFailed?, pin|ownerToken} -> organizer: sends what review says is ready
 // DUPR data never goes into /api/club or the events API, so it stays out of anything public. Event matches reach DUPR only
@@ -13,10 +13,12 @@
 import { db, handler, send, readBody, fail, cleanCode, requireClub, requireOrganizer, tokenMatches, cleanName, nameKey, clientIp } from './_db.js';
 import { config, publicConfig, DuprError, userInfo, entitlements, userRatings, createBatch, updateMatch, deleteMatch } from './_duprapi.js';
 import { ensureDuprSchema, linkMap, getPause, setPause } from './_dupr_store.js';
+import { waitText } from './_limits.js';
 import { listEventMatches, preflight, toDuprMatch, fingerprint, plan, chunk, cleanZone, classify, redact, BATCH_SIZE } from './_dupr_map.js';
 
-const RATING_TTL = 15 * 60 * 1000;   // a player's DUPR rating is read from DUPR at most this often
+const RATING_TTL = 6 * 3600 * 1000;  // a player's DUPR rating is read from DUPR at most this often (never on a club refresh)
 const LINKS_PER_15_MIN = 12;           // link attempts per network address (each one calls DUPR)
+const REFRESHES_PER_15_MIN = 20;       // refreshes that reach DUPR, per network address
 
 // A DuprError becomes an HTTP error for the app. Never includes tokens.
 function upstream(err) {
@@ -38,7 +40,7 @@ async function requireOwnerOrOrganizer(sql, club, code, body, req) {
   return row;
 }
 
-const ratingView = s => s && { rating: s.rating || { doubles: null, singles: null }, provisional: s.provisional || { doubles: false, singles: false }, at: s.at || null, needsRelink: !!s.needsRelink };
+const ratingView = s => s && { rating: s.rating || { doubles: null, singles: null }, provisional: s.provisional || { doubles: false, singles: false }, reliability: s.reliability || { doubles: null, singles: null }, at: s.at || null, needsRelink: !!s.needsRelink };
 
 // ---- the review of an event: what each finished match would do at DUPR ----
 async function loadEvent(sql, code, id) {
@@ -196,6 +198,14 @@ async function limitLinks(sql, req) {
   if (n > LINKS_PER_15_MIN) throw fail(429, 'Too many DUPR connection attempts. Wait 15 minutes and try again.');
 }
 
+// Refreshes that actually call DUPR are limited per network address; a cached answer costs nothing.
+async function limitRefreshes(sql, req) {
+  const key = 'duprr:' + clientIp(req);
+  await sql`INSERT INTO lookup_fails (ip) VALUES (${key})`;
+  const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${key} AND at > now() - interval '15 minutes'`;
+  if (n > REFRESHES_PER_15_MIN) throw fail(429, `Too many DUPR refreshes. Try again in ${waitText(15 * 60)}.`);
+}
+
 export default handler(async (req, res) => {
   const cfg = config();
   if (!cfg) { // switched off: no database use, nothing to see
@@ -232,9 +242,9 @@ export default handler(async (req, res) => {
       const [other] = await sql`SELECT name FROM roster WHERE club = ${code} AND dupr_id = ${duprId} AND name_key <> ${row.name_key}`;
       if (other) throw fail(409, `That DUPR account is already linked to ${other.name}.`);
       const ents = await entitlements(cfg, userToken);
-      let rating = { doubles: null, singles: null }, provisional = { doubles: false, singles: false };
-      try { ({ rating, provisional } = await userRatings(cfg, duprId)); } catch { /* the link still works without a rating */ }
-      const snapshot = { at: Date.now(), rating, provisional, basic: ents ? ents.includes('BASIC_L1') : null };
+      let rating = { doubles: null, singles: null }, provisional = { doubles: false, singles: false }, reliability = { doubles: null, singles: null };
+      try { ({ rating, provisional, reliability } = await userRatings(cfg, duprId)); } catch { /* the link still works without a rating */ }
+      const snapshot = { at: Date.now(), rating, provisional, reliability, basic: ents ? ents.includes('BASIC_L1') : null };
       try {
         await sql`UPDATE roster SET dupr_id = ${duprId}, dupr_linked_at = now(), dupr_snapshot = ${JSON.stringify(snapshot)}::jsonb WHERE club = ${code} AND name_key = ${row.name_key}`;
       } catch (err) { if (isUnique(err)) throw fail(409, 'That DUPR account is already linked to another player in this club.'); throw err; }
@@ -254,9 +264,10 @@ export default handler(async (req, res) => {
     if (!row) throw fail(404, 'That player is not linked to DUPR.');
     const snap = row.dupr_snapshot || {};
     if (snap.at && Date.now() - snap.at < RATING_TTL && !snap.needsRelink) return send(res, 200, { ok: true, cached: true, snapshot: ratingView(snap) });
+    await limitRefreshes(sql, req);
     try {
-      const { rating, provisional } = await userRatings(cfg, row.dupr_id);
-      const next = Object.assign({}, snap, { at: Date.now(), rating, provisional, needsRelink: false });
+      const { rating, provisional, reliability } = await userRatings(cfg, row.dupr_id);
+      const next = Object.assign({}, snap, { at: Date.now(), rating, provisional, reliability, needsRelink: false });
       await sql`UPDATE roster SET dupr_snapshot = ${JSON.stringify(next)}::jsonb WHERE club = ${code} AND name_key = ${row.name_key}`;
       return send(res, 200, { ok: true, cached: false, snapshot: ratingView(next) });
     } catch (err) {
@@ -266,7 +277,8 @@ export default handler(async (req, res) => {
         await sql`UPDATE roster SET dupr_snapshot = ${JSON.stringify(next)}::jsonb WHERE club = ${code} AND name_key = ${row.name_key}`;
         return send(res, 200, { ok: true, needsRelink: true, snapshot: ratingView(next) });
       }
-      throw upstream(err);
+      if (err instanceof DuprError) throw fail(503, 'DUPR unavailable. The last saved rating is kept; try again later.');
+      throw err;
     }
   }
 

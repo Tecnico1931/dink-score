@@ -41,12 +41,12 @@ let tokenPending = null; // a token request already in flight, shared by simulta
 const TOKEN_MS = 55 * 60 * 1000;
 const RETRY_WAITS = [400, 1500]; // pauses before the 2nd and 3rd try of a network error, 429 or 5xx
 
-async function send(cfg, method, url, { body, headers = {} }) {
+async function send(cfg, method, url, { body, headers = {}, timeout = 15000 }) {
   const h = Object.assign({ Accept: 'application/json' }, headers);
   if (body !== undefined) h['Content-Type'] = 'application/json';
   let res;
   try {
-    res = await hooks.fetch(url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body), signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(15000) : undefined });
+    res = await hooks.fetch(url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body), signal: typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(timeout) : undefined });
   } catch (err) {
     throw new DuprError('Could not reach DUPR.', { kind: 'retry' });
   }
@@ -85,19 +85,20 @@ async function partnerToken(cfg, force) {
 
 // One call. auth: 'partner' (the cached partner token, renewed once if DUPR says 401) or { user: token } for the
 // player's own SSO token. Network errors, 429 and 5xx are retried a couple of times; everything else is thrown once.
-async function call(cfg, method, url, { body, auth = 'partner' } = {}) {
+// timeout (ms) and retry (false: one try, no waiting) let a read for a person on screen fail fast.
+async function call(cfg, method, url, { body, auth = 'partner', timeout, retry = true } = {}) {
   const secrets = [cfg.secret, cfg.key, auth && auth.user];
   let renewed = false;
   for (let attempt = 0; ; attempt++) {
     let r;
     try {
       const token = auth === 'partner' ? await partnerToken(cfg, false) : auth.user;
-      r = await send(cfg, method, url, { body, headers: { Authorization: 'Bearer ' + token } });
+      r = await send(cfg, method, url, { body, timeout, headers: { Authorization: 'Bearer ' + token } });
       if (r.status === 401 && auth === 'partner' && !renewed) { renewed = true; await partnerToken(cfg, true); attempt--; continue; }
       return check(cfg, r, secrets);
     } catch (err) {
       if (!(err instanceof DuprError)) throw err;
-      if (err.kind === 'retry' && attempt < RETRY_WAITS.length) { await hooks.sleep(RETRY_WAITS[attempt]); continue; }
+      if (retry && err.kind === 'retry' && attempt < RETRY_WAITS.length) { await hooks.sleep(RETRY_WAITS[attempt]); continue; }
       throw err;
     }
   }
@@ -108,7 +109,13 @@ export function parseRating(v) {
   const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').trim());
   return Number.isFinite(n) && n > 0 && n < 10 ? Math.round(n * 1000) / 1000 : null; // "NR" and blanks mean not rated
 }
+// Reliability is a 0-100 score; anything else means unknown.
+export function parseReliability(v) {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? '').trim());
+  return Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 10) / 10 : null;
+}
 // DUPR documents two shapes for a user's ratings (a nested ratings object, and flat *Rating fields); read either.
+// Only the rating fields are read; name, gender, birth year and location are never looked at.
 export function parseUserDetail(json) {
   const u = (json && (json.result || json)) || {};
   const r = u.ratings || {};
@@ -117,7 +124,8 @@ export function parseUserDetail(json) {
   const reliable = { doubles: r.isDoublesReliable ?? r.doublesReliable, singles: r.isSinglesReliable ?? r.singlesReliable };
   return {
     rating,
-    provisional: { doubles: prov.doubles === true || reliable.doubles === false, singles: prov.singles === true || reliable.singles === false }
+    provisional: { doubles: prov.doubles === true || reliable.doubles === false, singles: prov.singles === true || reliable.singles === false },
+    reliability: { doubles: parseReliability(r.doublesReliabilityScore ?? u.doublesReliabilityScore), singles: parseReliability(r.singlesReliabilityScore ?? u.singlesReliabilityScore) }
   };
 }
 export function parseEntitlements(json) {
@@ -141,8 +149,9 @@ export async function userInfo(cfg, userToken) {
 export async function entitlements(cfg, userToken) {
   try { return parseEntitlements(await call(cfg, 'POST', `${cfg.hosts.pub}/subscription/active`, { auth: { user: userToken } })); } catch { return null; }
 }
+// A player's own rating, read on their behalf: 5 seconds, one try (a 4xx will not change by asking again).
 export async function userRatings(cfg, duprId) {
-  return parseUserDetail(await call(cfg, 'GET', `${cfg.hosts.api}/user/v1.0/${encodeURIComponent(duprId)}`));
+  return parseUserDetail(await call(cfg, 'GET', `${cfg.hosts.api}/user/v1.0/${encodeURIComponent(duprId)}`, { timeout: 5000, retry: false }));
 }
 
 // Up to 100 matches. DUPR reports each one: matchCodes[] for those created, errors[] for those refused; one failure

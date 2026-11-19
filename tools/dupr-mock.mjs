@@ -106,7 +106,7 @@ export async function startMock() {
         if (!known(id)) return json(res, 404, { status: 'FAILURE', message: 'User not found' });
         if (!st.connected.has(id)) return json(res, 403, { status: 'FAILURE', message: 'This user has not connected to your platform' });
         const r = st.ratings.get(id);
-        return json(res, 200, { status: 'SUCCESS', result: { id, fullName: 'Mock Player', ratings: { doubles: r.doubles, singles: r.singles, isDoublesReliable: true, isSinglesReliable: true } } });
+        return json(res, 200, { status: 'SUCCESS', result: { id, fullName: 'Mock Player', gender: 'F', birthYear: 1980, location: 'Mockville', ratings: { doubles: r.doubles, singles: r.singles, isDoublesReliable: true, isSinglesReliable: true, doublesReliabilityScore: 87.46, singlesReliabilityScore: '12' } } });
       }
       if (path === '/api/match/v1.0/batch' && req.method === 'POST') {
         if (!Array.isArray(body) || body.length > 100) return json(res, 400, { status: 'FAILURE', message: 'Up to 100 matches per batch' });
