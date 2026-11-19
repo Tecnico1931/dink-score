@@ -11,15 +11,17 @@
 //     league-results-by   {id, who}                 -> organizer: who may enter results
 //     league-end          {id, season?}             -> organizer: finish a league season now, or close a ladder's season (the order carries over)
 //     league-next-season  {id, season?, move?}      -> organizer: the finished league's next season, the top of each division moving up and the bottom down
+//     league-share / league-share-new / league-share-off  {id}  -> organizer: make, replace or remove the public read-only link (/l/<token>); answers {shareToken}
 //     league-delete       {id}                      -> organizer: hide it (its games stay in the record)
 import { fail, requireOrganizer, requirePin, cleanName, nameKey, verifiedSender } from './_db.js';
 import { refreshRatings, ratingsFor } from './_rating_store.js';
 import { ratingMap } from './_seeding.js';
 import { recordGame, correctGame, addToRoster } from './_gamesave.js';
 import { replyTagged } from './_sync.js';
+import { newShareToken } from './_share.js';
 import * as L from './_league.js';
 
-export const LEAGUE_ACTIONS = ['league-create', 'league-result', 'league-correct', 'league-results-by', 'league-end', 'league-next-season', 'league-delete'];
+export const LEAGUE_ACTIONS = ['league-create', 'league-result', 'league-correct', 'league-results-by', 'league-end', 'league-next-season', 'league-share', 'league-share-new', 'league-share-off', 'league-delete'];
 export const MAX_LEAGUES = 50; // per club, not counting deleted ones
 
 async function readOne(sql, code, id) {
@@ -110,8 +112,21 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
     const { league } = await mutate(sql, code, id, lg => fix(() => (lg.kind === 'ladder' ? L.closeLadderSeason(lg, cleanName(body.season) || undefined, now) : L.endSeason(lg, now))));
     return { body: { league: L.view(league) } };
   }
+  if (action === 'league-share' || action === 'league-share-new' || action === 'league-share-off') {
+    // Same as an event's link: 'share' makes it (or returns the one that exists), 'share-new' replaces it, 'share-off' removes it. Only organizers see the token.
+    const [cur] = await sql`SELECT share_token FROM leagues WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL`;
+    if (!cur) throw fail(404, 'That league no longer exists.');
+    if (action === 'league-share-off') {
+      await sql`UPDATE leagues SET share_token = NULL WHERE club = ${code} AND id = ${id}`;
+      return { body: { shareToken: null } };
+    }
+    if (cur.share_token && action === 'league-share') return { body: { shareToken: cur.share_token } };
+    const token = newShareToken();
+    await sql`UPDATE leagues SET share_token = ${token} WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL`;
+    return { body: { shareToken: token } };
+  }
   if (action === 'league-delete') {
-    const rows = await sql`UPDATE leagues SET deleted_at = now() WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id`;
+    const rows = await sql`UPDATE leagues SET deleted_at = now(), share_token = NULL WHERE club = ${code} AND id = ${id} AND deleted_at IS NULL RETURNING id`;
     if (!rows.length) throw fail(404, 'That one was already deleted.');
     return { body: { ok: true } };
   }

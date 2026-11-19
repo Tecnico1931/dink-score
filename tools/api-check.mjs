@@ -1879,5 +1879,40 @@ await step('leagues and ladders: organizers create, results reach the record onc
   assert.equal((await lg('league-delete', { id: ladder.id })).status, 404);
 });
 
+await step('the public league link: organizer makes it, a spectator sees only allowed fields, revoking and deleting end it', async () => {
+  const lc = ok(await call(club, 'POST', { body: { name: 'League link club' } }), 201), lcode = lc.club.code, lown = { ownerToken: lc.ownerToken };
+  const lg = (action, extra = {}, creds = lown) => call(events, 'POST', { body: { code: lcode, action, ...extra, ...creds } });
+  const spectator = token => call(bracket, 'GET', { query: '?league=' + encodeURIComponent(token) });
+  const made = async (kind, name) => ok(await lg('league-create', { league: { kind, name, mode: 'singles', players: ['Ann', 'Bo', 'Cat', 'Dev'], target: 11 } }), 201).league;
+  const league = await made('league', 'Link league'), ladder = await made('ladder', 'Link ladder');
+  assert.equal((await lg('league-share', { id: league.id }, {})).status, 403, 'organizers only');
+  const t1 = ok(await lg('league-share', { id: league.id })).shareToken;
+  assert.match(t1, /^[A-Za-z0-9_-]{32}$/);
+  assert.equal(ok(await lg('league-share', { id: league.id })).shareToken, t1, 'asking again returns the same link');
+  const first = league.weeks[0].matches[0];
+  ok(await lg('league-result', { id: league.id, matchId: first.id, score: [11, 4], endedAt: Date.now() }));
+  const pub = ok(await spectator(t1));
+  assert.equal(pub.kind, 'league'); assert.equal(pub.name, 'Link league'); assert.equal(pub.divisions[0].rows.length, 4);
+  const text = JSON.stringify(pub);
+  for (const secret of [lcode, lc.ownerToken, league.id, first.id, 'resultsBy', 'canChallenge', 'seeds']) assert.ok(!text.includes(secret), `public view leaks ${secret}`);
+  assert.equal((await call(bracket, 'GET', { query: '?token=' + t1 })).status, 404, 'a league token is not a bracket token');
+  const answers = new Set();
+  for (const bad of ['nope', 'a'.repeat(32), t1.slice(0, -1), t1 + 'x', "x' OR '1'='1"]) { const r = await spectator(bad); assert.equal(r.status, 404, `bad token ${bad}`); answers.add(JSON.stringify(r.json)); }
+  assert.equal(answers.size, 1);
+  assert.equal((await call(bracket, 'POST', { body: { league: t1 } })).status, 405);
+  // a ladder shows its order and recent results
+  const tl = ok(await lg('league-share', { id: ladder.id })).shareToken;
+  ok(await lg('league-result', { id: ladder.id, key: 'pub1', challenger: [ladder.rows[1].name], defender: [ladder.rows[0].name], score: [11, 2], endedAt: Date.now() }));
+  const lpub = ok(await spectator(tl));
+  assert.equal(lpub.kind, 'ladder'); assert.equal(lpub.rows.length, 4); assert.equal(lpub.results.length, 1);
+  assert.ok(!JSON.stringify(lpub).includes('pub1'), 'result keys stay private');
+  // replacing the link kills the old one; stopping ends it; so does deleting
+  const t2 = ok(await lg('league-share-new', { id: league.id })).shareToken;
+  assert.notEqual(t2, t1); assert.equal((await spectator(t1)).status, 404); assert.equal((await spectator(t2)).status, 200);
+  assert.equal(ok(await lg('league-share-off', { id: league.id })).shareToken, null); assert.equal((await spectator(t2)).status, 404);
+  ok(await lg('league-delete', { id: ladder.id })); assert.equal((await spectator(tl)).status, 404);
+  assert.equal((await lg('league-share', { id: ladder.id })).status, 404);
+});
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

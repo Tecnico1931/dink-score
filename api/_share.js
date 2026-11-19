@@ -2,6 +2,7 @@
 // Pure functions, no database. The token is the only credential: whoever holds the link can watch, nobody can change anything.
 import { randomBytes } from 'node:crypto';
 import { view } from './_events.js';
+import { view as leagueView } from './_league.js';
 import { cleanLogoUrl } from '../sheet-import.js';
 
 // 24 random bytes (192 bits) as URL-safe base64: 32 characters, never guessable and safe in a path.
@@ -37,5 +38,25 @@ export function publicView(ev) {
     tree: null
   };
   if (v.tree) out.tree = { kind: str(v.tree.kind, 8), rounds: v.tree.rounds.map(r => ({ key: str(r.key, 4), title: str(r.title, 24) })), matches: v.tree.matches.map(treeMatch) };
+  return out;
+}
+
+// What a spectator sees of a league or ladder (the /l/<token> page). Same rule as publicView: copied field by field, so a
+// field added to a league later is private until it is listed here. Names, scores and standings only: never the club code,
+// PIN or token, game ids, the results-by setting, who may challenge whom, or anything that could write.
+export function leaguePublicView(L) {
+  const v = leagueView(L);
+  const side = t => (Array.isArray(t) ? t.slice(0, 2).map(p => str(p)) : []);
+  const out = { v: 1, kind: str(v.kind, 8), name: str(v.name, 60), season: str(v.season, 40), mode: str(v.mode, 8), status: str(v.status, 8),
+    target: int(v.target), scoring: str(v.scoring, 8), winBy: int(v.winBy), updatedAt: int(v.updatedAt) };
+  if (v.kind === 'league') {
+    Object.assign(out, { current: int(v.current), champions: Array.isArray(v.champions) ? v.champions.slice(0, 4).map(c => (c ? side(c) : null)) : null,
+      divisions: v.tables.slice(0, 4).map(t => ({ label: str(t.label, 20), rows: t.rows.slice(0, 64).map(r => ({ rank: int(r.rank), name: str(r.name), played: int(r.played), wins: int(r.wins), losses: int(r.losses), diff: int(r.diff) })) })),
+      weeks: v.weeks.slice(0, 80).map(w => ({ n: int(w.n), title: str(w.title, 24), matches: w.matches.slice(0, 64).map(m => ({ division: int(m.division), teams: [side(m.teams[0]), side(m.teams[1])], score: score(m.score), status: str(m.status, 8) })) })) });
+  } else {
+    Object.assign(out, { jump: int(v.jump),
+      rows: v.rows.slice(0, 128).map(r => ({ rank: int(r.rank), name: str(r.name), played: int(r.played), wins: int(r.wins), losses: int(r.losses) })),
+      results: v.results.slice(0, 15).map(r => ({ teams: [side(r.teams[0]), side(r.teams[1])], score: score(r.score), winner: int(r.winner) })) });
+  }
   return out;
 }

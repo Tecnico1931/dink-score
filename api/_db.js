@@ -314,6 +314,9 @@ export function ensureSchema() {
         deleted_at timestamptz,
         PRIMARY KEY (club, id)
       )`;
+      // The public, read-only link to a league or ladder (see _share.js and bracket.js). Null means not shared.
+      await q`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS share_token text`;
+      await q`CREATE UNIQUE INDEX IF NOT EXISTS leagues_share_token ON leagues (share_token) WHERE share_token IS NOT NULL`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

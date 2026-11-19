@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#0F241E">
+<title>League table · Dink Score</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="preload" href="/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/fonts/fonts.css">
+<style>
+/* The public, read-only league or ladder page (served at /l/<token>). Built by build.cjs from this file plus the shared colour tokens of dink-score.html. */
+/*@TOKENS*/
+* { box-sizing: border-box; }
+html { background: var(--bg); color-scheme: light dark; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 16px; line-height: 1.45; -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.num { font-family: var(--display); font-stretch: 75%; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.pub { max-width: 900px; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); display: flex; flex-direction: column; gap: 18px; min-height: 100vh; min-height: 100dvh; }
+.pub-brand { margin: 0 0 2px; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.pub h1 { margin: 0; font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: clamp(28px, 4.2vw, 48px); line-height: 1.05; letter-spacing: -.02em; overflow-wrap: anywhere; text-wrap: balance; }
+.pub-meta { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+.pub-status { margin: 0; font-size: 13px; color: var(--muted); }
+.pub-status.warn { color: var(--ink); font-weight: 600; }
+.card { background: var(--surface); border-radius: 22px; padding: 14px 16px; box-shadow: var(--shadow); min-width: 0; }
+.card h2 { margin: 0 0 8px; font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 19px; letter-spacing: -.01em; }
+.pub-note { margin: 0; font-size: 14px; color: var(--muted); }
+.pub-champ { display: flex; align-items: center; gap: 14px; background: var(--ink); color: var(--bg); border-radius: 22px; padding: 16px 20px; }
+.pub-champ .ball { width: 26px; height: 26px; flex: none; display: inline-block; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #F4FF9E, var(--ball) 55%, #B9CF22); }
+.pub-champ small { display: block; font-size: 13px; opacity: .75; }
+.pub-champ b { font-size: 20px; overflow-wrap: anywhere; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: right; padding: 7px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+th.who, td.who { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+tr:last-child td { border-bottom: 0; }
+.fx { list-style: none; margin: 0; padding: 0; }
+.fx li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.fx li:last-child { border-bottom: 0; }
+.fx .t { min-width: 0; overflow-wrap: anywhere; }
+.fx .win { font-weight: 700; }
+.fx .sc { flex: none; font-size: 18px; }
+.fx .tag { flex: none; font-size: 12px; font-weight: 700; color: var(--muted); }
+details summary { cursor: pointer; padding: 6px 0; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+.pub-dead { max-width: 520px; margin: 18vh auto 0; text-align: center; }
+.pub-dead h1 { font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: 30px; margin: 0 0 8px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<main class="pub" id="pub">
+  <header>
+    <p class="pub-brand">Dink Score · league</p>
+    <h1 id="pub-name">Loading…</h1>
+    <p class="pub-meta" id="pub-meta"></p>
+  </header>
+  <div id="pub-body" style="display:flex;flex-direction:column;gap:18px"></div>
+  <p class="pub-status" id="pub-status" role="status"></p>
+</main>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const root = document.documentElement;
+  const q = new URLSearchParams(location.search);
+  const token = (location.pathname.match(/^\/l\/([A-Za-z0-9_-]{32})\/?$/) || [])[1];
+  if (q.get('theme') === 'dark' || q.get('theme') === 'light') root.dataset.theme = q.get('theme');
+  let data = null, json = '', dead = false, failed = 0, lastCheck = 0, timer = 0;
+  const POLL = 15000;
+  const time = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+  const names = t => esc((t || []).join(' & '));
+  const sign = n => (n > 0 ? '+' : '') + n;
+
+  function table(rows, cols) {
+    const head = cols.map(c => `<th scope="col"${c.k === 'name' ? ' class="who"' : ''}>${c.h}</th>`).join('');
+    return `<div class="tbl"><table><tr>${head}</tr>${rows.map(r => '<tr>' + cols.map(c => c.k === 'name' ? `<td class="who">${r.rank}. ${esc(r.name)}</td>` : `<td class="num">${c.k === 'diff' ? sign(r.diff) : r[c.k]}</td>`).join('') + '</tr>').join('')}</table></div>`;
+  }
+  const match = m => { const done = m.status === 'done' && m.score, w = done ? (m.score[0] > m.score[1] ? 0 : 1) : -1;
+    return `<li><span class="t"><span class="${w === 0 ? 'win' : ''}">${names(m.teams[0])}</span> vs <span class="${w === 1 ? 'win' : ''}">${names(m.teams[1])}</span></span>${done ? `<span class="sc num">${m.score[0]}–${m.score[1]}</span>` : '<span class="tag">To play</span>'}</li>`; };
+
+  function render() {
+    const d = data;
+    document.title = d.name + ' · Dink Score';
+    $('#pub-name').textContent = d.name;
+    const rule = `${d.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${d.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${d.target}`;
+    $('#pub-meta').textContent = [d.season, rule, d.kind === 'ladder' ? `challenge up to ${d.jump} above` : d.status === 'done' ? 'Season finished' : `Week ${d.current} of ${d.weeks.length}`].join(' · ');
+    const out = [];
+    if (d.kind === 'league') {
+      if (d.status === 'done' && d.champions) d.champions.forEach((c, i) => { if (c) out.push(`<div class="pub-champ"><span class="ball" aria-hidden="true"></span><div><small>${d.divisions.length > 1 ? esc(d.divisions[i].label) + ' winner' : 'Season winner'}</small><b>${names(c)}</b></div></div>`); });
+      d.divisions.forEach(dv => out.push(`<section class="card" aria-labelledby="d-${esc(dv.label)}"><h2 id="d-${esc(dv.label)}">${d.divisions.length > 1 ? esc(dv.label) : 'Standings'}</h2>${table(dv.rows, [{ k: 'name', h: d.mode === 'doubles' ? 'Team' : 'Player' }, { k: 'played', h: 'P' }, { k: 'wins', h: 'W' }, { k: 'losses', h: 'L' }, { k: 'diff', h: '+/−' }])}</section>`));
+      const wk = d.status === 'live' && d.weeks.find(w => w.n === d.current);
+      if (wk) out.push(`<section class="card" aria-labelledby="wk-now"><h2 id="wk-now">${esc(wk.title)}</h2><ul class="fx">${wk.matches.map(match).join('')}</ul></section>`);
+      out.push(`<section class="card"><h2>All weeks</h2>${d.weeks.map(w => `<details><summary>${esc(w.title)}</summary><ul class="fx">${w.matches.map(match).join('')}</ul></details>`).join('')}</section>`);
+    } else {
+      out.push(`<section class="card" aria-labelledby="lad"><h2 id="lad">Ladder</h2>${table(d.rows, [{ k: 'name', h: d.mode === 'doubles' ? 'Team' : 'Player' }, { k: 'played', h: 'P' }, { k: 'wins', h: 'W' }, { k: 'losses', h: 'L' }])}</section>`);
+      if (d.results.length) out.push(`<section class="card" aria-labelledby="rec"><h2 id="rec">Recent results</h2><ul class="fx">${d.results.map(r => match({ teams: r.teams, score: r.score, status: 'done' })).join('')}</ul></section>`);
+    }
+    $('#pub-body').innerHTML = out.join('');
+  }
+
+  function status() {
+    const el = $('#pub-status');
+    if (dead) { el.textContent = ''; return; }
+    el.classList.toggle('warn', failed > 1);
+    el.textContent = failed > 1 ? `Can't reach the server. Showing the last update; trying again.` : lastCheck ? `Checked ${time(lastCheck)}. Updates by itself.` : '';
+  }
+  function showDead() {
+    dead = true; clearTimeout(timer);
+    $('#pub-meta').textContent = ''; $('#pub-name').textContent = '';
+    document.title = 'League link not active · Dink Score';
+    $('#pub-body').innerHTML = `<div class="pub-dead card" role="alert"><h1>This league link is not active</h1><p class="pub-note">It may have been turned off or replaced. Ask the organizer for the current link.</p></div>`;
+    status();
+  }
+  async function load() {
+    if (dead) return;
+    try {
+      const r = await fetch('/api/bracket?league=' + encodeURIComponent(token), { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+      if (r.status === 404) return showDead();
+      if (!r.ok) throw new Error('bad status');
+      const text = await r.text();
+      failed = 0; lastCheck = Date.now();
+      if (text !== json) { json = text; data = JSON.parse(text); render(); }
+    } catch { failed++; }
+    status();
+  }
+  function loop() { clearTimeout(timer); if (dead || document.hidden) return; timer = setTimeout(async () => { await load(); loop(); }, POLL + Math.floor(Math.random() * 3000)); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(timer); else { load().then(loop); } });
+  if (!token) showDead(); else load().then(loop);
+})();
+</script>
+</body>
+</html>
