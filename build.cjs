@@ -149,7 +149,7 @@ const vercel = {
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-      { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' }
+      { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()' }
     ]
   }]
 };
@@ -160,7 +160,7 @@ console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)
 const out = path.join(__dirname, 'public');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-for (const f of ['index.html', 'b.html', 'l.html', 'r.css', 'r.js', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js', 'privacy.html', 'terms.html', 'legal.css']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of ['index.html', 'b.html', 'l.html', 'r.css', 'r.js', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js', 'scan.js', 'jsqr.js', 'privacy.html', 'terms.html', 'legal.css']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
 for (const d of ['fonts', '.well-known']) {
   fs.mkdirSync(path.join(out, d), { recursive: true });

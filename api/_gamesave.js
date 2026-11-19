@@ -1,6 +1,6 @@
 // Saving finished matches of events, leagues and ladders into the club's games. Not a route (files starting with "_").
 import { checkLog } from './_rallylog.js';
-import { cleanGame, cleanName, nameKey, reserveGames, releaseGames, verifiedSender } from './_db.js';
+import { cleanGame, cleanName, fail, nameKey, reserveGames, releaseGames, verifiedSender } from './_db.js';
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 
 // Puts a finished match into the club's games. Safe to repeat: the game id is the same every time, so it is stored once.
@@ -23,6 +23,27 @@ export async function recordGame(sql, club, code, event, game, body, now, rallyL
     await releaseGames(code, 1 - inserted, windowStart);
   }
   return inserted;
+}
+
+// A game the watch finished: the server saves the live game itself, so it is kept even when the scoring phone is closed or away.
+// The id is the live game's own id, which the phone's own save uses too (record() in the app), so whichever arrives second does
+// nothing and the ratings never count it twice. Nobody is verified (no scoredBy), so a club that asks for confirmation holds it.
+export async function saveLiveGame(sql, code, live) {
+  const s = live.state;
+  if (!/^[A-Za-z0-9_-]{4,40}$/.test(String(live.id))) throw fail(400, 'This game has a name the watch cannot save. Save it on the scoring phone.');
+  const g = cleanGame({ id: live.id, mode: s.cfg.mode, scoring: s.cfg.scoring, target: s.cfg.target, winBy: s.cfg.winBy, teams: s.cfg.teams, score: s.score, rallies: s.rallies, startedAt: s.startedAt, endedAt: s.endedAt || Date.now() });
+  g.receivedAt = Date.now();
+  const windowStart = await reserveGames(code, 1);
+  let inserted = 0;
+  try {
+    const rows = await sql`INSERT INTO games (club, id, data, ended_at) VALUES (${code}, ${g.id}, ${JSON.stringify(g)}::jsonb, ${g.endedAt}) ON CONFLICT (club, id) DO NOTHING RETURNING id`;
+    inserted = rows.length;
+    if (inserted) await audit(sql, code, g.id, 'create', senderActor(null), null, snapshot(g), 'watch');
+  } finally {
+    await releaseGames(code, 1 - inserted, windowStart);
+  }
+  if (inserted) await addToRoster(sql, code, g.teams.flat().filter(n => !/^Player \d+$/.test(n)));
+  return { id: g.id, saved: inserted === 1 };
 }
 
 // Same game id, new score (an organizer fixing a result). Keeps who sent it and when it arrived; does nothing if the game was deleted from the record.

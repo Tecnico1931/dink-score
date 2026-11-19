@@ -24,7 +24,7 @@ import { createHash } from 'node:crypto';
 import { db, handler, send, readBody, fail, cleanCode, requireClub } from './_db.js';
 import { secretOk, hashSecret, FRESH_MS, requireSecret, applyRally } from './_livecore.js';
 import { callOf, sayOf, cleanOpId } from './_watchrules.js';
-import { WATCH_ACTIONS, WATCH_CLUB_ACTIONS, watchAction, watchClubAction, watchState } from './_watch.js';
+import { WATCH_ACTIONS, WATCH_CLUB_ACTIONS, watchAction, watchClubAction, watchState, attachLinks } from './_watch.js';
 import { boardGet, boardAction, BOARD_ACTIONS } from './_courtboard.js';
 import { sessionGet, sessionAction } from './_sessions.js';
 import { pushAction, PUSH_ACTIONS } from './_push.js';
@@ -94,6 +94,7 @@ export default handler(async (req, res) => {
         intents = (SELECT COALESCE(jsonb_agg(i), '[]'::jsonb) FROM jsonb_array_elements(live_games.intents) i WHERE (i->>'n')::int > ${ack})
       WHERE live_games.secret_hash IS NULL OR live_games.secret_hash = EXCLUDED.secret_hash RETURNING id`;
     if (!rows.length) { await requireSecret(sql, req, { secret_hash: '-' }, body.secret); }
+    if (body.watch) await attachLinks(sql, code, id, body.watch); // the watches this phone linked score this game too (the secret was checked above)
     return send(res, 200, { ok: true });
   }
 

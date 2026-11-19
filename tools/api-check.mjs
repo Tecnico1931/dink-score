@@ -2135,6 +2135,71 @@ await step('the public league link: organizer makes it, a spectator sees only al
     assert.equal((await claim(w, {}, wcode)).status, 200, 'another club is unaffected');
   });
 
+  await step('publish: the watches the phone names are attached once the game secret is right, and only live links of this club', async () => {
+    const L1 = await link(), L2 = await link(), foreign = ok(await call(club, 'POST', { body: { name: 'Other watch club', pin: '135790' } }), 201).club.code;
+    const F = await link({}, foreign), gone = await link();
+    ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: gone.id, revokeKey: gone.c.revokeKey } }));
+    const pub = (id, secret, watch, cd = wcode) => call(live, 'POST', { body: { code: cd, action: 'state', id, secret, state: state(), ack: 0, watch } });
+    assert.equal((await as(L1.token, 'watch-state')).status, 200);
+    assert.equal((await pub('live-pa', 'pubSecret111', [L1.id, L2.id, F.id, gone.id, 'nope', L1.id])).status, 200);
+    assert.deepEqual((await liveLinks('live-pa')).sort(), [L1.id, L2.id].sort(), 'this club\'s live links only, each once');
+    assert.equal(ok(await as(L1.token, 'watch-state')).game.id, 'live-pa');
+    assert.equal((await pub('live-pa', 'pubSecret111', [L1.id])).status, 200);
+    assert.equal((await liveLinks('live-pa')).length, 2, 'a republish adds nothing twice and takes nothing away');
+    assert.equal((await pub('live-pa', 'wrongSecret99', [F.id])).status, 403);
+    assert.ok(!(await liveLinks('live-pa')).includes(F.id), 'a wrong secret attaches nothing');
+    assert.equal((await pub('live-pb', 'pubSecret222', 'not a list')).status, 200);
+    assert.deepEqual(await liveLinks('live-pb'), []);
+  });
+
+  await step('watch-finish: the server saves a finished game once, under the live id, whoever saves it first', async () => {
+    const done = (extra = {}) => ({ ...state(), score: [11, 4], winner: 0, rallies: 15, startedAt: 5000, endedAt: Date.now(), ...extra });
+    const pubDone = async (id, secret, st, cd = wcode) => ok(await call(live, 'POST', { body: { code: cd, action: 'state', id, secret, state: st, ack: 0 } }));
+    const F = await link();
+    await publish('live-f1', 'finSecret111'); ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-attach', link: F.id, game: 'live-f1', secret: 'finSecret111' } }));
+    assert.equal((await as(F.token, 'watch-finish')).status, 409, 'a game that is not over is not saved');
+    await pubDone('live-f1', 'finSecret111', done());
+    const r = ok(await as(F.token, 'watch-finish'));
+    assert.deepEqual([r.id, r.saved], ['live-f1', true]);
+    const saved = async id => (await pg.query('SELECT data, confirmed_by, rally_log FROM games WHERE club = $1 AND id = $2', [wcode, id])).rows;
+    let g = await saved('live-f1');
+    assert.equal(g.length, 1);
+    assert.deepEqual([g[0].data.teams, g[0].data.score, g[0].data.winner, g[0].data.rallies, g[0].data.startedAt], [[['Ana', 'Ben'], ['Cy', 'Di']], [11, 4], 0, 15, 5000]);
+    assert.ok(!('scoredBy' in g[0].data) && g[0].confirmed_by === null && g[0].rally_log === null, 'nobody is verified and there is no replay');
+    const aud = (await pg.query('SELECT action, actor, note FROM game_audit WHERE club = $1 AND game = $2', [wcode, 'live-f1'])).rows;
+    assert.deepEqual(aud, [{ action: 'create', actor: 'anonymous', note: 'watch' }]);
+    assert.ok((await pg.query('SELECT 1 FROM roster WHERE club = $1 AND name_key = $2', [wcode, 'ana'])).rows.length === 1, 'the players join the roster');
+    const again = ok(await as(F.token, 'watch-finish'));
+    assert.deepEqual([again.id, again.saved], ['live-f1', false], 'finishing again changes nothing');
+    assert.equal((await saved('live-f1')).length, 1);
+    // The phone saves the same game afterwards, under the same id: stored once.
+    const rec = { id: 'live-f1', startedAt: 5000, endedAt: g[0].data.endedAt, mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, teams: [['Ana', 'Ben'], ['Cy', 'Di']], score: [11, 4], winner: 0, rallies: 15 };
+    const p = ok(await call(games, 'POST', { body: { code: wcode, games: [rec], ownerToken: wowner } }));
+    assert.deepEqual([p.saved, p.alreadySaved], [0, 1]);
+    assert.equal((await saved('live-f1')).length, 1);
+    // And the other way round: the phone saves first, then the watch finishes.
+    await publish('live-f2', 'finSecret222'); await pubDone('live-f2', 'finSecret222', done({ startedAt: 6000 }));
+    ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-attach', link: F.id, game: 'live-f2', secret: 'finSecret222' } }));
+    const first = ok(await call(games, 'POST', { body: { code: wcode, games: [{ ...rec, id: 'live-f2', startedAt: 6000 }], ownerToken: wowner } }));
+    assert.equal(first.saved, 1);
+    assert.equal(ok(await as(F.token, 'watch-finish', { game: 'live-f2' })).saved, false);
+    assert.equal((await saved('live-f2')).length, 1);
+    // Nothing else: a game that is not sent to this watch, an unknown token, a revoked watch.
+    await pubDone('live-f3', 'finSecret333', done());
+    assert.equal((await as(F.token, 'watch-finish', { game: 'live-f3' })).status, 404);
+    assert.equal((await as('w_' + hex(32), 'watch-finish')).status, 401);
+    ok(await as(F.token, 'watch-unlink'));
+    assert.equal((await as(F.token, 'watch-finish', { game: 'live-f2' })).status, 401);
+  });
+
+  await step('watch-finish: a game name the games table cannot hold is refused, not half saved', async () => {
+    const F = await link();
+    const longId = 'live-' + 'x'.repeat(50);
+    ok(await call(live, 'POST', { body: { code: wcode, action: 'state', id: longId, secret: 'longSecret11', state: { ...state(), score: [11, 2], winner: 0, endedAt: Date.now() }, ack: 0, watch: [F.id] } }));
+    assert.equal((await as(F.token, 'watch-finish')).status, 400);
+    assert.equal((await pg.query('SELECT 1 FROM games WHERE club = $1 AND id = $2', [wcode, longId])).rows.length, 0);
+  });
+
   await step('club deletion removes its watch links and the token stops working; other clubs keep theirs', async () => {
     const gone = ok(await call(club, 'POST', { body: { name: 'Doomed watch club', pin: '246810' } }), 201).club.code;
     await publish('live-gone', 'goneSecret111', gone);
