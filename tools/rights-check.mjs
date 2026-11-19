@@ -35,10 +35,10 @@ neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}
 process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
-const [club, games, events, players] = await Promise.all(['club', 'games', 'events', 'players'].map(load));
+const [club, games, events, players, live] = await Promise.all(['club', 'games', 'events', 'players', 'live'].map(load));
 let ip = 0;
-async function raw(handler, method, { query = '', body } = {}) {
-  const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.1.0.' + (++ip % 200) }, body };
+async function raw(handler, method, { query = '', body, headers = {} } = {}) {
+  const req = { method, url: '/api/x' + query, headers: { 'x-real-ip': '10.1.0.' + (++ip % 200), ...headers }, body };
   const out = { status: 0, text: '', headers: {} };
   const res = { statusCode: 0, setHeader(k, v) { out.headers[k.toLowerCase()] = v; }, end(t) { out.status = res.statusCode; out.text = t; } };
   await handler(req, res);
@@ -70,6 +70,15 @@ await pg.query(`UPDATE events SET refs = '{"Ana":"1234567","Ben":"7654321"}'::js
 await pg.query(`UPDATE roster SET avatar = '{"type":"emoji","value":"🔥"}'::jsonb, dupr_rating = 3.5 WHERE name_key = 'ana'`);
 await pg.query(`INSERT INTO accounts (id, display_name) VALUES ('acct1', 'x')`);
 await pg.query(`INSERT INTO account_identities (account_id, club, kind, name_key, proof) SELECT 'acct1', code, 'player', 'ana', 'p' FROM clubs`);
+// A linked watch with a live game sent to it: club deletion must take both, and no export may carry its hashes.
+const { pairHash, pollHash, shortCode, shortHash } = await import(pathToFileURL(path.join(root, 'api', '_watchrules.js')).href);
+const W = (body, headers = {}) => call(live, 'POST', { body, headers });
+const liveSecret = 'rightsLive1';
+ok(await W({ code, action: 'state', id: 'live-r1', secret: liveSecret, state: { cfg: { mode: 'singles', scoring: 'rally', target: 11, winBy: 2, teams: [['Ana'], ['Ben']] }, score: [0, 0], serving: 0, serverNum: 1, right: [0, 0], server: 0, rallies: 0, switched: false, winner: null, startedAt: 1, endedAt: null }, ack: 0 }));
+const pair = 'ab'.repeat(16), pollSecret = 'cd'.repeat(16);
+ok(await W({ action: 'watch-register', idHash: pairHash(pair), pollHash: pollHash(pollSecret), shortHash: shortHash(shortCode(pair)), confirm4: '4321', label: 'Rights check watch' }));
+ok(await W({ code, action: 'watch-claim', pair, confirm4: '4321', game: 'live-r1', secret: liveSecret }));
+const watchToken = ok(await W({ action: 'watch-poll', pairId: pair, pollSecret })).token;
 const listGames = async () => (await pg.query(`SELECT id, data FROM games ORDER BY id`)).rows;
 const text = v => JSON.stringify(v);
 
@@ -147,7 +156,7 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
-  assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321/.test(s), 'no secrets, tokens or DUPR data');
+  assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321|token_hash|revoke_hash/.test(s) && !s.includes(watchToken), 'no secrets, tokens or DUPR data');
 });
 await step('club export as CSV: games, with spreadsheet formulas defused', async () => {
   const r = await raw(club, 'POST', { body: { code, action: 'export', format: 'csv', ...ORG } });
@@ -196,9 +205,11 @@ await step('delete club: once the window has passed everything is removed, and t
   const other = ok(await call(club, 'POST', { body: { name: 'Bystander club', pin: '135790' } }), 201);
   ok(await call(games, 'POST', { body: { code: other.club.code, games: [gm('o-one', [['Zed', 'Yan'], ['Xi', 'Wu']], [11, 3], 1)] } }));
   ok(await C('delete-club', { confirm: 'Rights check club', ...ORG }));
+  assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 200, 'a club waiting out its undo window still has a working watch');
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
+  assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 401, 'once the window has passed the watch is refused too');
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases']) {
+  for (const t of ['clubs', 'games', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases', 'watch_links']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }

@@ -15,45 +15,31 @@
 //   GET/POST board-*: the open play court board built on these live games, documented in _courtboard.js
 //   POST push-status | push-subscribe | push-unsubscribe: opt-in "you're up" notifications, documented in _push.js
 //   GET ?session=CODE and POST session-*: pickup sessions (24 hours, no club), documented in _sessions.js
+//   POST watch-* and GET ?watch=state: Apple Watch linking and scoring (a watch token, not a club code), documented in _watch.js
 // Each live game has its own short-lived secret, made on the scoring phone and shown there (and on the watch setup page).
 // Intents must name the game and carry its secret; the club code alone is not enough, so two games at once never mix.
 // The server keeps only a hash of the secret, hands intents only to a caller who holds it, and signs each intent with it,
 // so the phone also ignores any intent that was not made by someone holding the secret.
 import { createHash } from 'node:crypto';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp } from './_db.js';
-import { rally as rallyOf, call as pbCall } from './_pb.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub } from './_db.js';
+import { secretOk, hashSecret, FRESH_MS, requireSecret, applyRally } from './_livecore.js';
+import { callOf, sayOf, cleanOpId } from './_watchrules.js';
+import { WATCH_ACTIONS, WATCH_CLUB_ACTIONS, watchAction, watchClubAction, watchState } from './_watch.js';
 import { boardGet, boardAction, BOARD_ACTIONS } from './_courtboard.js';
 import { sessionGet, sessionAction } from './_sessions.js';
 import { pushAction, PUSH_ACTIONS } from './_push.js';
 import { replyTagged } from './_sync.js';
 
-export const secretOk = v => typeof v === 'string' && /^[A-Za-z0-9]{6,32}$/.test(v);
-export const hashSecret = v => createHash('sha256').update('live:' + v).digest('hex');
+export { secretOk, hashSecret };
 // What the phone recomputes to accept an intent: sha256 of "secret:n:kind:side:game", hex.
 export const signIntent = (secret, game, n, kind, side) => createHash('sha256').update(`${secret}:${n}:${kind}:${side}:${game}`).digest('hex');
-const MAX_BAD_SECRETS = 30; // wrong or missing secrets per network address per 15 minutes
 
-const FRESH_MS = 6 * 60 * 60 * 1000; // a live game nobody has published for in 6 hours is not live any more
 const MAX_PENDING = 50;
 const MAX_LIVE_ROWS = 20; // live games one club can have at once; stale ones are purged first
 
-function callOf(s) {
-  if (s && s.cfg) return pbCall(s);
-  const parts = [s.score[s.serving], s.score[1 - s.serving]];
-  if (s.cfg && s.cfg.mode === 'doubles' && s.cfg.scoring === 'sideout') parts.push(s.serverNum);
-  return parts;
-}
-// The caller must hold this game's secret. Wrong guesses are counted per address, like wrong club codes.
-async function requireSecret(sql, req, row, secret) {
-  const key = 'live:' + clientIp(req);
-  const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${key} AND at > now() - interval '15 minutes'`;
-  if (n >= MAX_BAD_SECRETS) throw fail(429, 'Too many wrong game secrets. Wait 15 minutes and try again.');
-  const ok = secretOk(secret) && row && row.secret_hash && row.secret_hash === hashSecret(secret);
-  if (!ok) { await sql`INSERT INTO lookup_fails (ip) VALUES (${key})`; throw fail(403, 'That game secret is wrong. Copy the game and secret again from the scoring phone.'); }
-}
 function answer(row) {
   const s = row.state, call = callOf(s);
-  return { ok: true, score: s.score, call, say: s.winner !== null && s.winner !== undefined ? 'Game over' : 'Score: ' + call.join(', '), pending: (row.intents || []).length };
+  return { ok: true, score: s.score, call, say: sayOf(s, call), pending: (row.intents || []).length };
 }
 
 export default handler(async (req, res) => {
@@ -61,6 +47,7 @@ export default handler(async (req, res) => {
   if (req.method === 'GET') {
     const url = new URL(req.url, 'http://x');
     if (url.searchParams.has('session')) return replyTagged(req, res, 'session:' + url.searchParams.get('session'), await sessionGet(sql, url.searchParams.get('session'), req)); // pickup sessions: no club involved (see _sessions.js)
+    if (url.searchParams.get('watch') === 'state') { const w = await watchState(db(), req); return replyTagged(req, res, w.scope, w.body); } // a linked watch: its token is the credential, no club code (see _watch.js)
     const club = await requireClub(cleanCode(url.searchParams.get('code')), req);
     const code = club.code; // the club's permanent key, even when an old club code was used
     const id = String(url.searchParams.get('id') || '');
@@ -82,9 +69,11 @@ export default handler(async (req, res) => {
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const body = await readBody(req);
   if (typeof body.action === 'string' && body.action.startsWith('session-')) return send(res, 200, await sessionAction(sql, body, req));
+  if (WATCH_ACTIONS.includes(body.action)) return send(res, 200, await watchAction(sql, body, req)); // a watch: pairing is open, everything else carries its token (see _watch.js)
   const club = await requireClub(cleanCode(body.code), req);
   const code = club.code; // the club's permanent key, even when an old club code was used
 
+  if (WATCH_CLUB_ACTIONS.includes(body.action)) return send(res, 200, await watchClubAction(sql, club, body, req)); // the phone linking, listing and unlinking watches
   if (BOARD_ACTIONS.includes(body.action)) return send(res, 200, await boardAction(sql, club, body, req));
   if (PUSH_ACTIONS.includes(body.action)) return send(res, 200, await pushAction(sql, club, body, req)); // opt-in notifications (see _push.js)
 
@@ -140,41 +129,19 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
-  // Shared scoring: the server referees. A rally is applied to the server-held state with the ported
-  // rules (_pb.js), so any phone or watch holding the game's secret can score and every other screen
-  // follows by reading the state. Callers that pass the version they saw ('base') get a 200 conflict
-  // answer with the latest state when someone else scored first, so they can resync and retry; taps
-  // without a base (a watch) are retried against the fresh state until they land.
+  // Shared scoring: the server referees (applyRally, _livecore.js). Any phone holding the game's secret can score and every other
+  // screen follows by reading the state. 'opId' (optional) makes a retried tap harmless: a repeated one applies nothing.
   if (body.action === 'rally' || body.action === 'unrally') {
     const kind = body.action;
     if (kind === 'rally' && body.side !== 0 && body.side !== 1) throw fail(400, 'Say which side scored: side 0 or 1.');
     const game = String(body.game || body.id || '');
     if (!game) throw fail(400, 'Say which live game this is: copy the game and secret from the scoring phone.');
     const since = new Date(Date.now() - FRESH_MS).toISOString();
-    let [row] = await sql`SELECT id, state, stack, version, secret_hash FROM live_games WHERE club = ${code} AND id = ${game} AND updated_at > ${since}`;
+    const [row] = await sql`SELECT id, state, stack, version, ops, secret_hash FROM live_games WHERE club = ${code} AND id = ${game} AND updated_at > ${since}`;
     if (!row) throw fail(404, 'No live game with that name. Check the game and secret on the scoring phone.');
     await requireSecret(sql, req, row, body.secret);
-    const hasBase = body.base !== undefined && body.base !== null && Number.isFinite(+body.base);
-    const conflict = r => send(res, 200, { ok: false, conflict: true, state: r.state, version: r.version });
-    for (let attempt = 0; attempt < 4; attempt++) {
-      if (attempt > 0) { const [fresh] = await sql`SELECT id, state, stack, version FROM live_games WHERE club = ${code} AND id = ${row.id}`; if (!fresh) throw fail(404, 'That live game is gone.'); row = fresh; }
-      if (kind === 'rally' && row.state.winner !== null && row.state.winner !== undefined) throw fail(409, 'That game is over.');
-      if (hasBase && +body.base !== row.version) return conflict(row);
-      let next, stack;
-      if (kind === 'rally') { next = rallyOf(row.state, body.side === 1 ? 1 : 0); stack = [...(row.stack || []), row.state].slice(-200); }
-      else {
-        if (!(row.stack || []).length) return send(res, 200, { ok: true, unchanged: true, state: row.state, version: row.version });
-        next = row.stack[row.stack.length - 1]; stack = row.stack.slice(0, -1);
-      }
-      const upd = await sql`UPDATE live_games SET state = ${JSON.stringify(next)}::jsonb, stack = ${JSON.stringify(stack)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code} AND id = ${row.id} AND version = ${row.version} RETURNING version`;
-      if (upd.length) {
-        const call = callOf(next);
-        return send(res, 200, { ok: true, state: next, version: upd[0].version, score: next.score, call, say: next.winner !== null && next.winner !== undefined ? 'Game over' : 'Score: ' + call.join(', ') });
-      }
-      if (hasBase) { const [fresh] = await sql`SELECT state, version FROM live_games WHERE club = ${code} AND id = ${row.id}`; return conflict(fresh || row); }
-    }
-    const [fresh] = await sql`SELECT state, version FROM live_games WHERE club = ${code} AND id = ${row.id}`;
-    return conflict(fresh || row);
+    const r = await applyRally(sql, { code, row, kind, side: body.side, base: body.base, opId: cleanOpId(body.opId) });
+    return send(res, r.status, r.body);
   }
 
   throw fail(400, 'Unknown action.');

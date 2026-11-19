@@ -117,6 +117,35 @@ export function ensureSchema() {
       await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS secret_hash text`; // sha256 of the per-game secret that watch intents must carry
       await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS stack jsonb NOT NULL DEFAULT '[]'::jsonb`; // states before each server-applied rally, for server-side undo
       await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS version int NOT NULL DEFAULT 0`; // bumps on every server-held change; scorers pass the version they saw
+      // Apple Watch (see _watch.js). A pairing is the short-lived QR a watch shows; it has no club until a phone claims it. A link is a linked
+      // watch: only a hash of its token is kept (null until the watch collects it). Links cascade from clubs; `watch_links` on a live game lists
+      // the links allowed to score it and `ops` its last tap ids (a retried tap is not counted twice).
+      await q`CREATE TABLE IF NOT EXISTS watch_pairings (
+        id_hash text PRIMARY KEY,
+        poll_hash text NOT NULL,
+        short_hash text,
+        confirm text NOT NULL,
+        label text,
+        tries int NOT NULL DEFAULT 0,
+        polls int NOT NULL DEFAULT 0,
+        expires_at timestamptz NOT NULL,
+        claimed_link text
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS watch_pairings_short ON watch_pairings (short_hash) WHERE short_hash IS NOT NULL`;
+      await q`CREATE TABLE IF NOT EXISTS watch_links (
+        id text PRIMARY KEY,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        token_hash text UNIQUE,
+        revoke_hash text NOT NULL,
+        label text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_seen_at timestamptz,
+        expires_at timestamptz NOT NULL,
+        revoked_at timestamptz
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS watch_links_club ON watch_links (club)`;
+      await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS watch_links text[] NOT NULL DEFAULT '{}'`;
+      await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS ops jsonb NOT NULL DEFAULT '[]'::jsonb`;
       // Private reference data typed into an imported sheet: { "player name": "DUPR ID" }. Kept out of `data` on purpose, so no
       // event view, spectator page or export can include it. Only an organizer can read it (events.js, action 'refs').
       await q`ALTER TABLE events ADD COLUMN IF NOT EXISTS refs jsonb`;
