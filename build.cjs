@@ -22,6 +22,20 @@ let body = fs.readFileSync(src, 'utf8');
   if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated the DR block in', path.basename(src), 'from rating-engine.js'); }
 }
 
+// The app's own script is split into src/app/<name>.js (X9). Each file is pasted between MODULE-START:<name>/MODULE-END:<name> in the
+// source page, byte for byte, so dink-score.html stays one self-contained file the tests can load. Edit the module file, not the block.
+{
+  const dir = path.join(__dirname, 'src', 'app');
+  let next = body;
+  for (const f of fs.readdirSync(dir).filter(n => n.endsWith('.js')).sort()) {
+    const name = f.slice(0, -3), a = `/*MODULE-START:${name}*/`, z = `/*MODULE-END:${name}*/`;
+    const i = next.indexOf(a), j = next.indexOf(z);
+    if (i < 0 || j < i) throw new Error(`Missing ${a} ... ${z} in ${path.basename(src)}`);
+    next = next.slice(0, i + a.length) + '\n' + fs.readFileSync(path.join(dir, f), 'utf8') + next.slice(j);
+  }
+  if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated module blocks in', path.basename(src), 'from src/app/'); }
+}
+
 const head = `<!doctype html>
 <html lang="en">
 <head>

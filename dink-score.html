@@ -3773,6 +3773,7 @@ function record(s, rallyLog) {
   return { ...(rallyLog ? { rallyLog } : {}), id: newId(s.startedAt), startedAt: s.startedAt, endedAt: s.endedAt, mode: s.cfg.mode, scoring: s.cfg.scoring, target: s.cfg.target, winBy: s.cfg.winBy, teams: s.cfg.teams, score: s.score, winner: s.winner, rallies: s.rallies };
 }
 
+/*MODULE-START:log-result*/
 /* ---------- log a result from another court ---------- */
 function localDateTimeValue(t) {
   const d = new Date(t); const p = n => String(n).padStart(2, '0');
@@ -3860,6 +3861,7 @@ function editGame(g) {
   showToast('Result updated', false);
 }
 
+/*MODULE-END:log-result*/
 /* ---------- replay a game that was scored live ---------- */
 // The saved game carries only who won each rally (see Scoring); every state is rebuilt here with PB.rally, so the replay
 // can't disagree with the rules the game was scored by. Club games say `replay: true` and fetch the log when opened.
@@ -4036,6 +4038,7 @@ function replaySeek(e) {
   return true;
 }
 
+/*MODULE-START:share-image*/
 /* ---------- share a result as an image ---------- */
 // A 1080x1350 card drawn on a canvas: both teams on court-colored panels, rating changes, the score, and a note
 // when the side the forecast had losing won. Night (dark) and Day (light) versions.
@@ -4334,6 +4337,8 @@ function saveShareImage() {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
+/*MODULE-END:share-image*/
+/*MODULE-START:identity*/
 /* ---------- who you are ---------- */
 // Each phone can be linked to one player name per club. The server keeps the link; the phone keeps a private key.
 let me = Heal.map(store.get('pb.me', {})); // { [clubCode]: { name, token } }
@@ -4428,6 +4433,8 @@ function whoamiHTML(c) {
     <div class="btns"><button class="btn btn-soft" data-act="whoami-skip">Skip for now</button></div>`;
 }
 
+/*MODULE-END:identity*/
+/*MODULE-START:achievements*/
 /* ---------- achievements, weekly challenges, seasons, rivalries ---------- */
 // The server works these out (so they can't be faked); the app shows what it sends.
 const progressInfo = () => (clubData && clubData.progress) || null;
@@ -4563,6 +4570,8 @@ function pastChampionsHTML(mode) {
   return `<section><h2 style="font-size:22px">Past champions</h2><div class="champs">${[...bySeason.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([, e]) => `<div class="champ"><b>${esc(e.name)}</b>${e.places.map((n, i) => n ? `<span>${MEDAL[i]} ${esc(n)}</span>` : '').join('')}</div>`).join('')}</div></section>`;
 }
 
+/*MODULE-END:achievements*/
+/*MODULE-START:avatars*/
 /* ---------- avatars: initials, an emoji, a pickleball icon, or a photo ---------- */
 const AVATAR_ICONS = {
   paddle: '<path d="M8.6 3.6a5.4 5.4 0 017.6 7.6l-3.4 3.4a5.4 5.4 0 01-7.6-7.6z" fill="currentColor" fill-opacity=".22"/><path d="M8.6 3.6a5.4 5.4 0 017.6 7.6l-3.4 3.4a5.4 5.4 0 01-7.6-7.6z"/><path d="M11.4 16.2l-1.6 1.6M9.6 18l-3.3 3.3" stroke-width="2.6" stroke-linecap="round"/><circle cx="19" cy="18.5" r="2.3" fill="currentColor" stroke="none"/>',
@@ -4668,6 +4677,7 @@ async function refreshClubGames() {
   try { const d = await api('live?code=' + club.code); if (clubSheet && clubSheet.view === 'games') { clubSheet.games = d.games || []; renderClub(); } } catch {}
 }
 setInterval(() => { if (clubSheet && clubSheet.view === 'games' && club && !document.hidden) refreshClubGames(); }, 4000);
+/*MODULE-END:avatars*/
 /* ---------- open play court board ---------- */
 // Courts, a waiting queue and who plays next, kept on the server (api/_courtboard.js) so every phone and the club display show the
 // same board. The server decides who may do what; this only hides buttons that would be refused.
@@ -4823,6 +4833,7 @@ function membersHTML(c) {
     ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></span></li>`).join('')}</ul>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
+/*MODULE-START:analytics*/
 /* ---------- organizer analytics (api/_analytics.js via GET api/club?analytics=1; totals only, organizers only) ---------- */
 async function loadAnalytics() {
   const c = clubSheet;
@@ -4858,6 +4869,8 @@ function analyticsHTML(c) {
     <h3 class="lab" style="margin-top:16px">Busiest hours</h3>${heat}
     <ol class="mem-list">${d.busiest.top.map(t => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${FULL[t.day]}, ${hr(t.hour)}</span><span class="mem-meta">${t.games} game${t.games === 1 ? '' : 's'} started</span></span></li>`).join('')}</ol>${back}`;
 }
+/*MODULE-END:analytics*/
+/*MODULE-START:result-links*/
 /* ---------- public result links (api/_resultsadmin.js via api/club.js, served at /r/<token>) ---------- */
 const resultsCall = body => api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, { action: 'results-' + body.action })) });
 const resultUrl = path => location.origin + path;
@@ -4953,6 +4966,7 @@ function memberLeave(el) {
   }).catch(err => showToast(err.message, false));
 }
 
+/*MODULE-END:result-links*/
 /* ---------- player profiles ---------- */
 let profile = null; // { name, mode } when a profile is open
 function playerProfile(name, mode, games) {
@@ -5069,6 +5083,7 @@ function renderProfile() {
   if (changed) wireChart();
 }
 
+/*MODULE-START:tutorial*/
 /* ---------- first-visit tutorial ---------- */
 let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
 const isStandalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
@@ -5125,6 +5140,7 @@ document.addEventListener('touchend', e => {
   renderTour();
 }, { passive: true });
 
+/*MODULE-END:tutorial*/
 /* ---------- events: tournaments and rotating doubles ---------- */
 // An organizer sets an event up; the players in a match and organizers score it (or any member, if the organizer allows). The server keeps the rounds, courts and
 // standings and, when a match is finished, adds it to the club's games itself, so this screen never saves a game twice.
