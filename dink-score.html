@@ -6603,10 +6603,17 @@ function dssoCfg() {
   if (dsso.code === club.code && dsso.cfg) return dsso.cfg.enabled ? dsso.cfg : null;
   if (!dsso.loading && (dsso.code !== club.code || Date.now() - dsso.failedAt > 60000)) {
     const code = club.code; dsso = { code, cfg: null, loading: true, failedAt: 0 };
-    api('dupr?code=' + code).then(d => { if (club && club.code === code) { dsso = { code, cfg: d, loading: false, failedAt: 0 }; if (d.enabled) { refreshDupr(); if (evScreen) renderEvents(true); } } })
+    api('dupr?code=' + code).then(d => { if (club && club.code === code) { dsso = { code, cfg: d, loading: false, failedAt: 0 }; if (d.enabled) { refreshDupr(); if (evScreen) renderEvents(true); dssoLazyRefresh(); } } })
       .catch(() => { dsso = { code, cfg: null, loading: false, failedAt: Date.now() }; });
   }
   return null;
+}
+// Once per club load, and only for this phone's own player: if the saved rating is over 6 hours old (the server's own limit),
+// ask the server to read it again. Never for other players and never on a club refresh; a failure just keeps the saved rating.
+async function dssoLazyRefresh() {
+  const name = myName(), p = name && dsso.cfg && dsso.cfg.players && dsso.cfg.players[String(name).trim().toLowerCase()];
+  if (!p || p.needsRelink || (p.at && Date.now() - p.at < 6 * 3600 * 1000)) return;
+  try { const d = await dssoPost({ action: 'refresh', playerName: name }); if (!d.cached) { dssoSetPlayer(name, d.snapshot); refreshDupr(); } } catch { /* DUPR unavailable: keep what is saved */ }
 }
 const dssoFmt = v => (typeof v === 'number' ? v.toFixed(2) : '–');
 const dssoAgo = at => { const m = Math.max(0, Math.round((Date.now() - at) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
@@ -6640,8 +6647,9 @@ function dssoProfileHTML(name) {
   if (!p) return can ? `<div class="dupr-box"><div class="dupr-row"><span class="note">Not connected to DUPR</span><button type="button" class="link" data-dsso="connect" data-name="${esc(name)}">Connect DUPR</button></div></div>` : '';
   const r = p.rating || {};
   const prov = p.provisional || {};
+  const rel = p.reliability || {};
   return `<div class="dupr-box"><div class="dupr-row"><span class="dsso-chip" aria-label="DUPR doubles ${dssoFmt(r.doubles)}, singles ${dssoFmt(r.singles)}, from DUPR">DUPR ${dssoFmt(r.doubles)}<small>doubles${prov.doubles ? ' (provisional)' : ''}</small> ${dssoFmt(r.singles)}<small>singles${prov.singles ? ' (provisional)' : ''}</small></span></div>
-    <span class="note">Rating from DUPR${p.at ? `, updated ${dssoAgo(p.at)}` : ''}. Not used for your Dink Rating.</span>
+    <span class="note">Rating from DUPR${p.at ? `, updated ${dssoAgo(p.at)}` : ''}${rel.doubles != null || rel.singles != null ? `. Reliability ${[rel.doubles != null ? `${rel.doubles}% doubles` : '', rel.singles != null ? `${rel.singles}% singles` : ''].filter(Boolean).join(', ')}` : ''}. Not used for your Dink Rating.</span>
     ${p.needsRelink ? `<p class="err" role="alert">DUPR access ended, so this rating may be out of date. Connect again to refresh it.</p>` : ''}
     ${can ? `<div class="dupr-row">${p.needsRelink ? `<button type="button" class="link" data-dsso="connect" data-name="${esc(name)}">Connect again</button>` : `<button type="button" class="link" data-dsso="refresh" data-name="${esc(name)}">Refresh from DUPR</button>`}<button type="button" class="link armed" data-dsso="unlink" data-name="${esc(name)}">Unlink DUPR</button></div>` : ''}</div>`;
 }

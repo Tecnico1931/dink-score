@@ -144,8 +144,20 @@ await step('refresh: cached for 15 minutes, then reads DUPR; a lost connection a
   assert.equal(ok(await R('Ana')).cached, true);
   st.ratings.set(id('Ana'), { doubles: '3.987', singles: '3.700' });
   await pg.query("UPDATE roster SET dupr_snapshot = jsonb_set(dupr_snapshot, '{at}', to_jsonb((extract(epoch from now()) * 1000)::bigint - 3600000)) WHERE name_key = 'ana'");
+  assert.equal(ok(await R('Ana')).cached, true, 'an hour old is still inside the 6 hour TTL');
+  await pg.query("UPDATE roster SET dupr_snapshot = jsonb_set(dupr_snapshot, '{at}', to_jsonb((extract(epoch from now()) * 1000)::bigint - 7 * 3600000)) WHERE name_key = 'ana'");
   const r = ok(await R('Ana'));
   assert.equal(r.cached, false); assert.equal(r.snapshot.rating.doubles, 3.987); assert.equal(r.snapshot.rating.singles, 3.7);
+  assert.deepEqual(r.snapshot.reliability, { doubles: 87.5, singles: 12 });
+  const [{ s }] = (await pg.query("SELECT dupr_snapshot::text AS s FROM roster WHERE name_key = 'ana'")).rows;
+  assert.ok(!/Mock Player|Mockville|birthYear|gender|fullName/.test(s), 'only rating fields are stored: ' + s);
+  // DUPR down: 503 'DUPR unavailable', the saved rating is kept, and a 4xx is not retried
+  await pg.query("UPDATE roster SET dupr_snapshot = jsonb_set(dupr_snapshot, '{at}', to_jsonb(1)) WHERE name_key = 'ana'");
+  st.serverError = 1;
+  const down = await R('Ana');
+  assert.equal(down.status, 503); assert.match(down.json.error, /DUPR unavailable/);
+  assert.equal(st.serverError, 0, 'a 5xx is not retried either');
+  assert.equal(ok(await call(dupr, 'GET', { query: '?code=' + code })).players.ana.rating.doubles, 3.987);
   st.connected.delete(id('Ana')); // the player disconnected from this app on DUPR: user detail answers 403
   await pg.query("UPDATE roster SET dupr_snapshot = jsonb_set(dupr_snapshot, '{at}', to_jsonb(0)) WHERE name_key = 'ana'");
   assert.equal(ok(await R('Ana')).needsRelink, true);
@@ -154,6 +166,14 @@ await step('refresh: cached for 15 minutes, then reads DUPR; a lost connection a
   assert.equal((await R('Zed')).status, 404);
   // ratings never feed the app's own numbers
   assert.ok(!JSON.stringify(ok(await call(club, 'GET', { query: '?code=' + code })).progress).includes('3.987'));
+});
+
+await step('refreshes that reach DUPR are limited per network address', async () => {
+  await pg.query("UPDATE roster SET dupr_snapshot = jsonb_set(dupr_snapshot, '{at}', to_jsonb(1)) WHERE name_key = 'ana'");
+  let limited = null;
+  for (let i = 0; i < 25 && !limited; i++) { const r = await call(dupr, 'POST', { headers: { 'x-real-ip': '10.9.9.9' }, body: { code, action: 'refresh', playerName: 'Ana' } }); if (r.status === 429) limited = r; else await pg.query("UPDATE roster SET dupr_snapshot = jsonb_set(dupr_snapshot, '{at}', to_jsonb(1)) WHERE name_key = 'ana'"); }
+  assert.ok(limited, 'a 429 comes before 25 refreshes'); assert.match(limited.json.error, /Too many DUPR refreshes/);
+  await pg.query("DELETE FROM lookup_fails WHERE ip LIKE 'duprr:%'");
 });
 
 // ---------- sending ----------
