@@ -2066,6 +2066,7 @@ function flush() {
         else if (op.type === 'edit') await api('games', { method: 'POST', body: JSON.stringify({ code, edit: op.game, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'restore') await api('games', { method: 'POST', body: JSON.stringify({ code, restore: op.id, pin: op.pin || '', ownerToken: op.ownerToken || '' }) });
         else if (op.type === 'event-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'result', id: op.eventId, matchId: op.matchId, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, rallyLog: op.rallyLog || undefined, live: op.live, pin: pins[code] || '' }, senderCreds(code))) });
+        else if (op.type === 'league-result') await api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code, action: 'league-result', id: op.leagueId, matchId: op.matchId, key: op.key, challenger: op.challenger, defender: op.defender, score: op.score, startedAt: op.startedAt, endedAt: op.endedAt, rallies: op.rallies, live: op.live, pin: pins[code] || '' }, senderCreds(code))) });
         else if (op.type === 'roster-add') await api('roster', { method: 'POST', body: JSON.stringify({ code, name: op.name, confirmNew: true }) });
         else if (op.type === 'roster-del') await api(`roster?code=${code}&name=${encodeURIComponent(op.name)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'X-Club-PIN': op.pin || '', 'X-Club-Owner': op.ownerToken || '' } });
         applyToCache(op); // the server has it now; show it from the club list until the next refresh confirms
@@ -2074,7 +2075,7 @@ function flush() {
         // The server refused it. Keep it, marked, in the "needs attention" list; the rest of the queue carries on.
         Outbox.fail(op, err, Date.now()); store.set('pb.outbox', outbox); sent = true;
         if (Outbox.pinOp(op) && err.status === 403) { delete pins[code]; store.set('pb.pins', pins); }
-        showToast(`${op.type === 'game' ? "A game couldn't be saved to the club" : op.type === 'event-result' ? "A result couldn't be saved to the event" : "A change couldn't be saved"}: ${err.message} It is kept under "Needs attention" in the club screen.`, false);
+        showToast(`${op.type === 'game' ? "A game couldn't be saved to the club" : op.type === 'event-result' ? "A result couldn't be saved to the event" : op.type === 'league-result' ? "A result couldn't be saved to the league" : "A change couldn't be saved"}: ${err.message} It is kept under "Needs attention" in the club screen.`, false);
         updateSyncPill();
         continue;
       }
@@ -2083,6 +2084,7 @@ function flush() {
     flushing = null;
     if (sent && evScreen && (evScreen.view === 'detail' || evScreen.view === 'bracket')) evLoad(evScreen.id, true);
     else if (sent && evScreen) renderEvents(true);
+    if (sent && lgScreen && lgScreen.view === 'detail') lgLoad(lgScreen.id, true);
     if (sent && !clubOps().length) await refreshClub();
   })();
   return flushing;
@@ -3125,7 +3127,7 @@ function renderClub() {
 // Changes the server refused. Each can be retried, fixed (a game's score), exported, or, only when the person says so, discarded.
 function opLabel(o) {
   if (o.type === 'game') return `${teamLabel(o.game.teams[0])} ${Number(o.game.score[0])}–${Number(o.game.score[1])} ${teamLabel(o.game.teams[1])}`;
-  return { 'event-result': 'An event result', edit: 'A game edit', delete: 'A game deletion', restore: 'A game restore', 'roster-add': 'A saved player', 'roster-del': 'Removing a saved player' }[o.type] || 'A change';
+  return { 'event-result': 'An event result', 'league-result': 'A league result', edit: 'A game edit', delete: 'A game deletion', restore: 'A game restore', 'roster-add': 'A saved player', 'roster-del': 'Removing a saved player' }[o.type] || 'A change';
 }
 function needsAttentionHTML() {
   const list = failedOps();
@@ -5969,11 +5971,12 @@ document.addEventListener('change', e => {
 });
 
 /* ---------- leagues and ladders (api/_leagues.js, through /api/events) ---------- */
-// A league is a season of weekly round robin matches in divisions; a ladder is a ranking moved by challenge matches. Results are online
-// only for now (no outbox): the server also saves each one as a normal game, once.
+// A league is a season of weekly round robin matches in divisions; a ladder is a ranking moved by challenge matches. A new result goes through the
+// outbox like an event result (queueOp, so it waits for signal); fixing a score is organizer-only and online. The server also saves each result as a normal game, once.
 let lgScreen = null; // null, or { view: 'list' | 'new' | 'detail', list, id, league, form, entry, ch, error, busy }
 const lgCall = body => api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, senderCreds(), adminCreds())) });
 const lgName = names => names.join(' & ');
+const lgQueued = id => lgScreen && lgScreen.league && clubOps().find(o => o.type === 'league-result' && o.leagueId === lgScreen.league.id && (o.matchId || o.key) === id);
 const lgKey = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => (b % 36).toString(36)).join('');
 const lgNewForm = () => ({ kind: 'league', name: '', season: '', mode: 'doubles', divisions: 1, legs: 1, jump: 3, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, resultsAny: false, players: [], error: '', busy: false });
 function lgOpen() {
@@ -6071,7 +6074,8 @@ function lgMatchHTML(s, L, m, org) {
   const entry = s.entry && s.entry.m === m.id ? s.entry : null;
   const mine = m.teams.flat().some(isMe);
   const can = L.status === 'live' && (org || L.resultsBy === 'club' || mine);
-  const actions = entry ? '' : !done && can ? `<button class="btn btn-soft ev-small" data-lg="enter" data-m="${esc(m.id)}">Enter score</button>` : done && org ? `<button class="link" data-lg="fix" data-m="${esc(m.id)}">Fix score</button>` : '';
+  const q = !done && lgQueued(m.id);
+  const actions = q ? `<span class="tag">Waiting to send ${q.score[0]}–${q.score[1]}</span>` : entry ? '' : !done && can ? `<button class="btn btn-soft ev-small" data-lg="enter" data-m="${esc(m.id)}">Enter score</button>` : done && org ? `<button class="link" data-lg="fix" data-m="${esc(m.id)}">Fix score</button>` : '';
   return `<li class="game ev-game${done ? ' done' : ''}"><div class="lines">${line(0)}${line(1)}</div>
     <div class="meta">${L.divisions.length > 1 ? `<span class="tag">${esc(L.divisions[m.division].label)}</span>` : ''}${done ? '<span class="tag">Final</span>' : ''}</div>${actions ? `<div class="ev-actions">${actions}</div>` : ''}${entry ? lgScoreForm(entry, m.teams, 'entry', entry.fix ? 'Save the fix' : 'Save score') : ''}</li>`;
 }
@@ -6086,7 +6090,42 @@ function lgOrgHTML(s, L) {
     <div class="field"><label class="imp-check"><input type="checkbox" data-lg-input="resultsBy" ${L.resultsBy === 'club' ? 'checked' : ''}> Let any club member enter results</label></div>
     <div class="ev-actions">${ladder ? `<button class="btn btn-soft ev-small" data-lg="end" ${s.busy ? 'disabled' : ''}>Close this season</button>` : !done ? `<button class="btn btn-soft ev-small" data-lg="end" ${s.busy ? 'disabled' : ''}>Finish the season now</button>` : `<button class="btn btn-ink ev-small" data-lg="next" ${s.busy ? 'disabled' : ''}>Start the next season</button>`}
     <button class="btn btn-soft ev-small" data-lg="${s.armDelete ? 'delete-yes' : 'delete'}">${s.armDelete ? 'Tap again to delete' : 'Delete'}</button></div>
-    <p class="note">${ladder ? 'Closing keeps the order as the next season’s start and clears the results.' : done ? 'The top of each division moves up and the bottom moves down.' : 'Finishing early crowns whoever leads each table.'} Games already played stay in the club record.</p></section>`;
+    <p class="note">${ladder ? 'Closing keeps the order as the next season’s start and clears the results.' : done ? 'The top of each division moves up and the bottom moves down.' : 'Finishing early crowns whoever leads each table.'} Games already played stay in the club record.</p></section>${lgShareHTML(s, L)}`;
+}
+const lgShareUrl = t => `${location.origin}/l/${t}`;
+function lgShareHTML(s, L) {
+  const sh = s.share, shared = !!(sh && sh.token), arm = s.arm || '', what = L.kind === 'ladder' ? 'ladder' : 'league';
+  if (!shared) return `<section class="ev-card" aria-labelledby="lg-sh"><h3 id="lg-sh">Watch without the app</h3><p class="note">Make a link anyone can open to follow this ${what} on a phone or a screen. It shows names, scores and the table only, and nobody can change anything.</p>
+    ${sh && sh.error ? `<p class="err" role="alert">${esc(sh.error)}</p>` : ''}<div class="ev-actions"><button class="btn btn-ink ev-small" data-lg="share-open" ${sh && sh.busy ? 'disabled' : ''}>${sh && sh.busy ? 'Making the link…' : 'Share ' + what}</button></div></section>`;
+  const url = lgShareUrl(sh.token);
+  return `<section class="ev-card" aria-labelledby="lg-sh"><div class="ev-item-head"><h3 id="lg-sh">Public link</h3><button class="link" data-lg="share-hide">Hide</button></div>
+    <p class="note">Anyone with this link can watch, nobody can change anything.</p>
+    <input class="bk-share-url" type="text" readonly value="${esc(url)}" aria-label="Public ${what} link" id="lg-url">
+    ${sh.error ? `<p class="err" role="alert">${esc(sh.error)}</p>` : ''}
+    <div class="ev-actions"><button class="btn btn-ink ev-small" data-lg="share-copy">Copy link</button><a class="btn btn-soft ev-small" href="${esc(url)}" target="_blank" rel="noopener">Open</a></div>
+    <div class="ev-actions"><button class="link ${arm === 'share-new' ? 'armed' : ''}" data-lg="share-new" ${sh.busy ? 'disabled' : ''}>${arm === 'share-new' ? 'Tap again: the old link stops working' : 'Make a new link'}</button><button class="link ${arm === 'share-off' ? 'armed' : ''}" data-lg="share-off" ${sh.busy ? 'disabled' : ''}>${arm === 'share-off' ? 'Tap again to stop sharing' : 'Stop sharing'}</button></div></section>`;
+}
+async function lgShare(a) {
+  const s = lgScreen;
+  if (!s || !s.league || (s.share && s.share.busy)) return;
+  if ((a === 'share-new' || a === 'share-off') && s.arm !== a) { s.arm = a; renderLeagues(true); return; }
+  s.arm = '';
+  s.share = Object.assign({}, s.share, { busy: true, error: '' }); renderLeagues(true);
+  try {
+    const data = await lgCall({ action: a === 'share-open' ? 'league-share' : 'league-' + a, id: s.league.id });
+    s.share = data.shareToken ? { token: data.shareToken } : null;
+    if (a === 'share-off') showToast('Sharing stopped. The link no longer works.', false);
+  } catch (err) {
+    if (err.status === 403) forgetPin();
+    s.share = Object.assign({}, s.share, { busy: false, error: err.offline ? 'You are offline. Try again when you are back online.' : err.message });
+  }
+  renderLeagues(true);
+}
+async function lgCopyLink() {
+  const sh = lgScreen && lgScreen.share;
+  if (!sh || !sh.token) return;
+  try { await navigator.clipboard.writeText(lgShareUrl(sh.token)); showToast('Link copied', false); }
+  catch { const i = $('#lg-url'); if (i) { i.focus(); i.select(); } showToast('Press and hold the link to copy it', false); }
 }
 function lgLeagueHTML(s, L) {
   const org = canOrganize();
@@ -6116,10 +6155,12 @@ function lgLadderHTML(s, L) {
     ${opts.length ? lgScoreForm({ s: ch.s, error: ch.error }, [crow.members, (L.rows.find(r => r.name === ch.d) || { members: [''] }).members], 'challenge', 'Save result').replace('<button type="button" class="btn btn-soft ev-small" data-lg="cancel">Cancel</button>', '') : ''}</section>` : '';
   const recent = L.results.length ? `<section class="ev-sec" aria-labelledby="lg-rec"><h3 id="lg-rec">Recent results</h3><ul class="games">${L.results.slice(0, 15).map(r => { const w = r.winner, l = 1 - w; return `<li class="game ev-game done"><div class="lines"><div class="line win" style="--c:${TEAM_COLOR[0]}"><span class="tick"></span><span class="who">${esc(lgName(r.teams[w]))}</span><span class="pts">${r.score[w]}</span></div><div class="line" style="--c:${TEAM_COLOR[1]}"><span class="tick"></span><span class="who">${esc(lgName(r.teams[l]))}</span><span class="pts">${r.score[l]}</span></div></div>
     <div class="meta"><span class="tag">${w === 0 ? 'Challenger won' : 'Defender held'}</span></div>${org ? `<div class="ev-actions"><button class="link" data-lg="fix-result" data-k="${esc(r.id)}">Fix score</button></div>` : ''}${s.entry && s.entry.m === r.id ? lgScoreForm(s.entry, [r.teams[0], r.teams[1]], 'entry', 'Save the fix') : ''}</li>`; }).join('')}</ul></section>` : '';
+  const waiting = clubOps().filter(o => o.type === 'league-result' && o.leagueId === L.id);
+  const pending = waiting.length ? `<section class="ev-sec" aria-labelledby="lg-wait"><h3 id="lg-wait">Waiting to send</h3><ul class="note">${waiting.map(o => `<li>${esc(lgName(o.challenger))} challenged ${esc(lgName(o.defender))}: ${o.score[0]}–${o.score[1]}</li>`).join('')}</ul></section>` : '';
   const past = L.seasons.length ? `<section class="ev-sec"><h3>Past seasons</h3>${L.seasons.slice().reverse().map(p => `<details class="ev-more"><summary>${esc(p.label)}</summary><ol class="note">${p.order.map(o => `<li>${esc(lgName(o))}</li>`).join('')}</ol></details>`).join('')}</section>` : '';
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}
     <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · challenge up to ${L.jump} above</p>
-    <section class="ev-sec" aria-labelledby="lg-lad"><h3 id="lg-lad">Ladder</h3>${rows}</section>${form}${recent}${past}${lgOrgHTML(s, L)}`;
+    <section class="ev-sec" aria-labelledby="lg-lad"><h3 id="lg-lad">Ladder</h3>${rows}</section>${form}${pending}${recent}${past}${lgOrgHTML(s, L)}`;
 }
 
 async function lgRun(body, ok) {
@@ -6157,8 +6198,8 @@ async function lgSaveEntry() {
   if (typeof sc === 'string') { e.error = sc; renderLeagues(true); return; }
   const id = L.id, now = Date.now();
   if (e.fix) { await lgRun({ action: 'league-correct', id, matchId: e.m, score: sc }, 'Score fixed'); return; }
-  const d = await lgRun({ action: 'league-result', id, matchId: e.m, score: sc, startedAt: now, endedAt: now, rallies: 0, live: false }, 'Score saved');
-  if (!d && lgScreen === s) { e.error = s.error; s.error = ''; renderLeagues(true); } // not saved: keep what was typed, say why next to it
+  queueOp({ type: 'league-result', leagueId: id, matchId: e.m, score: sc, startedAt: now, endedAt: now, rallies: 0, live: false });
+  s.entry = null; renderLeagues(true); showToast('Score saved', false);
 }
 async function lgSaveChallenge() {
   const s = lgScreen, ch = s.ch, L = s.league, sc = lgScores({ s: ch.s });
@@ -6166,8 +6207,8 @@ async function lgSaveChallenge() {
   const c = L.rows.find(r => r.name === ch.c), d = L.rows.find(r => r.name === ch.d);
   if (!c || !d) return;
   const now = Date.now();
-  const out = await lgRun({ action: 'league-result', id: L.id, key: ch.key, challenger: c.members, defender: d.members, score: sc, startedAt: now, endedAt: now, rallies: 0, live: false }, 'Result saved');
-  if (out) s.ch = null; else { ch.error = s.error; s.error = ''; renderLeagues(true); }
+  queueOp({ type: 'league-result', leagueId: L.id, key: ch.key, challenger: c.members, defender: d.members, score: sc, startedAt: now, endedAt: now, rallies: 0, live: false });
+  s.ch = null; renderLeagues(true); showToast('Result saved', false);
 }
 function lgAct(a, d) {
   if (a === 'open') { lgOpen(); return; }
@@ -6175,10 +6216,10 @@ function lgAct(a, d) {
   if (!s) return;
   if (a === 'back') {
     if (s.view === 'list') { lgClose(); return; }
-    s.view = 'list'; s.league = null; s.entry = s.ch = null; s.error = ''; s.armDelete = false; renderLeagues(true); lgLoadList(); return;
+    s.view = 'list'; s.league = null; s.entry = s.ch = s.share = null; s.error = ''; s.armDelete = s.arm = false; renderLeagues(true); lgLoadList(); return;
   }
   if (a === 'new') { s.view = 'new'; s.form = lgNewForm(); renderLeagues(true); return; }
-  if (a === 'open-one') { Object.assign(s, { view: 'detail', id: d.id, league: null, loading: true, error: '', entry: null, ch: null }); renderLeagues(true); lgLoad(d.id); return; }
+  if (a === 'open-one') { Object.assign(s, { view: 'detail', id: d.id, league: null, loading: true, error: '', entry: null, ch: null, share: null, arm: '' }); renderLeagues(true); lgLoad(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;
     if (a === 'set') { f[d.k] = ['divisions', 'legs', 'target', 'winBy'].includes(d.k) ? +d.v : d.v; f.error = ''; }
@@ -6201,6 +6242,9 @@ function lgAct(a, d) {
   else if (a === 'fix') { const m = L.weeks.flatMap(w => w.matches).find(x => x.id === d.m); s.entry = { m: d.m, s: m ? m.score.map(String) : ['', ''], fix: true, error: '' }; renderLeagues(true); }
   else if (a === 'fix-result') { const r = L.results.find(x => x.id === d.k); s.entry = { m: d.k, s: r ? r.score.map(String) : ['', ''], fix: true, error: '' }; renderLeagues(true); }
   else if (a === 'cancel') { s.entry = null; renderLeagues(true); }
+  else if (a === 'share-open' || a === 'share-new' || a === 'share-off') lgShare(a);
+  else if (a === 'share-hide') { s.share = null; s.arm = ''; renderLeagues(true); }
+  else if (a === 'share-copy') lgCopyLink();
   else if (a === 'end') lgRun({ action: 'league-end', id: L.id }, L.kind === 'ladder' ? 'Season closed' : 'Season finished');
   else if (a === 'next') lgRun({ action: 'league-next-season', id: L.id }, 'Next season started');
   else if (a === 'delete') { s.armDelete = true; renderLeagues(true); }

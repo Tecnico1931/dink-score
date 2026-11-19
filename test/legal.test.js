@@ -8,7 +8,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => readFileSync(path.join(root, f), 'utf8');
 
 test('no page, script or header contacts Google Fonts', () => {
-  for (const f of ['dink-score.html', 'bracket-public.html', 'build.cjs', 'sw.js', 'vercel.json', 'privacy.html', 'terms.html', 'legal.css'].concat(existsSync(path.join(root, 'index.html')) ? ['index.html', 'b.html'] : [])) {
+  for (const f of ['dink-score.html', 'bracket-public.html', 'league-public.html', 'build.cjs', 'sw.js', 'vercel.json', 'privacy.html', 'terms.html', 'legal.css'].concat(existsSync(path.join(root, 'index.html')) ? ['index.html', 'b.html', 'l.html'] : [])) {
     const t = read(f).replace(/Fonts are served from Dink Score itself; the page does not contact Google Fonts\./, '');
     assert.ok(!/fonts\.(googleapis|gstatic)\.com/.test(t), `${f} still references Google Fonts`);
   }
@@ -22,7 +22,7 @@ test('self-hosted font files exist for every @font-face url', () => {
 });
 
 test('pages that load fonts link the self-hosted stylesheet', () => {
-  for (const f of ['dink-score.html', 'bracket-public.html']) assert.match(read(f), /href="\/fonts\/fonts\.css"/);
+  for (const f of ['dink-score.html', 'bracket-public.html', 'league-public.html']) assert.match(read(f), /href="\/fonts\/fonts\.css"/);
 });
 
 test('privacy and terms are marked as drafts and cross-linked, and are routed', () => {

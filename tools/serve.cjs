@@ -11,7 +11,7 @@ let securityHeaders = [];
 try { securityHeaders = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8')).headers.find(h => h.source === '/(.*)').headers; } catch {}
 // Stand-in events for the preview: kept in memory and run by the same pure modules as api/events.js, with no
 // organizer checks. Finished matches also land in the stand-in club's games, like the real API does.
-const preview = { games: [], events: new Map(), leagues: new Map(), roster: new Set(), shares: new Map(), refs: new Map() }; // shares: token -> event id; refs: event id -> private DUPR reference IDs
+const preview = { games: [], events: new Map(), leagues: new Map(), lshares: new Map(), roster: new Set(), shares: new Map(), refs: new Map() }; // shares: token -> event id; refs: event id -> private DUPR reference IDs
 // The preview never calls Google: a sheet link is run through the real link checks (api/_gsheet.js) and then answered by this canned sheet.
 const SHEET_STUB = process.env.SHEET_STUB_CSV || 'Team,Player 1,Player 2,DUPR ID 1,DUPR ID 2,Logo URL\r\nNet Ninjas,Ana Lopez,Ben Ruiz,K4M2P9,R7T3QX,https://example.com/logos/net-ninjas.png\r\nDrop Shots,Cy Park,Di Wu,,,\r\nKitchen Crew,Ed Fox,Flo Kim,,,https://example.com/logos/kitchen.png\r\nLob City,Gus Hart,Hal Moss,,,\r\n';
 const stubFetch = async () => ({ status: 200, headers: { get: k => (k.toLowerCase() === 'content-type' ? 'text/csv; charset=utf-8' : null) }, body: new Response(SHEET_STUB).body });
@@ -27,6 +27,13 @@ function previewLeague(L, b, send, now) {
   }
   const lg = preview.leagues.get(b.id);
   if (!lg) return send(404, { error: 'That league no longer exists.' });
+  if (/^league-share/.test(b.action)) {
+    const cur = [...preview.lshares].find(([, id]) => id === b.id);
+    if (b.action === 'league-share-off') { if (cur) preview.lshares.delete(cur[0]); return send(200, { shareToken: null }); }
+    if (cur && b.action === 'league-share') return send(200, { shareToken: cur[0] });
+    if (cur) preview.lshares.delete(cur[0]);
+    const t = require('crypto').randomBytes(24).toString('base64url'); preview.lshares.set(t, b.id); return send(200, { shareToken: t });
+  }
   if (b.action === 'league-delete') { preview.leagues.delete(b.id); return send(200, { ok: true }); }
   if (b.action === 'league-next-season') { const n = L.nextSeason(lg, b, now); preview.leagues.set(n.id, n); return send(201, { league: L.view(n) }); }
   if (b.action === 'league-result') keep(lg.kind === 'ladder' ? L.recordChallenge(lg, b, now, ORG) : L.recordLeagueResult(lg, String(b.matchId || ''), b, now, ORG));
@@ -109,6 +116,15 @@ http.createServer((req, res) => {
     return;
   }
   if (url.pathname === '/api/events') return previewEvents(req, url, res);
+  if (url.pathname === '/api/bracket' && url.searchParams.get('league')) {
+    Promise.all([import('../api/_share.js')]).then(([S]) => {
+      const t = url.searchParams.get('league'), id = S.isShareToken(t) && preview.lshares.get(t), lg = id && preview.leagues.get(id);
+      if (!lg) { res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end('{"error":"This league link is not active."}'); }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(S.leaguePublicView(lg)));
+    });
+    return;
+  }
   if (url.pathname === '/api/bracket') {
     // The public, read-only view: the same publicView() as api/bracket.js, with the preview's in-memory events.
     Promise.all([import('../api/_share.js')]).then(([S]) => {
@@ -118,6 +134,9 @@ http.createServer((req, res) => {
       res.end(JSON.stringify(S.publicView(ev)));
     });
     return;
+  }
+  if (/^\/l\/[^/]+\/?$/.test(url.pathname)) { // same rewrite as vercel.json
+    return fs.readFile(path.join(root, 'l.html'), (err, data) => { res.writeHead(err ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' }); res.end(data); });
   }
   if (/^\/b\/[^/]+\/?$/.test(url.pathname)) { // same rewrite as vercel.json
     return fs.readFile(path.join(root, 'b.html'), (err, data) => { res.writeHead(err ? 404 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' }); res.end(data); });
