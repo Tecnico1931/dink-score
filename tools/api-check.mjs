@@ -1914,5 +1914,238 @@ await step('the public league link: organizer makes it, a spectator sees only al
   assert.equal((await lg('league-share', { id: ladder.id })).status, 404);
 });
 
+// ---- Apple Watch linking and scoring (api/_watch.js and _livecore.js, reached through api/live.js) ----
+{
+  const { randomBytes } = await import('node:crypto');
+  const Wr = await import(pathToFileURL(path.join(root, 'api', '_watchrules.js')).href);
+  const wc = ok(await call(club, 'POST', { body: { name: 'Watch check club', pin: '482913' } }), 201);
+  const wcode = wc.club.code, wowner = wc.ownerToken, WPIN = '482913';
+  const hex = n => randomBytes(n).toString('hex');
+  const state = () => ({ cfg: { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, teams: [['Ana', 'Ben'], ['Cy', 'Di']] }, score: [0, 0], serving: 0, serverNum: 2, right: [0, 0], server: 0, rallies: 0, switched: false, justSwitched: false, winner: null, startedAt: 789, endedAt: null });
+  const publish = async (id, secret, cd = wcode) => ok(await call(live, 'POST', { body: { code: cd, action: 'state', id, secret, state: state(), ack: 0 } }));
+  const mk = () => { const pairId = hex(16); return { pairId, pollSecret: hex(16), confirm4: String(1000 + (randomBytes(2).readUInt16BE() % 9000)), short: Wr.shortCode(pairId) }; };
+  const other = c => (c === '0000' ? '1111' : '0000');
+  const reg = (w, extra = {}, headers = {}) => call(live, 'POST', { headers, body: { action: 'watch-register', idHash: Wr.pairHash(w.pairId), pollHash: Wr.pollHash(w.pollSecret), shortHash: Wr.shortHash(w.short), confirm4: w.confirm4, label: "Ana's Apple Watch", ...extra } });
+  const claim = (w, extra = {}, cd = wcode) => call(live, 'POST', { body: { code: cd, action: 'watch-claim', pair: w.pairId, confirm4: w.confirm4, ...extra } });
+  const pollW = (w, extra = {}) => call(live, 'POST', { body: { action: 'watch-poll', pairId: w.pairId, pollSecret: w.pollSecret, ...extra } });
+  const as = (token, action, extra = {}, headers = {}) => call(live, 'POST', { headers: { authorization: 'Bearer ' + token, ...headers }, body: { action, ...extra } });
+  const wstate = (token, headers = {}) => call(live, 'GET', { query: '?watch=state', headers: { authorization: 'Bearer ' + token, ...headers } });
+  const link = async (extra = {}, cd = wcode) => { const w = mk(); ok(await reg(w)); const c = ok(await claim(w, extra, cd)); const p = ok(await pollW(w)); return { w, c, p, token: p.token, id: c.link.id }; };
+  const row = async id => (await pg.query('SELECT * FROM watch_links WHERE id = $1', [id])).rows[0];
+  const liveLinks = async id => (await pg.query('SELECT watch_links FROM live_games WHERE id = $1', [id])).rows[0].watch_links;
+
+  await step('watch link: registering is validated, and one id cannot be registered twice', async () => {
+    const w = mk();
+    for (const bad of [{ idHash: 'nope' }, { pollHash: 'a'.repeat(63) }, { confirm4: '12' }, { confirm4: 1234.5 }, { shortHash: 'xyz' }]) assert.equal((await reg(w, bad)).status, 400, JSON.stringify(bad));
+    assert.equal(ok(await reg(w)).expiresInMinutes, 5);
+    assert.equal((await reg(w)).status, 409);
+    const dump = JSON.stringify((await pg.query('SELECT * FROM watch_pairings')).rows);
+    assert.ok(!dump.includes(w.pairId) && !dump.includes(w.pollSecret), 'only hashes are stored');
+  });
+
+  await step('watch link: the watch waits, the phone needs the 4 numbers, and the third wrong try ends the pairing', async () => {
+    const w = mk(); ok(await reg(w));
+    assert.equal(ok(await pollW(w)).status, 'waiting');
+    assert.equal((await pollW(w, { pollSecret: hex(16) })).status, 403, 'another poll secret is refused');
+    assert.equal((await pollW({ ...w, pairId: hex(16) })).status, 404, 'an unknown pairing is a 404');
+    assert.equal((await claim(w, { confirm4: other(w.confirm4) })).status, 403);
+    assert.equal((await claim(w, { confirm4: other(w.confirm4) })).status, 403);
+    assert.equal((await claim(w, { pair: 'not a code' })).status, 400);
+    ok(await claim(w)); // the right numbers still work on the third try
+    const dead = mk(); ok(await reg(dead));
+    for (let i = 0; i < 3; i++) assert.equal((await claim(dead, { confirm4: other(dead.confirm4) })).status, 403);
+    assert.equal((await claim(dead)).status, 404, 'a spent pairing cannot be rescued by the right numbers');
+    assert.equal((await pollW(dead)).status, 404);
+  });
+
+  await step('watch link: the typed 6 characters link a watch like the QR does', async () => {
+    const w = mk(); ok(await reg(w));
+    const typed = w.short.slice(0, 3).toLowerCase() + ' - ' + w.short.slice(3).toLowerCase();
+    assert.equal((await claim({ ...w }, { pair: Wr.shortCode(hex(16)) })).status, 404, 'a wrong code finds nothing');
+    const c = ok(await claim(w, { pair: typed }));
+    assert.ok(c.link.id && c.revokeKey);
+    assert.match(ok(await pollW(w)).token, /^w_[0-9a-f]{64}$/);
+  });
+
+  let A, B;
+  await step('watch link: the token is handed over once, and only its hash is stored', async () => {
+    const w = mk(); ok(await reg(w));
+    const c = ok(await claim(w));
+    assert.equal(c.attached, null);
+    assert.equal((await as('w_' + hex(32), 'watch-state')).status, 401, 'a link that was claimed but not collected has no token yet');
+    const p = ok(await pollW(w));
+    assert.equal(p.status, 'linked'); assert.equal(p.club.name, 'Watch check club'); assert.equal(p.link.id, c.link.id); assert.equal(p.link.label, "Ana's Apple Watch");
+    assert.equal((await pollW(w)).status, 404, 'a second poll gets nothing: the token is single use');
+    const dump = JSON.stringify((await pg.query('SELECT * FROM watch_links')).rows) + JSON.stringify((await pg.query('SELECT * FROM watch_pairings')).rows) + JSON.stringify((await pg.query('SELECT * FROM lookup_fails')).rows);
+    assert.ok(!dump.includes(p.token) && !dump.includes(c.revokeKey) && !dump.includes(w.pollSecret), 'no secret is stored as given');
+    const first = await link(), second = await link();
+    A = first; B = second;
+    assert.notEqual(A.token, B.token);
+  });
+
+  await step('watch link: the phone lists linked watches without any secrets', async () => {
+    const l = ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-list' } })).links;
+    assert.ok(l.length >= 2 && l.some(x => x.id === A.id) && l.every(x => x.label && x.createdAt && x.expiresAt));
+    assert.ok(!/token|hash|revoke/i.test(JSON.stringify(l)));
+    assert.equal((await call(live, 'POST', { body: { code: 'ZZZZZZ', action: 'watch-list' } })).status, 404);
+  });
+
+  const S1 = 'watchSecret111', S2 = 'watchSecret222';
+  await step('attach: a watch scores only the games the phone sent to it', async () => {
+    await publish('live-w1', S1); await publish('live-w2', S2);
+    assert.equal(ok(await as(A.token, 'watch-state')).game, null, 'nothing attached yet');
+    assert.equal((await as(A.token, 'watch-rally', { opId: 'tap-attach-1', side: 0 })).status, 404);
+    const w = mk(); ok(await reg(w));
+    assert.equal((await claim(w, { game: 'live-w1', secret: 'wrongSecret1' })).status, 403, 'attaching needs the game secret');
+    assert.equal((await claim(w, { game: 'live-nope', secret: S1 })).status, 404);
+    const c = ok(await claim(w, { game: 'live-w1', secret: S1 })); // the pairing was not spent by the failed tries
+    assert.equal(c.attached, 'live-w1');
+    const token = ok(await pollW(w)).token;
+    const s = ok(await as(token, 'watch-state'));
+    assert.equal(s.game.id, 'live-w1'); assert.equal(s.club.name, 'Watch check club'); assert.equal(s.link.id, c.link.id);
+    assert.deepEqual(s.game.teams, [['Ana', 'Ben'], ['Cy', 'Di']]); assert.deepEqual(s.game.call, [0, 0, 2]); assert.equal(s.game.version, 0);
+    assert.ok(!/secret|stack|intents|ops/i.test(JSON.stringify(s)));
+    assert.deepEqual(await liveLinks('live-w1'), [c.link.id]);
+    A = { ...A, token, id: c.link.id };
+    assert.equal((await as(token, 'watch-rally', { opId: 'tap-attach-2', side: 0, game: 'live-w2' })).status, 404, 'a game that is not attached is out of reach, named or not');
+    // The phone sends a game to a watch it linked earlier.
+    const at = (link, game, secret) => call(live, 'POST', { body: { code: wcode, action: 'watch-attach', link, game, secret } });
+    assert.equal((await at(B.id, 'live-w1', 'wrongSecret1')).status, 403);
+    assert.equal((await at('0'.repeat(16), 'live-w1', S1)).status, 404);
+    ok(await at(B.id, 'live-w1', S1)); ok(await at(B.id, 'live-w1', S1));
+    assert.deepEqual((await liveLinks('live-w1')).sort(), [A.id, B.id].sort(), 'attaching twice adds it once');
+    assert.equal(ok(await as(B.token, 'watch-state')).game.id, 'live-w1');
+  });
+
+  await step('watch state: a quiet poll is an empty 304 and a rally changes the tag', async () => {
+    const r1 = await wstate(A.token);
+    assert.equal(r1.status, 200); assert.ok(r1.headers.etag);
+    const r2 = await wstate(A.token, { 'if-none-match': r1.headers.etag });
+    assert.equal(r2.status, 304); assert.equal(r2.bytes, 0);
+    ok(await as(A.token, 'watch-rally', { opId: 'tap-state-001', side: 0 }));
+    const r3 = await wstate(A.token, { 'if-none-match': r1.headers.etag });
+    assert.equal(r3.status, 200); assert.notEqual(r3.headers.etag, r1.headers.etag); assert.deepEqual(r3.json.game.score, [1, 0]);
+    ok(await as(A.token, 'watch-unrally', { opId: 'tap-state-002' }));
+  });
+
+  await step('tap ids: a retried tap changes nothing, even with a stale base, and an undo that did nothing cannot undo a later point', async () => {
+    const rl = (token, opId, side = 0, extra = {}) => as(token, 'watch-rally', { opId, side, ...extra });
+    const v0 = ok(await as(A.token, 'watch-state')).game.version;
+    let r = ok(await rl(A.token, 'tap-dup-0001'));
+    assert.deepEqual(r.score, [1, 0]); assert.equal(r.version, v0 + 1); assert.ok(!r.duplicate);
+    r = ok(await rl(A.token, 'tap-dup-0001'));
+    assert.equal(r.duplicate, true); assert.deepEqual(r.score, [1, 0]); assert.equal(r.version, v0 + 1);
+    r = ok(await rl(A.token, 'tap-dup-0001', 0, { base: v0 })); // a retry that still carries the old base is a duplicate, not a conflict
+    assert.equal(r.duplicate, true); assert.ok(!r.conflict);
+    r = ok(await rl(A.token, 'tap-dup-0002', 1, { base: v0 }));
+    assert.equal(r.conflict, true, 'a new tap with a stale base still conflicts'); assert.deepEqual(r.state.score, [1, 0]);
+    r = ok(await rl(A.token, 'tap-dup-0002', 1, { base: v0 + 1 }));
+    assert.equal(r.ok, true); assert.equal(r.version, v0 + 2);
+    r = ok(await as(A.token, 'watch-unrally', { opId: 'tap-undo-0001' }));
+    assert.equal(r.version, v0 + 3);
+    r = ok(await as(A.token, 'watch-unrally', { opId: 'tap-undo-0001' }));
+    assert.equal(r.duplicate, true); assert.equal(r.version, v0 + 3, 'a repeated undo takes back nothing more');
+    ok(await as(A.token, 'watch-unrally', { opId: 'tap-undo-0002' })); // back to 0-0
+    r = ok(await as(A.token, 'watch-unrally', { opId: 'tap-undo-empty' }));
+    assert.equal(r.unchanged, true);
+    ok(await rl(A.token, 'tap-after-001'));
+    r = ok(await as(A.token, 'watch-unrally', { opId: 'tap-undo-empty' }));
+    assert.equal(r.duplicate, true); assert.deepEqual(r.score, [1, 0], 'the late retry of an undo that did nothing leaves the new point alone');
+    assert.equal((await as(A.token, 'watch-rally', { side: 0 })).status, 400, 'a tap without an id is refused');
+    assert.equal((await rl(A.token, 'tap-badside-1', 2)).status, 400);
+    assert.equal((await as(A.token, 'watch-rally', { opId: 'bad id!', side: 0 })).status, 400);
+  });
+
+  await step('tap ids: copies of one tap arriving together count once, and different taps all count', async () => {
+    const before = ok(await as(A.token, 'watch-state')).game.score[0];
+    const same = await Promise.all([1, 2, 3, 4, 5].map(() => as(A.token, 'watch-rally', { opId: 'tap-race-0001', side: 0 })));
+    for (const r of same) assert.equal(r.status, 200);
+    assert.equal(ok(await as(A.token, 'watch-state')).game.score[0], before + 1);
+    const many = await Promise.all([1, 2, 3].map(i => as(A.token, 'watch-rally', { opId: 'tap-race-100' + i, side: 0 })));
+    for (const r of many) assert.equal(r.status, 200);
+    assert.equal(ok(await as(A.token, 'watch-state')).game.score[0], before + 4);
+  });
+
+  await step('tap ids work on the phone route too, and a game that is over refuses another point', async () => {
+    const SC = 'watchSecret333';
+    await publish('live-w3', SC);
+    const rl = (opId, side = 0) => call(live, 'POST', { body: { code: wcode, action: 'rally', game: 'live-w3', secret: SC, side, opId } });
+    ok(await rl('phone-tap-0001')); assert.equal(ok(await rl('phone-tap-0001')).duplicate, true);
+    assert.deepEqual(ok(await call(live, 'GET', { query: `?code=${wcode}&id=live-w3&secret=${SC}` })).state.score, [1, 0], 'the phone route applied it once');
+    const w = mk(); ok(await reg(w)); ok(await claim(w, { game: 'live-w3', secret: SC }));
+    const t = ok(await pollW(w)).token;
+    for (let i = 0; i < 30 && (ok(await as(t, 'watch-state')).game.winner === null); i++) ok(await as(t, 'watch-rally', { opId: 'tap-win-' + String(i).padStart(4, '0'), side: 0 }));
+    const over = ok(await as(t, 'watch-state')).game;
+    assert.equal(over.winner, 0); assert.equal(over.say, 'Game over');
+    assert.equal((await as(t, 'watch-rally', { opId: 'tap-late-0001', side: 0 })).status, 409);
+    assert.equal(ok(await as(t, 'watch-rally', { opId: 'tap-win-0000', side: 0 })).duplicate, true, 'a retry of the winning point is still an answer, not an error');
+  });
+
+  await step('unlinking: the phone that linked it, an organizer, or the watch itself; nobody else', async () => {
+    const L1 = await link(), L2 = await link(), L3 = await link({ game: 'live-w2', secret: S2 });
+    assert.equal((await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: L1.id } })).status, 403, 'a member with no key cannot unlink');
+    assert.equal((await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: L1.id, revokeKey: L2.c.revokeKey } })).status, 403, 'another watch\'s key does not open this one');
+    assert.equal((await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: L1.id, pin: '000000' } })).status, 403);
+    ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: L1.id, revokeKey: L1.c.revokeKey } }));
+    assert.equal((await as(L1.token, 'watch-state')).status, 401);
+    assert.equal((await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: L1.id, revokeKey: L1.c.revokeKey } })).status, 404, 'already unlinked');
+    assert.ok((await liveLinks('live-w2')).includes(L3.id));
+    ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: L3.id, pin: WPIN } }));
+    assert.ok(!(await liveLinks('live-w2')).includes(L3.id), 'an unlinked watch is taken off its games');
+    ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-revoke', link: L2.id, ownerToken: wowner } }));
+    assert.equal((await as(L2.token, 'watch-rally', { opId: 'tap-revoked-1', side: 0 })).status, 401);
+    const L4 = await link();
+    ok(await as(L4.token, 'watch-unlink'));
+    assert.equal((await as(L4.token, 'watch-state')).status, 401);
+    assert.ok(!ok(await call(live, 'POST', { body: { code: wcode, action: 'watch-list' } })).links.some(x => [L1.id, L2.id, L3.id, L4.id].includes(x.id)));
+    assert.ok((await row(L1.id)).revoked_at);
+  });
+
+  await step('token life: it slides 90 days from the last call, at most once an hour, and never past a year', async () => {
+    const L = await link(), t0 = Date.now(), near = (a, b) => Math.abs(new Date(a).getTime() - b) < 60e3;
+    assert.ok(near((await row(L.id)).expires_at, t0 + 90 * 86400e3), 'collecting the token starts the 90 days');
+    await pg.query(`UPDATE watch_links SET last_seen_at = now() - interval '30 minutes', expires_at = now() + interval '10 days' WHERE id = $1`, [L.id]);
+    ok(await as(L.token, 'watch-state'));
+    assert.ok(near((await row(L.id)).expires_at, t0 + 10 * 86400e3), 'under an hour since the last call: nothing is written');
+    await pg.query(`UPDATE watch_links SET last_seen_at = now() - interval '2 hours' WHERE id = $1`, [L.id]);
+    ok(await as(L.token, 'watch-state'));
+    assert.ok(near((await row(L.id)).expires_at, t0 + 90 * 86400e3));
+    await pg.query(`UPDATE watch_links SET last_seen_at = now() - interval '2 hours', created_at = now() - interval '300 days' WHERE id = $1`, [L.id]);
+    ok(await as(L.token, 'watch-state'));
+    assert.ok(near((await row(L.id)).expires_at, t0 + 65 * 86400e3), 'the year from when it was made is the ceiling');
+    await pg.query(`UPDATE watch_links SET expires_at = now() - interval '1 minute' WHERE id = $1`, [L.id]);
+    assert.equal((await as(L.token, 'watch-state')).status, 401, 'an expired link is refused');
+  });
+
+  await step('abuse limits: wrong tokens lock a network, registrations are limited per network, a club holds 20 links', async () => {
+    const L = await link(), net = { 'x-real-ip': '10.77.0.1' };
+    for (let i = 0; i < 30; i++) assert.equal((await as('w_' + hex(32), 'watch-state', {}, net)).status, 401);
+    assert.equal((await as(L.token, 'watch-state', {}, net)).status, 429, 'a locked network is refused, right token or wrong');
+    assert.equal((await as(L.token, 'watch-state', {}, { 'x-real-ip': '10.77.0.2' })).status, 200, 'other networks are not affected');
+    assert.equal((await call(live, 'POST', { body: { action: 'watch-state' } })).status, 401, 'no token');
+    assert.equal((await call(live, 'POST', { headers: { authorization: 'Bearer ' + wowner }, body: { action: 'watch-state' } })).status, 401, 'an owner token is not a watch token');
+    const reg2 = { 'x-real-ip': '10.77.0.3' };
+    for (let i = 0; i < 10; i++) ok(await reg(mk(), {}, reg2));
+    assert.equal((await reg(mk(), {}, reg2)).status, 429);
+    assert.equal((await reg(mk(), {}, { 'x-real-ip': '10.77.0.4' })).status, 200);
+    const full = ok(await call(club, 'POST', { body: { name: 'Full watch club', pin: '135790' } }), 201).club.code;
+    for (let i = 0; i < 20; i++) await link({}, full);
+    const w = mk(); ok(await reg(w));
+    assert.equal((await claim(w, {}, full)).status, 409);
+    assert.equal((await claim(w, {}, wcode)).status, 200, 'another club is unaffected');
+  });
+
+  await step('club deletion removes its watch links and the token stops working; other clubs keep theirs', async () => {
+    const gone = ok(await call(club, 'POST', { body: { name: 'Doomed watch club', pin: '246810' } }), 201).club.code;
+    await publish('live-gone', 'goneSecret111', gone);
+    const L = await link({ game: 'live-gone', secret: 'goneSecret111' }, gone), keep = await link();
+    assert.equal(ok(await as(L.token, 'watch-state')).game.id, 'live-gone');
+    await pg.query('DELETE FROM clubs WHERE code = $1', [gone]);
+    assert.equal((await pg.query('SELECT 1 FROM watch_links WHERE club = $1', [gone])).rows.length, 0);
+    assert.equal((await as(L.token, 'watch-state')).status, 401);
+    assert.equal((await as(keep.token, 'watch-state')).status, 200);
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
