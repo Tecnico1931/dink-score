@@ -25,6 +25,8 @@ jobs:
         run: node tools/push-check.mjs
       - name: DUPR checks (mock only)
         run: node tools/dupr-check.mjs
+      - name: Watch app golden vectors are up to date
+        run: node tools/pb-vectors.mjs --check
       - name: Generated files are up to date
         run: |
           node build.cjs
