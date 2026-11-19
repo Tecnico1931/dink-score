@@ -3504,7 +3504,7 @@ function rulesView() {
     <div class="rule" id="rules-dupr"><h3>Set up DUPR</h3>
       <ol><li><b>Join or start a club.</b> DUPR is linked per club, so you need one first.</li>
         <li><b>Tell the app who you are.</b> Tap <b>Choose my name</b> and pick your name from the list.</li>
-        <li><b>Open Your DUPR</b> and tap <b>Connect DUPR</b>. You sign in on DUPR's own page, so Dink Score never sees your password. While DUPR is in test mode, you need a DUPR test account, and a real account may not work.</li>
+        <li><b>Open Your DUPR</b> and tap <b>Connect DUPR</b>. You sign in on DUPR's own page, so Dink Score never sees your password.</li>
         <li><b>Or skip linking</b> and type in a self-reported rating. It is only for show and is not checked by DUPR.</li></ol>
       <p><b>Organizers:</b> the club's <b>Members</b> list shows who is connected to DUPR, and tapping DUPR on a row opens that player's DUPR box. After an event, review the matches and confirm before anything is sent. A match goes to DUPR only when all its players are connected.</p>
       <p>If you import players from a Google Sheet, its DUPR ID column is a reference for organizers only. It is not checked with DUPR and does not connect anyone.</p>
@@ -6642,7 +6642,7 @@ async function dssoLazyRefresh() {
 const dssoFmt = v => (typeof v === 'number' ? v.toFixed(2) : '–');
 const dssoAgo = at => { const m = Math.max(0, Math.round((Date.now() - at) / 60000)); return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 const DSSO_CONSENT = 'You sign in on DUPR’s own page, so Dink Score never sees your DUPR password. Dink Score keeps your DUPR ID and your DUPR rating, and your club sees the rating labelled as DUPR’s. If an organizer sends event scores to DUPR, what goes to DUPR is the players’ DUPR IDs, the scores, the match date and the event name. Nothing is sent without an organizer confirming it. You can revoke access in your DUPR settings, or tap Unlink here, which deletes the stored ID and rating. DUPR numbers never change your Dink Rating or leaderboard.';
-// DUPR is wired to DUPR's UAT (test) site until production keys exist, so say so where a real account may fail.
+// DUPR uses its production site unless the server sets DUPR_ENV=uat; in that case say so where a real account may fail.
 const duprTestNote = c => DuprEntry.testMode(c) ? '<p class="note"><span class="test" style="font-weight:700">DUPR test mode.</span> This connects to DUPR’s test site (uat.dupr.gg). A real DUPR account may not sign in here, and that is not a bug in Dink Score.</p>' : '';
 /*DUPRENTRY-START*/
 // Which "Your DUPR" card to show. Pure, so test/duprentry.test.js can load this block alone.
