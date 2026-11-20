@@ -5,7 +5,7 @@
 // the app sends If-None-Match itself. A client that sends no tag gets the same full answer as before.
 import { createHash } from 'node:crypto';
 
-export const SYNC_V = 2; // bump when an answer's shape changes, so every held tag stops matching
+export const SYNC_V = 3; // bump when an answer's shape changes, so every held tag stops matching
 export const BUCKET_MS = 10 * 60 * 1000; // answers that depend on the clock (ratings reliability) are refreshed at least this often
 
 export const tagOf = (scope, text) => 'W/"' + createHash('sha256').update(`${SYNC_V}|${scope}|${text}`).digest('base64url').slice(0, 24) + '"';
@@ -45,7 +45,9 @@ export async function clubDigest(sql, code) {
     (SELECT coalesce(string_agg(h, ',' ORDER BY lower(name)), '') FROM (SELECT name, md5(concat_ws('|', name, claim_hash IS NOT NULL, role, CASE WHEN avatar->>'type' = 'photo' THEN md5(avatar->>'value') ELSE avatar::text END, dupr_rating::text)) AS h
       FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300) r),
     (SELECT coalesce(string_agg(h, ',' ORDER BY at DESC, old_key), '') FROM (SELECT old_key, at, md5(concat_ws('|', old_key, new_name)) AS h
-      FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC, old_key LIMIT 100) n)
+      FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC, old_key LIMIT 100) n),
+    (SELECT coalesce(string_agg(h, ',' ORDER BY game_id, reaction, name_key), '') FROM (SELECT r.game_id, r.reaction, r.name_key, md5(concat_ws('|', r.game_id, r.reaction, r.name)) AS h
+      FROM game_reactions r JOIN (SELECT id FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC, id LIMIT 2000) g ON g.id = r.game_id WHERE r.club = ${code}) rx)
   )) AS d`;
   return r.d;
 }

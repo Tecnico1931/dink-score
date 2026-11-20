@@ -215,6 +215,14 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .game .pts { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 26px; line-height: 1; min-width: 2ch; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
 .game .win .pts { color: var(--ink); }
 .game .meta { grid-column: 1 / -1; font-size: 13px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding-left: 18px; }
+.g-reacts { grid-column: 1 / -1; padding-left: 18px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.rx-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: 600 14px/1 var(--body); cursor: pointer; }
+.rx-btn:active { transform: scale(.97); }
+.rx-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.rx-btn.rx-add { color: var(--muted); font-size: 13px; padding: 0 13px; }
+.rx-btn.rx-add[aria-expanded="true"] { background: var(--surface); color: var(--ink); border-color: var(--ink); }
+.rx-emoji { font-size: 16px; line-height: 1; }
+.rx-n { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 15px; line-height: 1; font-variant-numeric: tabular-nums; }
 .tag { background: var(--surface-2); border-radius: 6px; padding: 1px 7px; font-size: 12px; font-weight: 500; }
 .month { display: flex; flex-direction: column; gap: 12px; }
 .month-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -1031,7 +1039,12 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .btn-soft, :root[data-outdoor] .setup-opts-toggle { box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .delta-pill, :root[data-outdoor] .exp-delta, :root[data-outdoor] .exp-box, :root[data-outdoor] .exp-why { box-shadow: inset 0 0 0 1.5px var(--ink); }
 :root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+:root[data-outdoor] .rx-btn { border: 2px solid var(--ink); background: var(--surface); color: var(--ink); }
+:root[data-outdoor] .rx-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 /* Large scores: the numbers fill the court, the names and call grow with them. */
+:root[data-large] .rx-btn { font-size: 16px; }
+:root[data-large] .rx-emoji { font-size: 18px; }
+:root[data-large] .rx-n { font-size: 17px; }
 :root[data-large] .big { font-size: clamp(150px, 33vh, 340px); }
 :root[data-large] .names span { font-size: 19px; }
 :root[data-large] .pill, :root[data-large] .side-mini, :root[data-large] .match span, :root[data-large] .net .who { font-size: 15px; }
@@ -3636,7 +3649,7 @@ function gameItem(g) {
   const dupe = isDupe(g.id), canConfirm = canConfirmGame(g);
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
     <span class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button>${canConfirm ? `<button class="link" data-confirm="${esc(g.id)}">Confirm</button>` : ''}<button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
-    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${club && !g.event ? (g.confirmed ? '<span class="tag confirmed">Confirmed</span>' : `<span class="tag warn">${g.hold ? 'Not counted: unconfirmed' : 'Unconfirmed'}</span>`) : ''}${dupe ? '<span class="tag warn">Possible duplicate</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div></li>`;
+    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${club && !g.event ? (g.confirmed ? '<span class="tag confirmed">Confirmed</span>' : `<span class="tag warn">${g.hold ? 'Not counted: unconfirmed' : 'Unconfirmed'}</span>`) : ''}${dupe ? '<span class="tag warn">Possible duplicate</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div>${reactionsHTML(g)}</li>`;
 }
 
 function historyView() {
@@ -5694,6 +5707,101 @@ function renderRatingExplain() {
   setSheet(root, `<div class="sheet-bg explain"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="exp-h"><span class="grip"></span>${inner}</div></div>`, name + '|' + mode + '|' + scope);
 }
 
+/*MODULE-START:reactions*/
+/* ---------- reactions on finished games (L12: api/_reactions.js via api/games.js) ---------- */
+const GAME_REACTIONS = [
+  { key: 'clap', emoji: '\u{1F44F}', label: 'Great game' },
+  { key: 'fire', emoji: '\u{1F525}', label: 'On fire' },
+  { key: 'pickle', emoji: '\u{1F952}', label: 'Nice dink' },
+  { key: 'sweat', emoji: '\u{1F605}', label: 'Close one' },
+  { key: 'trophy', emoji: '\u{1F3C6}', label: 'Clutch' }
+];
+let rxOpenGame = null;
+const rxBusy = new Set();
+
+function canReactGame(g) {
+  return !!club && !!g && !outbox.some(o => o.type === 'game' && o.game && o.game.id === g.id);
+}
+
+function rxNamesLabel(names) {
+  if (!names.length) return '';
+  if (names.length <= 4) return names.join(', ');
+  return `${names.slice(0, 4).join(', ')} and ${names.length - 4} more`;
+}
+
+function reactionsHTML(g) {
+  if (!canReactGame(g)) return '';
+  const rx = g.reactions && typeof g.reactions === 'object' ? g.reactions : {};
+  const meName = myName();
+  const open = rxOpenGame === g.id;
+  const shown = open
+    ? GAME_REACTIONS
+    : GAME_REACTIONS.filter(r => Array.isArray(rx[r.key]) && rx[r.key].length > 0);
+  const chips = shown.map(r => {
+    const who = Array.isArray(rx[r.key]) ? rx[r.key] : [];
+    const mine = !!meName && who.some(n => sameName(n, meName));
+    const count = who.length;
+    const tip = count ? `${r.label}: ${rxNamesLabel(who)}` : r.label;
+    const a11y = count
+      ? `${r.label}, ${count} reaction${count === 1 ? '' : 's'} (${rxNamesLabel(who)})${mine ? '. You reacted' : ''}`
+      : `${r.label}, add reaction`;
+    return `<button type="button" class="rx-btn" data-react="${esc(g.id)}" data-rx="${esc(r.key)}" aria-pressed="${mine ? 'true' : 'false'}" aria-label="${esc(a11y)}" title="${esc(tip)}"><span class="rx-emoji" aria-hidden="true">${r.emoji}</span>${count ? `<span class="rx-n">${count}</span>` : ''}</button>`;
+  }).join('');
+  const hasAny = GAME_REACTIONS.some(r => Array.isArray(rx[r.key]) && rx[r.key].length > 0);
+  const toggleText = open ? 'Done' : hasAny ? '+' : '+ React';
+  const toggleLabel = open ? 'Close reactions' : 'Add reaction';
+  return `<div class="g-reacts" role="group" aria-label="Game reactions">${chips}<button type="button" class="rx-btn rx-add" data-rx-open="${esc(g.id)}" aria-expanded="${open ? 'true' : 'false'}" aria-label="${esc(toggleLabel)}">${toggleText}</button></div>`;
+}
+
+function toggleReactionPicker(gameId) {
+  const opening = rxOpenGame !== gameId;
+  rxOpenGame = opening ? gameId : null;
+  render();
+  announce(opening ? 'Reaction picker opened' : 'Reaction picker closed');
+  const btn = document.querySelector(`[data-rx-open="${CSS.escape ? CSS.escape(gameId) : gameId}"]`);
+  if (btn) btn.focus({ preventScroll: true });
+}
+
+async function toggleGameReaction(gameId, key) {
+  if (!club) return;
+  if (!myName() || !myToken()) {
+    clubSheet = { view: 'whoami' };
+    renderClub();
+    showToast('Pick your name first to react to games', false);
+    return;
+  }
+  const busyKey = gameId + ':' + key;
+  if (rxBusy.has(busyKey)) return;
+  rxBusy.add(busyKey);
+  try {
+    const data = await api('games', {
+      method: 'POST',
+      body: JSON.stringify({ code: club.code, react: gameId, reaction: key, playerName: myName(), playerToken: myToken() })
+    });
+    if (clubData && Array.isArray(clubData.games)) {
+      const target = clubData.games.find(x => x.id === gameId);
+      if (target) {
+        if (data.reactions && Object.keys(data.reactions).length) target.reactions = data.reactions;
+        else delete target.reactions;
+        store.set('pb.clubCache', clubData);
+      }
+    }
+    const meta = GAME_REACTIONS.find(r => r.key === key);
+    const label = meta ? meta.label : key;
+    render();
+    announce(data.added ? `Added ${label} reaction` : `Removed ${label} reaction`);
+    const escId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(gameId) : gameId;
+    const escKey = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(key) : key;
+    const nextBtn = document.querySelector(`[data-react="${escId}"][data-rx="${escKey}"]`) || document.querySelector(`[data-rx-open="${escId}"]`);
+    if (nextBtn) nextBtn.focus({ preventScroll: true });
+  } catch (err) {
+    showToast(err.message, false);
+  } finally {
+    rxBusy.delete(busyKey);
+  }
+}
+/*MODULE-END:reactions*/
+
 /*MODULE-START:tutorial*/
 /* ---------- first-visit tutorial ---------- */
 let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
@@ -7077,7 +7185,7 @@ document.addEventListener('click', e => {
     }
     renderClub(); return;
   }
-  if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; render(); try { document.body.scrollTo(0, 0); } catch {} if (tab === 'events') evOpenList(); return; }
+  if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; rxOpenGame = null; render(); try { document.body.scrollTo(0, 0); } catch {} if (tab === 'events') evOpenList(); return; }
   if (ds.tabGo) { tab = ds.tabGo; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} return; }
   for (const k of ['mode', 'scoring', 'target', 'winBy']) {
     const v = el.getAttribute('data-set-' + k);
@@ -7102,6 +7210,8 @@ document.addEventListener('click', e => {
   if (ds.rmode) { ratingMode = ds.rmode; store.set('pb.rmode', ratingMode); render(); return; }
   if (ds.first) { setup.first = +ds.first; store.set('pb.setup', setup); render(); return; }
   if (ds.confirm) { confirmGame(ds.confirm); return; }
+  if (ds.rxOpen) { toggleReactionPicker(ds.rxOpen); return; }
+  if (ds.react && ds.rx) { toggleGameReaction(ds.react, ds.rx); return; }
   if (ds.keepboth) { const [a, b] = ds.keepboth.split('|'); keepBoth(a, b); return; }
   if (ds.delDup) { deleteGame(ds.delDup); return; }
   if (ds.del) {
