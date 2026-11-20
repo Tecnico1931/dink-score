@@ -1,7 +1,13 @@
 // The answers of the watch routes in api/_watch.js and api/_livecore.js, as the watch reads them.
 import Foundation
 
-public struct LinkInfo: Codable, Equatable { public let id: String; public let label: String? }
+public struct LinkInfo: Codable, Equatable {
+    public let id: String
+    public let label: String?
+    /// Set when this watch was linked to one game only (no club): the id of that game. A club link has none.
+    public let game: String?
+    public init(id: String, label: String?, game: String? = nil) { self.id = id; self.label = label; self.game = game }
+}
 
 /// A live game a phone sent to this watch, from `watch-state`. The game here leaves out the court sides, so `state.right` is a guess until
 /// the first tap answer (which carries the whole state) arrives; scores, serve and the call never depend on it.

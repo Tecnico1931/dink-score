@@ -52,3 +52,18 @@ public enum Hashes {
     /// "ABCDEF" -> "ABC DEF", easier to read and type.
     public static func spaced(_ code: String) -> String { code.count == 6 ? code.prefix(3) + " " + code.suffix(3) : code }
 }
+
+/// The code a scoring phone shows for one game, as typed on the watch: 6 letters and numbers (the same base 32 as the pairing code) and 4 numbers.
+public enum GameCode {
+    private static let b32 = Set("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
+    /// "k7q 2zm" -> "K7Q2ZM"; nil unless it is exactly 6 of the 32 letters and numbers.
+    public static func clean(_ text: String) -> String? {
+        let t = text.uppercased().filter { !$0.isWhitespace && $0 != "-" }
+        return t.count == 6 && t.allSatisfy { b32.contains($0) } ? t : nil
+    }
+    /// "04 20" -> "0420"; nil unless it is exactly 4 digits.
+    public static func digits(_ text: String) -> String? {
+        let t = text.filter { $0.isASCII && $0.isNumber }
+        return t.count == 4 && text.allSatisfy({ ($0.isASCII && $0.isNumber) || $0.isWhitespace }) ? t : nil
+    }
+}

@@ -11,11 +11,12 @@ struct IdleView: View {
         ScrollView {
             VStack(spacing: 8) {
                 Image(systemName: "applewatch.watchface").font(.title2).foregroundStyle(.green).accessibilityHidden(true)
-                Text(session.clubName.isEmpty ? "Linked" : session.clubName).font(.headline).multilineTextAlignment(.center)
-                Text("Start a game on your phone and send it to this watch.").font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Text(session.gameOnly ? "Linked to one game" : session.clubName.isEmpty ? "Linked" : session.clubName).font(.headline).multilineTextAlignment(.center)
+                Text(session.gameOnly ? "That game is not on now. It ends or is saved here, and then this link ends. Enter a new game code to score another." : "Start a game on your phone and send it to this watch.")
+                    .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 if let n = session.notice { Text(n).font(.caption2).foregroundStyle(.orange).multilineTextAlignment(.center) }
                 SyncDot(offline: session.sync == .offline, queued: session.model.queued)
-                Button("Link another phone") { session.startRelink() }
+                Button(session.gameOnly ? "Enter a game code" : "Link another phone") { session.startRelink() }
                 Button("Unlink", role: .destructive) { confirmUnlink = true }
             }
         }

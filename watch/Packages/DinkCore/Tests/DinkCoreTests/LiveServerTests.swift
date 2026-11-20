@@ -84,4 +84,42 @@ final class LiveServerTests: XCTestCase {
         XCTAssertEqual(s.link, .unlinked)
         XCTAssertNil(tokens.load())
     }
+
+    /// A watch with no club: the scoring phone shows a game code, the watch types it, and the link holds that one game until the game ends.
+    func testAGameCodeLinksOneGameAndEndsWithIt() async throws {
+        guard let url = env["DINK_TEST_URL"], let code = env["DINK_TEST_CODE"] else {
+            throw XCTSkip("run tools/watch-swift-check.mjs to start the throwaway API")
+        }
+        // Its own game, so the other test's game is untouched when this one ends it.
+        let game = "live-swift-solo", secret = "soloSecret123"
+        let cfg: [String: Any] = ["mode": "doubles", "scoring": "sideout", "target": 11, "winBy": 2, "teams": [["Ana", "Ben"], ["Cy", "Di"]]]
+        let fresh: [String: Any] = ["cfg": cfg, "score": [0, 0], "serving": 0, "serverNum": 2, "right": [0, 0], "server": 0, "rallies": 0, "switched": false, "justSwitched": false, "winner": NSNull(), "startedAt": 2, "endedAt": NSNull()]
+        let published = try await phone(["code": code, "action": "state", "id": game, "secret": secret, "state": fresh, "ack": 0])
+        XCTAssertNil(published["error"], "\(published)")
+        let tokens = MemoryTokenStore(), box = MemoryOutboxStore()
+        let s = WatchSession(api: DinkClient(baseURL: URL(string: url)!), tokens: tokens, outbox: box, base: url, label: "Swift game watch")
+        let offered = try await phone(["code": code, "action": "watch-offer", "game": game, "secret": secret])
+        let shown = try XCTUnwrap(offered["offer"] as? [String: Any], "\(offered)")
+        let short = try XCTUnwrap(shown["short"] as? String), numbers = try XCTUnwrap(shown["confirm4"] as? String)
+
+        await s.join(code: short, digits: numbers == "0000" ? "1111" : "0000")
+        XCTAssertEqual(s.link, .unlinked, "wrong numbers do not link: \(s.notice ?? "")")
+        await s.join(code: Hashes.spaced(short).lowercased(), digits: numbers)
+        XCTAssertEqual(s.link, .linked, "the code as typed on a watch (spaced, any case) works: \(s.notice ?? "")")
+        XCTAssertTrue(s.gameOnly); XCTAssertEqual(s.clubName, "")
+        await s.refresh()
+        XCTAssertEqual(s.gameId, game); XCTAssertTrue(s.gameOnly)
+        s.score(side: 0); await s.flush()
+        XCTAssertEqual(s.model.pending.count, 0)
+
+        let token = try XCTUnwrap(tokens.load())
+        let client = DinkClient(baseURL: URL(string: url)!)
+        do { _ = try await client.rally(token: token, opId: "swift-game-0001", side: 0, game: "live-other"); XCTFail() }
+        catch let e as DinkError { XCTAssertEqual(e.reaction, .dropQueue, "any other game is out of reach") }
+
+        _ = try await phone(["code": code, "action": "end", "id": game, "secret": secret])
+        await s.refresh()
+        XCTAssertEqual(s.link, .unlinked, "the phone ended the game, so the link ended")
+        XCTAssertNil(tokens.load()); XCTAssertEqual(s.notice, "This game's link has ended.")
+    }
 }

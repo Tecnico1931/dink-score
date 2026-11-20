@@ -52,6 +52,7 @@ public enum StateFetch: Equatable { case unchanged, changed(StateReply, etag: St
 public protocol WatchAPI {
     func register(_ p: PairingSecrets, label: String) async throws
     func poll(_ p: PairingSecrets) async throws -> PollReply
+    func join(code: String, confirm4: String, label: String) async throws -> PollReply
     func fetchState(token: String, etag: String?) async throws -> StateFetch
     func rally(token: String, opId: String, side: Int, game: String) async throws -> TapReply
     func unrally(token: String, opId: String, game: String) async throws -> TapReply
@@ -96,6 +97,11 @@ public struct DinkClient: WatchAPI {
 
     public func poll(_ p: PairingSecrets) async throws -> PollReply {
         try decode(PollReply.self, try await run(request(body: ["action": "watch-poll", "pairId": p.pairId, "pollSecret": p.pollSecret])).0)
+    }
+
+    /// `watch-join`: the 6 characters and 4 numbers a scoring phone shows for its game; the answer is a link to that one game, token included.
+    public func join(code: String, confirm4: String, label: String) async throws -> PollReply {
+        try decode(PollReply.self, try await run(request(body: ["action": "watch-join", "code": code, "confirm4": confirm4, "label": label])).0)
     }
 
     public func fetchState(token: String, etag: String?) async throws -> StateFetch {

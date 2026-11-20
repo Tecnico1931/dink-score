@@ -26,7 +26,10 @@ struct ScoreView: View {
                     .font(.system(size: 26, weight: .bold, design: .rounded)).monospacedDigit().minimumScaleFactor(0.6).lineLimit(1)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel("Call \(game.call.map(String.init).joined(separator: " ")). \(serverName) serving.")
-                Color.clear.frame(width: 34, height: 28)
+                if session.gameOnly {
+                    Image(systemName: "link").font(.system(size: 14, weight: .semibold)).foregroundStyle(.secondary).frame(width: 34, height: 28)
+                        .accessibilityLabel("Linked to this game only")
+                } else { Color.clear.frame(width: 34, height: 28) }
             }
             teamButton(0)
             teamButton(1)
