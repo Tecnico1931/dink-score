@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { pairFromUrl, confirmFromUrl, watchFragment, cleanPair, cleanConfirm, cameraMessage, readQr } from '../scan.js';
+import { pairFromUrl, confirmFromUrl, watchFragment, cleanPair, cleanConfirm, cameraMessage, readQr, gameFragment, gameLink, cleanShort } from '../scan.js';
 import * as W from '../api/_watchrules.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -118,11 +118,29 @@ test('only this site may use the camera, nothing else changes, and the scanner f
   assert.match(read('sw.js'), /'scan\.js'/, 'the small scan.js is cached with the shell');
 });
 
-test('the page keeps the address-fragment handler and the open-from-Home-Screen message', () => {
+test('the page keeps the address-fragment handler; with no club it offers one game instead of a dead end', () => {
   const page = read('dink-score.html');
   assert.match(page, /\^#watch=\(\[0-9A-Fa-f\]\{32\}\)\(\?:\\\.\(\[0-9\]\{4\}\)\)\?\$/);
   assert.match(page, /watchFromFragment\(wt\[1\]\.toLowerCase\(\), wt\[2\] \|\| ''\)/, 'the fragment digits reach the sheet');
-  assert.match(page, /Open Dink Score from your Home Screen/);
+  assert.match(page, /Link a watch to one game/);
   assert.match(page, /record\(s, Scoring\.logOf\(live\), live\.shared && live\.id \? live\.id : null\)/, 'a shared game is saved under its live id');
   assert.match(page, /watch: watchIds\(\)/, 'the phone names its linked watches when it publishes');
+});
+
+test('a game link is #game= and 32 hex, and a typed game code is 6 base32 characters', () => {
+  assert.equal(gameFragment(`#game=${PAIR}`), PAIR);
+  assert.equal(gameFragment(`#game=${PAIR.toUpperCase()}`), PAIR);
+  for (const bad of ['', '#game=', `#game=${PAIR}0`, `#game=${PAIR.slice(1)}`, `#watch=${PAIR}`, `#game=${PAIR}.0420`, `game=${PAIR}`, null, undefined]) assert.equal(gameFragment(bad), '', String(bad));
+  assert.equal(gameLink('https://dinkscore.example/', PAIR), `https://dinkscore.example/#game=${PAIR}`);
+  assert.equal(cleanShort(' k7q-2zm '), 'K7Q2ZM'); assert.equal(cleanShort('K7Q 2ZM'), 'K7Q2ZM');
+  for (const bad of ['', 'K7Q2Z', 'K7Q2ZMA', 'K7Q2Z1', 'K7Q2Z8', 'K7Q2Z!', null]) assert.equal(cleanShort(bad), '', String(bad));
+});
+
+test('the phone page: a watch link with no club leads to one game, not a dead end, and the game link and code are wired', () => {
+  const html = read('dink-score.html'), mod = read('src/app/watch-link.js');
+  assert.ok(!html.includes('watchOpenHTML') && !html.includes("view: 'watch-open'"), 'the "open from your Home Screen" dead end is gone');
+  assert.match(html, /if \(!club\) \{ watchGameFrom\(\{ pair, confirm: confirm \|\| '' \}\); return; \}/);
+  assert.match(html, /\^#game=\(\[0-9A-Fa-f\]\{32\}\)\$/);
+  for (const a of ["action: 'watch-offer'", "action: 'watch-claim-game'", 'single: true']) assert.ok(mod.includes(a), a);
+  assert.ok(html.includes(mod.slice(mod.indexOf('async function watchGameClaim'), mod.indexOf('async function watchGameClaim') + 200)), 'the built page carries the module');
 });

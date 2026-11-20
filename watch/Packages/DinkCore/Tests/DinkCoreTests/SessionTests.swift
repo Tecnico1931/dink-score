@@ -12,6 +12,10 @@ final class FakeAPI: WatchAPI, @unchecked Sendable {
     var linkOnPoll = false
     var listed = true
     var finishError: DinkError?
+    var joinReply: PollReply = .linked(token: "w_" + String(repeating: "c", count: 64), clubName: "", link: LinkInfo(id: "g1", label: nil, game: "live-1"))
+    var joinError: DinkError?
+    var joined: [String] = []
+    var stateLink = "{\"id\":\"l1\",\"label\":null}"
 
     init(_ s: GameState) { server = s }
 
@@ -20,11 +24,16 @@ final class FakeAPI: WatchAPI, @unchecked Sendable {
         calls.append("poll")
         return linkOnPoll ? .linked(token: "w_" + String(repeating: "a", count: 64), clubName: "Test club", link: LinkInfo(id: "l1", label: nil)) : .waiting
     }
+    func join(code: String, confirm4: String, label: String) async throws -> PollReply {
+        calls.append("join"); joined.append(code + " " + confirm4)
+        if let e = joinError { throw e }
+        return joinReply
+    }
     func fetchState(token: String, etag: String?) async throws -> StateFetch {
         calls.append("state")
         if let e = failNext.first { failNext.removeFirst(); throw e }
         let json = listed ? """
-        {"club":{"name":"Test club"},"link":{"id":"l1","label":null},"game":{"id":"live-1","version":\(version),"cfg":\(String(data: try JSONEncoder().encode(server.cfg), encoding: .utf8)!),"score":\(server.score),"serving":\(server.serving),"server":\(server.server),"serverNum":\(server.serverNum),"winner":\(server.winner.map(String.init) ?? "null"),"rallies":\(server.rallies)}}
+        {"club":{"name":"Test club"},"link":\(stateLink),"game":{"id":"live-1","version":\(version),"cfg":\(String(data: try JSONEncoder().encode(server.cfg), encoding: .utf8)!),"score":\(server.score),"serving":\(server.serving),"server":\(server.server),"serverNum":\(server.serverNum),"winner":\(server.winner.map(String.init) ?? "null"),"rallies":\(server.rallies)}}
         """ : "{\"club\":{\"name\":\"Test club\"},\"link\":{\"id\":\"l1\",\"label\":null},\"game\":null}"
         return .changed(try JSONDecoder().decode(StateReply.self, from: Data(json.utf8)), etag: "\"v\(version)\"")
     }
@@ -193,5 +202,52 @@ final class SessionTests: XCTestCase {
         XCTAssertTrue(api.calls.contains("unlink"))
         XCTAssertNil(tokens.load())
         XCTAssertEqual(s.link, .unlinked)
+    }
+
+    // MARK: one game, no club
+
+    func testAGameCodeLinksTheWatchToOneGame() async throws {
+        let api = FakeAPI(Rules.newGame(doublesCfg))
+        let (s, tokens, _) = make(api, token: nil)
+        await s.join(code: "k7q 2zm", digits: "04 20")
+        XCTAssertEqual(api.joined, ["K7Q2ZM 0420"], "tidied before it is sent")
+        XCTAssertEqual(s.link, .linked); XCTAssertTrue(s.gameOnly); XCTAssertEqual(s.clubName, "")
+        XCTAssertNotNil(tokens.load()); XCTAssertNil(s.notice); XCTAssertNil(s.pairing)
+        api.stateLink = "{\"id\":\"g1\",\"label\":null,\"game\":\"live-1\"}"
+        await s.refresh()
+        XCTAssertEqual(s.gameId, "live-1"); XCTAssertTrue(s.gameOnly)
+    }
+
+    func testABadGameCodeIsNotSentAndAWrongOneStaysUnlinked() async throws {
+        let api = FakeAPI(Rules.newGame(doublesCfg))
+        let (s, tokens, _) = make(api, token: nil)
+        await s.join(code: "K7Q", digits: "0420"); XCTAssertNotNil(s.notice)
+        await s.join(code: "K7Q2ZM", digits: "42"); XCTAssertNotNil(s.notice)
+        await s.join(code: "K7Q2Z1", digits: "0420"); XCTAssertNotNil(s.notice, "1 is not one of the letters and numbers")
+        XCTAssertTrue(api.joined.isEmpty, "nothing reached the server")
+        api.joinError = .http(status: 403, message: "Those 4 numbers do not match the scoring phone. Check its screen.")
+        await s.join(code: "K7Q2ZM", digits: "1111")
+        XCTAssertEqual(s.notice, "Those 4 numbers do not match the scoring phone. Check its screen.")
+        XCTAssertEqual(s.link, .unlinked); XCTAssertNil(tokens.load()); XCTAssertFalse(s.gameOnly)
+        api.joinError = .offline("down")
+        await s.join(code: "K7Q2ZM", digits: "1111")
+        XCTAssertEqual(s.sync, .offline); XCTAssertEqual(s.link, .unlinked)
+    }
+
+    func testWhenTheGameEndsTheLinkEndsAndTheWatchSaysSo() async throws {
+        let api = FakeAPI(Rules.newGame(doublesCfg))
+        let (s, tokens, _) = make(api, token: nil)
+        await s.join(code: "K7Q2ZM", digits: "0420")
+        api.failNext = [.http(status: 401, message: "gone")]
+        await s.refresh()
+        XCTAssertEqual(s.link, .unlinked); XCTAssertNil(tokens.load()); XCTAssertFalse(s.gameOnly)
+        XCTAssertEqual(s.notice, "This game's link has ended.")
+    }
+
+    func testGameCodesAreTidiedStrictly() {
+        XCTAssertEqual(GameCode.clean(" k7q-2zm "), "K7Q2ZM"); XCTAssertEqual(GameCode.clean("K7Q 2ZM"), "K7Q2ZM")
+        for bad in ["", "K7Q2Z", "K7Q2ZMA", "K7Q2Z1", "K7Q2Z8", "K7Q2Z!", "ÄBCDEF"] { XCTAssertNil(GameCode.clean(bad), bad) }
+        XCTAssertEqual(GameCode.digits("0420"), "0420"); XCTAssertEqual(GameCode.digits("04 20"), "0420")
+        for bad in ["", "042", "04200", "04a0", "٠٤٢٠"] { XCTAssertNil(GameCode.digits(bad), bad) }
     }
 }

@@ -107,3 +107,19 @@ test('what a watch sees of a game: players and score, with the serving call', ()
   assert.equal(W.watchGame({ id: 'live-1', state: over, version: 8 }).say, 'Game over');
   assert.ok(!JSON.stringify(g).includes('secret') && !JSON.stringify(g).includes('tap-'), 'no secrets or tap ids');
 });
+
+test('a game code: its own hash domains, 30 bits typed from 128 bits in the link, 4 numbers, and a single-game link is short lived', () => {
+  const id = W.newOfferId();
+  assert.match(id, /^[0-9a-f]{32}$/); assert.notEqual(id, W.newOfferId());
+  assert.match(W.shortCode(id), /^[A-Z2-7]{6}$/);
+  assert.match(W.newConfirm(), /^[0-9]{4}$/);
+  assert.notEqual(W.offerHash(id), W.pairHash(id), 'a game code is never a watch pairing');
+  assert.notEqual(W.offerShortHash(W.shortCode(id)), W.shortHash(W.shortCode(id)));
+  assert.ok(W.hashEq(W.offerHash(id), W.offerHash(id)) && !W.hashEq(W.offerHash(id), W.offerHash(W.newOfferId())));
+  assert.ok(W.GAME_LINK_HOURS * 3600e3 < 2 * DAY && W.GAME_LINK_END_MIN <= 30 && W.OFFER_TTL_MIN <= 15);
+  assert.ok(W.MAX_GAME_LINKS >= 4, 'a pair of doubles and a couple of spectators');
+  // The numbers keep the pairing rules: 3 wrong tries end the code.
+  assert.equal(W.confirmVerdict(1, '1234', '1234'), 'ok');
+  assert.equal(W.confirmVerdict(2, '1234', '4321'), 'wrong');
+  assert.equal(W.confirmVerdict(3, '1234', '4321'), 'locked');
+});

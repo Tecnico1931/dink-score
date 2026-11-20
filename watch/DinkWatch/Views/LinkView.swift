@@ -4,8 +4,13 @@ import DinkCore
 /// Not linked: the QR the phone scans, the 4 numbers it asks for, and the 6 characters to type if the camera is no use.
 struct LinkView: View {
     @Environment(AppModel.self) private var app
+    @State private var entering = false
 
     var body: some View {
+        if entering { JoinView(back: { entering = false }) } else { qrScreen }
+    }
+
+    @ViewBuilder private var qrScreen: some View {
         let session = app.session
         // The QR is the largest square that fits the screen below the clock, edge to edge; the numbers are one scroll (or Digital Crown turn) below it.
         GeometryReader { geo in
@@ -26,6 +31,7 @@ struct LinkView: View {
                         ProgressView("Getting a code")
                     }
                     if let n = session.notice { Text(n).font(.caption2).foregroundStyle(.orange).multilineTextAlignment(.center).padding(.horizontal, 10) }
+                    Button("Enter a game code") { session.clearNotice(); entering = true }.padding(.horizontal, 10)
                     if session.hasLink {
                         Button("Cancel") { session.cancelRelink() }.padding(.horizontal, 10)
                     }

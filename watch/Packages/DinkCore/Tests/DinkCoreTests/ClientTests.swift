@@ -44,6 +44,18 @@ final class ClientTests: XCTestCase {
         XCTAssertEqual(w, .waiting)
     }
 
+    func testJoinSendsTheTypedCodeAndReadsAGameLink() async throws {
+        let t = CannedTransport()
+        t.body = "{\"ok\":true,\"status\":\"linked\",\"token\":\"w_abc\",\"link\":{\"id\":\"L1\",\"label\":\"W\",\"game\":\"live-9\"},\"club\":{\"name\":\"\"}}"
+        let r = try await make(t).join(code: "K7Q2ZM", confirm4: "0420", label: "W")
+        XCTAssertEqual(r, .linked(token: "w_abc", clubName: "", link: LinkInfo(id: "L1", label: "W", game: "live-9")))
+        let b = json(t.requests[0])
+        XCTAssertEqual(b["action"] as? String, "watch-join"); XCTAssertEqual(b["code"] as? String, "K7Q2ZM"); XCTAssertEqual(b["confirm4"] as? String, "0420")
+        XCTAssertNil(t.requests[0].value(forHTTPHeaderField: "Authorization"), "no token yet")
+        t.status = 403; t.body = "{\"error\":\"Those 4 numbers do not match the scoring phone.\"}"
+        do { _ = try await make(t).join(code: "K7Q2ZM", confirm4: "1111", label: "W"); XCTFail() } catch let e as DinkError { XCTAssertEqual(e.message, "Those 4 numbers do not match the scoring phone.") }
+    }
+
     func testStateUsesTheTokenAndTheETag() async throws {
         let t = CannedTransport()
         t.body = "{\"club\":{\"name\":\"C\"},\"link\":{\"id\":\"L\",\"label\":null},\"game\":null}"

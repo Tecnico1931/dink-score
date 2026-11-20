@@ -24,7 +24,7 @@ import { createHash } from 'node:crypto';
 import { db, handler, send, readBody, fail, cleanCode, requireClub } from './_db.js';
 import { secretOk, hashSecret, FRESH_MS, requireSecret, applyRally } from './_livecore.js';
 import { callOf, sayOf, cleanOpId } from './_watchrules.js';
-import { WATCH_ACTIONS, WATCH_CLUB_ACTIONS, watchAction, watchClubAction, watchState, attachLinks } from './_watch.js';
+import { WATCH_ACTIONS, WATCH_CLUB_ACTIONS, watchAction, watchClubAction, watchState, attachLinks, endGameLinks } from './_watch.js';
 import { boardGet, boardAction, BOARD_ACTIONS } from './_courtboard.js';
 import { sessionGet, sessionAction } from './_sessions.js';
 import { pushAction, PUSH_ACTIONS } from './_push.js';
@@ -100,7 +100,7 @@ export default handler(async (req, res) => {
 
   if (body.action === 'end') {
     const [row] = await sql`SELECT secret_hash FROM live_games WHERE club = ${code} AND id = ${String(body.id || '')}`;
-    if (row) { await requireSecret(sql, req, row, body.secret); await sql`DELETE FROM live_games WHERE club = ${code} AND id = ${String(body.id || '')}`; }
+    if (row) { await requireSecret(sql, req, row, body.secret); await sql`DELETE FROM live_games WHERE club = ${code} AND id = ${String(body.id || '')}`; await endGameLinks(sql, code, String(body.id || '')); }
     return send(res, 200, { ok: true });
   }
 

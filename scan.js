@@ -38,6 +38,12 @@ export function cleanPair(text, origin) {
   return SHORT.test(short) ? short : '';
 }
 
+// A game link: https://<site>/#game=<32 hex>, shown by the scoring phone for a phone to open (the watch types the 6 characters instead).
+export const gameFragment = hash => { const m = /^#game=([0-9A-Fa-f]{32})$/.exec(String(hash || '')); return m ? m[1].toLowerCase() : ''; };
+export const gameLink = (origin, id) => String(origin).replace(/\/+$/, '') + '/#game=' + id;
+// The 6 characters of a game code (or a watch's code), as typed: '' when they are not 6 of the base 32 letters and numbers.
+export function cleanShort(text) { const t = String(text || '').toUpperCase().replace(/[\s-]/g, ''); return SHORT.test(t) ? t : ''; }
+
 // The 4 numbers on the watch: digits only, exactly 4.
 export const cleanConfirm = text => { const d = String(text || '').replace(/\D/g, ''); return d.length === 4 ? d : ''; };
 

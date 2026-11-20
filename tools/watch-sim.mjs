@@ -127,5 +127,26 @@ assert.equal((await get()).status, 401);
 watch.token = null;
 say('watch', '401 -> token cleared, back to the QR screen');
 
+// 9. A watch with no club at tournament: two games on the same Wi-Fi, each with its own watch. The scoring phone shows a game code,
+// the watch types it, and each watch holds one game only. The phone ending the game ends its watch's link.
+const second = { game: 'live-sim2', secret: 'simSecret456' };
+await http_(live, 'POST', { body: { code: PHONE.code, action: 'state', id: second.game, secret: second.secret, state: { ...state, startedAt: 2 }, ack: 0 } });
+const pair = async (id, secret) => (await http_(live, 'POST', { body: { code: PHONE.code, action: 'watch-offer', game: id, secret } })).json.offer;
+const o1 = await pair(second.game, second.secret);
+say('phone', `shows game code ${o1.short.slice(0, 3)} ${o1.short.slice(3)} and numbers ${o1.confirm4} for ${second.game}`);
+const typed = await http_(live, 'POST', { body: { action: 'watch-join', code: o1.short, confirm4: o1.confirm4, label: 'Sim Watch 2' } });
+assert.equal(typed.status, 200); assert.equal(typed.json.club.name, '', 'a single-game link is not told the club');
+watch.token = typed.json.token;
+say('watch', 'typed the code: linked to ' + typed.json.link.game + ' only, no club name, ' + watch.token.slice(0, 6) + '...');
+assert.equal((await get()).json.game.id, second.game);
+assert.equal((await post('watch-rally', { opId: 'sim-solo-0001', side: 0, game: PHONE.game })).status, 404, 'the other game is out of reach');
+assert.equal((await post('watch-rally', { opId: 'sim-solo-0002', side: 0 })).json.score[0], 1);
+say('watch', 'scores its own game; the other game on the same court is a 404');
+assert.equal((await http_(live, 'POST', { body: { action: 'watch-join', code: o1.short, confirm4: o1.confirm4 } })).status, 404, 'a game code is good for one watch');
+await http_(live, 'POST', { body: { code: PHONE.code, action: 'end', id: second.game, secret: second.secret } });
+assert.equal((await get()).status, 401);
+watch.token = null;
+say('watch', 'the phone ended the game -> 401, the watch says the link has ended');
+
 console.log('\nwatch simulation passed');
 server.close(); await pg.close(); process.exit(0);

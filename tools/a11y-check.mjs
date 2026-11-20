@@ -85,6 +85,24 @@ for (const [mode, opt] of states) {
   await page.setViewport({ width: 390, height: 780, isMobile: true, hasTouch: true });
   await page.goto(base + 'b.html', { waitUntil: 'networkidle0' }); await sleep(300); await audit(page, 'public bracket page (shell)', report); await ctx.close();
 }
+{ // A watch's QR or a game link opened with no club on this phone (Safari): the one-game link sheet, both ways in, at phone width and zoomed.
+  const id = '0123456789abcdef0123456789abcdef';
+  for (const [label, hash] of [['watch link, no club', `#watch=${id}.0420`], ['game link, no club', `#game=${id}`]]) {
+    const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+    await page.setViewport({ width: 390, height: 780, isMobile: true, hasTouch: true });
+    await page.goto(base + hash, { waitUntil: 'networkidle0' }); await sleep(500);
+    if (!(await page.$('[data-form="watch-game"]'))) report.push({ label, axe: [], extra: [{ kind: 'text', name: 'the one-game link sheet did not open', px: 0 }] });
+    else {
+      await audit(page, label, report, '.sheet');
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(250);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `${label}: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+    }
+    await ctx.close();
+  }
+}
 await browser.close(); srv.kill();
 let bad = 0;
 for (const r of report) {

@@ -18,6 +18,10 @@ public final class WatchSession {
     public private(set) var link: Link
     public private(set) var pairing: Pairing?
     public private(set) var clubName = ""
+    /// This watch holds a link to one game only (no club): true until it is unlinked. Known from the link made or the last answer.
+    public private(set) var gameOnly = false
+    /// A game code is being checked.
+    public private(set) var joining = false
     public private(set) var model: ScoreModel
     public private(set) var sync: Sync = .ok
     /// A short sentence for the screen ("No connection", "Saved"); cleared by the next good answer.
@@ -70,6 +74,9 @@ public final class WatchSession {
 
     // MARK: linking
 
+    /// Clear the line of text under the buttons (the screen changes, so an old error should not follow it).
+    public func clearNotice() { notice = nil }
+
     /// Throw the QR away and show a new one (the "Link another phone" button).
     public func showNewCode() { pairing = nil; holdUntil = nil }
 
@@ -83,11 +90,7 @@ public final class WatchSession {
         do {
             switch try await api.poll(p.secrets) {
             case .waiting: break
-            case .linked(let token, let club, _):
-                tokens.save(token); clubName = club
-                link = .linked; pairing = nil; etag = nil; failures = 0; notice = nil
-                model = ScoreModel()
-                outbox.save([])
+            case .linked(let token, let club, let info): adopt(token: token, club: club, info: info)
             }
             sync = .ok
         } catch let e as DinkError {
@@ -99,6 +102,32 @@ public final class WatchSession {
             }
         } catch { sync = .offline }
     }
+
+    /// A link was made (the phone claimed the QR, or the game code was accepted): keep the token and start clean.
+    private func adopt(token: String, club: String, info: LinkInfo) {
+        tokens.save(token); clubName = club; gameOnly = info.game != nil
+        link = .linked; pairing = nil; etag = nil; failures = 0; notice = nil
+        model = ScoreModel()
+        outbox.save([])
+    }
+
+    /// Link to one game with the code its scoring phone shows (no club, no Home Screen app). The server checks the 4 numbers and ends the code after 3 wrong tries.
+    public func join(code: String, digits: String) async {
+        guard !joining else { return }
+        guard let short = GameCode.clean(code) else { notice = "Type the 6 characters shown on the scoring phone."; return }
+        guard let four = GameCode.digits(digits) else { notice = "Type the 4 numbers shown on the scoring phone."; return }
+        joining = true; defer { joining = false }
+        do {
+            switch try await api.join(code: short, confirm4: four, label: label) {
+            case .linked(let token, let club, let info): adopt(token: token, club: club, info: info); sync = .ok
+            case .waiting: notice = "That code did not work. Check the scoring phone."
+            }
+        } catch let e as DinkError {
+            if case .http(_, let message) = e { notice = message } else { sync = .offline; notice = "No connection. Try again." }
+        } catch { sync = .offline; notice = "No connection. Try again." }
+    }
+
+    private var lostMessage: String { gameOnly ? "This game's link has ended." : "This watch is not linked any more. Link it again from the phone." }
 
     private func newPairing() async {
         let secrets = PairingSecrets.make(random: random)
@@ -133,7 +162,7 @@ public final class WatchSession {
     public func flush() async {
         guard !flushing else { return }
         flushing = true; defer { flushing = false }
-        guard let token = tokens.load() else { becomeUnlinked("This watch is not linked any more."); return }
+        guard let token = tokens.load() else { becomeUnlinked(lostMessage); return }
         while let op = model.pending.first {
             do {
                 let reply = op.kind == .rally
@@ -146,7 +175,7 @@ public final class WatchSession {
                 succeeded()
             } catch let e as DinkError {
                 switch e.reaction {
-                case .tokenLost: becomeUnlinked("This watch is not linked any more. Link it again from the phone."); return
+                case .tokenLost: becomeUnlinked(lostMessage); return
                 case .dropQueue:
                     model.dropPending(); outbox.save([]); etag = nil
                     failures = 0
@@ -159,19 +188,19 @@ public final class WatchSession {
 
     /// Ask the server what game, if any, was sent to this watch.
     public func refresh() async {
-        guard let token = tokens.load() else { becomeUnlinked("This watch is not linked any more."); return }
+        guard let token = tokens.load() else { becomeUnlinked(lostMessage); return }
         do {
             switch try await api.fetchState(token: token, etag: etag) {
             case .unchanged: break
             case .changed(let reply, let tag):
-                etag = tag; clubName = reply.clubName
+                etag = tag; clubName = reply.clubName; gameOnly = reply.link.game != nil
                 if let g = reply.game, g.id != putAway { model.adopt(game: g.id, state: g.state, version: g.version) }
                 else { model.clearGame(); if reply.game == nil { putAway = nil } }
                 outbox.save(model.pending)
             }
             succeeded()
         } catch let e as DinkError {
-            if e.reaction == .tokenLost { becomeUnlinked("This watch is not linked any more. Link it again from the phone.") } else { failed(e) }
+            if e.reaction == .tokenLost { becomeUnlinked(lostMessage) } else { failed(e) }
         } catch { failed(.offline(error.localizedDescription)) }
     }
 
@@ -193,7 +222,7 @@ public final class WatchSession {
         } catch let e as DinkError {
             switch e {
             case .http(404, _): notice = "Already saved."; close(id)
-            case .http(401, _): becomeUnlinked("This watch is not linked any more. Link it again from the phone.")
+            case .http(401, _): becomeUnlinked(lostMessage)
             case .http(400, _): notice = "Save this game on your phone."; close(id)
             default: failed(e)
             }
@@ -212,7 +241,7 @@ public final class WatchSession {
 
     private func becomeUnlinked(_ message: String?) {
         tokens.clear(); outbox.save([])
-        model = ScoreModel(); link = .unlinked; pairing = nil; etag = nil; putAway = nil; failures = 0; clubName = ""
+        model = ScoreModel(); link = .unlinked; pairing = nil; etag = nil; putAway = nil; failures = 0; clubName = ""; gameOnly = false
         notice = message
     }
 }

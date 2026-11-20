@@ -14,10 +14,13 @@ watch/
 
 | Screen | When | What |
 |---|---|---|
-| Link | not linked | QR code as large as the screen allows (a square under the clock, whole-pixel modules on white), then, one scroll or Digital Crown turn below it, the 4 numbers the phone asks for and 6 characters to type if the camera is no use. A new code every ~4.5 minutes. |
-| Idle | linked, no game sent | club name, *Link another phone*, *Unlink* |
+| Link | not linked | *Enter a game code* (below the QR) and the QR code as large as the screen allows (a square under the clock, whole-pixel modules on white), then, one scroll or Digital Crown turn below it, the 4 numbers the phone asks for and 6 characters to type if the camera is no use. A new code every ~4.5 minutes. |
+| Game code | *Enter a game code* | the 6 characters and 4 numbers the scoring phone shows; links the watch to that one game |
+| Idle | linked, no game sent | club name (or *Linked to one game*), *Link another phone* (or *Enter a game code*), *Unlink* |
 | Score | a game is attached | the call (serving side first, as the phone says it) with undo beside it, then one full-width button per team that fills the rest of the screen: team name (17 pt, up to two lines), a dot on the serving team, and the score in 68 pt type (shrinks for 3 digits) |
 | Game over | the game is won | winner and score, *Finish* (`watch-finish`), *Undo last point*, *Close without saving* |
+
+**One game, no club.** A watch can hold a link to a single game instead of the club: the scoring phone (club sheet, *Apple Watch*, *This game*) shows *a code for the watch to type* (6 characters and 4 numbers, one watch per code, good for 10 minutes), and the watch's *Enter a game code* sends them with `watch-join`. A phone with no club, such as Safari opened from the watch's QR with the iPhone Camera, can instead enter the scoring phone's code on that page (`watch-claim-game`), and the scoring phone can also scan the watch's QR (*Link a watch*, *This game only*). That link reads and scores only that game, is never told the club's name, lasts 8 hours from when the watch collects it (it does not slide), lapses 15 minutes after the watch finishes the game, and ends at once when the phone ends the game or unlinks it. A link icon beside the call marks it on the score screen. The club-wide link and *Send this game to a watch* are unchanged.
 
 Taps are written to an outbox first (`Application Support/outbox.json`), each with its own id, and sent in order. A lost answer is retried with the same id and the server counts that tap once, so the score survives a flaky connection.
 
