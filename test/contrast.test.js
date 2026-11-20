@@ -72,3 +72,30 @@ test('outdoor display: every court text is opaque and the display setting is wir
   assert.match(html, /data-act="display"[^>]*aria-pressed/);
   assert.match(html, /id="a11y-live"[^>]*aria-live="polite"/);
 });
+
+// Watch score screen must match the phone's team-colour rule (team 0 = court blue on top, team 1 = court green below)
+// and pass WCAG AA contrast for white ink and the ball-yellow serving dot on OLED in both active and dimmed states.
+test('watch score screen: team colours match phone court and pass contrast', () => {
+  const swift = fs.readFileSync(new URL('../watch/DinkWatch/Views/ScoreView.swift', import.meta.url), 'utf8');
+  const swiftHex = name => {
+    const m = new RegExp(`static let ${name}\\s*=\\s*0x([0-9A-Fa-f]{6})\\b`).exec(swift);
+    assert.ok(m, `missing watch colour constant ${name}`);
+    return hexRgb(m[1]);
+  };
+  const team0 = [swiftHex('team0Top'), swiftHex('team0Bottom')];
+  const team1 = [swiftHex('team1Top'), swiftHex('team1Bottom')];
+  const ball = swiftHex('ball');
+  assert.deepEqual(team0, halfVars('.half'), 'watch team 0 must match phone team 1 (court blue)');
+  assert.deepEqual(team1, halfVars('.half[data-k="b"]'), 'watch team 1 must match phone team 2 (court green)');
+  assert.deepEqual(ball, light.ball, 'watch serving dot must match ball yellow');
+  assert.ok(swift.indexOf('teamButton(0)') !== -1 && swift.indexOf('teamButton(0)') < swift.indexOf('teamButton(1)'),
+    'watch must render team 0 on top and team 1 below, matching the phone');
+  for (const [label, stops] of [['watch team 0 (blue)', team0], ['watch team 1 (green)', team1]]) {
+    for (const c of stops) {
+      assert.ok(ratio(WHITE, c) >= 4.5, `${label} active white text: ${ratio(WHITE, c).toFixed(2)}:1`);
+      assert.ok(ratio(ball, c) >= 4.5, `${label} serving dot: ${ratio(ball, c).toFixed(2)}:1`);
+      const idle = over([6, 10, 16], c, 0.3);
+      assert.ok(ratio(over(WHITE, idle, 0.9), idle) >= 4.5, `${label} idle white text: ${ratio(over(WHITE, idle, 0.9), idle).toFixed(2)}:1`);
+    }
+  }
+});

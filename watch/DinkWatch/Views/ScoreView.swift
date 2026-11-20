@@ -4,6 +4,27 @@ import DinkCore
 
 func teamName(_ game: GameState, _ t: Int) -> String { game.cfg.teams[t].joined(separator: " & ") }
 
+/// Matches the phone's floodlit court (dink-score.html, A11Y-START/END): team 1 is always court blue, team 2 court green,
+/// ball yellow marks the serving team, and the receiving side dims under the same 30% night veil. Pinned by test/contrast.test.js.
+private enum CourtColors {
+    static let team0Top = 0x3452EE
+    static let team0Bottom = 0x1A2BA6
+    static let team1Top = 0x0A7656
+    static let team1Bottom = 0x065A43
+    static let ball = 0xDDF247
+    static let idleVeil = Color(.sRGB, red: 6.0 / 255.0, green: 10.0 / 255.0, blue: 16.0 / 255.0, opacity: 0.30)
+
+    static func srgb(_ hex: Int) -> Color {
+        Color(.sRGB, red: Double((hex >> 16) & 0xFF) / 255.0, green: Double((hex >> 8) & 0xFF) / 255.0, blue: Double(hex & 0xFF) / 255.0)
+    }
+
+    static func gradient(for team: Int) -> LinearGradient {
+        let top = srgb(team == 0 ? team0Top : team1Top)
+        let bottom = srgb(team == 0 ? team0Bottom : team1Bottom)
+        return LinearGradient(colors: [top, bottom], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+}
+
 /// The call (serving side first, as the phone says it), a big button per team, and undo.
 struct ScoreView: View {
     @Environment(AppModel.self) private var app
@@ -43,13 +64,20 @@ struct ScoreView: View {
     }
 
     private func teamButton(_ t: Int) -> some View {
-        Button {
+        let serving = game.serving == t
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return Button {
             WKInterfaceDevice.current().play(.click)
             app.session.score(side: t)
         } label: {
             HStack(spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    if game.serving == t { Image(systemName: "circle.fill").font(.system(size: 13)).accessibilityHidden(true) }
+                    if serving {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(CourtColors.srgb(CourtColors.ball))
+                            .accessibilityHidden(true)
+                    }
                     Text(teamName(game, t)).font(.system(size: 17, weight: .semibold)).lineLimit(2).minimumScaleFactor(0.6).multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 0)
@@ -58,10 +86,15 @@ struct ScoreView: View {
             }
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(t == 0 ? Color.green : Color.blue))
-            .foregroundStyle(.black)
+            .background {
+                ZStack {
+                    shape.fill(CourtColors.gradient(for: t))
+                    if !serving { shape.fill(CourtColors.idleVeil) }
+                }
+            }
+            .foregroundStyle(serving ? Color.white : Color.white.opacity(0.9))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Point for \(teamName(game, t)). Score \(game.score[t]).")
+        .accessibilityLabel("Point for \(teamName(game, t)).\(serving ? " Serving." : "") Score \(game.score[t]).")
     }
 }
