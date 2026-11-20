@@ -23,7 +23,8 @@ import * as R from './_watchrules.js';
 export const WATCH_ACTIONS = ['watch-register', 'watch-poll', 'watch-state', 'watch-rally', 'watch-unrally', 'watch-finish', 'watch-unlink']; // no club code: pairing is open, the rest carry the watch token
 export const WATCH_CLUB_ACTIONS = ['watch-claim', 'watch-list', 'watch-attach', 'watch-revoke']; // the phone, with the club code
 
-const MAX_NEW_NET = 10, MAX_NEW_ALL = 300;  // registrations per network per hour, and across the whole app
+// A watch left on the QR screen registers a new QR every 5 minutes (12 an hour), and phones, watches and the simulator share one home or carrier address.
+const MAX_NEW_NET = 60, MAX_NEW_ALL = 600;  // registrations per network per hour, and across the whole app
 const MAX_BAD_CLAIMS = 10;                  // wrong link codes per network per 15 minutes
 const MAX_BAD_POLLS = 30;                   // wrong poll secrets per network per 15 minutes
 const MAX_BAD_TOKENS = 30;                  // unknown or revoked watch tokens per network per 15 minutes

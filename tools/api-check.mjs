@@ -2125,8 +2125,13 @@ await step('the public league link: organizer makes it, a spectator sees only al
     assert.equal((await call(live, 'POST', { body: { action: 'watch-state' } })).status, 401, 'no token');
     assert.equal((await call(live, 'POST', { headers: { authorization: 'Bearer ' + wowner }, body: { action: 'watch-state' } })).status, 401, 'an owner token is not a watch token');
     const reg2 = { 'x-real-ip': '10.77.0.3' };
-    for (let i = 0; i < 10; i++) ok(await reg(mk(), {}, reg2));
-    assert.equal((await reg(mk(), {}, reg2)).status, 429);
+    for (let i = 0; i < 20; i++) ok(await reg(mk(), {}, reg2));   // an hour on the QR screen is 12 refreshes, plus relaunches and a second watch
+    for (let i = 20; i < 60; i++) ok(await reg(mk(), {}, reg2));
+    assert.equal((await reg(mk(), {}, reg2)).status, 429, 'a flood is still stopped');
+    assert.equal((await pg.query(`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = 'watch-new:10.77.0.3'`)).rows[0].n, 60, 'a refused attempt leaves no mark');
+    const stuck = { 'x-real-ip': '10.77.0.5' };   // marks stored under the old limit of 10 no longer block
+    await pg.query(`INSERT INTO lookup_fails (ip) SELECT 'watch-new:10.77.0.5' FROM generate_series(1, 10)`);
+    ok(await reg(mk(), {}, stuck));
     assert.equal((await reg(mk(), {}, { 'x-real-ip': '10.77.0.4' })).status, 200);
     const full = ok(await call(club, 'POST', { body: { name: 'Full watch club', pin: '135790' } }), 201).club.code;
     for (let i = 0; i < 20; i++) await link({}, full);
