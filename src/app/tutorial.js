@@ -27,8 +27,38 @@ function tourSteps() {
       : `<p>In Chrome, tap the <b>⋮</b> menu, then <b>Install app</b> or <b>Add to Home screen</b>. Dink Score opens full screen like an app and works without signal at the court.</p>` });
   return steps;
 }
+/* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
+const NEWS = { id: '2026-11-20', title: "What's new", items: [
+  ['🏆', 'Leagues and ladders', 'Organizers can run a league or ladder for the club. Results are kept if you lose signal and sent when you are back online, and a public league page lets anyone follow along without joining.'],
+  ['🔑', 'Sign in with a passkey', 'Use your fingerprint, face or screen lock to sign in and <b>bring your clubs</b> to a new phone. Sign in now comes first when you have no club, and the app checks before making a new one if you already have some.'],
+  ['⌚', 'Apple Watch', 'Score from your wrist and record the game as a pickleball workout. Needs the separate Dink Score watch app. In a club, open <b>Apple Watch</b> to link a watch; on the live game, tap <b>Link a watch</b> and scan its code to use it for just that game.'],
+  ['📋', 'Your games across clubs', 'See your own games and rating from every club on this phone in one place, and download them as a CSV.'],
+  ['🔗', 'Public result links', 'If your organizers turn it on, share a saved game as a link with a preview picture. Anyone can open it without joining.'],
+  ['🎾', 'Open play court board', 'Courts, a queue and fair rotation for open play, with a big board for a TV at the courts.'],
+  ['📣', 'Pickup sessions', 'Start a 24-hour session with its own code and QR. Results stay in the session unless a member saves them to a club.']
+] };
+// Someone opening the app for the first time gets the tour instead, so they never see old news.
+if (!store.get('pb.tutorialSeen', false)) store.set('pb.newsSeen', NEWS.id);
+let newsOpen = store.get('pb.newsSeen', '') !== NEWS.id, newsFrom = null;
+function closeNews() {
+  newsOpen = false; store.set('pb.newsSeen', NEWS.id); renderTour();
+  if (newsFrom && newsFrom.isConnected) { try { newsFrom.focus({ preventScroll: true }); } catch {} }
+  newsFrom = null;
+}
 function renderTour() {
   const root = $('#tour');
+  if (tourStep === null && newsOpen && !(live && live.open)) {
+    if (root.querySelector('.news')) return;
+    newsFrom = document.activeElement;
+    root.innerHTML = `<div class="tour-bg"><div class="tour news" role="dialog" aria-modal="true" aria-labelledby="news-h">
+      <div class="tour-body"><span class="count">New in Dink Score</span><h2 id="news-h">${NEWS.title}</h2>
+        <div class="news-list">${NEWS.items.map(([icon, t, body]) => `<div class="news-item"><span class="news-ic" aria-hidden="true">${icon}</span><div><b>${t}</b><p>${body}</p></div></div>`).join('')}</div></div>
+      <div class="tour-foot"><button class="btn btn-ball" data-news="done" id="news-ok" style="flex:1">Got it</button></div>
+    </div></div>`;
+    const btn = $('#news-ok'); if (btn) { try { btn.focus({ preventScroll: true }); } catch {} }
+    announce(`${NEWS.title}. ${NEWS.items.length} updates. Press Got it to close.`);
+    return;
+  }
   if (tourStep === null) { root.innerHTML = ''; return; }
   const steps = tourSteps();
   tourStep = Math.max(0, Math.min(tourStep, steps.length - 1));
