@@ -25,7 +25,13 @@ try {
   console.log('ok  loads, no script error or CSP violation');
 
   for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.fill(`#name-${i < 2 ? 0 : 1}-${i % 2}`, n);
+  const optsBtn = page.locator('[data-act="setup-opts"]');
+  assert.equal(await optsBtn.getAttribute('aria-expanded'), 'false', 'game settings start collapsed');
+  assert.match(await optsBtn.innerText(), /Doubles · Side-out · to 11 · win by 2/);
+  await optsBtn.click();
+  assert.equal(await optsBtn.getAttribute('aria-expanded'), 'true', 'game settings expand on click');
   await page.getByRole('button', { name: 'Rally', exact: true }).click();
+  assert.match(await optsBtn.innerText(), /Doubles · Rally · to 11 · win by 2/);
   await page.locator('[data-act=start]').click();
   for (let i = 0; i < 11; i++) await page.locator('[data-rally="0"]').click();
   await page.getByRole('dialog').getByText(/Ana & Ben win|Ana and Ben win|win/).first().waitFor();
