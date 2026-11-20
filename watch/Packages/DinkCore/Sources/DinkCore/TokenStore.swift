@@ -18,6 +18,7 @@ public final class MemoryTokenStore: TokenStore {
 
 public final class KeychainTokenStore: TokenStore {
     private let service: String, account = "watch-token"
+    private var held: String?   // the token is handed out once, so if the Keychain refuses it (an unsigned build) keep it until the app quits rather than lose the link
     public init(service: String = "dink-watch") { self.service = service }
 
     private var match: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account] }
@@ -27,7 +28,7 @@ public final class KeychainTokenStore: TokenStore {
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return nil }
+        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess, let data = out as? Data else { return held }
         return String(data: data, encoding: .utf8)
     }
 
@@ -36,8 +37,8 @@ public final class KeychainTokenStore: TokenStore {
         var item = match
         item[kSecValueData as String] = Data(token.utf8)
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly   // readable while the watch is on the wrist and locked
-        SecItemAdd(item as CFDictionary, nil)
+        held = SecItemAdd(item as CFDictionary, nil) == errSecSuccess ? nil : token
     }
 
-    public func clear() { SecItemDelete(match as CFDictionary) }
+    public func clear() { held = nil; SecItemDelete(match as CFDictionary) }
 }

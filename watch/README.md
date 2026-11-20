@@ -56,7 +56,7 @@ You need a Mac with Xcode, an iPhone paired with the watch, and an Apple ID. A f
 
 ## Not done here, deliberately
 
-- Not run on a watch or in the simulator (no watchOS Simulator runtime is installed on the build Mac); what is verified is in the pull request.
+- Not run on a real watch. It was run in the watchOS 27 simulator against the real API handlers on throwaway PGlite (`DINK_BASE_URL=http://127.0.0.1:<port>`, unsigned build): `docs/01-link.png` to `04-gameover.png`; the QR in `01-link.png` decodes to the pairing URL. Taps, the HealthKit prompt and the Keychain on a signed build are untested.
 - No app icon yet (needs a 1024 px image); no complications; no league or event scoring; no `scoredBy`.
 - Linking makes a registration on the server; the server allows 10 an hour per network, and the watch only asks while the Link screen is up.
 - CI has no Mac job; the vector check runs in the normal job, the Swift tests are run by hand.

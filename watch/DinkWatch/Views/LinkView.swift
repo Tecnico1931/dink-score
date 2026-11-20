@@ -11,6 +11,7 @@ struct LinkView: View {
             VStack(spacing: 8) {
                 if let p = session.pairing {
                     QRView(text: p.qrText)
+                        .frame(maxWidth: 120) // small enough that the 4 numbers show without scrolling on a 41 mm case
                         .accessibilityElement()
                         .accessibilityLabel("Link code. Open Dink Score on your phone, choose Link a watch, then type \(p.shortCode) and \(p.confirm4.map(String.init).joined(separator: " ")).")
                     Text(p.confirm4)
