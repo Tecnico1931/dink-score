@@ -4,15 +4,17 @@ import DinkCore
 /// The pairing code, drawn on a white square with whole-point modules so the edges stay sharp for a phone camera.
 struct QRView: View {
     let text: String
+    @Environment(\.displayScale) private var scale
 
     var body: some View {
         if let qr = try? QRMatrix(text, level: .M) {
             Canvas { ctx, size in
+                // The white square is the whole frame; modules are a whole number of device pixels so no edge is blurred.
                 let quiet = 2, count = qr.size + 2 * quiet
-                let cell = max(1, floor(min(size.width, size.height) / CGFloat(count)))
+                let cell = max(1 / scale, floor(min(size.width, size.height) * scale / CGFloat(count)) / scale)
                 let side = cell * CGFloat(count)
-                let origin = CGPoint(x: (size.width - side) / 2, y: (size.height - side) / 2)
-                ctx.fill(Path(CGRect(origin: origin, size: CGSize(width: side, height: side))), with: .color(.white))
+                let origin = CGPoint(x: ((size.width - side) / 2 * scale).rounded() / scale, y: ((size.height - side) / 2 * scale).rounded() / scale)
+                ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.white))
                 var dark = Path()
                 for r in 0..<qr.size { for c in 0..<qr.size where qr.isDark(r, c) {
                     dark.addRect(CGRect(x: origin.x + CGFloat(c + quiet) * cell, y: origin.y + CGFloat(r + quiet) * cell, width: cell, height: cell))
