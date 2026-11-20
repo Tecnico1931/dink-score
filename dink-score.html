@@ -125,8 +125,16 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .seg.sm button { padding: 7px 10px; font-size: 14px; }
 .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
+.setup-opts { margin-top: 12px; }
+.setup-opts-toggle { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--surface-2); color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+.setup-opts-toggle:active { transform: scale(.99); }
+.setup-opts-summary { font-size: 13px; font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.setup-opts-act { display: inline-flex; align-items: center; gap: 3px; flex: none; font-size: 13px; font-weight: 600; color: var(--muted); }
+.setup-opts-chev { width: 16px; height: 16px; flex: none; transition: transform .18s; }
+.setup-opts-toggle[aria-expanded="true"] .setup-opts-chev { transform: rotate(180deg); }
+.setup-opts-panel { margin-top: 14px; }
 
-.teams { display: grid; gap: 10px; margin-top: 18px; position: relative; }
+.teams { display: grid; gap: 10px; margin-top: 14px; position: relative; }
 .team { border-radius: 18px; padding: 14px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden; }
 .team::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--c); }
 .team .thead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -996,7 +1004,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .icon-btn[aria-pressed="true"] { background: var(--ball); box-shadow: inset 0 0 0 2px #000; }
 :root[data-outdoor] .side-mini .boxes, :root[data-outdoor] .side-mini .boxes i + i { border-color: #fff; }
 :root[data-outdoor] .progress { background: rgb(255 255 255 / .4); }
-:root[data-outdoor] .btn-soft { box-shadow: inset 0 0 0 2px var(--ink); }
+:root[data-outdoor] .btn-soft, :root[data-outdoor] .setup-opts-toggle { box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .delta-pill, :root[data-outdoor] .exp-delta, :root[data-outdoor] .exp-box, :root[data-outdoor] .exp-why { box-shadow: inset 0 0 0 1.5px var(--ink); }
 :root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
 /* Large scores: the numbers fill the court, the names and call grow with them. */
@@ -1888,6 +1896,7 @@ if (location.hash.startsWith('#import=')) {
 /* ---------- state ---------- */
 const defaults = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, names: [['', ''], ['', '']] };
 let setup = Heal.setup(store.get('pb.setup', {}), defaults);
+let setupOptsOpen = false;
 let tab = store.get('pb.tab', 'play');
 if (!['play', 'leaders', 'events', 'history', 'rules'].includes(tab)) tab = 'play';
 let live = Heal.live(store.get('pb.live', null)); // { state, stack, open }; a damaged game in progress is dropped, not allowed to blank the app
@@ -3538,24 +3547,35 @@ function teamCard(t) {
     <button type="button" class="serve-pick" data-first="${t}" aria-pressed="${setup.first === t}"><span class="ball"></span>${setup.first === t ? 'Serves first' : 'Serve first'}</button></div>${inputs}</div>`;
 }
 
+function setupSummary(s) {
+  const mode = s.mode === 'singles' ? 'Singles' : 'Doubles';
+  const scoring = s.scoring === 'rally' ? 'Rally' : 'Side-out';
+  return `${mode} · ${scoring} · to ${+s.target || 11} · win by ${+s.winBy || 2}`;
+}
+
 function playView() {
   const games = allGames(), names = rosterNames();
   return `${pickupBannerHTML()}${homeTiles(ratedGames())}
   <section class="card" aria-labelledby="new-h">
     <div class="new-head"><h2 id="new-h">New game</h2><button type="button" class="link" data-act="clear-names" ${setup.names.flat().some(n => n && n.trim()) ? '' : 'hidden'}>Clear names</button></div>
-    <div class="field" style="margin-top:14px"><span class="lab">Format</span>${seg('data-set-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], setup.mode)}</div>
-    <div class="field"><span class="lab">Scoring</span>${seg('data-set-scoring', [['sideout', 'Side-out'], ['rally', 'Rally']], setup.scoring)}
-      <p class="note">${setup.scoring === 'sideout' ? 'Classic rules. Only the serving side scores.' : 'A point on every rally, whoever served.'}</p></div>
-    <div class="seg-row"><div class="field" style="margin:0"><span class="lab">Play to</span>${seg('data-set-target', [[11, '11'], [15, '15'], [21, '21']], setup.target)}</div>
-      <div class="field" style="margin:0"><span class="lab">Win by</span>${seg('data-set-winBy', [[2, '2'], [1, '1']], setup.winBy)}</div></div>
+    <div class="setup-opts">
+      <button type="button" class="setup-opts-toggle" data-act="setup-opts" aria-expanded="${setupOptsOpen}" aria-controls="setup-opts-panel"><span class="setup-opts-summary">${esc(setupSummary(setup))}</span><span class="setup-opts-act">${setupOptsOpen ? 'Hide' : 'Edit'}<svg class="setup-opts-chev" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+      <div class="setup-opts-panel" id="setup-opts-panel" ${setupOptsOpen ? '' : 'hidden'}>
+        <div class="field"><span class="lab">Format</span>${seg('data-set-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], setup.mode)}</div>
+        <div class="field"><span class="lab">Scoring</span>${seg('data-set-scoring', [['sideout', 'Side-out'], ['rally', 'Rally']], setup.scoring)}
+          <p class="note">${setup.scoring === 'sideout' ? 'Classic rules. Only the serving side scores.' : 'A point on every rally, whoever served.'}</p></div>
+        <div class="seg-row"><div class="field" style="margin:0"><span class="lab">Play to</span>${seg('data-set-target', [[11, '11'], [15, '15'], [21, '21']], setup.target)}</div>
+          <div class="field" style="margin:0"><span class="lab">Win by</span>${seg('data-set-winBy', [[2, '2'], [1, '1']], setup.winBy)}</div></div>
+      </div>
+    </div>
     <div class="teams">${teamCard(0)}<button type="button" class="swap" data-act="swap" aria-label="Swap teams">⇅</button>${teamCard(1)}</div>
     <div class="roster"><div class="rhead"><span class="lab">${pickup ? 'Players in this session' : names.length ? (rosterEdit ? 'Tap a name to remove it' : 'Saved players') : 'Saved players'}</span>
       ${names.length && !pickup ? `<button type="button" class="link" data-act="roster-edit">${rosterEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
       ${names.length ? `<div class="chips">${chipsHTML(setup.names, setup.mode, 'setup')}</div>` : `<p class="note">${pickup ? 'Names show up here as people join and play.' : 'Names you play with are saved here automatically.'}</p>`}
       <form class="add-player" data-form="add-player"><input id="new-player" placeholder="Add a player" autocomplete="off" aria-label="New player name" maxlength="40"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px">Save</button></form></div>
-    <div id="forecast">${forecastHTML()}</div>
     <datalist id="roster-list">${names.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
     <button class="btn btn-ink block start" data-act="start"><span class="ball"></span>Start game</button>
+    <div id="forecast">${forecastHTML()}</div>
     ${API_OK && !club && !pickup ? `<p class="note" style="margin-top:8px;text-align:center">No club needed. Games stay on this phone until you save them to a club.</p>` : ''}
     ${API_OK && !pickup ? `<p class="note" style="margin-top:8px;text-align:center"><button type="button" class="link" data-act="pk-open">Playing with people you don't know? Start a pickup session</button></p>` : ''}
     ${pickup ? `<p class="note" style="margin-top:8px;text-align:center">Games you finish are added to the pickup session, not to a club.</p>` : ''}
@@ -7037,7 +7057,7 @@ document.addEventListener('click', e => {
   if (ds.tabGo) { tab = ds.tabGo; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} return; }
   for (const k of ['mode', 'scoring', 'target', 'winBy']) {
     const v = el.getAttribute('data-set-' + k);
-    if (v !== null) { setup[k] = (k === 'target' || k === 'winBy') ? +v : v; store.set('pb.setup', setup); render(); return; }
+    if (v !== null) { setup[k] = (k === 'target' || k === 'winBy') ? +v : v; store.set('pb.setup', setup); render(); const b = $(`[data-set-${k}="${v}"]`); if (b) b.focus({ preventScroll: true }); return; }
   }
   if (ds.logMode) { logForm.mode = ds.logMode; renderLog(); return; }
   if (ds.logTarget) { logForm.target = +ds.logTarget; renderLog(); return; }
@@ -7081,6 +7101,7 @@ document.addEventListener('click', e => {
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
+  if (act === 'setup-opts') { setupOptsOpen = !setupOptsOpen; render(); const b = $('[data-act="setup-opts"]'); if (b) b.focus({ preventScroll: true }); return; }
   if (act === 'clear-names') { setup.names = [['', ''], ['', '']]; store.set('pb.setup', setup); render(); return; }
   if (act === 'swap') { setup.names = [setup.names[1], setup.names[0]]; setup.first = 1 - setup.first; store.set('pb.setup', setup); render(); }
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
