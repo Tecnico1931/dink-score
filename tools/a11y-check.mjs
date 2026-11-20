@@ -49,7 +49,7 @@ for (const [mode, opt] of states) {
   await page.evaluateOnNewDocument(o => { try { if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
   await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
   await audit(page, `${mode}: first-run tour`, report, '.tour');
-  await page.evaluate(() => localStorage.setItem('pb.tutorialSeen', 'true')); await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
+  await page.evaluate(() => localStorage.setItem('pb.tutorialSeen', 'true')); await page.evaluate(() => localStorage.setItem('pb.newsSeen', '"2026-11-20"')); await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
   await audit(page, `${mode}: home`, report);
   for (const tab of ['leaders', 'history', 'rules']) { await page.click(`[data-tab="${tab}"]`); await sleep(250); await audit(page, `${mode}: ${tab}`, report); }
   await page.click('[data-tab="play"]'); await sleep(200);
@@ -108,7 +108,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); } catch {} });
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-20"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(400);
@@ -121,6 +121,26 @@ for (const [mode, opt] of states) {
         const over = await page.evaluate(() => [...document.querySelectorAll('.watch-chip')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
         if (over.length) report.push({ label: `court with watch button: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
       }
+    }
+    await ctx.close();
+  }
+}
+{ // Link a watch from the court of a game with no club: the sheet that asks first, the choice once it is shared, and an event match (nothing is sent).
+  for (const colorScheme of ['light', 'dark']) {
+    const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+    await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-20"'); } catch {} });
+    await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
+    await page.click('[data-act="start"]'); await sleep(400);
+    const states = [['no club, not shared', () => {}, '[data-act="watch-share"]'], ['shared: scan or code', () => { live.room = 'ABCDEF'; live.shared = true; live.id = 'live-1'; }, '[data-act="watch-court-scan"]'], ['event match', () => { live.room = null; live.shared = false; live.event = { id: 'e1', name: 'Spring ladder' }; }, '[data-act="club-close"]']];
+    for (const [name, set, want] of states) {
+      await page.evaluate(set); await page.evaluate(() => { clubSheet = null; renderClub(); renderCourt(); }); await sleep(150);
+      await page.click('[data-act="watch-court"]'); await sleep(250);
+      const label = `court watch sheet, ${name} (${colorScheme})`;
+      if (!(await page.$('#sheet3 ' + want))) report.push({ label, axe: [], extra: [{ kind: 'text', name: 'the sheet did not show ' + want, px: 0 }] });
+      else await audit(page, label, report, '#sheet3');
     }
     await ctx.close();
   }

@@ -100,7 +100,7 @@ export default handler(async (req, res) => {
 
   if (body.action === 'end') {
     const [row] = await sql`SELECT secret_hash FROM live_games WHERE club = ${code} AND id = ${String(body.id || '')}`;
-    if (row) { await requireSecret(sql, req, row, body.secret); await sql`DELETE FROM live_games WHERE club = ${code} AND id = ${String(body.id || '')}`; await endGameLinks(sql, code, String(body.id || '')); }
+    if (row) { await requireSecret(sql, req, row, body.secret); await sql`DELETE FROM live_games WHERE club = ${code} AND id = ${String(body.id || '')}`; await endGameLinks(sql, code, String(body.id || '')); await sql`DELETE FROM clubs WHERE code = ${code} AND quick`; } // a quick game room goes with its one game
     return send(res, 200, { ok: true });
   }
 

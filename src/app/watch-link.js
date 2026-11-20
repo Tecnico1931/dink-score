@@ -5,7 +5,7 @@ let watchKeys = (() => { const o = {}; for (const [k, v] of Object.entries(store
 const watchIds = () => Object.keys(watchKeys).slice(-20);
 function rememberWatch(id, key) { watchKeys[id] = key; for (const old of Object.keys(watchKeys).slice(0, -20)) delete watchKeys[old]; store.set('pb.watch', watchKeys); }
 function forgetWatch(id) { delete watchKeys[id]; store.set('pb.watch', watchKeys); }
-const watchCall = body => api('live', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
+const watchCall = body => api('live', { method: 'POST', body: JSON.stringify(Object.assign({ code: liveCode() || club.code }, body)) }); // a game with no club is held in its quick game room
 let watchScan = null, scanMod = null;
 const scanLoad = () => (scanMod ? Promise.resolve(scanMod) : import('./scan.js').then(m => (scanMod = m)));
 function watchStopScan() {
@@ -75,7 +75,7 @@ function watchLinkHTML(c) {
     ${c.pairId && !gameOn ? '<button type="button" class="btn btn-soft block" data-act="watch-other-game">Link it to a game on another phone instead</button>' : ''}
     ${gameOn && !c.auto ? `<label class="check" style="display:flex;gap:10px;align-items:flex-start;min-height:44px;margin:8px 0"><input type="checkbox" id="watch-single" ${c.single ? 'checked' : ''} style="width:24px;height:24px;flex:none"><span>This game only. The watch scores this game and cannot see the club.</span></label>` : ''}
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}<button type="submit" id="watch-link-go" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>${c.busy ? 'Linking…' : 'Link this watch'}</button></form>
-  <div class="btns"><button class="btn btn-soft" data-act="${c.auto ? 'club-close' : 'watch-link-back'}">${c.auto ? 'Cancel' : 'Back'}</button></div>`;
+  <div class="btns"><button class="btn btn-soft" data-act="${c.auto ? 'watch-court' : 'watch-link-back'}">Back</button></div>`;
 }
 
 function watchOpen() { clubSheet = { view: 'watch', links: null }; renderClub(); loadWatchLinks(); }
@@ -143,7 +143,7 @@ async function watchGameClaim() {
 // ---- the scoring phone shows the game's code ----
 async function watchOfferOpen() {
   if (!(live && !live.event && isShared())) return;
-  const c = clubSheet = { view: 'watch-offer', offer: null };
+  const c = clubSheet = { view: 'watch-offer', offer: null, from: clubSheet && clubSheet.from };
   renderClub();
   try {
     const d = await watchCall({ action: 'watch-offer', game: live.id || liveGameId(), secret: liveSecret() });
@@ -171,7 +171,7 @@ function watchOfferHTML(c) {
     <p class="note">Good for one watch and ${Number(o.expiresInMinutes) || 10} minutes. It stops working when this game ends.</p></div>
   ${qr ? `<details><summary style="min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:600">The watch wearer has an iPhone: a link instead</summary><p class="note">The wearer scans this with the Camera app, then types the 6 characters and 4 numbers shown on their watch. One watch per code.</p><div class="share-qr" role="img" aria-label="QR code for the game link">${qr}</div></details>` : ''}
   <button class="btn btn-soft block" data-act="watch-offer">Show a new code</button>` : c.error ? '' : '<p class="note">Getting a code…</p>'}
-  <div class="btns"><button class="btn btn-soft" data-act="watch-link-back">Back</button></div>`;
+  <div class="btns"><button class="btn btn-soft" data-act="${c.from === 'court' ? 'watch-court' : 'watch-link-back'}">Back</button></div>`;
 }
 async function watchScanStart() {
   const c = clubSheet;
@@ -249,14 +249,49 @@ async function watchSend(id) {
   } catch (err) { c.error = err.message; }
   if (clubSheet === c) renderClub();
 }
-// "Link a watch" on the scoring screen: straight to the camera for this game; the typed code stays below it.
+// "Link a watch" on the scoring screen, for any game in progress: scan the watch's code with the camera, or show a code for the watch to type.
+// A game that is not on the server yet (no club, or a pickup session) is shared first, only after the scorer says so.
+function watchCourtSheet() { if (!live) return; clubSheet = { view: 'watch-court', from: 'court' }; renderClub(); const n = $('#club-h'); if (n) { n.tabIndex = -1; n.focus({ preventScroll: true }); } }
+function watchCourtHTML(c) {
+  const head = '<h2 id="club-h">Link a watch to this game</h2>';
+  const close = '<div class="btns"><button class="btn btn-soft" data-act="club-close">Close</button></div>';
+  if (!live) return head + close;
+  if (live.event) return `${head}<p>This is a match in <b>${esc(live.event.name)}</b>. Event matches are scored on this phone and sent to the event when they end, so a watch cannot score them yet.</p><p class="note">Games in a club, and quick games, can be scored from a watch.</p>${close}`;
+  if (isShared()) return `${head}${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}<p>The watch will score this game and nothing else, and stops when the game ends. Open Dink Score on the watch first.</p>
+    <button class="btn btn-blue block" data-act="watch-court-scan">Scan the watch's code with the camera</button>
+    <p class="note">The watch shows a square code, with 6 characters and 4 numbers under it.</p>
+    <button class="btn btn-soft block" data-act="watch-offer">Show a code for the watch to type</button>
+    <p class="note">The watch asks for 6 characters and 4 numbers. The code is good for 10 minutes and one watch.</p>${close}`;
+  if (!API_OK) return `${head}<p>A watch scores through the Dink Score server, and this page cannot reach it. Open Dink Score from its web address and try again.</p>${close}`;
+  return `${head}<p>A watch scores through the Dink Score server, so this game has to go there first.</p>
+    <div class="ev-card"><h3 style="margin-top:0">What happens when you share it</h3><ul class="note" style="margin:0;padding-left:20px">
+      <li>The teams' names and the score are kept on the server while you play.</li><li>No club or account is made.</li><li>It is removed when the game ends, and after 24 hours at the latest.</li><li>Only a watch you link to this game can score it.</li></ul></div>
+    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}<button class="btn btn-ink block" data-act="watch-share" ${c.busy ? 'disabled' : ''}>${c.busy ? 'Sharing…' : 'Share this game and link a watch'}</button>
+    <div class="btns"><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
+}
+async function watchShareGame() {
+  const c = clubSheet, g = live;
+  if (!c || c.view !== 'watch-court' || c.busy || !g || g.event || isShared()) return;
+  c.busy = true; c.error = ''; renderClub();
+  try {
+    const d = await api('club', { method: 'POST', body: JSON.stringify({ room: true }) });
+    const id = liveGameId(), secret = liveSecret();
+    let sent;
+    do { sent = g.state.rallies; await api('live', { method: 'POST', body: JSON.stringify({ code: d.room, action: 'state', id, secret, state: g.state, ack: watchAck }) }); } while (live === g && g.state.rallies !== sent); // a point scored while it was going up goes up too
+    if (live !== g) return;
+    g.room = d.room; markShared(); g.version = null; publishedLiveId = id; publishedSecret = secret; publishedCode = d.room; persistLive();
+    if (clubSheet === c) { c.busy = false; c.msg = 'This game is shared.'; announce('This game is shared. Choose how to link the watch.'); renderClub(); const n = $('#club-h'); if (n) { n.tabIndex = -1; n.focus({ preventScroll: true }); } }
+  } catch (err) { if (clubSheet === c) { c.busy = false; c.error = err.message || 'This game could not be shared. Check your connection and try again.'; renderClub(); } }
+}
 function watchCourtOpen() {
   if (!(live && !live.event && isShared())) return;
-  clubSheet = { view: 'watch-link', single: true, auto: true }; renderClub(); watchScanStart();
+  clubSheet = { view: 'watch-link', single: true, auto: true, from: 'court' }; renderClub(); watchScanStart();
 }
 function watchClick(ds) {
   const a = ds.act;
-  if (a === 'watch-court') { watchCourtOpen(); return; }
+  if (a === 'watch-court') { watchCourtSheet(); return; }
+  if (a === 'watch-court-scan') { watchCourtOpen(); return; }
+  if (a === 'watch-share') { watchShareGame(); return; }
   if (a === 'watch-link-open') { clubSheet = { view: 'watch-link' }; renderClub(); return; }
   if (a === 'watch-game-open') { clubSheet = { view: 'watch-link', single: true }; renderClub(); return; }
   if (a === 'watch-offer') { watchOfferOpen(); return; }

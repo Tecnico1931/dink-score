@@ -4,6 +4,7 @@
 // POST /api/club {code, action: 'export', format?: 'csv', pin|ownerToken} -> organizer: the whole club as JSON, or its games as CSV
 // POST /api/club {code, action: 'delete-club', confirm, pin|ownerToken}     -> organizer: schedules the club for deletion in 24 hours (confirm = the club's name)
 // POST /api/club {code, action: 'cancel-delete-club', pin|ownerToken}       -> organizer: undoes that while the window is open
+// POST /api/club {room: true}                      -> {room: code}: a throwaway room for one shared game with no club (watch linking); no name, PIN or organizer, removed when the game ends or after 24 hours
 // POST /api/club {code, action: 'verify-pin', pin}   -> checks an organizer PIN
 // POST /api/club {code, action: 'reset-allowance', pin|ownerToken} -> organizer: ends a "too many games just now" pause
 // GET  /api/club?code=ABC123&avatars=1               -> the photo avatars, kept out of the main response: {photos: {name: {v, value}}}
@@ -165,6 +166,16 @@ export default handler(async (req, res) => {
         : await sql`UPDATE clubs SET pin_hash = ${pinHash} WHERE code = ${code} AND pin_hash IS NULL RETURNING code`;
       if (!rows.length) throw fail(409, 'Someone just set a PIN for this club. Ask your organizer for it.');
       return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), deviceKey: deviceKey({ code, pin_hash: pinHash }), ...(ownerToken ? { ownerToken } : {}) });
+    }
+    if (body.room === true) { // a phone with no club shares one game: a nameless room with no organizer that goes with the game, or after 24 hours
+      await throttleClubCreate(req, true);
+      for (let i = 0; i < 5; i++) {
+        const code = newCode();
+        if (await codeTaken(sql, code)) continue;
+        const rows = await sql`INSERT INTO clubs (code, name, quick, delete_at) VALUES (${code}, 'Quick game', true, now() + interval '24 hours') ON CONFLICT DO NOTHING RETURNING code`;
+        if (rows.length) return send(res, 201, { room: rows[0].code });
+      }
+      throw fail(500, 'Could not create a game code.');
     }
     const name = cleanName(body.name); // same cleanup as player names: no control or invisible characters
     if (!name) throw fail(400, 'Give your club a name.');
