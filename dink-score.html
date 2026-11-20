@@ -691,6 +691,30 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .wl.w { background: color-mix(in srgb, var(--up) 20%, transparent); color: var(--up); }
 .wl.l { background: color-mix(in srgb, var(--down) 18%, transparent); color: var(--down); }
 .badge.best { background: var(--ball); color: var(--ball-ink); }
+/* Year-in-review recap on player profile */
+.pf-head .x svg { width: 20px; height: 20px; }
+.recap-cta { border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 16px; padding: 12px 14px; min-height: 56px; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; font: inherit; cursor: pointer; }
+.recap-cta-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.recap-cta-text b { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 18px; line-height: 1.15; }
+.recap-cta-text small { font-size: 13px; color: var(--muted); }
+.recap-cta-go { font-size: 14px; font-weight: 600; color: var(--blue-text); white-space: nowrap; flex: none; }
+.recap-sub { display: flex; align-items: center; gap: 10px; }
+.recap-sub .avatar-mini { width: 38px; height: 38px; font-size: 13px; }
+.recap-sub > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.recap-sub b { font-size: 16px; overflow-wrap: anywhere; }
+.recap-sub small { font-size: 13px; color: var(--muted); }
+.recap-years { display: flex; flex-wrap: wrap; gap: 6px; }
+.recap-hero { background: var(--surface-2); border-radius: 18px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.recap-hero-meta { display: flex; flex-direction: column; gap: 2px; }
+.recap-k { font-size: 13px; font-weight: 600; color: var(--muted); }
+.recap-hero-meta small { font-size: 14px; font-weight: 600; color: var(--ink); }
+.recap-hero .rt { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 56px; line-height: .88; font-variant-numeric: tabular-nums; }
+.recap-hl { min-height: 56px; }
+.recap-empty-row { background: var(--surface-2); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+.recap-empty-row b { font-size: 14px; }
+.recap-empty-row small { font-size: 13px; color: var(--muted); }
+.recap-share-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.recap-share-btn svg { width: 18px; height: 18px; flex: none; }
 /* Club list */
 .club-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .club-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
@@ -1015,6 +1039,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .progress { background: rgb(255 255 255 / .4); }
 :root[data-outdoor] .btn-soft, :root[data-outdoor] .setup-opts-toggle { box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .delta-pill, :root[data-outdoor] .exp-delta, :root[data-outdoor] .exp-box, :root[data-outdoor] .exp-why { box-shadow: inset 0 0 0 1.5px var(--ink); }
+:root[data-outdoor] .recap-cta, :root[data-outdoor] .recap-hl { box-shadow: inset 0 0 0 2px var(--ink); border-color: transparent; }
 :root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .rx-btn { border: 2px solid var(--ink); background: var(--surface); color: var(--ink); }
 :root[data-outdoor] .rx-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
@@ -4290,13 +4315,14 @@ function replaySeek(e) {
 }
 
 /*MODULE-START:share-image*/
-/* ---------- share a result as an image ---------- */
+/* ---------- share a result or year-in-review as an image ---------- */
 // A 1080x1350 card drawn on a canvas: both teams on court-colored panels, rating changes, the score, and a note
-// when the side the forecast had losing won. Night (dark) and Day (light) versions.
+// when the side the forecast had losing won — plus a Year-in-review recap card reusing the same canvas chrome.
+// Night (dark) and Day (light) versions.
 const SHARE_W = 1080, SHARE_H = 1350;
 const SHARE_THEMES = {
-  night: { ink: '#EEF2F7', muted: '#8E9BAD', badgeBg: 'rgba(221,242,71,.14)', badgeInk: '#DDF247' },
-  day: { ink: '#0E1726', muted: '#5D6A7B', badgeBg: '#DDF247', badgeInk: '#1B2104' }
+  night: { ink: '#EEF2F7', muted: '#8E9BAD', badgeBg: 'rgba(221,242,71,.14)', badgeInk: '#DDF247', cardBg: '#131B26', cardLine: '#243142', heroBg: '#162234', heroMuted: '#9BA9BC', up: '#3DD69E', down: '#FF7A6B', avBg: '#1E2A3B' },
+  day: { ink: '#0E1726', muted: '#5D6A7B', badgeBg: '#DDF247', badgeInk: '#1B2104', cardBg: '#FFFFFF', cardLine: '#DEE4EA', heroBg: '#0E1726', heroMuted: '#A3B1C2', up: '#0B8562', down: '#C2372B', avBg: '#0E1726' }
 };
 const SHARE_PANELS = [['#3D5BFF', '#2B49E6'], ['#0f8c66', '#08664b']];
 const DISPLAY_FONT = '"Bricolage Grotesque", "Arial Narrow", sans-serif';
@@ -4339,7 +4365,7 @@ function shareCardData(g, pending) {
 }
 async function shareFonts() {
   if (!document.fonts || !document.fonts.load) return;
-  const sample = 'Dink Score 0123456789 +−–.· WIN Aa';
+  const sample = 'Dink Score 0123456789 +−–.·% WIN YEAR IN REVIEW Aa';
   const loads = [`800 288px ${DISPLAY_FONT}`, `condensed 800 288px ${DISPLAY_FONT}`, `semi-condensed 800 54px ${DISPLAY_FONT}`,
     '400 33px Geist', '600 45px Geist', '700 30px Geist'].map(f => document.fonts.load(f, sample).catch(() => {}));
   await Promise.race([Promise.all(loads), new Promise(r => setTimeout(r, 3000))]);
@@ -4382,14 +4408,9 @@ function pill(ctx, x, cy, text, h, padX, bg, fg) {
   return w;
 }
 const fmtDelta = d => { const v = Math.round(d * 100) / 100; return v === 0 ? '±0.00' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(2); };
-async function drawShareCard(d, theme, noImages) {
-  await shareFonts();
-  const T = SHARE_THEMES[theme] || SHARE_THEMES.night;
-  const imgs = noImages ? [] : await Promise.all(d.teams.flatMap(t => t.players.map(p => shareAvatarImage(p.avatar))));
-  const W = SHARE_W, H = SHARE_H, PAD = 60;
-  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d');
-  // Ground: a soft radial light from the top, clipped to the card's rounded corners.
+// Shared card ground (rounded clip + top radial light) and top brand/meta row.
+function drawShareGround(ctx, theme) {
+  const W = SHARE_W, H = SHARE_H;
   roundRect(ctx, 0, 0, W, H, 84); ctx.clip();
   const [hi, lo] = theme === 'day' ? ['#FFFFFF', '#F2F4F7'] : ['#1d2a3d', '#0A0F17'];
   ctx.fillStyle = lo; ctx.fillRect(0, 0, W, H);
@@ -4400,9 +4421,9 @@ async function drawShareCard(d, theme, noImages) {
   rg.addColorStop(0, hi); rg.addColorStop(0.6, lo); rg.addColorStop(1, lo);
   ctx.fillStyle = rg; ctx.fillRect(-W / 2, 0, W, H * rx / ry);
   ctx.restore();
-
-  // Top row: ball and wordmark, then the date and format.
-  const topY = 109;
+}
+function drawShareHeader(ctx, T, line1, line2) {
+  const W = SHARE_W, PAD = 60, topY = 109;
   ctx.save();
   ctx.beginPath(); ctx.arc(PAD + 27, topY, 27, 0, Math.PI * 2); ctx.clip();
   ctx.fillStyle = '#c6d93f'; ctx.fillRect(PAD, topY - 27, 54, 54);
@@ -4415,8 +4436,40 @@ async function drawShareCard(d, theme, noImages) {
   setFont(ctx, 400, 33, UI_FONT);
   ctx.fillStyle = T.muted; ctx.textAlign = 'right';
   const metaMax = W - PAD - brandRight;
-  ctx.fillText(ellipsize(ctx, `${d.date} · ${d.mode}`, metaMax), W - PAD, topY - 21);
-  ctx.fillText(ellipsize(ctx, d.line2, metaMax), W - PAD, topY + 22);
+  ctx.fillText(ellipsize(ctx, line1, metaMax), W - PAD, topY - 21);
+  ctx.fillText(ellipsize(ctx, line2, metaMax), W - PAD, topY + 22);
+}
+function drawShareAvatar(ctx, cx, cy, size, name, avatar, img, fillBg = 'rgba(255,255,255,.22)') {
+  const r = size / 2;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.closePath();
+  ctx.fillStyle = fillBg; ctx.fill(); ctx.clip();
+  if (img && avatar && avatar.type === 'photo') {
+    const s = Math.min(img.naturalWidth, img.naturalHeight) || 1;
+    ctx.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, cx - r, cy - r, size, size);
+  } else if (img) {
+    const ic = Math.round(size * 0.62);
+    ctx.drawImage(img, cx - ic / 2, cy - ic / 2, ic, ic);
+  } else if (avatar && avatar.type === 'emoji' && avatar.value) {
+    setFont(ctx, 400, Math.round(size * 0.54), EMOJI_FONT);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(avatar.value, cx, cy + 2);
+  } else {
+    setFont(ctx, 700, Math.round(size * 0.36), UI_FONT);
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(initials(name || '?'), cx, cy + 1);
+  }
+  ctx.restore();
+}
+async function drawShareCard(d, theme, noImages) {
+  await shareFonts();
+  const T = SHARE_THEMES[theme] || SHARE_THEMES.night;
+  const imgs = noImages ? [] : await Promise.all(d.teams.flatMap(t => t.players.map(p => shareAvatarImage(p.avatar))));
+  const W = SHARE_W, H = SHARE_H, PAD = 60;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  drawShareGround(ctx, theme);
+  drawShareHeader(ctx, T, `${d.date} · ${d.mode}`, d.line2);
 
   // Team panels, in the order the game stores them: team 1 blue on top, team 2 green below.
   const FOOT_H = 63, footCY = H - 54 - FOOT_H / 2;
@@ -4455,25 +4508,7 @@ async function drawShareCard(d, theme, noImages) {
       const img = imgs[ai++];
       const rowCY = cy - blockH / 2 + i * (ROW + RGAP) + ROW / 2;
       const avX = px + 48, avCX = avX + ROW / 2;
-      ctx.save();
-      ctx.beginPath(); ctx.arc(avCX, rowCY, ROW / 2, 0, Math.PI * 2); ctx.closePath();
-      ctx.fillStyle = 'rgba(255,255,255,.22)'; ctx.fill(); ctx.clip();
-      const a = p.avatar;
-      if (img && a && a.type === 'photo') {
-        const s = Math.min(img.naturalWidth, img.naturalHeight) || 1;
-        ctx.drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, avX, rowCY - ROW / 2, ROW, ROW);
-      } else if (img) {
-        ctx.drawImage(img, avCX - 24, rowCY - 24, 48, 48);
-      } else if (a && a.type === 'emoji' && a.value) {
-        setFont(ctx, 400, 42, EMOJI_FONT);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(a.value, avCX, rowCY + 2);
-      } else {
-        setFont(ctx, 700, 28, UI_FONT);
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(initials(p.name || '?'), avCX, rowCY + 1);
-      }
-      ctx.restore();
+      drawShareAvatar(ctx, avCX, rowCY, ROW, p.name, p.avatar, img);
 
       const nameX = avX + ROW + 24;
       let deltaText = null, deltaW = 0;
@@ -4511,6 +4546,140 @@ async function drawShareCard(d, theme, noImages) {
   }
   return cv;
 }
+
+// Year-in-review 1080x1350 card reusing the same canvas chrome, fonts, avatars and Night/Day palette.
+async function drawRecapCard(d, theme, noImages) {
+  await shareFonts();
+  const T = SHARE_THEMES[theme] || SHARE_THEMES.night;
+  const avList = [d.avatar, d.favouritePartner && d.favouritePartner.avatar, d.biggestRival && d.biggestRival.avatar];
+  const imgs = noImages ? [null, null, null] : await Promise.all(avList.map(a => shareAvatarImage(a)));
+  const W = SHARE_W, H = SHARE_H, PAD = 60, pw = W - PAD * 2;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  drawShareGround(ctx, theme);
+  drawShareHeader(ctx, T, 'Year in review', d.formatLabel || `${d.year}`);
+
+  // Player row: avatar, name, and the single floodlight year badge.
+  const headCY = 244, avSize = 94;
+  drawShareAvatar(ctx, PAD + avSize / 2, headCY, avSize, d.name, d.avatar, imgs[0], T.avBg);
+  setFont(ctx, 800, 36, DISPLAY_FONT, 'condensed', 0.5);
+  const yearLabel = String(d.year);
+  const yearW = textW(ctx, yearLabel) + 52;
+  pill(ctx, W - PAD - yearW, headCY, yearLabel, 56, 26, '#DDF247', '#1B2104');
+  const nameX = PAD + avSize + 24, nameRoom = Math.max(120, W - PAD - yearW - 24 - nameX);
+  let nameSize = 52;
+  setFont(ctx, 700, nameSize, UI_FONT);
+  while (nameSize > 34 && textW(ctx, d.name) > nameRoom) { nameSize -= 2; setFont(ctx, 700, nameSize, UI_FONT); }
+  ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(ellipsize(ctx, d.name, nameRoom), nameX, headCY + 2);
+
+  // Best Dink Rating hero slab (dark ink slab, squeezed heavy numeral).
+  const heroY = 324, heroH = 244;
+  ctx.fillStyle = T.heroBg; roundRect(ctx, PAD, heroY, pw, heroH, 52); ctx.fill();
+  const ratingText = d.bestRating !== null && d.bestRating !== undefined ? d.bestRating.toFixed(2) : '–';
+  setFont(ctx, 800, 196, DISPLAY_FONT, 'condensed', -8);
+  const ratingW = textW(ctx, ratingText);
+  const rAsc = ctx.measureText('0').actualBoundingBoxAscent || 140;
+  ctx.fillStyle = '#EEF2F7'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(ratingText, PAD + pw - 48, heroY + heroH / 2 + rAsc / 2 - 4);
+  const heroLeftMax = Math.max(160, pw - 96 - ratingW - 32);
+  setFont(ctx, 700, 26, UI_FONT, 'normal', 1.2);
+  ctx.fillStyle = T.heroMuted; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(ellipsize(ctx, 'BEST DINK RATING', heroLeftMax), PAD + 48, heroY + 76);
+  const peakMode = d.bestRatingMode ? `${d.bestRatingMode === 'singles' ? 'Singles' : 'Doubles'} peak` : 'Peak rating';
+  setFont(ctx, 600, 34, UI_FONT);
+  ctx.fillStyle = '#EEF2F7';
+  ctx.fillText(ellipsize(ctx, peakMode, heroLeftMax), PAD + 48, heroY + 128);
+  if (typeof d.pointsDiff === 'number') {
+    setFont(ctx, 500, 28, UI_FONT);
+    ctx.fillStyle = T.heroMuted;
+    ctx.fillText(ellipsize(ctx, `Points +/−  ${d.pointsDiff > 0 ? '+' : ''}${d.pointsDiff}`, heroLeftMax), PAD + 48, heroY + 178);
+  }
+
+  // Three stat cells: Games, Won–lost, Win rate.
+  const statY = 594, statH = 192, statGap = 20, cellW = (pw - statGap * 2) / 3;
+  const stats = [
+    [String(d.games), 'GAMES'],
+    [`${d.wins}–${d.losses}`, 'WON–LOST'],
+    [`${d.winRate}%`, 'WIN RATE']
+  ];
+  stats.forEach(([val, lab], i) => {
+    const cx = PAD + i * (cellW + statGap);
+    ctx.fillStyle = T.cardBg; roundRect(ctx, cx, statY, cellW, statH, 40); ctx.fill();
+    ctx.strokeStyle = T.cardLine; ctx.lineWidth = 2; roundRect(ctx, cx, statY, cellW, statH, 40); ctx.stroke();
+    let sz = 88;
+    setFont(ctx, 800, sz, DISPLAY_FONT, 'condensed', -2);
+    while (sz > 54 && textW(ctx, val) > cellW - 40) { sz -= 4; setFont(ctx, 800, sz, DISPLAY_FONT, 'condensed', -2); }
+    ctx.fillStyle = T.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(val, cx + cellW / 2, statY + 78);
+    setFont(ctx, 600, 25, UI_FONT, 'normal', 1);
+    ctx.fillStyle = T.muted;
+    ctx.fillText(lab, cx + cellW / 2, statY + 148);
+  });
+
+  // Highlight rows: Favourite partner, Biggest rival.
+  const drawHighlight = (y, kicker, person, img, emptyText, accentColor) => {
+    const h = 186;
+    ctx.fillStyle = T.cardBg; roundRect(ctx, PAD, y, pw, h, 44); ctx.fill();
+    ctx.strokeStyle = T.cardLine; ctx.lineWidth = 2; roundRect(ctx, PAD, y, pw, h, 44); ctx.stroke();
+    setFont(ctx, 700, 24, UI_FONT, 'normal', 1.2);
+    ctx.fillStyle = T.muted; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(kicker, PAD + 40, y + 40);
+    if (!person) {
+      setFont(ctx, 500, 34, UI_FONT);
+      ctx.fillStyle = T.muted;
+      ctx.fillText(ellipsize(ctx, emptyText, pw - 80), PAD + 40, y + 118);
+      return;
+    }
+    const rowCY = y + 116, avS = 76;
+    drawShareAvatar(ctx, PAD + 40 + avS / 2, rowCY, avS, person.name, person.avatar, img, T.avBg);
+    const rec = `${person.wins}–${person.losses}`;
+    setFont(ctx, 800, 64, DISPLAY_FONT, 'condensed', -2);
+    const recW = textW(ctx, rec);
+    ctx.fillStyle = accentColor || T.ink; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(rec, PAD + pw - 40, y + 104);
+    const sub = person.sub;
+    setFont(ctx, 500, 25, UI_FONT);
+    const subW = textW(ctx, sub);
+    ctx.fillStyle = T.muted;
+    ctx.fillText(sub, PAD + pw - 40, y + 150);
+    const rightUsed = Math.max(recW, subW) + 28;
+    const nx = PAD + 40 + avS + 24, nRoom = Math.max(100, PAD + pw - 40 - rightUsed - nx);
+    let nSz = 44;
+    setFont(ctx, 600, nSz, UI_FONT);
+    while (nSz > 30 && textW(ctx, person.name) > nRoom) { nSz -= 2; setFont(ctx, 600, nSz, UI_FONT); }
+    ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(ellipsize(ctx, person.name, nRoom), nx, rowCY + 1);
+  };
+  const fp = d.favouritePartner && Object.assign({}, d.favouritePartner, {
+    sub: `${d.favouritePartner.games} game${d.favouritePartner.games === 1 ? '' : 's'} · ${d.favouritePartner.winRate}%`
+  });
+  const rv = d.biggestRival && Object.assign({}, d.biggestRival, {
+    sub: `${d.biggestRival.games} game${d.biggestRival.games === 1 ? '' : 's'}`
+  });
+  const rvColor = rv ? (rv.wins > rv.losses ? T.up : rv.wins < rv.losses ? T.down : T.ink) : T.ink;
+  drawHighlight(812, 'FAVOURITE PARTNER', fp, imgs[1],
+    d.singlesGames && !d.doublesGames ? 'Singles only — no doubles partner yet' : 'No named doubles partner yet', T.ink);
+  drawHighlight(1020, 'BIGGEST RIVAL', rv, imgs[2], 'No named opponents yet', rvColor);
+
+  // Footer: optional format breakdown on the left, club name on the right (never club codes or tokens).
+  const FOOT_H = 63, footCY = H - 54 - FOOT_H / 2;
+  let leftUsed = 0;
+  if (d.doublesGames && d.singlesGames) {
+    const split = `${d.doublesGames} doubles · ${d.singlesGames} singles`;
+    setFont(ctx, 400, 30, UI_FONT);
+    ctx.fillStyle = T.muted; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(split, PAD, footCY + 1);
+    leftUsed = textW(ctx, split) + 28;
+  }
+  if (d.club) {
+    setFont(ctx, 400, 33, UI_FONT);
+    ctx.fillStyle = T.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(ellipsize(ctx, d.club, Math.max(120, pw - leftUsed)), W - PAD, footCY + 1);
+  }
+  return cv;
+}
+
 const canvasBlob = cv => new Promise((res, rej) => { try { cv.toBlob(b => b ? res(b) : rej(new Error('No image')), 'image/png'); } catch (e) { rej(e); } });
 let shareFilesOK = null;
 function canShareFiles() {
@@ -4523,7 +4692,14 @@ function canShareFiles() {
 function openShare(g, pending) {
   let theme = store.get('pb.shareTheme', 'night');
   if (theme !== 'day') theme = 'night';
-  shareSheet = { data: shareCardData(g, pending), theme, url: null, file: null, token: 0, gameId: pending || !club || pickup ? null : g.id, link: null };
+  shareSheet = { kind: 'game', title: 'Share result', alt: 'The result card that will be shared', filename: 'dink-score-result.png', data: shareCardData(g, pending), theme, url: null, file: null, token: 0, gameId: pending || !club || pickup ? null : g.id, link: null };
+  renderShare();
+  updateSharePreview();
+}
+function openRecapShare(data) {
+  let theme = store.get('pb.shareTheme', 'night');
+  if (theme !== 'day') theme = 'night';
+  shareSheet = { kind: 'recap', title: `Share ${data.year} recap`, alt: `The ${data.year} year-in-review card that will be shared`, filename: `dink-score-${data.year}-recap.png`, data, theme, url: null, file: null, token: 0, gameId: null, link: null };
   renderShare();
   updateSharePreview();
 }
@@ -4538,8 +4714,8 @@ function renderShare() {
   lockBody(true);
   const share = canShareFiles();
   root.innerHTML = `<div class="sheet-bg share"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="share-h"><span class="grip"></span>
-    <div class="sheet-head"><h2 id="share-h">Share result</h2><button type="button" class="x" data-act="share-close" aria-label="Close">✕</button></div>
-    <div class="share-prev busy"><img alt="The result card that will be shared"></div>
+    <div class="sheet-head"><h2 id="share-h">${esc(shareSheet.title || 'Share result')}</h2><button type="button" class="x" data-act="share-close" aria-label="Close">✕</button></div>
+    <div class="share-prev busy"><img alt="${esc(shareSheet.alt || 'The result card that will be shared')}"></div>
     ${seg('data-share-theme', [['night', 'Night'], ['day', 'Day']], shareSheet.theme)}
     <div class="btns">${share ? `<button type="button" class="btn btn-ball block" data-act="share-go" disabled>Share…</button>` : ''}
       <button type="button" class="btn ${share ? 'btn-soft' : 'btn-ball'} block" data-act="share-save" disabled>Save image</button></div>
@@ -4559,14 +4735,16 @@ async function updateSharePreview() {
   const box = $('#sheet5 .share-prev');
   if (box) box.classList.add('busy');
   document.querySelectorAll('#sheet5 [data-act="share-go"], #sheet5 [data-act="share-save"]').forEach(b => { b.disabled = true; });
+  const draw = s.kind === 'recap' ? drawRecapCard : drawShareCard;
   let blob = null;
-  try { blob = await canvasBlob(await drawShareCard(s.data, s.theme)); }
-  catch { try { blob = await canvasBlob(await drawShareCard(s.data, s.theme, true)); } catch {} } // e.g. a picture the canvas can't export
+  try { blob = await canvasBlob(await draw(s.data, s.theme)); }
+  catch { try { blob = await canvasBlob(await draw(s.data, s.theme, true)); } catch {} } // e.g. a picture the canvas can't export
   if (shareSheet !== s || tok !== s.token) return;
   if (!blob) { if (box) box.outerHTML = `<p class="err" role="alert">Couldn't make the picture on this phone.</p>`; return; }
   if (s.url) URL.revokeObjectURL(s.url);
   s.url = URL.createObjectURL(blob);
-  s.file = new File([blob], 'dink-score-result.png', { type: 'image/png' });
+  const fname = s.filename || 'dink-score-result.png';
+  s.file = new File([blob], fname, { type: 'image/png' });
   const img = $('#sheet5 .share-prev img');
   if (img) { img.onload = () => box.classList.remove('busy'); img.src = s.url; }
   document.querySelectorAll('#sheet5 [data-act="share-go"], #sheet5 [data-act="share-save"]').forEach(b => { b.disabled = false; });
@@ -4583,11 +4761,10 @@ function saveShareImage() {
   if (!f) return;
   const url = URL.createObjectURL(f);
   const a = document.createElement('a');
-  a.href = url; a.download = 'dink-score-result.png';
+  a.href = url; a.download = (shareSheet && shareSheet.filename) || 'dink-score-result.png';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
-
 /*MODULE-END:share-image*/
 /*MODULE-START:identity*/
 /* ---------- who you are ---------- */
@@ -5534,6 +5711,200 @@ function memberLeave(el) {
 }
 
 /*MODULE-END:result-links*/
+/*MODULE-START:year-recap*/
+/* ---------- year-in-review recap on every player profile ---------- */
+/*YEARRECAP-START*/
+// Pure calendar-year summary for one player, built from rated games and the Dink Rating engine.
+// No app globals, so test/recap.test.js can load this block directly alongside DR.
+const YearRecap = {
+  isDefault: n => /^Player \d+$/.test(String(n || '').trim()),
+  validGame: g => !!(g && !g.hold && Array.isArray(g.teams) && g.teams.length === 2 && g.teams.every(Array.isArray) && Array.isArray(g.score) && g.score.length === 2 && Number.isFinite(g.endedAt)),
+  yearOf: ms => new Date(ms).getFullYear(),
+  years(DR, name, games, { yearOf = YearRecap.yearOf } = {}) {
+    const k = DR.key(name || '');
+    if (!k) return [];
+    const set = new Set();
+    for (const g of games || []) {
+      if (!YearRecap.validGame(g)) continue;
+      if (g.teams.some(t => t.some(n => DR.key(n) === k))) set.add(yearOf(g.endedAt));
+    }
+    return [...set].sort((a, b) => b - a);
+  },
+  compute(DR, name, games, year = null, { yearOf = YearRecap.yearOf } = {}) {
+    const rawName = String(name || '').trim();
+    const k = DR.key(rawName);
+    const valid = (games || []).filter(YearRecap.validGame).sort((a, b) => a.endedAt - b.endedAt);
+    const years = YearRecap.years(DR, rawName, valid, { yearOf });
+    const targetYear = Number.isInteger(year) ? year : (years[0] ?? yearOf(Date.now()));
+    const empty = {
+      name: rawName, year: targetYear, years,
+      games: 0, wins: 0, losses: 0, winRate: 0,
+      bestRating: null, bestRatingMode: null, bestRatingAt: null,
+      doublesGames: 0, singlesGames: 0, pointsFor: 0, pointsAgainst: 0,
+      favouritePartner: null, biggestRival: null
+    };
+    if (!k || !valid.length) return empty;
+    // Replay the full rated history so ratings carry across year boundaries; peak rating only considers games in targetYear.
+    const { after } = DR.compute(valid);
+    const partners = new Map(), opponents = new Map();
+    const tally = (map, n, won, decided, at) => {
+      const ok = DR.key(n);
+      const e = map.get(ok) || { name: String(n).trim(), games: 0, wins: 0, losses: 0, last: 0 };
+      e.name = String(n).trim();
+      e.games++;
+      if (decided) { if (won) e.wins++; else e.losses++; }
+      e.last = Math.max(e.last, at);
+      map.set(ok, e);
+    };
+    let displayName = rawName, total = 0, wins = 0, losses = 0, doublesGames = 0, singlesGames = 0, pointsFor = 0, pointsAgainst = 0;
+    let bestRating = null, bestRatingMode = null, bestRatingAt = null;
+    for (const g of valid) {
+      if (yearOf(g.endedAt) !== targetYear) continue;
+      const side = g.teams[0].some(n => DR.key(n) === k) ? 0 : g.teams[1].some(n => DR.key(n) === k) ? 1 : -1;
+      if (side < 0) continue;
+      const mine = g.teams[side].find(n => DR.key(n) === k);
+      if (mine && String(mine).trim()) displayName = String(mine).trim();
+      const mode = g.mode === 'singles' ? 'singles' : 'doubles';
+      const sFor = Number(g.score[side]) || 0, sAgainst = Number(g.score[1 - side]) || 0;
+      const hasWinner = g.winner === 0 || g.winner === 1;
+      const decided = hasWinner || sFor !== sAgainst;
+      const won = hasWinner ? g.winner === side : sFor > sAgainst;
+      total++;
+      if (decided) { if (won) wins++; else losses++; }
+      if (mode === 'singles') singlesGames++; else doublesGames++;
+      pointsFor += sFor; pointsAgainst += sAgainst;
+      const r = after[g.id] && after[g.id][k];
+      if (typeof r === 'number' && (bestRating === null || r > bestRating)) {
+        bestRating = r; bestRatingMode = mode; bestRatingAt = g.endedAt;
+      }
+      if (mode === 'doubles') {
+        for (const n of g.teams[side]) {
+          if (DR.key(n) !== k && !YearRecap.isDefault(n)) tally(partners, n, won, decided, g.endedAt);
+        }
+      }
+      for (const n of g.teams[1 - side]) {
+        if (DR.key(n) !== k && !YearRecap.isDefault(n)) tally(opponents, n, won, decided, g.endedAt);
+      }
+    }
+    const fp = [...partners.values()].sort((a, b) => b.games - a.games || b.wins - a.wins || b.last - a.last || a.name.localeCompare(b.name))[0] || null;
+    const rv = [...opponents.values()].sort((a, b) => b.games - a.games || Math.abs(a.wins - a.losses) - Math.abs(b.wins - b.losses) || b.last - a.last || a.name.localeCompare(b.name))[0] || null;
+    const attachRate = e => e ? Object.assign({}, e, { winRate: e.games ? Math.round(100 * e.wins / e.games) : 0 }) : null;
+    return {
+      name: displayName, year: targetYear, years,
+      games: total, wins, losses, winRate: total ? Math.round(100 * wins / total) : 0,
+      bestRating, bestRatingMode, bestRatingAt,
+      doublesGames, singlesGames, pointsFor, pointsAgainst,
+      favouritePartner: attachRate(fp), biggestRival: attachRate(rv)
+    };
+  }
+};
+/*YEARRECAP-END*/
+
+function recapFormatLabel(r) {
+  if (r.doublesGames && r.singlesGames) return 'Doubles & singles';
+  if (r.singlesGames) return 'Singles';
+  if (r.doublesGames) return 'Doubles';
+  return 'Year in review';
+}
+
+// Entry card shown on every player profile when that player has rated games in at least one year.
+function recapBannerHTML(name, rated) {
+  const ys = YearRecap.years(DR, name, rated);
+  if (!ys.length) return '';
+  const r = YearRecap.compute(DR, name, rated, ys[0]);
+  const bits = [`${r.games} game${r.games === 1 ? '' : 's'}`, `${r.wins}–${r.losses}`];
+  if (r.bestRating !== null) bits.push(`Best ${r2(r.bestRating)}`);
+  return `<button type="button" class="recap-cta" data-act="recap-open">
+    <span class="recap-cta-text"><b>${r.year} in review</b><small>${esc(bits.join(' · '))}${ys.length > 1 ? ` · ${ys.length} years` : ''}</small></span>
+    <span class="recap-cta-go" aria-hidden="true">Recap ›</span>
+  </button>`;
+}
+
+// Full Year-in-review view rendered inside the profile sheet (#sheet4).
+function recapViewHTML(name, year, rated) {
+  const r = YearRecap.compute(DR, name, rated, year);
+  const diff = r.pointsFor - r.pointsAgainst;
+  const yearNav = r.years.length > 1
+    ? (r.years.length <= 4
+      ? seg('data-recap-year', r.years.map(y => [y, String(y)]), r.year, 'sm')
+      : `<div class="recap-years" role="group" aria-label="Year">${r.years.map(y => `<button type="button" class="chip-btn" data-recap-year="${y}" aria-pressed="${y === r.year}">${y}</button>`).join('')}</div>`)
+    : '';
+  let content;
+  if (!r.games) {
+    content = `<div class="empty" style="box-shadow:none;background:var(--surface-2)"><p>No rated games in ${r.year} for ${esc(r.name)}.</p></div>`;
+  } else {
+    const fp = r.favouritePartner;
+    const rv = r.biggestRival;
+    const fpHTML = fp
+      ? `<button type="button" class="rival recap-hl" data-player="${esc(fp.name)}"><span class="avatar-mini">${avatarInner(fp.name)}</span>
+          <span class="rv-text"><b>${esc(fp.name)}</b><small>Favourite partner · ${fp.games} game${fp.games === 1 ? '' : 's'} together (${fp.winRate}%)</small></span>
+          <span class="rv-score">${fp.wins}–${fp.losses}</span></button>`
+      : `<div class="recap-empty-row"><b>Favourite partner</b><small>${r.singlesGames && !r.doublesGames ? `Singles only in ${r.year} — no doubles partner yet.` : `No named doubles partner in ${r.year}.`}</small></div>`;
+    let rvHTML;
+    if (rv) {
+      const lead = rv.wins > rv.losses ? 'leads' : rv.wins < rv.losses ? 'trails' : 'tied';
+      const first = r.name.split(' ')[0];
+      const h2h = lead === 'tied' ? `All square at ${rv.wins}–${rv.losses}` : `${first} ${lead} ${Math.max(rv.wins, rv.losses)}–${Math.min(rv.wins, rv.losses)}`;
+      rvHTML = `<button type="button" class="rival recap-hl ${lead}" data-player="${esc(rv.name)}"><span class="avatar-mini">${avatarInner(rv.name)}</span>
+        <span class="rv-text"><b>${esc(rv.name)}</b><small>Biggest rival · ${esc(h2h)} (${rv.games} game${rv.games === 1 ? '' : 's'})</small></span>
+        <span class="rv-score">${rv.wins}–${rv.losses}</span></button>`;
+    } else {
+      rvHTML = `<div class="recap-empty-row"><b>Biggest rival</b><small>No named opponents in ${r.year}.</small></div>`;
+    }
+    const peakSub = r.bestRatingMode ? `${r.bestRatingMode === 'singles' ? 'Singles' : 'Doubles'} peak` : 'Peak rating';
+    content = `<div class="recap-hero">
+        <div class="recap-hero-meta"><span class="recap-k">Best Dink Rating</span><small>${esc(peakSub)}</small></div>
+        <span class="rt">${r.bestRating !== null ? r2(r.bestRating) : '–'}</span>
+      </div>
+      <div class="pf-stats">
+        <div><b>${r.games}</b><small>Games</small></div>
+        <div><b>${r.wins}–${r.losses}</b><small>Won–lost</small></div>
+        <div><b>${r.winRate}%</b><small>Win rate</small></div>
+        <div><b>${diff > 0 ? '+' : ''}${diff}</b><small>Points +/−</small></div>
+      </div>
+      <div class="field" style="margin:0"><span class="lab">Highlights</span><div class="rivals">${fpHTML}${rvHTML}</div></div>
+      <button type="button" class="btn btn-ink block recap-share-btn" data-act="recap-share">${ICON.share}Share ${r.year} recap image</button>`;
+  }
+  return `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
+    <div class="pf-head">
+      <button type="button" class="x" data-act="recap-back" aria-label="Back to profile">${ICON.back}</button>
+      <h2 id="pf-h" tabindex="-1">${r.year} in review</h2>
+      <button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button>
+    </div>
+    <div class="recap-sub"><span class="avatar-mini">${avatarInner(r.name)}</span><span><b>${esc(r.name)}${youTag(r.name)}</b><small>${esc(recapFormatLabel(r))}</small></span></div>
+    ${yearNav}
+    ${content}
+  </div></div>`;
+}
+
+// Privacy-safe payload for the canvas share card (no club codes, tokens, or private identifiers).
+function recapCardData(r) {
+  return {
+    name: r.name,
+    avatar: avatarOf(r.name),
+    year: r.year,
+    games: r.games,
+    wins: r.wins,
+    losses: r.losses,
+    winRate: r.winRate,
+    bestRating: r.bestRating,
+    bestRatingMode: r.bestRatingMode,
+    doublesGames: r.doublesGames,
+    singlesGames: r.singlesGames,
+    pointsDiff: r.pointsFor - r.pointsAgainst,
+    formatLabel: recapFormatLabel(r),
+    favouritePartner: r.favouritePartner ? {
+      name: r.favouritePartner.name, avatar: avatarOf(r.favouritePartner.name),
+      games: r.favouritePartner.games, wins: r.favouritePartner.wins, losses: r.favouritePartner.losses, winRate: r.favouritePartner.winRate
+    } : null,
+    biggestRival: r.biggestRival ? {
+      name: r.biggestRival.name, avatar: avatarOf(r.biggestRival.name),
+      games: r.biggestRival.games, wins: r.biggestRival.wins, losses: r.biggestRival.losses, winRate: r.biggestRival.winRate
+    } : null,
+    club: club ? club.name : null
+  };
+}
+/*MODULE-END:year-recap*/
 /* ---------- player profiles ---------- */
 let profile = null; // { name, mode } when a profile is open
 function playerProfile(name, mode, games) {
@@ -5618,19 +5989,27 @@ function wireChart() {
 function renderProfile() {
   const root = $('#sheet4');
   if (!profile) { duprEdit = null; root.innerHTML = ''; root._html = root._key = ''; return; }
-  const pr = playerProfile(profile.name, profile.mode, ratedGames());
+  const rated = ratedGames();
+  if (profile.recap) {
+    chartGeo = null;
+    setSheet(root, recapViewHTML(profile.name, profile.recap, rated), profile.name + '|recap|' + profile.recap);
+    return;
+  }
+  const pr = playerProfile(profile.name, profile.mode, rated);
   const games = pr.w + pr.l;
   const diff = pr.pf - pr.pa;
+  const recapCTA = recapBannerHTML(pr.name, rated);
   const row = (e, extra = '') => `<div class="pf-row"><span class="who"><button data-player="${esc(e.name)}">${esc(e.name)}</button>${extra}</span><span class="n">${e.w}–${e.g - e.w}</span><span class="pct">${Math.round(100 * e.w / e.g)}%</span></div>`;
   let body;
   if (!games) {
-    body = `<div class="empty" style="box-shadow:none;background:var(--surface-2)"><p>No ${profile.mode} games yet for ${esc(pr.name)}.</p></div>`;
+    body = `<div class="empty" style="box-shadow:none;background:var(--surface-2)"><p>No ${profile.mode} games yet for ${esc(pr.name)}.</p></div>${recapCTA}`;
     chartGeo = null;
   } else {
     const chart = ratingChart(pr.series);
     chartGeo = chart.geo; chartSeries = pr.series;
     body = `<div class="pf-hero"><span class="rt">${r2(pr.p.rating)}</span><span class="meta">${deltaBtnHTML(pr.name, pr.p.delta, profile.mode, 'all')}<span>${DR.isProvisional(pr.p) ? `Provisional, under ${DR.PROVISIONAL} games, ` : ''}${pr.rel}% reliable</span></span></div>
       <div class="pf-stats"><div><b>${games}</b><small>Games</small></div><div><b>${pr.w}–${pr.l}</b><small>Won–lost</small></div><div><b>${Math.round(100 * pr.w / games)}%</b><small>Win rate</small></div><div><b>${diff > 0 ? '+' : ''}${diff}</b><small>Points +/−</small></div></div>
+      ${recapCTA}
       ${club ? trophiesHTML(pr.name) : ''}
       <div class="chart-card"><h3>Rating over time</h3>${chart.svg}<div class="chart-tip" hidden></div></div>
       ${rivalriesHTML(pr.name, profile.mode)}
@@ -5639,7 +6018,7 @@ function renderProfile() {
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
   }
   const changed = setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
-    <div class="pf-head"><span class="av">${avatarInner(pr.name)}</span><h2 id="pf-h">${esc(pr.name)}${youTag(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    <div class="pf-head"><span class="av">${avatarInner(pr.name)}</span><h2 id="pf-h" tabindex="-1">${esc(pr.name)}${youTag(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${selfDuprHTML(pr.name)}
@@ -7038,6 +7417,25 @@ document.addEventListener('click', e => {
   }
   if (ds.player) { if (clubSheet && el.closest && el.closest('#sheet3')) { clubSheet = null; renderClub(); } profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
+  if (ds.act === 'recap-open' && profile) {
+    const ys = YearRecap.years(DR, profile.name, ratedGames());
+    if (ys.length) { profile.recap = ys[0]; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; const h = $('#pf-h'); if (h) h.focus({ preventScroll: true }); announce(`Showing ${profile.recap} year in review`); }
+    return;
+  }
+  if (ds.act === 'recap-back' && profile) {
+    delete profile.recap; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; const h = $('#pf-h'); if (h) h.focus({ preventScroll: true });
+    return;
+  }
+  if (ds.recapYear && profile) {
+    const y = Number(ds.recapYear);
+    if (Number.isInteger(y) && y !== profile.recap) { profile.recap = y; renderProfile(); announce(`Showing ${y} year in review`); }
+    return;
+  }
+  if (ds.act === 'recap-share' && profile && profile.recap) {
+    const r = YearRecap.compute(DR, profile.name, ratedGames(), profile.recap);
+    if (r.games) openRecapShare(recapCardData(r));
+    return;
+  }
   if (ds.act === 'profile-close') { profile = null; duprEdit = null; renderProfile(); return; }
   // The profile's DUPR box and the Your DUPR card share these; the name is the open profile's, else this phone's player.
   const duprName = profile ? profile.name : myName();
