@@ -58,5 +58,5 @@ You need a Mac with Xcode, an iPhone paired with the watch, and an Apple ID. A f
 
 - Not run on a real watch. It was run in the watchOS 27 simulator against the real API handlers on throwaway PGlite (`DINK_BASE_URL=http://127.0.0.1:<port>`, unsigned build): `docs/01-link.png` to `04-gameover.png` (46 mm; `01-link` and `03-score` also at 40 mm and 49 mm as `*-40mm.png` and `*-49mm.png`); the QR in each link screenshot decodes to the pairing URL. Taps, the HealthKit prompt and the Keychain on a signed build are untested.
 - No app icon yet (needs a 1024 px image); no complications; no league or event scoring; no `scoredBy`.
-- Linking makes a registration on the server; the server allows 10 an hour per network, and the watch only asks while the Link screen is up.
+- Linking makes a registration on the server; the server allows 1500 an hour per network (a flood ceiling: a tournament of 100 watches behind one Wi-Fi, each renewing its 5-minute QR 12 times an hour, uses 1200) and 2000 live QR codes app-wide, and the watch only asks while the Link screen is up.
 - CI has no Mac job; the vector check runs in the normal job, the Swift tests are run by hand.

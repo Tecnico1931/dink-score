@@ -23,7 +23,11 @@ import * as R from './_watchrules.js';
 export const WATCH_ACTIONS = ['watch-register', 'watch-poll', 'watch-state', 'watch-rally', 'watch-unrally', 'watch-finish', 'watch-unlink']; // no club code: pairing is open, the rest carry the watch token
 export const WATCH_CLUB_ACTIONS = ['watch-claim', 'watch-list', 'watch-attach', 'watch-revoke']; // the phone, with the club code
 
-const MAX_NEW_NET = 10, MAX_NEW_ALL = 300;  // registrations per network per hour, and across the whole app
+// A watch left on the QR screen registers a new QR every 5 minutes (12 an hour), and a tournament puts many watches behind one venue Wi-Fi or
+// carrier address, so the network limit is only a flood ceiling (125 watches refreshing all hour). What bounds the table is the cap on live
+// pairings (5 minute rows, expired ones are deleted on every registration), not a rate that honest watches could use up.
+const MAX_NEW_NET = 1500;                   // registrations per network per hour
+const MAX_ACTIVE_PAIRINGS = 2000;           // unexpired, unclaimed QR codes across the whole app
 const MAX_BAD_CLAIMS = 10;                  // wrong link codes per network per 15 minutes
 const MAX_BAD_POLLS = 30;                   // wrong poll secrets per network per 15 minutes
 const MAX_BAD_TOKENS = 30;                  // unknown or revoked watch tokens per network per 15 minutes
@@ -87,10 +91,11 @@ async function register(sql, body, req) {
   const idHash = R.cleanHash(body.idHash), pollHash = R.cleanHash(body.pollHash), confirm = R.cleanConfirm(body.confirm4);
   const shortHash = body.shortHash === undefined || body.shortHash === null ? null : R.cleanHash(body.shortHash);
   if (!idHash || !pollHash || !confirm || (body.shortHash != null && !shortHash)) throw fail(400, 'That watch link was not valid.');
-  await attempt(sql, 'watch-new:' + clientIp(req), MAX_NEW_NET, 60, 'Too many watch links from this connection. Try again in an hour.');
-  await attempt(sql, 'watch-new:*', MAX_NEW_ALL, 60, 'Too many watches are linking just now. Try again in an hour.');
-  await purgeMarks(sql);
   await sql`DELETE FROM watch_pairings WHERE expires_at < now()`;
+  const [{ n: active }] = await sql`SELECT count(*)::int AS n FROM watch_pairings WHERE claimed_link IS NULL`;
+  if (active >= MAX_ACTIVE_PAIRINGS) throw fail(429, 'Many watches are linking just now. Wait a few minutes and try again.');
+  await attempt(sql, 'watch-new:' + clientIp(req), MAX_NEW_NET, 60, 'Too many watch links from this connection. Try again in a few minutes.');
+  await purgeMarks(sql);
   await sql`DELETE FROM watch_links WHERE (token_hash IS NULL AND expires_at < now()) OR expires_at < now() - interval '30 days' OR revoked_at < now() - interval '30 days'`;
   const rows = await sql`INSERT INTO watch_pairings (id_hash, poll_hash, short_hash, confirm, label, expires_at) VALUES (${idHash}, ${pollHash}, ${shortHash}, ${confirm}, ${R.cleanLabel(body.label)}, now() + make_interval(mins => ${R.PAIR_TTL_MIN})) ON CONFLICT DO NOTHING RETURNING id_hash`;
   if (!rows.length) throw fail(409, 'That watch link is already in use. Make a new one.');

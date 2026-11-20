@@ -2125,8 +2125,28 @@ await step('the public league link: organizer makes it, a spectator sees only al
     assert.equal((await call(live, 'POST', { body: { action: 'watch-state' } })).status, 401, 'no token');
     assert.equal((await call(live, 'POST', { headers: { authorization: 'Bearer ' + wowner }, body: { action: 'watch-state' } })).status, 401, 'an owner token is not a watch token');
     const reg2 = { 'x-real-ip': '10.77.0.3' };
-    for (let i = 0; i < 10; i++) ok(await reg(mk(), {}, reg2));
-    assert.equal((await reg(mk(), {}, reg2)).status, 429);
+    // A tournament: 100 distinct watches behind one venue address, each on the QR screen for an hour (a new QR every 5 minutes = 12 an hour).
+    await pg.query(`DELETE FROM watch_pairings`);
+    for (let round = 0; round < 12; round++) {
+      for (let i = 0; i < 100; i++) ok(await reg(mk(), {}, reg2));
+      await pg.query(`UPDATE watch_pairings SET expires_at = now() - interval '1 second'`);   // 5 minutes later the old QRs have expired
+    }
+    // A flood from that same address is stopped at the hourly ceiling, and a refused attempt leaves no mark.
+    await pg.query(`INSERT INTO lookup_fails (ip) SELECT 'watch-new:10.77.0.3' FROM generate_series(1, 299)`);   // 1200 + 299 = one short of 1500
+    ok(await reg(mk(), {}, reg2));
+    for (let i = 0; i < 3; i++) assert.equal((await reg(mk(), {}, reg2)).status, 429, 'a flood is stopped');
+    assert.equal((await pg.query(`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = 'watch-new:10.77.0.3'`)).rows[0].n, 1500);
+    // Many addresses at once: the cap on live QR codes holds, and frees as they expire.
+    await pg.query(`DELETE FROM watch_pairings`);
+    await pg.query(`INSERT INTO watch_pairings (id_hash, poll_hash, confirm, expires_at) SELECT 'fill' || g, 'x', '1234', now() + interval '5 minutes' FROM generate_series(1, 2000) g`);
+    assert.equal((await reg(mk(), {}, { 'x-real-ip': '10.77.1.1' })).status, 429, 'the app-wide cap on live QR codes');
+    assert.equal((await pg.query(`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = 'watch-new:10.77.1.1'`)).rows[0].n, 0, 'a refused attempt leaves no mark');
+    await pg.query(`UPDATE watch_pairings SET expires_at = now() - interval '1 second'`);
+    ok(await reg(mk(), {}, { 'x-real-ip': '10.77.1.1' }));
+    await pg.query(`DELETE FROM watch_pairings`);
+    const stuck = { 'x-real-ip': '10.77.0.5' };   // marks stored under the old limit of 10 no longer block
+    await pg.query(`INSERT INTO lookup_fails (ip) SELECT 'watch-new:10.77.0.5' FROM generate_series(1, 10)`);
+    ok(await reg(mk(), {}, stuck));
     assert.equal((await reg(mk(), {}, { 'x-real-ip': '10.77.0.4' })).status, 200);
     const full = ok(await call(club, 'POST', { body: { name: 'Full watch club', pin: '135790' } }), 201).club.code;
     for (let i = 0; i < 20; i++) await link({}, full);
