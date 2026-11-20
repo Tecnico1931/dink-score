@@ -234,19 +234,21 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 
 /* Leaders */
 .podium { display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 8px; align-items: end; }
-.step { border: 0; background: transparent; font: inherit; color: inherit; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.step { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.step-main { border: 0; background: transparent; font: inherit; color: inherit; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; width: 100%; min-width: 0; }
 .step .avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--c); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 17px; margin-bottom: 6px; }
 .step.s1 .avatar { width: 58px; height: 58px; font-size: 21px; box-shadow: 0 0 0 4px var(--ball); }
 .step .pl-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; line-height: 1.2; }
 .step .pl-rating { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
 .step.s1 .pl-rating { font-size: 38px; }
-.step .block { width: 100%; margin-top: 8px; border-radius: 16px 16px 6px 6px; display: flex; justify-content: center; padding-top: 8px; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 24px; background: var(--surface); box-shadow: var(--shadow); color: var(--muted); }
+.step .block { border: 0; font: inherit; cursor: pointer; width: 100%; margin-top: 2px; border-radius: 16px 16px 6px 6px; display: flex; justify-content: center; padding: 8px 0 0; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 24px; background: var(--surface); box-shadow: var(--shadow); color: var(--muted); }
 .step.s1 .block { height: 96px; background: var(--ink); color: var(--ball); }
 .step.s2 .block { height: 70px; }
 .step.s3 .block { height: 52px; }
 .rows { display: flex; flex-direction: column; gap: 6px; }
 .prow .avatar-mini { width: 34px; height: 34px; font-size: 12px; --r: 23px; }
-.prow { border: 0; font: inherit; color: inherit; text-align: left; width: 100%; cursor: pointer; background: var(--surface); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 2.2ch auto 1fr auto; gap: 10px; align-items: center; }
+.prow { width: 100%; background: var(--surface); border-radius: 16px; padding: 6px 8px 6px 14px; box-shadow: var(--shadow); display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.prow-main { border: 0; background: transparent; font: inherit; color: inherit; text-align: left; width: 100%; min-width: 0; min-height: 44px; padding: 6px 0; cursor: pointer; display: grid; grid-template-columns: 2.2ch auto 1fr; gap: 10px; align-items: center; }
 .prow .rank { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 20px; color: var(--muted); text-align: center; }
 .prow:first-child .rank { color: var(--ink); }
 .prow .pinfo { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -255,8 +257,8 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .prow .rel { display: inline-flex; align-items: center; gap: 6px; }
 .prow .rel i { width: 44px; height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; display: inline-block; position: relative; }
 .prow .rel i b { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 2px; }
-.prow .pr { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.prow .rating { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
+.prow .pr { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
+.prow .rating { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; padding: 4px 6px 0; }
 .badge { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 8px; }
 .badge.prov { background: var(--surface-2); color: var(--muted); }
 .note-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); font-size: 14px; }
@@ -266,6 +268,25 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .delta.up { color: var(--up); }
 .delta.down { color: var(--down); }
 .delta.flat { color: var(--muted); font-weight: 500; }
+.delta-btn { border: 0; background: transparent; font: inherit; color: inherit; padding: 0 2px; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 999px; }
+.delta-pill { display: inline-flex; align-items: center; gap: 3px; background: var(--surface-2); border-radius: 999px; padding: 4px 9px; line-height: 1.2; transition: transform .1s ease; }
+.delta-btn:active .delta-pill { transform: scale(.96); }
+.sheet-bg.explain { z-index: 94; }
+.exp-hero { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.exp-move { display: inline-flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 38px; line-height: .95; font-variant-numeric: tabular-nums; }
+.exp-move .exp-before { color: var(--muted); font-size: 28px; }
+.exp-move .exp-sep { color: var(--muted); font-size: 22px; font-family: var(--body); font-weight: 500; }
+.exp-delta { font-size: 15px; padding: 5px 11px; border-radius: 999px; background: var(--surface-2); }
+.exp-meta { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.exp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 340px) { .exp-grid { grid-template-columns: 1fr; } }
+.exp-box { background: var(--surface-2); border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.exp-box .exp-k { font-size: 12px; font-weight: 600; color: var(--muted); }
+.exp-box b { font-size: 16px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.exp-box small { font-size: 13px; color: var(--muted); }
+.exp-why { background: var(--surface-2); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.exp-why p { color: var(--ink); font-size: 15px; line-height: 1.45; }
+.exp-why .exp-note { color: var(--muted); font-size: 13px; }
 .awards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .awards > button { border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border-radius: 18px; padding: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .awards .aw-k { font-size: 13px; color: var(--muted); }
@@ -1000,6 +1021,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .side-mini .boxes, :root[data-outdoor] .side-mini .boxes i + i { border-color: #fff; }
 :root[data-outdoor] .progress { background: rgb(255 255 255 / .4); }
 :root[data-outdoor] .btn-soft { box-shadow: inset 0 0 0 2px var(--ink); }
+:root[data-outdoor] .delta-pill, :root[data-outdoor] .exp-delta, :root[data-outdoor] .exp-box, :root[data-outdoor] .exp-why { box-shadow: inset 0 0 0 1.5px var(--ink); }
 :root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
 /* Large scores: the numbers fill the court, the names and call grow with them. */
 :root[data-large] .big { font-size: clamp(150px, 33vh, 340px); }
@@ -1051,6 +1073,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 <div id="sheet5"></div>
 <div id="sheet6"></div>
 <div id="sheet7"></div>
+<div id="sheet8"></div>
 <div id="tour"></div>
 
 <script>
@@ -1304,8 +1327,14 @@ const DR = (() => {
   }
   const kFactor = rel => 0.06 + 0.24 * (1 - rel);
   const clamp = r => Math.min(MAX, Math.max(MIN, r));
+  function expectedScore(pA, target) {
+    const fav = pA >= 0.5 ? 0 : 1;
+    const pf = fav === 0 ? pA : 1 - pA;
+    const loser = Math.min(target - 1, Math.round(target * (1 - pf) / pf));
+    return { fav, score: fav === 0 ? [target, loser] : [loser, target] };
+  }
   // Replays games in time order. `cap` is the share cap (1 = none, which is exactly v1). Returns the final tables per format,
-  // each game's change (`changes[id] = { expected, list: [{ name, team, before, after }] }`), and the same as `pA` / `after[id][key]`.
+  // each game's change (`changes[id] = { expected, teamRatings, actualShareA, usedShareA, capped, list }`), and the same as `pA` / `after[id][key]`.
   function compute(games, { cap = CAP } = {}) {
     const tables = { doubles: new Map(), singles: new Map() };
     const changes = {}, pA = {}, after = {};
@@ -1316,26 +1345,33 @@ const DR = (() => {
       const T = tables[g.mode === 'singles' ? 'singles' : 'doubles'];
       const get = n => {
         const k = key(n);
-        if (!T.has(k)) T.set(k, { key: k, name: String(n).trim(), rating: START, games: 0, wins: 0, last: g.endedAt, delta: 0 });
+        if (!T.has(k)) T.set(k, { key: k, name: String(n).trim(), rating: START, games: 0, wins: 0, last: g.endedAt, delta: 0, lastGameId: null });
         return T.get(k);
       };
       const teams = g.teams.map(t => t.map(get));
       const tr = teams.map(t => t.reduce((s, p) => s + p.rating, 0) / t.length);
       const e = expShare(tr[0] - tr[1]);
-      const sA = Math.min(cap, Math.max(1 - cap, g.score[0] / tot));
+      const rawShareA = g.score[0] / tot;
+      const sA = Math.min(cap, Math.max(1 - cap, rawShareA));
       const updates = [];
-      teams.forEach((t, ti) => t.forEach(p => updates.push([p, clamp(p.rating + kFactor(reliability(p, g.endedAt)) * (ti === 0 ? sA - e : e - sA)), ti])));
+      teams.forEach((t, ti) => t.forEach(p => {
+        const rel = reliability(p, g.endedAt);
+        const k = kFactor(rel);
+        const raw = p.rating + k * (ti === 0 ? sA - e : e - sA);
+        updates.push([p, clamp(raw), ti, rel, k, raw]);
+      }));
       // applied after all are worked out, so partners and opponents all use pre-game ratings
       const list = [];
       after[g.id] = {};
-      for (const [p, next, ti] of updates) {
+      for (const [p, next, ti, rel, k, raw] of updates) {
         const before = p.rating;
-        p.rating = next; p.delta = next - before; p.games++; p.last = g.endedAt;
+        const gamesBefore = p.games;
+        p.rating = next; p.delta = next - before; p.games++; p.last = g.endedAt; p.lastGameId = g.id;
         if (g.winner === ti) p.wins++;
-        list.push({ name: p.name, team: ti, before, after: next });
+        list.push({ name: p.name, team: ti, before, after: next, rel, k, gamesBefore, clamped: Math.abs(next - raw) > 1e-12 });
         after[g.id][p.key] = next;
       }
-      changes[g.id] = { expected: e, list };
+      changes[g.id] = { expected: e, teamRatings: tr, actualShareA: rawShareA, usedShareA: sA, capped: Math.abs(rawShareA - sA) > 1e-12, list };
       pA[g.id] = e;
     }
     return { tables, changes, pA, after };
@@ -1347,12 +1383,105 @@ const DR = (() => {
   function forecast(tables, mode, teams, target) {
     const tr = teams.map(t => t.reduce((s, n) => s + ((lookup(tables, mode, n) || {}).rating ?? START), 0) / t.length);
     const pA = expShare(tr[0] - tr[1]);
-    const fav = pA >= 0.5 ? 0 : 1;
-    const pf = fav === 0 ? pA : 1 - pA;
-    const loser = Math.min(target - 1, Math.round(target * (1 - pf) / pf));
-    return { pA, fav, score: fav === 0 ? [target, loser] : [loser, target], ratings: tr };
+    const { fav, score } = expectedScore(pA, target);
+    return { pA, fav, score, ratings: tr };
   }
-  return { VERSION, START, MIN, MAX, SCALE, FULL, PROVISIONAL, CAP, DAY, key, expShare, isProvisional, reliability, compute, lookup, forecast };
+  // Explains a player's rating change from their latest rated game in `mode` (or a specific `gameId`), using the exact same replay math.
+  function explain(games, mode, name, { gameId = null, cap = CAP } = {}) {
+    const m = mode === 'singles' ? 'singles' : 'doubles';
+    const k = key(name);
+    if (!k) return null;
+    const { tables, changes } = compute(games, { cap });
+    const p = tables[m].get(k);
+    if (!p) return null;
+    const id = gameId || p.lastGameId;
+    if (!id || !changes[id]) return null;
+    const g = games.find(x => x.id === id && (x.mode === 'singles' ? 'singles' : 'doubles') === m);
+    if (!g) return null;
+    const ch = changes[id];
+    const entry = ch.list.find(x => key(x.name) === k);
+    if (!entry) return null;
+    const team = entry.team, opp = 1 - team;
+    const score = [Number(g.score[0]), Number(g.score[1])];
+    const won = g.winner !== undefined ? g.winner === team : score[team] > score[opp];
+    const target = Number(g.target) > 0 ? Number(g.target) : Math.max(11, score[0], score[1]);
+    const exp = expectedScore(ch.expected, target);
+    const even = Math.abs(ch.expected - 0.5) < 0.02;
+    const expectedShare = team === 0 ? ch.expected : 1 - ch.expected;
+    const actualShare = team === 0 ? ch.actualShareA : 1 - ch.actualShareA;
+    const usedShare = team === 0 ? ch.usedShareA : 1 - ch.usedShareA;
+    const delta = entry.after - entry.before;
+    const roundedDelta = Math.round(delta * 100) / 100;
+    const gamesAfter = entry.gamesBefore + 1;
+    return {
+      game: g, mode: m, player: entry.name, team, teams: g.teams, teamRatings: ch.teamRatings,
+      score, won, before: entry.before, after: entry.after, delta, roundedDelta,
+      expectedShare, actualShare, usedShare, shareDiff: usedShare - expectedShare,
+      forecast: { fav: exp.fav, even, score: exp.score, target, pA: ch.expected },
+      rel: entry.rel, relPct: Math.round(entry.rel * 100), k: entry.k,
+      gamesBefore: entry.gamesBefore, gamesAfter, provisional: gamesAfter < PROVISIONAL,
+      capped: ch.capped,
+      floorClamped: entry.clamped && entry.after === MIN,
+      ceilClamped: entry.clamped && entry.after === MAX
+    };
+  }
+  // Plain-English explanation of an `explain()` result. Pure, no DOM or HTML escaping.
+  function explainText(ex) {
+    if (!ex) return null;
+    const teamStr = t => ex.teams[t].map(n => String(n).trim()).join(' & ');
+    const fScore = ex.forecast.score;
+    const fav = ex.forecast.fav;
+    const myScore = `${ex.score[ex.team]}\u2013${ex.score[1 - ex.team]}`;
+    const myExp = `${fScore[ex.team]}\u2013${fScore[1 - ex.team]}`;
+    const dAbs = Math.abs(ex.roundedDelta).toFixed(2);
+    const forecastLabel = ex.forecast.even
+      ? 'Even matchup'
+      : `${teamStr(fav)} favored ${fScore[fav]}\u2013${fScore[1 - fav]}`;
+    const actualLabel = `${ex.won ? 'Won' : 'Lost'} ${myScore}`;
+    let reason;
+    if (ex.roundedDelta === 0) {
+      if (ex.floorClamped) {
+        reason = `${ex.player} is already at the ${MIN.toFixed(2)} rating floor, so this loss could not lower it further.`;
+      } else if (ex.ceilClamped) {
+        reason = `${ex.player} is already at the ${MAX.toFixed(2)} rating ceiling, so this win could not raise it further.`;
+      } else {
+        reason = `The ${myScore} finish matched the forecast closely enough that ${ex.player}'s rating stayed at ${ex.after.toFixed(2)}.`;
+      }
+    } else if (ex.roundedDelta > 0) {
+      if (!ex.won) {
+        reason = `Even in a ${myScore} loss, ${ex.player} beat the ${myExp} forecast \u2014 raising the rating by +${dAbs}.`;
+      } else if (!ex.forecast.even && fav !== ex.team) {
+        reason = `Forecast to lose ${myExp}, ${ex.player} won ${myScore} \u2014 beating the forecast raised the rating by +${dAbs}.`;
+      } else if (ex.forecast.even) {
+        reason = `In an even matchup, winning ${myScore} beat the forecast and raised ${ex.player}'s rating by +${dAbs}.`;
+      } else {
+        reason = `Winning ${myScore} beat the ${myExp} forecast, raising ${ex.player}'s rating by +${dAbs}.`;
+      }
+    } else {
+      if (ex.won) {
+        reason = `Even in a ${myScore} win, ${ex.player} was forecast to win ${myExp} \u2014 missing that margin lowered the rating by \u2212${dAbs}.`;
+      } else if (!ex.forecast.even && fav === ex.team) {
+        reason = `Forecast to win ${myExp}, ${ex.player} lost ${myScore} \u2014 missing the forecast lowered the rating by \u2212${dAbs}.`;
+      } else if (ex.forecast.even) {
+        reason = `In an even matchup, losing ${myScore} missed the forecast and lowered ${ex.player}'s rating by \u2212${dAbs}.`;
+      } else {
+        reason = `Losing ${myScore} missed the ${myExp} forecast, lowering ${ex.player}'s rating by \u2212${dAbs}.`;
+      }
+    }
+    const notes = [];
+    if (ex.gamesBefore === 0) {
+      notes.push(`First rated ${ex.mode} game \u2014 ratings move faster while reliability builds.`);
+    } else if (ex.provisional) {
+      notes.push(`Provisional (${ex.gamesAfter} of ${PROVISIONAL} games, ${ex.relPct}% reliable) \u2014 ratings move faster until reliability grows.`);
+    } else {
+      notes.push(`Reliability was ${ex.relPct}% before this game \u2014 ratings move more gradually as reliability grows.`);
+    }
+    if (ex.capped) {
+      notes.push('Blowouts are capped at an 11\u20133 point share (about 79%), so running up the score did not add extra movement.');
+    }
+    return { forecastLabel, actualLabel, reason, notes };
+  }
+  return { VERSION, START, MIN, MAX, SCALE, FULL, PROVISIONAL, CAP, DAY, key, expShare, isProvisional, reliability, kFactor, expectedScore, compute, lookup, forecast, explain, explainText };
 })();
 /*RATING-END*/
 
@@ -1806,6 +1935,13 @@ function deltaHTML(d) {
   const v = Math.round(d * 100) / 100;
   if (v === 0) return `<span class="delta flat">±0.00</span>`;
   return `<span class="delta ${v > 0 ? 'up' : 'down'}">${v > 0 ? '▲ ' : '▼ '}${Math.abs(v).toFixed(2)}</span>`;
+}
+function deltaBtnHTML(name, d, mode, scope = 'all') {
+  const v = Math.round(d * 100) / 100;
+  const cls = v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
+  const txt = v === 0 ? '±0.00' : `${v > 0 ? '▲ ' : '▼ '}${Math.abs(v).toFixed(2)}`;
+  const dir = v === 0 ? 'unchanged' : `${v > 0 ? 'up' : 'down'} ${Math.abs(v).toFixed(2)}`;
+  return `<button type="button" class="delta-btn" data-explain-player="${esc(name)}" data-explain-mode="${mode}" data-explain-scope="${scope}" aria-label="Rating ${dir} for ${esc(name)}. Explain rating change"><span class="delta-pill delta ${cls}">${txt}</span></button>`;
 }
 function namesFor(names, mode, t) {
   const n = mode === 'doubles' ? 2 : 1;
@@ -3330,6 +3466,7 @@ function renderApp() {
   renderLog();
   renderClub();
   renderProfile();
+  renderRatingExplain();
   renderTour();
   renderEvents();
   if (document.body.scrollTop !== y) document.body.scrollTop = y;
@@ -3535,13 +3672,14 @@ function leadersView() {
   const podium = rows.slice(0, 3);
   const order = podium.length === 3 ? [1, 0, 2] : podium.map((_, i) => i);
   const avatarColor = ['var(--ink)', 'var(--blue)', 'var(--green)'];
-  const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<button class="step s${i + 1}" style="--c:${avatarColor[i]}" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile">
-      <span class="avatar">${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}
-      <span class="block">${i + 1}</span></button>`; }).join('')}</section>`;
-  const list = `<section class="rows">${rows.map((p, i) => `<button class="prow" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini">${avatarInner(p.name)}</span>
+  const scopeKey = season ? 'season' : 'all';
+  const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<div class="step s${i + 1}" style="--c:${avatarColor[i]}">
+      <button type="button" class="step-main" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar">${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span></button>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}
+      <button type="button" class="block" data-player="${esc(p.name)}" tabindex="-1" aria-hidden="true">${i + 1}</button></div>`; }).join('')}</section>`;
+  const list = `<section class="rows">${rows.map((p, i) => `<div class="prow"><button type="button" class="prow-main" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini">${avatarInner(p.name)}</span>
       <span class="pinfo"><span class="pname">${esc(p.name)}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (DR.isProvisional(p) ? '<span class="badge prov">Provisional</span>' : '')}${p.streak >= 3 ? `<span class="badge hot">${p.streak} straight wins</span>` : ''}</span>
-        <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span>
-      <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaHTML(p.delta)}</span></button>`).join('')}</section>`;
+        <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span></button>
+      <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}</span></div>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
   const awards = [by(p => p.wins, 'Most wins', p => p.wins), by(p => p.best, 'Longest win streak', p => p.best), by(p => p.diff, 'Best point difference', p => '+' + p.diff), by(p => p.games, 'Most games', p => p.games)].join('');
   return head + podiumHTML + list + (awards ? `<section><h2>Club honors</h2><div class="awards" style="margin-top:10px">${awards}</div></section>` : '') + (info ? pastChampionsHTML(ratingMode) : '');
@@ -5455,7 +5593,7 @@ function renderProfile() {
   } else {
     const chart = ratingChart(pr.series);
     chartGeo = chart.geo; chartSeries = pr.series;
-    body = `<div class="pf-hero"><span class="rt">${r2(pr.p.rating)}</span><span class="meta">${deltaHTML(pr.p.delta)}<span>${DR.isProvisional(pr.p) ? `Provisional, under ${DR.PROVISIONAL} games, ` : ''}${pr.rel}% reliable</span></span></div>
+    body = `<div class="pf-hero"><span class="rt">${r2(pr.p.rating)}</span><span class="meta">${deltaBtnHTML(pr.name, pr.p.delta, profile.mode, 'all')}<span>${DR.isProvisional(pr.p) ? `Provisional, under ${DR.PROVISIONAL} games, ` : ''}${pr.rel}% reliable</span></span></div>
       <div class="pf-stats"><div><b>${games}</b><small>Games</small></div><div><b>${pr.w}–${pr.l}</b><small>Won–lost</small></div><div><b>${Math.round(100 * pr.w / games)}%</b><small>Win rate</small></div><div><b>${diff > 0 ? '+' : ''}${diff}</b><small>Points +/−</small></div></div>
       ${club ? trophiesHTML(pr.name) : ''}
       <div class="chart-card"><h3>Rating over time</h3>${chart.svg}<div class="chart-tip" hidden></div></div>
@@ -5474,6 +5612,66 @@ function renderProfile() {
     ${body}
     ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`, profile.name + '|' + profile.mode);
   if (changed) wireChart();
+}
+/* ---------- rating change explanation sheet ---------- */
+let ratingExplain = null; // { name, mode, scope, from }
+function explainGamesFor(scope) {
+  if (scope === 'season' && club) {
+    const info = progressInfo();
+    if (info && info.season) {
+      const s = info.season;
+      return ratedGames().filter(g => g.scoredBy && (g.receivedAt || g.endedAt) >= s.start && (g.receivedAt || g.endedAt) < s.end);
+    }
+  }
+  return ratedGames();
+}
+function openRatingExplain(name, mode, scope, from) {
+  ratingExplain = { name, mode: mode === 'singles' ? 'singles' : 'doubles', scope: scope === 'season' ? 'season' : 'all', from: from || null };
+  renderRatingExplain();
+  const btn = $('#sheet8 [data-act="explain-close"]');
+  if (btn) btn.focus({ preventScroll: true });
+}
+function closeRatingExplain() {
+  const back = ratingExplain && ratingExplain.from;
+  ratingExplain = null;
+  renderRatingExplain();
+  if (back && back.isConnected) { try { back.focus({ preventScroll: true }); } catch {} }
+}
+function renderRatingExplain() {
+  const root = $('#sheet8');
+  if (!root) return;
+  if (!ratingExplain) { root.innerHTML = ''; root._html = root._key = ''; return; }
+  const { name, mode, scope } = ratingExplain;
+  const ex = DR.explain(explainGamesFor(scope), mode, name);
+  const modeLabel = mode === 'singles' ? 'Singles' : 'Doubles';
+  let inner;
+  if (!ex) {
+    inner = `<div class="sheet-head"><h2 id="exp-h">Rating change</h2><button type="button" class="x" data-act="explain-close" aria-label="Close">✕</button></div>
+      <div class="empty" style="box-shadow:none;background:var(--surface-2)"><p>No recent rated ${mode} game found for ${esc(name)}.</p></div>
+      <div class="btns"><button type="button" class="btn btn-soft" data-act="explain-close">Done</button></div>`;
+  } else {
+    const t = DR.explainText(ex);
+    const d = new Date(ex.game.endedAt);
+    const when = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    const v = ex.roundedDelta;
+    const dCls = v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
+    const dTxt = v === 0 ? '±0.00' : `${v > 0 ? '▲ ' : '▼ '}${Math.abs(v).toFixed(2)}`;
+    const side = ti => `<div class="side ${ex.score[ti] > ex.score[1 - ti] ? 'won' : ''}" style="--c:${TEAM_COLOR[ti]}"><small>${esc(teamLabel(ex.teams[ti]))}</small><small>Avg ${r2(ex.teamRatings[ti])}</small><b>${ex.score[ti]}</b></div>`;
+    const expPct = Math.round(ex.expectedShare * 100);
+    const actPct = Math.round(ex.actualShare * 100);
+    const showProfileBtn = !profile || !sameName(profile.name, ex.player);
+    inner = `<div class="sheet-head"><h2 id="exp-h">Why ${esc(ex.player)}’s rating moved</h2><button type="button" class="x" data-act="explain-close" aria-label="Close">✕</button></div>
+      <div class="exp-hero"><span class="exp-move"><span class="exp-before">${r2(ex.before)}</span><span class="exp-sep" aria-hidden="true">→</span><span>${r2(ex.after)}</span></span><span class="exp-delta delta ${dCls}">${dTxt}</span></div>
+      <div class="exp-meta"><span>${esc(when)}</span><span class="tag">${modeLabel}</span>${scope === 'season' ? '<span class="tag">Season</span>' : ''}${ex.game.logged ? '<span class="tag logged">Logged</span>' : ''}</div>
+      <div class="result">${side(0)}<span class="vs">vs</span>${side(1)}</div>
+      <div class="exp-grid">
+        <div class="exp-box"><span class="exp-k">Forecast</span><b>${esc(t.forecastLabel)}</b><small>${expPct}% expected point share</small></div>
+        <div class="exp-box"><span class="exp-k">Actual</span><b>${esc(t.actualLabel)}</b><small>${actPct}% of points${ex.capped ? ' (capped at 79%)' : ''}</small></div>
+      </div>
+      <div class="exp-why"><p>${esc(t.reason)}</p>${t.notes.map(n => `<p class="exp-note">${esc(n)}</p>`).join('')}</div>
+      <div class="btns">${showProfileBtn ? `<button type="button" class="btn btn-soft" data-act="explain-profile">Open ${esc(ex.player)}’s profile</button>` : ''}<button type="button" class="btn btn-ink" data-act="explain-close">Done</button></div>`;
+  }
+  setSheet(root, `<div class="sheet-bg explain"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="exp-h"><span class="grip"></span>${inner}</div></div>`, name + '|' + mode + '|' + scope);
 }
 
 /*MODULE-START:tutorial*/
@@ -6677,12 +6875,16 @@ document.addEventListener('change', e => {
 document.addEventListener('click', e => {
   const el = e.target.closest('button');
   if (!el) {
+    if (ratingExplain && e.target.closest && e.target.closest('#sheet8') && e.target.classList.contains('sheet-bg')) { closeRatingExplain(); return; }
     if (shareSheet && e.target.closest && e.target.closest('#sheet5') && e.target.classList.contains('sheet-bg')) { closeShare(); return; }
     if (profile && e.target.closest && e.target.closest('#sheet4') && e.target.classList.contains('sheet-bg')) { profile = null; renderProfile(); return; }
     if (logForm && e.target.classList && e.target.classList.contains('sheet-bg') && e.target.classList.contains('top')) { logForm = null; render(); }
     return;
   }
   const ds = el.dataset;
+  if (ds.explainPlayer) { openRatingExplain(ds.explainPlayer, ds.explainMode, ds.explainScope, el); return; }
+  if (ds.act === 'explain-close') { closeRatingExplain(); return; }
+  if (ds.act === 'explain-profile' && ratingExplain) { const { name, mode } = ratingExplain; ratingExplain = null; renderRatingExplain(); profile = { name, mode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   // Share a result
   if (ds.replay) { openReplay(ds.replay); return; }
   if (ds.act === 'replay-close') { closeReplay(); return; }
@@ -7014,12 +7216,13 @@ document.addEventListener('keydown', e => {
     else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !(e.target.matches && e.target.matches('input'))) { e.preventDefault(); replayGo(replay.i + (e.key === 'ArrowRight' ? 1 : -1)); }
     return;
   }
+  if (e.key === 'Escape' && ratingExplain) { closeRatingExplain(); return; }
   if (e.key === 'Escape' && shareSheet) { closeShare(); return; }
   if (e.key === 'Escape' && profile) { profile = null; renderProfile(); return; }
   if (e.key === 'Escape' && clubSheet) { clubSheet = null; renderClub(); if (renderPending) safeRender(); return; }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
   if (e.key === 'Escape' && evScreen && !(live && live.open)) { evAct('back', {}); return; }
-  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet || profile) return;
+  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet || profile || ratingExplain) return;
   if (e.target.matches && e.target.matches('input')) return;
   if (e.key === '1' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); document.querySelector('[data-rally="0"]').click(); }
   if (e.key === '2' || e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); document.querySelector('[data-rally="1"]').click(); }
