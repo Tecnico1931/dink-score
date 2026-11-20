@@ -3,19 +3,30 @@
 // The camera is read in this page only: no picture is stored or sent anywhere. QR decoding uses the browser's BarcodeDetector where it
 // exists and otherwise jsQR 1.4.0 (jsqr.js next to this file: Apache-2.0, see jsqr.LICENSE.txt, byte for byte the published dist/jsQR.js).
 
-// What the watch shows: https://<site>/#watch=<32 hex>, plus 6 typed characters (base32, the same letters as api/_watchrules.js shortCode).
+// What the watch shows: https://<site>/#watch=<32 hex>.<4 digits>, plus 6 typed characters (base32, the same letters as api/_watchrules.js shortCode).
+// The digits ride in the fragment with the id (never sent to a server): seeing the code on the watch is what they prove. Links without them still work.
 // A link is only taken from this site's own address, so a code that sends the phone somewhere else is ignored.
 const HEX32 = /^[0-9a-f]{32}$/;
 const SHORT = /^[A-Z2-7]{6}$/;
 
-// The id inside a watch link, or '' when the text is not a link to this site's own watch fragment.
-export function pairFromUrl(text, origin) {
-  let u;
-  try { u = new URL(String(text || '').trim()); } catch { return ''; }
-  if (u.origin !== origin || u.pathname !== '/' || u.search !== '') return '';
-  const m = /^#watch=([0-9A-Fa-f]{32})$/.exec(u.hash);
-  return m ? m[1].toLowerCase() : '';
+// The fragment of a watch link as {pair, confirm} (confirm '' for a link without the digits); null when it is not one.
+export function watchFragment(hash) {
+  const m = /^#watch=([0-9A-Fa-f]{32})(?:\.([0-9]{4}))?$/.exec(hash);
+  return m ? { pair: m[1].toLowerCase(), confirm: m[2] || '' } : null;
 }
+
+function parseLink(text, origin) {
+  let u;
+  try { u = new URL(String(text || '').trim()); } catch { return null; }
+  if (u.origin !== origin || u.pathname !== '/' || u.search !== '') return null;
+  return watchFragment(u.hash);
+}
+
+// The id inside a watch link, or '' when the text is not a link to this site's own watch fragment.
+export const pairFromUrl = (text, origin) => (parseLink(text, origin) || { pair: '' }).pair;
+
+// The 4 numbers inside a watch link, or '' (an older link without them, or not a watch link).
+export const confirmFromUrl = (text, origin) => (parseLink(text, origin) || { confirm: '' }).confirm;
 
 // What watch-claim takes as `pair`: the 32 hex of a scanned link (or pasted id), or the 6 typed characters. '' when it is neither.
 export function cleanPair(text, origin) {

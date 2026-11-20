@@ -59,6 +59,7 @@ const qrcode = new Function(html.slice(start, html.indexOf('\n', end)) + '\nretu
 const texts = [
   'a', 'HELLO WORLD', 'https://dinkscore.vercel.app/#watch=00000000000000000000000000000000',
   ...pairing.map(p => 'https://dinkscore.vercel.app/#watch=' + p.pairId),
+  ...pairing.map((p, i) => 'https://dinkscore.vercel.app/#watch=' + p.pairId + '.' + String(i * 1111 % 10000).padStart(4, '0')),
   'https://staging.example.test/#watch=0123456789abcdef0123456789abcdef', 'x'.repeat(120), 'Dink Score ' + '0123456789'.repeat(8)
 ];
 const qr = [];
