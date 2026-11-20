@@ -7,27 +7,31 @@ struct LinkView: View {
 
     var body: some View {
         let session = app.session
-        ScrollView {
-            VStack(spacing: 8) {
-                if let p = session.pairing {
-                    QRView(text: p.qrText)
-                        .frame(maxWidth: 120) // small enough that the 4 numbers show without scrolling on a 41 mm case
-                        .accessibilityElement()
-                        .accessibilityLabel("Link code. Open Dink Score on your phone, choose Link a watch, then type \(p.shortCode) and \(p.confirm4.map(String.init).joined(separator: " ")).")
-                    Text(p.confirm4)
-                        .font(.system(.title2, design: .monospaced).weight(.bold))
-                        .accessibilityLabel("Numbers to type on the phone: \(p.confirm4.map(String.init).joined(separator: " "))")
-                    Text("Or type \(p.shortCode)").font(.system(.footnote, design: .monospaced))
-                    Text("Dink Score on your phone: Club, Apple Watch, Link a watch.").font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                } else {
-                    ProgressView("Getting a code")
-                }
-                if let n = session.notice { Text(n).font(.caption2).foregroundStyle(.orange).multilineTextAlignment(.center) }
-                if session.hasLink {
-                    Button("Cancel") { session.cancelRelink() }
+        // The QR is the largest square that fits the screen below the clock, edge to edge; the numbers are one scroll (or Digital Crown turn) below it.
+        GeometryReader { geo in
+            let side = min(geo.size.width, geo.size.height)
+            ScrollView {
+                VStack(spacing: 6) {
+                    if let p = session.pairing {
+                        QRView(text: p.qrText)
+                            .frame(width: side, height: side)
+                            .accessibilityElement()
+                            .accessibilityLabel("Link code. Open Dink Score on your phone, choose Link a watch, then type \(p.shortCode) and \(p.confirm4.map(String.init).joined(separator: " ")).")
+                        Text(p.confirm4)
+                            .font(.system(.title2, design: .monospaced).weight(.bold))
+                            .accessibilityLabel("Numbers to type on the phone: \(p.confirm4.map(String.init).joined(separator: " "))")
+                        Text("Or type \(p.shortCode)").font(.system(.footnote, design: .monospaced))
+                        Text("Dink Score on your phone: Club, Apple Watch, Link a watch.").font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 10)
+                    } else {
+                        ProgressView("Getting a code")
+                    }
+                    if let n = session.notice { Text(n).font(.caption2).foregroundStyle(.orange).multilineTextAlignment(.center).padding(.horizontal, 10) }
+                    if session.hasLink {
+                        Button("Cancel") { session.cancelRelink() }.padding(.horizontal, 10)
+                    }
                 }
             }
         }
-        .navigationTitle("Link")
+        .ignoresSafeArea(.container, edges: .horizontal)
     }
 }
