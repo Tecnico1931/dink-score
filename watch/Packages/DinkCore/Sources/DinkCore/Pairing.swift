@@ -30,11 +30,12 @@ public struct PairingSecrets: Equatable {
     /// The 6 characters to type when the camera is no use: the first 30 bits of the pairing id in base 32.
     public var shortCode: String { Hashes.shortCode(pairId) }
     public var shortHash: String { Hashes.sha256("watch-short:" + shortCode) }
-    /// The text of the QR code. The id is in the fragment, so it never reaches a server log or a Referer header.
+    /// The text of the QR code. The id and the 4 digits are in the fragment (`#watch=<id>.<digits>`), so they never reach a server log or a
+    /// Referer header. Seeing the QR means seeing the watch, so carrying the digits adds no weaker way in; the typed code still asks for them.
     public func qrText(base: String) -> String {
         var b = base
         while b.hasSuffix("/") { b.removeLast() }
-        return b + "/#watch=" + pairId
+        return b + "/#watch=" + pairId + "." + confirm4
     }
 }
 

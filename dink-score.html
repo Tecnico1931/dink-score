@@ -3184,8 +3184,8 @@ async function checkInvite() {
   const mv = /^#move=([A-Za-z0-9-]+)$/.exec(location.hash);
   if (mv) { history.replaceState(null, '', location.pathname + location.search); clubSheet = { view: 'move-in', moveCode: mv[1] }; renderClub(); return; }
   // The code on a linking watch, opened by the phone's own camera app: it carries the pairing id in the fragment too.
-  const wt = /^#watch=([0-9A-Fa-f]{32})$/.exec(location.hash);
-  if (wt) { history.replaceState(null, '', location.pathname + location.search); watchFromFragment(wt[1].toLowerCase()); return; }
+  const wt = /^#watch=([0-9A-Fa-f]{32})(?:\.([0-9]{4}))?$/.exec(location.hash);
+  if (wt) { history.replaceState(null, '', location.pathname + location.search); watchFromFragment(wt[1].toLowerCase(), wt[2] || ''); return; }
   const sess = ShareLink.sessionFromSearch(location.search);
   if (sess) { // a pickup session link or QR: show the join sheet with the code filled in
     try { history.replaceState(null, '', location.pathname); } catch {}
@@ -4852,12 +4852,12 @@ function watchLinkHTML(c) {
   <p>Open Dink Score on the Apple Watch. With no game going it shows a square code, 6 characters under it and 4 numbers.</p>
   ${scan}
   <form class="club-form" data-form="watch-claim">
-    ${scanned ? '<p class="note" role="status">Code scanned.</p>' : `<label class="lab" for="watch-pair">The 6 characters under the square code</label>
+    ${scanned ? `<p class="note" role="status">Code scanned.${c.confirm ? ' The 4 numbers are filled in.' : ''}</p>` : `<label class="lab" for="watch-pair">The 6 characters under the square code</label>
     <input id="watch-pair" class="field-input" maxlength="60" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="For example K7Q2ZM" value="${esc(c.pairText || '')}">`}
     <label class="lab" for="watch-confirm">The 4 numbers on the watch</label>
     <input id="watch-confirm" class="field-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="0000" value="${esc(c.confirm || '')}">
     <p class="note">The 4 numbers show that you are looking at this watch.</p>
-    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>${c.busy ? 'Linking…' : 'Link this watch'}</button></form>
+    ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}<button type="submit" id="watch-link-go" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>${c.busy ? 'Linking…' : 'Link this watch'}</button></form>
   <div class="btns"><button class="btn btn-soft" data-act="watch-link-back">Back</button></div>`;
 }
 // The watch's QR opened the phone's own camera app and so Safari, which does not share the Home Screen app's storage: no club here.
@@ -4880,11 +4880,12 @@ async function loadWatchLinks() {
     }
   } catch (err) { if (clubSheet === c) { c.error = err.message; c.links = c.links || []; renderClub(); } }
 }
-// The link in the address (#watch=<id>) comes from the QR scanned with the phone's own camera app.
-function watchFromFragment(pair) {
-  clubSheet = club ? { view: 'watch-link', pairId: pair } : { view: 'watch-open' };
+// The link in the address (#watch=<id>.<4 numbers>) comes from the QR scanned with the phone's own camera app. An older link has no numbers.
+function watchFromFragment(pair, confirm) {
+  clubSheet = club ? { view: 'watch-link', pairId: pair, confirm: confirm || '' } : { view: 'watch-open' };
   renderClub();
-  const n = $('#watch-confirm'); if (n) n.focus();
+  if (confirm) announce('Code scanned. The 4 numbers are filled in. Tap Link this watch.');
+  const n = $(confirm ? '#watch-link-go' : '#watch-confirm'); if (n) n.focus();
 }
 async function watchScanStart() {
   const c = clubSheet;
@@ -4895,11 +4896,11 @@ async function watchScanStart() {
   try {
     m = await scanLoad();
     const s = await m.startScan($('#scan-video'), text => {
-      const pair = m.pairFromUrl(text, location.origin);
+      const pair = m.pairFromUrl(text, location.origin), digits = m.confirmFromUrl(text, location.origin);
       if (!pair) { if (alive() && !c.hint) { c.hint = 'That is not a Dink Score watch code.'; renderClub(); } return false; }
-      watchScan = null; c.scanning = false; c.pairId = pair; c.pairText = ''; c.error = ''; renderClub();
-      announce('Code scanned. Type the 4 numbers shown on the watch.');
-      const n = $('#watch-confirm'); if (n) n.focus();
+      watchScan = null; c.scanning = false; c.pairId = pair; c.pairText = ''; c.confirm = digits; c.error = ''; renderClub();
+      announce(digits ? 'Code scanned. The 4 numbers are filled in. Tap Link this watch.' : 'Code scanned. Type the 4 numbers shown on the watch.');
+      const n = $(digits ? '#watch-link-go' : '#watch-confirm'); if (n) n.focus();
       return true;
     });
     if (c.pairId) return; // the first look already found it and the scanner has stopped itself

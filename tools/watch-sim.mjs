@@ -66,7 +66,7 @@ const post = (action, extra = {}) => http_(live, 'POST', { headers: watch.token 
 const pairId = randomBytes(16).toString('hex'), pollSecret = randomBytes(16).toString('hex'), confirm4 = String(1000 + (randomBytes(2).readUInt16BE() % 9000));
 const reg = await post('watch-register', { idHash: R.pairHash(pairId), pollHash: R.pollHash(pollSecret), shortHash: R.shortHash(R.shortCode(pairId)), confirm4, label: 'Sim Watch' });
 assert.equal(reg.status, 200);
-say('watch', `QR  https://dinkscore.example/#watch=${pairId}   digits ${confirm4}   typed ${R.shortCode(pairId)}`);
+say('watch', `QR  https://dinkscore.example/#watch=${pairId}.${confirm4}   digits ${confirm4}   typed ${R.shortCode(pairId)}`);
 assert.equal((await post('watch-poll', { pairId, pollSecret })).json.status, 'waiting');
 
 // 2. The phone scans it, types the 4 digits and sends its current game along.

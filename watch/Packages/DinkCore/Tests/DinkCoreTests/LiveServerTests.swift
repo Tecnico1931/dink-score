@@ -26,7 +26,7 @@ final class LiveServerTests: XCTestCase {
         // 1. The watch registers and shows a QR; the phone claims it with the typed 4 numbers and sends the game along.
         await s.tick()
         let p = try XCTUnwrap(s.pairing, "register failed: \(s.notice ?? "")")
-        XCTAssertTrue(p.qrText.contains("/#watch=" + p.secrets.pairId))
+        XCTAssertTrue(p.qrText.hasSuffix("/#watch=" + p.secrets.pairId + "." + p.confirm4))
         await s.tick()
         XCTAssertEqual(s.link, .unlinked, "nobody has claimed it yet")
         let wrong = try await phone(["code": code, "action": "watch-claim", "pair": p.secrets.pairId, "confirm4": p.confirm4 == "0000" ? "1111" : "0000"])

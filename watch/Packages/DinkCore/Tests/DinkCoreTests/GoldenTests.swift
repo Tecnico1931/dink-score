@@ -44,7 +44,7 @@ final class GoldenTests: XCTestCase {
     func testTheWatchLinkFitsAComfortableQR() throws {
         let p = PairingSecrets(pairId: "0123456789abcdef0123456789abcdef", pollSecret: String(repeating: "1", count: 32), confirm4: "0042")
         let qr = try QRMatrix(p.qrText(base: "https://dinkscore.vercel.app/"), level: .M)
-        XCTAssertEqual(p.qrText(base: "https://dinkscore.vercel.app/"), "https://dinkscore.vercel.app/#watch=0123456789abcdef0123456789abcdef")
+        XCTAssertEqual(p.qrText(base: "https://dinkscore.vercel.app/"), "https://dinkscore.vercel.app/#watch=0123456789abcdef0123456789abcdef.0042")
         XCTAssertEqual(qr.version, 5)      // 37 modules: about 4 points a module on a 40 mm watch
     }
 

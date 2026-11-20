@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { pairFromUrl, cleanPair, cleanConfirm, cameraMessage, readQr } from '../scan.js';
+import { pairFromUrl, confirmFromUrl, watchFragment, cleanPair, cleanConfirm, cameraMessage, readQr } from '../scan.js';
 import * as W from '../api/_watchrules.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -21,6 +21,26 @@ test('a watch link is taken only from this site\'s own address, with the id in t
     `${ORIGIN}/#watch=${PAIR.slice(1)}`, `${ORIGIN}/#watch=${PAIR}0`, `${ORIGIN}/#watch=${'g'.repeat(32)}`, `${ORIGIN}/#move=${PAIR}`, `${ORIGIN}/`,
     PAIR, 'K7Q2ZM', '', null, undefined, 'javascript:alert(1)', 'WIFI:S:x;;'
   ]) assert.equal(pairFromUrl(bad, ORIGIN), '', String(bad));
+});
+
+test('the 4 numbers ride in the fragment after the id; an older link without them still reads', () => {
+  assert.equal(pairFromUrl(`${ORIGIN}/#watch=${PAIR}.0420`, ORIGIN), PAIR);
+  assert.equal(confirmFromUrl(`${ORIGIN}/#watch=${PAIR}.0420`, ORIGIN), '0420');
+  assert.equal(confirmFromUrl(`${ORIGIN}/#watch=${PAIR.toUpperCase()}.0000`, ORIGIN), '0000');
+  assert.equal(pairFromUrl(`${ORIGIN}/#watch=${PAIR}`, ORIGIN), PAIR);
+  assert.equal(confirmFromUrl(`${ORIGIN}/#watch=${PAIR}`, ORIGIN), '', 'the old form asks for the numbers');
+  assert.deepEqual(watchFragment(`#watch=${PAIR}.0420`), { pair: PAIR, confirm: '0420' });
+  assert.deepEqual(watchFragment(`#watch=${PAIR}`), { pair: PAIR, confirm: '' });
+  for (const bad of ['.042', '.04200', '.04a0', '.', '..0420', '.0420.1', '/0420']) {
+    assert.equal(pairFromUrl(`${ORIGIN}/#watch=${PAIR}${bad}`, ORIGIN), '', bad);
+    assert.equal(confirmFromUrl(`${ORIGIN}/#watch=${PAIR}${bad}`, ORIGIN), '', bad);
+    assert.equal(watchFragment(`#watch=${PAIR}${bad}`), null, bad);
+  }
+  assert.equal(confirmFromUrl(`https://evil.example/#watch=${PAIR}.0420`, ORIGIN), '', 'only this site');
+  assert.equal(confirmFromUrl('K7Q2ZM', ORIGIN), '', 'the typed code has no digits');
+  // what cleanPair makes of a new link is still the id alone, and the digits pass the server's own check
+  assert.equal(cleanPair(`${ORIGIN}/#watch=${PAIR}.0420`, ORIGIN), PAIR);
+  assert.ok(W.cleanConfirm(confirmFromUrl(`${ORIGIN}/#watch=${PAIR}.0420`, ORIGIN)));
 });
 
 test('what is typed or scanned becomes the pair the server wants: 32 hex, or the 6 typed characters', () => {
@@ -72,6 +92,8 @@ test('the code a watch shows is read back from a picture of it, and a foreign co
   const text = readQr(jsQR, frameOf(mine));
   assert.equal(text, mine);
   assert.equal(pairFromUrl(text, ORIGIN), PAIR);
+  const withDigits = readQr(jsQR, frameOf(`${ORIGIN}/#watch=${PAIR}.0420`));
+  assert.equal(confirmFromUrl(withDigits, ORIGIN), '0420', 'the digits survive the picture');
   const other = readQr(jsQR, frameOf('https://evil.example/#watch=' + PAIR));
   assert.equal(other, 'https://evil.example/#watch=' + PAIR);
   assert.equal(pairFromUrl(other, ORIGIN), '', 'a code that points somewhere else is not taken');
@@ -98,7 +120,8 @@ test('only this site may use the camera, nothing else changes, and the scanner f
 
 test('the page keeps the address-fragment handler and the open-from-Home-Screen message', () => {
   const page = read('dink-score.html');
-  assert.match(page, /\^#watch=\(\[0-9A-Fa-f\]\{32\}\)\$/);
+  assert.match(page, /\^#watch=\(\[0-9A-Fa-f\]\{32\}\)\(\?:\\\.\(\[0-9\]\{4\}\)\)\?\$/);
+  assert.match(page, /watchFromFragment\(wt\[1\]\.toLowerCase\(\), wt\[2\] \|\| ''\)/, 'the fragment digits reach the sheet');
   assert.match(page, /Open Dink Score from your Home Screen/);
   assert.match(page, /record\(s, Scoring\.logOf\(live\), live\.shared && live\.id \? live\.id : null\)/, 'a shared game is saved under its live id');
   assert.match(page, /watch: watchIds\(\)/, 'the phone names its linked watches when it publishes');
