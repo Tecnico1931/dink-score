@@ -2786,16 +2786,33 @@ async function passkeyGet(o) { return credJson(await navigator.credentials.get({
 async function acctLoad() { try { acct = await api('account'); } catch { acct = null; } }
 const acctMsg = err => err && (err.name === 'NotAllowedError' || err.name === 'AbortError') ? 'The passkey step was cancelled. Try again when you are ready.' : err.message;
 // Hands the server this phone's own tokens, once, so the account can bring the same clubs and names to another phone.
-async function acctClaim() {
-  const items = clubs.map(c => ({ code: c.code, ownerToken: owners[c.code] || '', playerName: (me[c.code] || {}).name || '', playerToken: (me[c.code] || {}).token || '' })).filter(i => i.ownerToken || i.playerToken);
+async function acctClaim(only) { // `only`: just that club code
+  const items = clubs.filter(c => !only || c.code === only).map(c => ({ code: c.code, ownerToken: owners[c.code] || '', playerName: (me[c.code] || {}).name || '', playerToken: (me[c.code] || {}).token || '' })).filter(i => i.ownerToken || i.playerToken);
   let linked = 0;
   for (let i = 0; i < items.length; i += 30) { const d = await acctPost({ action: 'claim', items: items.slice(i, i + 30) }); linked += d.linked.length; acct = d; }
   return linked;
 }
 // Brings back identities the account holds that this phone does not (a new phone). A phone that already holds one keeps it.
-async function acctRestore() {
-  const want = ((acct && acct.identities) || []).filter(i => !i.stale && (i.kind === 'organizer' ? !creatorTok(i.code) : !(me[i.code] && me[i.code].token)));
-  let n = 0; // (a co-organizer's credential in owners[] doesn't count as the creator token)
+const acctIn = () => !!(acct && acct.account);
+const acctLive = () => ((acct && acct.identities) || []).filter(i => !i.stale);
+const acctClubs = () => new Set(acctLive().map(i => i.code)); // club codes on the account
+// (a co-organizer's credential in owners[] doesn't count as the creator token)
+const acctMissing = () => acctLive().filter(i => i.kind === 'organizer' ? !creatorTok(i.code) : !(me[i.code] && me[i.code].token));
+// Clubs whose creator token or claimed name this phone holds but the account does not list yet.
+function acctUnlinked() {
+  const live = acctLive();
+  return clubs.filter(c => {
+    const m = me[c.code], nk = m && m.name ? String(m.name).trim().toLowerCase() : '';
+    return (creatorTok(c.code) && !live.some(i => i.code === c.code && i.kind === 'organizer'))
+      || (m && m.token && nk && !live.some(i => i.code === c.code && i.kind === 'player' && String(i.name || '').trim().toLowerCase() === nk));
+  });
+}
+// Signed in: a club made or a name claimed here joins the account at once, so keeping it needs no later step.
+async function acctAutoLink(code) { if (acctIn()) { try { await acctClaim(code); } catch {} } }
+// `only` limits it to one club; `force` also re-fetches a club this phone still holds a (possibly replaced) token for.
+async function acctRestore(only, force) {
+  const want = (force ? acctLive() : acctMissing()).filter(i => !only || i.code === only);
+  let n = 0;
   for (let i = 0; i < want.length; i += 30) {
     const d = await acctPost({ action: 'restore', items: want.slice(i, i + 30).map(w => ({ code: w.code, kind: w.kind, name: w.name })) });
     for (const r of d.restored) {
@@ -2807,13 +2824,14 @@ async function acctRestore() {
   if (n) { adoptMoved(); const first = club || clubs[0]; if (first) await joinClub(first.code, first.name); }
   return n;
 }
-async function acctRun(fn, done) {
+async function acctRun(fn, done, land) { // `land`: finish on the club screen when there is a club (the add-a-club screen started it)
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
-  try { const msg = await fn(); clubSheet = { view: 'account', msg: msg || done || '' }; }
+  try { const msg = await fn(); clubSheet = { view: land && club ? 'club' : 'account', msg: msg || done || '' }; }
   catch (err) { clubSheet.busy = false; clubSheet.error = acctMsg(err); }
   renderClub();
 }
-const acctSyncMsg = (restored, linked) => `Signed in. ${restored ? `Brought ${restored} club name${restored === 1 ? '' : 's'} to this phone. ` : ''}${linked ? `Linked ${linked} from this phone.` : ''}`.trim();
+const acctSyncMsg = (restored, linked) => `Signed in${acctIn() ? ` as ${acct.account.name}` : ''}. ${restored ? `Brought ${restored} club name${restored === 1 ? '' : 's'} to this phone. ` : ''}${linked ? `Linked ${linked} from this phone. ` : ''}${!restored && !linked && !acctClubs().size ? "This account has no clubs yet. On the phone that made your club, open Your account and tap Add this phone's clubs to my account." : ''}`.trim();
+const acctBring = land => acctRun(async () => { const n = await acctRestore(); return n ? `Brought ${n} club name${n === 1 ? '' : 's'} to this phone.` : 'Everything on your account is already on this phone.'; }, '', land);
 function acctSignUp(name) {
   return acctRun(async () => {
     const o = await acctPost({ action: 'register-options', name });
@@ -2823,13 +2841,13 @@ function acctSignUp(name) {
     return `Account created. ${linked ? `Linked ${linked} club name${linked === 1 ? '' : 's'} from this phone.` : 'Nothing on this phone to link yet.'}`;
   });
 }
-function acctSignIn() {
+function acctSignIn(land) {
   return acctRun(async () => {
     const o = await acctPost({ action: 'login-options' });
     acct = await acctPost({ action: 'login', challengeId: o.challengeId, credential: await passkeyGet(o.options) });
     const restored = await acctRestore();
     return acctSyncMsg(restored, await acctClaim());
-  });
+  }, '', land);
 }
 function acctHandoffCode() {
   return acctRun(async () => { const d = await acctPost({ action: 'passkey-code' }); return `Code ${d.code.slice(0, 5)}-${d.code.slice(5)}. On the other address open Account, choose "Have a code from another address", and enter it within 5 minutes.`; });
@@ -2856,6 +2874,22 @@ async function acctOpen() {
   await acctLoad();
   if (clubSheet && clubSheet.view === 'account') { clubSheet.busy = false; renderClub(); }
 }
+// Sign-in first on the no-club and join screens, so a returning person is not steered into making a new club.
+function addAcctHTML(c) {
+  if (!passkeysOk()) return '';
+  const off = c.busy ? 'disabled' : '';
+  if (acctIn()) {
+    const missing = new Set(acctMissing().map(i => i.code)).size;
+    return `<div class="field"><p class="note" role="status">Signed in as <b>${esc(acct.account.name)}</b>.</p>${missing ? `<button class="btn btn-ink block" data-act="acct-restore-add" ${off}>Bring my clubs to this phone (${missing})</button>` : ''}</div><div class="or"><span>or</span></div>`;
+  }
+  return `<div class="field"><span class="lab">Already have clubs?</span><button class="btn btn-ink block" data-act="acct-in-add" ${off}>Sign in with a passkey</button><p class="note">Brings the clubs and player names on your account to this phone. The Home Screen app is a separate copy from Safari, so sign in there too.</p></div><div class="or"><span>or</span></div>`;
+}
+// A phone whose token was replaced (your account was restored on another phone) can take its access back.
+const lostToken = msg => /phone isn't linked to that player|only the phone that created/i.test(msg || '');
+function restoreOfferHTML(c) {
+  if (!c.error || !club || !acctIn() || !lostToken(c.error) || !acctLive().some(i => i.code === club.code)) return '';
+  return `<div class="field"><p class="note">Another phone may have taken this over when it signed in to your account. Restoring here gives it back to this phone and stops the other one.</p><button class="btn btn-ink block" data-act="acct-restore-here" ${c.busy ? 'disabled' : ''}>Restore access with your account</button></div>`;
+}
 function accountHTML(c) {
   const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
   const back = `<div class="btns"><button class="btn btn-soft" data-act="acct-close">Done</button></div>`;
@@ -2863,13 +2897,16 @@ function accountHTML(c) {
   const note = c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : '';
   if (!passkeysOk()) return `<h2 id="club-h">Account (optional)</h2>${what}<p class="err">This browser can't make passkeys, so accounts aren't available here. Everything else works.</p>${back}`;
   if (acct && acct.account) {
-    const ids = acct.identities || [];
+    const ids = acct.identities || [], unlinked = acctUnlinked();
     return `<h2 id="club-h">Your account</h2>${note}${err}
       <p>Signed in as <b>${esc(acct.account.name)}</b>. ${acct.account.passkeys} passkey${acct.account.passkeys === 1 ? '' : 's'}.</p>
       <p class="note">A passkey works only on the web address it was made on${acct.account.host ? ` (this one is ${esc(acct.account.host)})` : ''}. Your account and clubs are the same on every address, but you sign in with a passkey made on the address you are using.${acct.account.passkeysHere === 0 ? ' You have no passkey for this address yet.' : ''}</p>
-      <div class="field"><span class="lab">Linked to your account</span>${ids.length ? `<ul class="deleted">${ids.map(i => `<li><span>${esc(i.club)}: ${i.kind === 'organizer' ? 'organizer access (club creator)' : esc(i.name || 'player name')}${i.stale ? ' (no longer valid)' : ''}</span></li>`).join('')}</ul>` : '<p class="note">Nothing yet.</p>'}
-        <button class="btn btn-ink block" data-act="acct-claim" ${c.busy ? 'disabled' : ''}>Link this phone's clubs</button>
-        <p class="note">Links the club names and organizer access this phone already holds, so they come back on a new phone when you sign in.</p></div>
+      <button class="btn btn-ink block" data-act="acct-restore" ${c.busy ? 'disabled' : ''}>Bring my clubs to this phone</button>
+      <p class="note">Gets the clubs and names on your account that this phone does not have yet. Each one moves to this phone, so a phone that had it before loses it until you bring it back there.</p>
+      <div class="field"><span class="lab">Linked to your account</span>${ids.length ? `<ul class="deleted">${ids.map(i => `<li><span>${esc(i.club)}: ${i.kind === 'organizer' ? 'organizer access (club creator)' : esc(i.name || 'player name')}${i.stale ? ' (no longer valid)' : ''}</span></li>`).join('')}</ul>` : '<p class="note">Nothing yet.</p>'}</div>
+      ${unlinked.length ? `<div class="field"><span class="lab">On this phone, not on your account yet</span><ul class="deleted">${unlinked.map(u => `<li><span>${esc(u.name)}</span><button class="link" style="min-height:44px;padding-inline:8px" data-act="acct-link-one" data-code="${esc(u.code)}" ${c.busy ? 'disabled' : ''}>Add to my account</button></li>`).join('')}</ul></div>` : ''}
+      <button class="btn btn-soft block" data-act="acct-claim" ${c.busy ? 'disabled' : ''}>Add this phone's clubs to my account</button>
+      <p class="note">Adds the club names and organizer access this phone holds, so they come back on a new phone when you sign in. Clubs you start or names you claim while signed in are added for you. The Home Screen app and Safari are separate copies on one phone: sign in in each.</p>
       <button class="btn btn-soft block" data-act="acct-passkey" ${c.busy ? 'disabled' : ''}>${acct.account.passkeysHere === 0 ? 'Add a passkey on this address' : 'Add another passkey'}</button>
       <button class="btn btn-soft block" data-act="acct-code" ${c.busy ? 'disabled' : ''}>Get a code to add a passkey on another address</button>
       <button class="btn btn-soft block" data-act="acct-out" ${c.busy ? 'disabled' : ''}>Sign out</button>
@@ -2877,12 +2914,13 @@ function accountHTML(c) {
       <p class="note">Deleting removes the account and its passkeys. Clubs, games and ratings stay where they are.</p>${back}`;
   }
   return `<h2 id="club-h">Account (optional)</h2>${what}${note}${err}
-    <form class="club-form" data-form="acct-up"><label class="lab" for="acct-name">Create an account</label>
+    <span class="lab">Already have an account?</span>
+    <button class="btn btn-ink block" data-act="acct-in" ${c.busy ? 'disabled' : ''}>Sign in with a passkey</button>
+    <p class="note">A passkey works only on the web address it was made on${acct && acct.config ? ` (this one is ${esc(acct.config.rpId)})` : ''}. If your account has no passkey for this address yet, get a code from the address where you are signed in. The Home Screen app is a separate copy from Safari, so sign in there too.</p>
+    <div class="or"><span>or</span></div>
+    <form class="club-form" data-form="acct-up"><label class="lab" for="acct-name">New here? Create an account</label>
       <div class="add-player"><input id="acct-name" placeholder="Your name" autocomplete="name" maxlength="40"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
       <p class="note">Your clubs and names on this phone are linked to it.</p></form>
-    <div class="or"><span>or</span></div>
-    <button class="btn btn-ink block" data-act="acct-in" ${c.busy ? 'disabled' : ''}>Sign in with a passkey</button>
-    <p class="note">A passkey works only on the web address it was made on${acct && acct.config ? ` (this one is ${esc(acct.config.rpId)})` : ''}. If your account has no passkey for this address yet, get a code from the address where you are signed in.</p>
     <form class="club-form" data-form="acct-join"><label class="lab" for="acct-code">Have a code from another address?</label>
       <div class="add-player"><input id="acct-code" placeholder="Code" autocomplete="off" autocapitalize="characters" maxlength="12"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Add passkey here</button></div></form>${back}`;
 }
@@ -2919,7 +2957,7 @@ function renderClub() {
   if (!clubSheet) { watchStopScan(); root.innerHTML = ''; root._html = root._key = ''; return; }
   const c = clubSheet;
   if (c.view !== 'watch-link') watchStopScan();
-  const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
+  const err = (c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '') + restoreOfferHTML(c);
   let body;
   if (c.view === 'avatar' && club && myName()) {
     body = avatarSheetHTML(c);
@@ -2992,11 +3030,13 @@ function renderClub() {
         <div class="btns"><button class="btn btn-ink" data-act="move-print">Print</button><button class="btn btn-soft" data-act="move-back">Done</button></div>`
       : `<form class="club-form" data-form="recovery-make">${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Make a recovery code</button></form><div class="btns"><button class="btn btn-soft" data-act="move-back">Cancel</button></div>`}`;
   } else if (!club || c.view === 'add') {
+    const acctBlock = addAcctHTML(c);
     body = `<h2 id="club-h">${club ? 'Add another club' : c.reason === 'save' || c.reason === 'pickup' ? 'Save to a club' : 'Play as a club'}</h2>
       ${club ? `<p class="need-club">You'll stay in ${esc(club.name)} too. Switch between your clubs from the club screen.</p>` : ''}
       ${c.reason === 'save' ? `<p class="need-club">Your game is saved on this phone. Join a club with its code, or start one, and the game is added to its shared record.</p>` : ''}
       ${c.reason === 'pickup' ? `<p class="need-club">Join a club with its code, or start one, and the pickup session's games are added to its shared record. The players' names join the club's saved players.</p>` : ''}
       <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
+      ${acctBlock}
       <form class="club-form" data-form="club-join"><label class="lab" for="club-code">Join with a code</label>
         <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
       <div class="or"><span>or</span></div>
@@ -3007,7 +3047,7 @@ function renderClub() {
         <p class="note">Every club has an organizer. Only people with the PIN can delete or restore games, change the code or run events. Choose 6 to 8 digits, or leave it blank and we'll make an organizer code for you.</p></form>${err}
       <button class="link" data-act="pk-open">Playing with people you don't know? Pickup session</button>
       <button class="link" data-act="move-in-open">Moving from another phone?</button>
-      <button class="link" data-act="acct-open">Account (optional): keep your clubs across phones</button>
+      <button class="link" data-act="acct-open">${acctIn() ? 'Your account' : 'Account (optional): keep your clubs across phones'}</button>
       ${club ? '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button></div>' : ''}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
@@ -3096,7 +3136,7 @@ function renderClub() {
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
       ${myName() && myToken() ? '<button class="btn btn-soft block" data-act="notify-open">Notifications: you\'re up alerts</button>' : ''}
       <button class="btn btn-soft block" data-act="rights-open">Your data: export, anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}</button>
-      <button class="btn btn-soft block" data-act="acct-open">${acct && acct.account ? 'Your account' : 'Sign in or create an account (optional)'}</button>
+      <button class="btn btn-soft block" data-act="acct-open">${acctIn() ? `Signed in as ${esc(acct.account.name)}: your account` : 'Sign in or create an account (optional)'}</button>
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button><button class="btn btn-soft block" data-act="links-open">Public result links</button><button class="btn btn-soft block" data-act="info-open">Pinned note and how to pay</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button><button class="btn btn-soft block" data-act="analytics-open">Attendance and busiest hours</button>` : ''}
       ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
@@ -3169,6 +3209,10 @@ async function clubCreate(name, pin) {
   pin = String(pin || '').trim();
   if (!name) { clubSheet.error = 'Give your club a name.'; renderClub(); return; }
   if (pin && !/^\d{6,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 6 to 8 digits. Leave it blank and we will make a code for you.'; renderClub(); return; }
+  if (!clubs.length && acctIn() && acctClubs().size && !clubSheet.confirmNew) { // signed in, nothing here yet: likely a new phone, not a new club
+    const n = acctClubs().size;
+    clubSheet.confirmNew = true; clubSheet.error = `Your account already has ${n} club${n === 1 ? '' : 's'}. Tap Bring my clubs to this phone above to get ${n === 1 ? 'it' : 'them'} back, or tap Create again to start a new club.`; renderClub(); return;
+  }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
     const data = await api('club', { method: 'POST', body: JSON.stringify(pin ? { name, pin } : { name }) });
@@ -3176,6 +3220,7 @@ async function clubCreate(name, pin) {
     rememberPin(data.club.code, pin || data.organizerCode);
     await joinClub(data.club.code, data.club.name);
     clubSheet = { view: 'club', ...(data.organizerCode ? { newOrganizerCode: data.organizerCode } : {}) };
+    acctAutoLink(data.club.code);
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
   afterJoin();
 }
@@ -6630,6 +6675,11 @@ document.addEventListener('click', e => {
   if (ds.act === 'acct-open') { acctOpen(); return; }
   if (ds.act === 'acct-close') { clubSheet = club ? { view: 'club' } : { view: 'add' }; renderClub(); return; }
   if (ds.act === 'acct-in') { acctSignIn(); return; }
+  if (ds.act === 'acct-in-add') { acctSignIn(true); return; }
+  if (ds.act === 'acct-restore') { acctBring(); return; }
+  if (ds.act === 'acct-restore-add') { acctBring(true); return; }
+  if (ds.act === 'acct-restore-here') { const code = club && club.code; acctRun(async () => { const n = await acctRestore(code, true); return n ? 'Access to this club is back on this phone.' : 'Your account has no link for this club that can be restored.'; }, '', true); return; }
+  if (ds.act === 'acct-link-one') { const code = ds.code; acctRun(async () => (await acctClaim(code)) ? 'Added to your account.' : 'Could not add that club. This phone may no longer hold its access.'); return; }
   if (ds.act === 'acct-code') { acctHandoffCode(); return; }
   if (ds.act === 'acct-out') { acctOut(); return; }
   if (ds.act === 'acct-passkey') { acctAddPasskey(); return; }
@@ -7042,4 +7092,9 @@ render();
 if (importedCount) showToast(`Moved ${importedCount} game${importedCount === 1 ? '' : 's'} from the old site`, false);
 if (club) { flush(); refreshClub(); }
 checkInvite().finally(() => { urlReady = true; syncUrl(); });
+// Know at once whether a sign-in is alive, so the club screens can say so and offer the account's clubs.
+if (API_OK && passkeysOk()) acctLoad().then(() => {
+  const c = clubSheet, f = document.activeElement;
+  if (acctIn() && c && !c.busy && (c.view === 'add' || c.view === 'club') && !(f && f.closest && f.closest('#sheet3') && /^(INPUT|TEXTAREA)$/.test(f.tagName))) renderClub();
+});
 </script>
