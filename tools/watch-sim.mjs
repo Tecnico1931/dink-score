@@ -110,6 +110,17 @@ assert.equal(stale.conflict, true);
 assert.equal((await post('watch-rally', { opId: 'sim-tap-0006', side: 0, game: 'live-other' })).status, 404);
 say('watch', 'stale base -> conflict with the latest state; a game nobody sent -> 404');
 
+// 7b. The game ends on the watch (the team on top reaches 11). Finish saves it on the server, once, under the live id: the phone
+// being closed loses nothing, and the phone saving the same game later is a no-op.
+for (let i = 7; i < 14; i++) await post('watch-rally', { opId: 'sim-tap-' + String(i).padStart(4, '0'), side: 0 });
+const over = (await get()).json.game;
+assert.equal(over.say, 'Game over');
+const fin = await post('watch-finish', {});
+assert.equal(fin.status, 200); assert.deepEqual([fin.json.id, fin.json.saved], [PHONE.game, true]);
+assert.equal((await post('watch-finish', {})).json.saved, false);
+assert.equal((await pg.query('SELECT count(*)::int AS n FROM games WHERE club = $1 AND id = $2', [PHONE.code, PHONE.game])).rows[0].n, 1);
+say('watch', 'Finish -> saved once as ' + PHONE.game + '; a second Finish saves nothing more');
+
 // 8. The phone unlinks the watch: the watch's next call is a 401, so it clears the Keychain and shows the QR again.
 await http_(live, 'POST', { body: { code: PHONE.code, action: 'watch-revoke', link: claim.json.link.id, revokeKey: claim.json.revokeKey } });
 assert.equal((await get()).status, 401);

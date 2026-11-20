@@ -9,14 +9,18 @@
 // The watch then sends `Authorization: Bearer w_...` (checked by hash; see requireWatch):
 //   GET /api/live?watch=state, or POST watch-state   -> {club:{name}, link, game: null | {...}}   (GET answers carry an ETag, see _sync.js)
 //   POST watch-rally {opId, side, base?, game?}, watch-unrally {opId, base?, game?}               -> the same answer as rally/unrally, plus duplicate:true for a repeated opId
+//   POST watch-finish {game?}                                                                      -> a finished game is saved to the club's games by the server (saveLiveGame, _gamesave.js): {ok, id, saved}
 //   POST watch-unlink                                                                              -> this watch stops working
-// Phone side (club code): watch-list, watch-attach {link, game, secret}, watch-revoke {link, revokeKey | organizer}.
+// Phone side (club code): watch-list, watch-attach {link, game, secret}, watch-revoke {link, revokeKey | organizer}. The scoring phone also
+// attaches its linked watches when it publishes a game (live.js `state`, body.watch = link ids; attachLinks below).
+// A game id is the live game's id, also the id the phone saves under, so a save from the phone after the watch's is a no-op.
 // A watch can only read and score the live games a phone attached to its link; it never sees the roster, history or any other game.
 import { fail, clientIp, purgeMarks, requireOrganizer } from './_db.js';
 import { FRESH_MS, requireSecret, applyRally } from './_livecore.js';
+import { saveLiveGame } from './_gamesave.js';
 import * as R from './_watchrules.js';
 
-export const WATCH_ACTIONS = ['watch-register', 'watch-poll', 'watch-state', 'watch-rally', 'watch-unrally', 'watch-unlink']; // no club code: pairing is open, the rest carry the watch token
+export const WATCH_ACTIONS = ['watch-register', 'watch-poll', 'watch-state', 'watch-rally', 'watch-unrally', 'watch-finish', 'watch-unlink']; // no club code: pairing is open, the rest carry the watch token
 export const WATCH_CLUB_ACTIONS = ['watch-claim', 'watch-list', 'watch-attach', 'watch-revoke']; // the phone, with the club code
 
 const MAX_NEW_NET = 10, MAX_NEW_ALL = 300;  // registrations per network per hour, and across the whole app
@@ -62,6 +66,16 @@ async function attachedGame(sql, code, linkId, game) {
     ? await sql`SELECT id, state, stack, version, ops FROM live_games WHERE club = ${code} AND id = ${String(game)} AND ${linkId} = ANY(watch_links) AND updated_at > ${since}`
     : await sql`SELECT id, state, stack, version, ops FROM live_games WHERE club = ${code} AND ${linkId} = ANY(watch_links) AND updated_at > ${since} ORDER BY updated_at DESC LIMIT 1`;
   return row || null;
+}
+// The scoring phone names the watches it linked when it publishes a game; call this only after the game's secret has been checked.
+// Only live links of this club count, so another club's ids (or revoked ones) are ignored.
+export async function attachLinks(sql, code, gameId, ids) {
+  const want = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(x => /^[0-9a-f]{16}$/.test(x)))].slice(0, R.MAX_LINKS_PER_CLUB);
+  if (!want.length) return 0;
+  const add = (await sql`SELECT id FROM watch_links WHERE club = ${code} AND id = ANY(${want}) AND revoked_at IS NULL AND expires_at > now()`).map(r => r.id);
+  if (!add.length) return 0;
+  await sql`UPDATE live_games SET watch_links = ARRAY(SELECT DISTINCT x FROM unnest(watch_links || ${add}::text[]) AS x) WHERE club = ${code} AND id = ${String(gameId)}`;
+  return add.length;
 }
 async function revokeLink(sql, code, linkId) {
   await sql`UPDATE watch_links SET revoked_at = now() WHERE id = ${linkId} AND club = ${code} AND revoked_at IS NULL`;
@@ -120,6 +134,16 @@ async function tap(sql, body, req, kind) {
   return (await applyRally(sql, { code: w.code, row, kind, side: body.side, base: body.base, opId })).body;
 }
 
+// The game is over and the watch says so: save it to the club's games. Safe to repeat (the same id is stored once). The live row stays,
+// so a retry after a lost answer still finds the game; the phone's own finish removes it, or it expires like any live game.
+async function finish(sql, body, req) {
+  const w = await requireWatch(sql, req);
+  const row = await attachedGame(sql, w.code, w.link.id, body.game);
+  if (!row) throw fail(404, 'No game is sent to this watch. Send the game to the watch from the scoring phone.');
+  if (row.state.winner === null || row.state.winner === undefined) throw fail(409, 'That game is not over yet.');
+  return { ok: true, ...(await saveLiveGame(sql, w.code, row)) };
+}
+
 export async function watchAction(sql, body, req) {
   switch (body.action) {
     case 'watch-register': return register(sql, body, req);
@@ -127,6 +151,7 @@ export async function watchAction(sql, body, req) {
     case 'watch-state': return (await watchState(sql, req)).body;
     case 'watch-rally': return tap(sql, body, req, 'rally');
     case 'watch-unrally': return tap(sql, body, req, 'unrally');
+    case 'watch-finish': return finish(sql, body, req);
     case 'watch-unlink': { const w = await requireWatch(sql, req); await revokeLink(sql, w.code, w.link.id); return { ok: true }; }
   }
   throw fail(400, 'Unknown action.');
@@ -170,7 +195,8 @@ async function claim(sql, club, body, req) {
 
 async function attach(sql, club, body, req) {
   const code = club.code, linkId = String(body.link || '');
-  const [link] = await sql`SELECT id FROM watch_links WHERE id = ${linkId} AND club = ${code} AND token_hash IS NOT NULL AND revoked_at IS NULL AND expires_at > now()`;
+  // A link the watch has not collected yet counts too: the phone attaches its running game the moment it links the watch.
+  const [link] = await sql`SELECT id FROM watch_links WHERE id = ${linkId} AND club = ${code} AND revoked_at IS NULL AND expires_at > now()`;
   if (!link) throw fail(404, 'That watch is not linked to this club.');
   const since = new Date(Date.now() - FRESH_MS).toISOString();
   const [game] = await sql`SELECT id, secret_hash FROM live_games WHERE club = ${code} AND id = ${String(body.game || '')} AND updated_at > ${since}`;
