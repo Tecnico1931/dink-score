@@ -28,6 +28,7 @@ import { counts, findDuplicates } from './_confirm.js';
 import { DELETE_UNDO_HOURS, gamesCsv } from './_privacy.js';
 import { computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_MIN_GAMES } from './_progress.js';
 import { refreshRatings, ratingsFor } from './_rating_store.js';
+import { groupReactions } from './_reactions.js';
 
 // Achievements, this week's challenges, and trophies for every player, as the server counts them.
 function progressFor(games) {
@@ -82,13 +83,14 @@ export default handler(async (req, res) => {
       if (body.action !== 'export' && who.by === 'organizer') throw fail(403, 'Only the club creator or the organizer PIN can delete the club.');
       const code = club.code;
       if (body.action === 'export') {
-        const [games, roster, events, leagues, trail, gameTrail] = await Promise.all([
+        const [games, roster, events, leagues, trail, gameTrail, reactions] = await Promise.all([
           sql`SELECT data, deleted_at, rally_log FROM games WHERE club = ${code} ORDER BY ended_at DESC`,
           sql`SELECT name, claim_hash IS NOT NULL AS claimed, avatar, dupr_rating, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name)`,
           sql`SELECT id, data, status, created_at, updated_at, deleted_at FROM events WHERE club = ${code} ORDER BY created_at`,
           sql`SELECT id, data, status, created_at, deleted_at FROM leagues WHERE club = ${code} ORDER BY created_at`,
           sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id`,
-          sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`
+          sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`,
+          sql`SELECT game_id, name, reaction, created_at FROM game_reactions WHERE club = ${code} ORDER BY created_at ASC, name_key ASC`
         ]);
         // Not exported: the PIN and phone tokens, public bracket tokens, and DUPR links and IDs (those stay out of every club export).
         if (body.format === 'csv') {
@@ -103,6 +105,7 @@ export default handler(async (req, res) => {
           club: { name: club.name, code: club.public_code || club.code },
           players: roster.map(r => ({ name: r.name, linkedToPhone: r.claimed, avatar: r.avatar || null, duprSelfReported: duprFrom(r.dupr_rating), role: r.role || 'player', removed: !!r.blocked_at })),
           games: games.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
+          reactions: reactions.map(r => ({ game: r.game_id, player: r.name, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
           events: events.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, event: r.data })),
           leagues: leagues.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, league: r.data })),
           // Who changed what. Actors are kinds of credential ('creator', 'organizer-pin', 'player:<name>'), never tokens or PINs.
@@ -222,20 +225,29 @@ export default handler(async (req, res) => {
   const tag = tagOf(code, [await clubDigest(sql, code), JSON.stringify(publicClub(club)), weekOf(now).id, seasonOf(now).id, Math.floor(now / BUCKET_MS)].join('#'));
   if (sameTag(req, tag)) return notModified(res, tag);
   res.setHeader('ETag', tag);
-  const [games, deleted, roster, renamed] = await Promise.all([
+  const [games, deleted, roster, renamed, reactionRows] = await Promise.all([
     // rally_log itself stays out of this payload (GET /api/games?id= has it); a game just says whether it can be replayed.
     sql`SELECT data, rally_log IS NOT NULL AS replay, confirmed_by, confirmed_at, dup_ok FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
     sql`SELECT name, claim_hash IS NOT NULL AS claimed, role, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
     sql`SELECT old_key, new_name FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC LIMIT 100`,
+    sql`SELECT r.game_id, r.reaction, r.name FROM game_reactions r JOIN (SELECT id FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC, id LIMIT 2000) g ON g.id = r.game_id WHERE r.club = ${code} ORDER BY r.created_at ASC, r.name_key ASC`
   ]);
+  const rxByGame = groupReactions(reactionRows);
   // Confirmation lives beside the game, never inside its data. With the club setting on, games nobody has confirmed are
   // marked `hold` and left out of achievements here and of ratings in the app.
   const required = !!club.require_confirmation;
   const gamesIn = games.map(r => ({ ...r.data, ...(r.confirmed_by ? { confirmed: { by: r.confirmed_by, at: new Date(r.confirmed_at).getTime() } } : {}), ...(r.dup_ok ? { dupOk: true } : {}) }));
   // Stored Dink Rating v2 history (rebuilt first if the games changed); the app falls back to its own replay if this fails.
   const ratings = await refreshRatings(sql, club).then(() => ratingsFor(sql, club)).catch(() => null);
-  const gamesOut = gamesIn.map((g, i) => { const o = { ...g }; if (games[i].replay) o.replay = true; if (!counts(g, required)) o.hold = true; return o; });
+  const gamesOut = gamesIn.map((g, i) => {
+    const o = { ...g };
+    if (games[i].replay) o.replay = true;
+    if (!counts(g, required)) o.hold = true;
+    const rx = rxByGame.get(g.id);
+    if (rx) o.reactions = rx;
+    return o;
+  });
   send(res, 200, {
     club: publicClub(club),
     games: gamesOut,

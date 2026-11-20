@@ -4,6 +4,7 @@
 import { nameKey, cleanName } from './_names.js';
 import { dropRatings } from './_rating_store.js';
 import { repair } from './_court.js';
+import { MAX_REACTIONS_PER_MEMBER_PER_GAME } from './_reactions.js';
 
 // Names sit in arrays of strings (teams, players, byes, champion, team info), never under a key of their own, so only strings
 // inside arrays are touched: an event or team that happens to be called like a player keeps its title.
@@ -88,17 +89,25 @@ export async function renamePlayer(sql, code, fromRow, toName, intoRow) {
     const next = rewriteNames(boardRow.data, map);
     if (next.changed) board = repair(next.value);
   }
-  return { games, events, leagues, board, map, fromKey, toKey };
+  return { games, events, leagues, board, map, fromKey, toKey, toName };
 }
 
 // The writes for a computed rename/merge, as one list for sql.transaction.
 export function renameWrites(sql, code, plan, extra = []) {
-  const { games, events, leagues, board, fromKey, toKey } = plan;
+  const { games, events, leagues, board, fromKey, toKey, toName } = plan;
   const writes = [];
   if (games.length) writes.push(sql`UPDATE games g SET data = v.data FROM jsonb_to_recordset(${JSON.stringify(games)}::jsonb) AS v(id text, data jsonb) WHERE g.club = ${code} AND g.id = v.id`);
   if (events.length) writes.push(sql`UPDATE events e SET data = v.data, refs = v.refs FROM jsonb_to_recordset(${JSON.stringify(events)}::jsonb) AS v(id text, data jsonb, refs jsonb) WHERE e.club = ${code} AND e.id = v.id`);
   if (leagues.length) writes.push(sql`UPDATE leagues l SET data = v.data, version = l.version + 1 FROM jsonb_to_recordset(${JSON.stringify(leagues)}::jsonb) AS v(id text, data jsonb) WHERE l.club = ${code} AND l.id = v.id`);
   if (board) writes.push(sql`UPDATE court_boards SET data = ${JSON.stringify(board)}::jsonb, version = version + 1, updated_at = now() WHERE club = ${code}`);
+  if (fromKey !== toKey) {
+    // Drop duplicate reactions before merging two names into one, then keep at most the per-member cap per game.
+    writes.push(sql`DELETE FROM game_reactions f WHERE f.club = ${code} AND f.name_key = ${fromKey} AND EXISTS (SELECT 1 FROM game_reactions t WHERE t.club = f.club AND t.game_id = f.game_id AND t.name_key = ${toKey} AND t.reaction = f.reaction)`);
+  }
+  writes.push(sql`UPDATE game_reactions SET name_key = ${toKey}, name = ${toName} WHERE club = ${code} AND name_key = ${fromKey}`);
+  if (fromKey !== toKey) {
+    writes.push(sql`DELETE FROM game_reactions WHERE club = ${code} AND name_key = ${toKey} AND (game_id, reaction) IN (SELECT game_id, reaction FROM (SELECT game_id, reaction, row_number() OVER (PARTITION BY game_id ORDER BY created_at ASC, reaction ASC) AS rn FROM game_reactions WHERE club = ${code} AND name_key = ${toKey}) s WHERE rn > ${MAX_REACTIONS_PER_MEMBER_PER_GAME})`);
+  }
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(...dropRatings(sql, code)); // stored ratings carry names: rebuilt from the renamed games on the next read

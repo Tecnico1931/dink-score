@@ -2423,5 +2423,149 @@ await step('the public league link: organizer makes it, a spectator sees only al
   });
 }
 
+// Reactions on finished games (L12): auth, toggle, caps, ETag invalidation, rename/merge, soft-delete/restore, code rotation, rate limit.
+{
+  const rc = ok(await call(club, 'POST', { body: { name: 'Reactions check club', pin: '739152' } }), 201);
+  const rcode = rc.club.code, rowner = rc.ownerToken;
+  const claim = async name => ok(await call(playersApi, 'POST', { body: { code: rcode, action: 'claim', name, ownerToken: rowner } })).playerToken;
+  const tokA = await claim('Ana'), tokB = await claim('Ben'), tokC = await claim('Cy');
+  const now = Date.now();
+  ok(await call(games, 'POST', { body: { code: rcode, games: [
+    { id: 'rx-g1', mode: 'doubles', teams: [['Ana', 'Ben'], ['Cy', 'Di']], score: [11, 8], startedAt: now - 600e3, endedAt: now - 1000 },
+    { id: 'rx-g2', mode: 'singles', teams: [['Ana'], ['Ben']], score: [11, 5], startedAt: now - 500e3, endedAt: now - 500 }
+  ] } }));
+  const react = (gameId, reaction, creds, useCode = rcode, headers = {}) =>
+    call(games, 'POST', { headers, body: { code: useCode, react: gameId, reaction, ...creds } });
+
+  await step('reactions: only claimed unblocked members can react; unknown reactions and games are refused', async () => {
+    assert.equal((await react('rx-g1', 'fire', {})).status, 403);
+    assert.equal((await react('rx-g1', 'fire', { playerName: 'Di', playerToken: tokA })).status, 403, 'unclaimed guest cannot react');
+    assert.equal((await react('rx-g1', 'fire', { playerName: 'Ana', playerToken: tokB })).status, 403, 'wrong token refused');
+    assert.equal((await react('rx-g1', 'heart', { playerName: 'Ana', playerToken: tokA })).status, 400, 'non-allow-listed reaction refused');
+    assert.equal((await react('rx-nope', 'fire', { playerName: 'Ana', playerToken: tokA })).status, 404, 'missing game refused');
+    assert.equal((await call(games, 'GET', { query: `?code=${rcode}&reactions=rx-nope` })).status, 404);
+    // Blocked member cannot react
+    ok(await call(playersApi, 'POST', { body: { code: rcode, action: 'remove', name: 'Cy', block: true, ownerToken: rowner } }));
+    assert.equal((await react('rx-g1', 'fire', { playerName: 'Cy', playerToken: tokC })).status, 403, 'blocked member refused');
+    ok(await call(playersApi, 'POST', { body: { code: rcode, action: 'unblock', name: 'Cy', ownerToken: rowner } }));
+  });
+
+  await step('reactions: toggle on/off, club sync ETag invalidates cleanly, soft-delete hides and restore brings them back', async () => {
+    const first = await call(club, 'GET', { query: '?code=' + rcode });
+    assert.equal(first.status, 200);
+    assert.equal(first.json.games.find(g => g.id === 'rx-g1').reactions, undefined, 'games without reactions omit the field');
+    const tag0 = first.headers.etag;
+    assert.equal((await call(club, 'GET', { query: '?code=' + rcode, headers: { 'if-none-match': tag0 } })).status, 304);
+
+    const add = ok(await react('rx-g1', 'fire', { playerName: 'Ana', playerToken: tokA }));
+    assert.equal(add.added, true);
+    assert.deepEqual(add.reactions, { fire: ['Ana'] });
+    const afterAdd = await call(club, 'GET', { query: '?code=' + rcode, headers: { 'if-none-match': tag0 } });
+    assert.equal(afterAdd.status, 200, 'adding a reaction invalidates the club ETag');
+    assert.deepEqual(afterAdd.json.games.find(g => g.id === 'rx-g1').reactions, { fire: ['Ana'] });
+    const tag1 = afterAdd.headers.etag;
+    assert.equal((await call(club, 'GET', { query: '?code=' + rcode, headers: { 'if-none-match': tag1 } })).status, 304);
+
+    const direct = ok(await call(games, 'GET', { query: `?code=${rcode}&reactions=rx-g1` }));
+    assert.deepEqual(direct.reactions, { fire: ['Ana'] });
+
+    // Soft-delete hides reactions from club and blocks toggling; restore brings them back
+    ok(await call(games, 'DELETE', { query: `?code=${rcode}&id=rx-g1`, headers: { 'x-club-owner': rowner } }));
+    assert.equal((await react('rx-g1', 'clap', { playerName: 'Ana', playerToken: tokA })).status, 404);
+    assert.equal((await call(games, 'GET', { query: `?code=${rcode}&reactions=rx-g1` })).status, 404);
+    ok(await call(games, 'POST', { body: { code: rcode, restore: 'rx-g1', ownerToken: rowner } }));
+    assert.deepEqual(ok(await call(games, 'GET', { query: `?code=${rcode}&reactions=rx-g1` })).reactions, { fire: ['Ana'] });
+
+    // Toggle off
+    const rem = ok(await react('rx-g1', 'fire', { playerName: 'Ana', playerToken: tokA }));
+    assert.equal(rem.added, false);
+    assert.deepEqual(rem.reactions, {});
+    const afterRem = await call(club, 'GET', { query: '?code=' + rcode, headers: { 'if-none-match': tag1 } });
+    assert.equal(afterRem.status, 200, 'removing a reaction invalidates the ETag');
+    assert.equal(afterRem.json.games.find(g => g.id === 'rx-g1').reactions, undefined);
+  });
+
+  await step('reactions: per-member cap (3) and per-game cap (60); removing still works at cap', async () => {
+    ok(await react('rx-g1', 'clap', { playerName: 'Ana', playerToken: tokA }));
+    ok(await react('rx-g1', 'fire', { playerName: 'Ana', playerToken: tokA }));
+    ok(await react('rx-g1', 'pickle', { playerName: 'Ana', playerToken: tokA }));
+    assert.equal((await react('rx-g1', 'sweat', { playerName: 'Ana', playerToken: tokA })).status, 409, '4th reaction by same member refused');
+    // Removing at cap still works, and frees a slot
+    const off = ok(await react('rx-g1', 'pickle', { playerName: 'Ana', playerToken: tokA }));
+    assert.equal(off.added, false);
+    const fourth = ok(await react('rx-g1', 'sweat', { playerName: 'Ana', playerToken: tokA }));
+    assert.equal(fourth.added, true);
+    assert.deepEqual(Object.keys(fourth.reactions), ['clap', 'fire', 'sweat']);
+
+    // Per-game cap (60 total): fill rx-g2 to 60 reactions across synthetic members, then verify Ben cannot add 61st but can remove his own
+    ok(await react('rx-g2', 'fire', { playerName: 'Ben', playerToken: tokB }));
+    for (let i = 0; i < 59; i++) {
+      await pg.query(`INSERT INTO game_reactions (club, game_id, name_key, name, reaction) VALUES ($1, 'rx-g2', $2, $3, 'clap')`, [rcode, 'bot' + i, 'Bot ' + i]);
+    }
+    assert.equal((await react('rx-g2', 'trophy', { playerName: 'Ana', playerToken: tokA })).status, 409, '61st reaction on a game refused');
+    const freed = ok(await react('rx-g2', 'fire', { playerName: 'Ben', playerToken: tokB }));
+    assert.equal(freed.added, false, 'removing at per-game cap still works');
+    assert.equal(ok(await react('rx-g2', 'trophy', { playerName: 'Ana', playerToken: tokA })).added, true, 'adding succeeds once below cap');
+  });
+
+  await step('reactions: club code rotation resolves to permanent club key', async () => {
+    const rot = ok(await call(club, 'POST', { body: { code: rcode, action: 'rotate-code', ownerToken: rowner, graceMinutes: 30 } }));
+    const nextCode = rot.club.code;
+    assert.notEqual(nextCode, rcode);
+    const viaNew = ok(await react('rx-g1', 'fire', { playerName: 'Ben', playerToken: tokB }, nextCode));
+    assert.deepEqual(viaNew.reactions.fire, ['Ana', 'Ben']);
+    const viaOld = ok(await call(games, 'GET', { query: `?code=${rcode}&reactions=rx-g1` }));
+    assert.deepEqual(viaOld.reactions.fire, ['Ana', 'Ben']);
+  });
+
+  await step('reactions: rename and merge update names, dedupe overlaps, and keep per-member cap', async () => {
+    // Rename Ana -> Ana M
+    ok(await call(playersApi, 'POST', { body: { code: rcode, action: 'rename', name: 'Ana', newName: 'Ana M', ownerToken: rowner } }));
+    const afterRen = ok(await call(games, 'GET', { query: `?code=${rcode}&reactions=rx-g1` }));
+    assert.deepEqual(afterRen.reactions.fire, ['Ana M', 'Ben']);
+    assert.deepEqual(afterRen.reactions.clap, ['Ana M']);
+
+    // Prepare merge: add unclaimed alias 'Benji' with reactions overlapping Ben's ('fire') plus 2 new ones ('pickle', 'trophy'),
+    // while Ben already has 'fire' and 'clap' (combined unique = 4 -> must dedupe 'fire' and cap at 3).
+    ok(await react('rx-g1', 'clap', { playerName: 'Ben', playerToken: tokB }));
+    ok(await call(roster, 'POST', { body: { code: rcode, name: 'Benji' } }));
+    await pg.query(`INSERT INTO game_reactions (club, game_id, name_key, name, reaction) VALUES
+      ($1, 'rx-g1', 'benji', 'Benji', 'fire'),
+      ($1, 'rx-g1', 'benji', 'Benji', 'pickle'),
+      ($1, 'rx-g1', 'benji', 'Benji', 'trophy')`, [rcode]);
+    ok(await call(playersApi, 'POST', { body: { code: rcode, action: 'merge', name: 'Benji', into: 'Ben', ownerToken: rowner } }));
+    const afterMerge = ok(await call(games, 'GET', { query: `?code=${rcode}&reactions=rx-g1` }));
+    assert.ok(!JSON.stringify(afterMerge).includes('Benji'), 'merged name is gone');
+    const benCount = Object.values(afterMerge.reactions).reduce((n, list) => n + list.filter(x => x === 'Ben').length, 0);
+    assert.equal(benCount, 3, 'merged member reactions are deduped and capped at 3 per game');
+  });
+
+  await step('reactions: rate limit blocks bursts from one member (429)', async () => {
+    await pg.query(`DELETE FROM lookup_fails WHERE ip LIKE 'react%'`);
+    const burstIp = { 'x-real-ip': '198.51.100.77' };
+    let limited = 0;
+    for (let i = 0; i < 65; i++) {
+      const r = await react('rx-g1', 'trophy', { playerName: 'Ana M', playerToken: tokA }, rcode, burstIp);
+      if (r.status === 429) { limited++; break; }
+    }
+    assert.ok(limited > 0, 'member reaction burst hits 429');
+    await pg.query(`DELETE FROM lookup_fails WHERE ip LIKE 'react%'`);
+  });
+
+  await step('reactions: public result page never leaks reactions', async () => {
+    ok(await call(club, 'POST', { body: { code: rcode, action: 'results-set', enabled: true, ownerToken: rowner } }));
+    const link = ok(await call(club, 'POST', { body: { code: rcode, action: 'results-create', game: 'rx-g1' } }));
+    const token = link.path.split('/').pop();
+    const html = await new Promise(async resolve => {
+      const req = { method: 'GET', url: `/api/bracket?result=1&token=${token}&fmt=html`, headers: { host: 'example.test', 'x-real-ip': '10.0.0.199' } };
+      let text = '';
+      const res = { statusCode: 0, setHeader() {}, end(t) { text = t || ''; resolve({ status: res.statusCode, text }); } };
+      await bracket(req, res);
+    });
+    assert.equal(html.status, 200);
+    assert.ok(!/reactions|On fire|Great game|Nice dink/i.test(html.text), 'public result page has no reaction data');
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

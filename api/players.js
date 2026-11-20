@@ -133,10 +133,11 @@ export default handler(async (req, res) => {
     if (body.action === 'export' && !own) throw fail(403, 'This phone isn\'t linked to that player. Pick your name in the club first.');
     if (!own) await requireOrganizer(club, body.pin, req, body.ownerToken);
     const like = likeFor(k);
-    const [games, events, leagues] = await Promise.all([
+    const [games, events, leagues, myReactions] = await Promise.all([
       sql`SELECT id, data, deleted_at, rally_log FROM games WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
       sql`SELECT id, data, refs FROM events WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
-      sql`SELECT id, data FROM leagues WHERE club = ${code} AND lower(data::text) LIKE ${like}`
+      sql`SELECT id, data FROM leagues WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
+      sql`SELECT game_id, reaction, created_at FROM game_reactions WHERE club = ${code} AND name_key = ${k} ORDER BY created_at ASC, game_id ASC`
     ]);
     const mine = games.filter(r => ((r.data && r.data.teams) || []).flat().some(n => nameKey(n) === k));
     if (body.action === 'export') {
@@ -145,6 +146,7 @@ export default handler(async (req, res) => {
         player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, duprSelfReported: duprFrom(row.dupr_rating),
           duprLink: row.dupr_id ? { duprId: row.dupr_id, linkedAt: row.dupr_linked_at, ratings: row.dupr_snapshot || null } : null } : { name: cleanName(body.name) },
         games: mine.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
+        reactions: myReactions.map(r => ({ gameId: r.game_id, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
         events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status })),
         leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status }))
       });
@@ -189,6 +191,10 @@ export default handler(async (req, res) => {
     }
     ops.push(sql`DELETE FROM name_changes WHERE club = ${code} AND old_key = ${k}`, ...dropRatings(sql, code));
     for (const r of chg) if (nameKey(r.new_name) === k) ops.push(sql`UPDATE name_changes SET new_name = ${label} WHERE club = ${code} AND old_key = ${r.old_key}`);
+    if (myReactions.length) {
+      touched += myReactions.length;
+      ops.push(sql`UPDATE game_reactions SET name_key = ${lk}, name = ${label} WHERE club = ${code} AND name_key = ${k}`);
+    }
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM push_subs WHERE club = ${code} AND name_key = ${k}`);
     if (!row && !touched) throw fail(404, 'No player has that name in this club.');

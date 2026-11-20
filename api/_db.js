@@ -361,6 +361,19 @@ export function ensureSchema() {
       // The public, read-only link to a league or ladder (see _share.js and bracket.js). Null means not shared.
       await q`ALTER TABLE leagues ADD COLUMN IF NOT EXISTS share_token text`;
       await q`CREATE UNIQUE INDEX IF NOT EXISTS leagues_share_token ON leagues (share_token) WHERE share_token IS NOT NULL`;
+      // Reactions on finished games (see _reactions.js). Cascades with both the club and the game.
+      await q`CREATE TABLE IF NOT EXISTS game_reactions (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        game_id text NOT NULL,
+        name_key text NOT NULL,
+        name text NOT NULL,
+        reaction text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, game_id, name_key, reaction),
+        FOREIGN KEY (club, game_id) REFERENCES games(club, id) ON DELETE CASCADE
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS game_reactions_club_game ON game_reactions (club, game_id)`;
+      await q`CREATE INDEX IF NOT EXISTS game_reactions_club_name ON game_reactions (club, name_key)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

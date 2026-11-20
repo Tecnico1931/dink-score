@@ -64,6 +64,9 @@ const gm = (id, teams, score, i) => ({ id, mode: 'doubles', teams, score, endedA
 ok(await call(games, 'POST', { body: { code, games: [
   gm('g-one', [['Ana', 'Ben'], ['Cy', 'Di']], [11, 7], 1), gm('g-two', [['Ana', 'Cy'], ['Ben', 'Di']], [9, 11], 2),
   gm('g-three', [['Ben', 'Cy'], ['Di', 'Gus']], [11, 4], 3), gm('g-four', [['=SUM(1+1)', 'Gus'], ['Ben', 'Cy']], [11, 6], 4)] } }));
+ok(await call(games, 'POST', { body: { code, react: 'g-one', reaction: 'fire', playerName: 'Ana', playerToken: tok.Ana } }));
+ok(await call(games, 'POST', { body: { code, react: 'g-three', reaction: 'clap', playerName: 'Ana', playerToken: tok.Ana } }));
+ok(await call(games, 'POST', { body: { code, react: 'g-one', reaction: 'fire', playerName: 'Ben', playerToken: tok.Ben } }));
 const ev = ok(await call(events, 'POST', { body: { code, action: 'create', ...ORG, event: { name: 'Friday round robin', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Ana', 'Ben', 'Cy', 'Di'], seed: 'r' } } }), 201).event;
 ok(await call(events, 'POST', { body: { code, action: 'league-create', ...ORG, league: { kind: 'ladder', name: 'Ladder', mode: 'singles', players: ['Ana', 'Ben', 'Cy', 'Di'] } } }), 201);
 await pg.query(`UPDATE events SET refs = '{"Ana":"1234567","Ben":"7654321"}'::jsonb WHERE club = (SELECT code FROM clubs LIMIT 1)`);
@@ -89,6 +92,7 @@ await step('player export: only the phone that holds the name gets it, and it ha
   assert.equal(d.player.name, 'Ana');
   assert.equal(d.player.duprSelfReported.rating ?? d.player.duprSelfReported, d.player.duprSelfReported.rating ?? 3.5);
   assert.deepEqual(d.games.map(g => g.id).sort(), ['g-one', 'g-two']);
+  assert.deepEqual(d.reactions.map(r => `${r.gameId}:${r.reaction}`).sort(), ['g-one:fire', 'g-three:clap']);
   assert.equal(d.events.length, 1);
   assert.equal(d.leagues.length, 1);
   assert.ok(!/pin_hash|owner_hash|claim_hash|ownerToken/.test(text(d)));
@@ -124,6 +128,10 @@ await step('anonymise: own phone replaces the name everywhere; others\' games an
   const shown = ok(await call(club, 'GET', { query: '?code=' + code }));
   assert.ok(!/\bAna\b/.test(text(shown)), 'the club view no longer shows the name');
   assert.ok(shown.games.some(g => g.teams.flat().includes(label)));
+  const g1 = shown.games.find(g => g.id === 'g-one');
+  assert.deepEqual(g1.reactions.fire.slice().sort(), ['Ben', label].sort(), 'reactions keep their count with the anonymous label');
+  const rxRows = (await pg.query(`SELECT name, name_key FROM game_reactions WHERE club = $1`, [code])).rows;
+  assert.ok(!/\bAna\b/i.test(text(rxRows)) && rxRows.some(r => r.name === label && r.name_key === label.toLowerCase()));
 });
 await step('anonymise: the history tables carry the label too, not the name', async () => {
   const dump = text((await pg.query(`SELECT * FROM game_audit`)).rows) + text((await pg.query(`SELECT * FROM club_audit`)).rows) + text((await pg.query(`SELECT * FROM name_changes`)).rows);
@@ -151,6 +159,8 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   const viaOwner = ok(await C('export', ORG)), viaPin = ok(await C('export', { pin: PIN }));
   assert.equal(viaOwner.format, 'dink-score-club-export');
   assert.equal(viaOwner.games.length, 4);
+  assert.equal(viaOwner.reactions.length, 3);
+  assert.ok(!/\bAna\b/.test(text(viaOwner.reactions)), 'exported reactions carry the anonymous label');
   assert.equal(viaOwner.events.length, 1);
   assert.equal(viaOwner.leagues.length, 1);
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
@@ -209,7 +219,7 @@ await step('delete club: once the window has passed everything is removed, and t
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
   assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 401, 'once the window has passed the watch is refused too');
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers']) {
+  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }

@@ -10,12 +10,15 @@
 // POST   /api/games {code, confirm: id, playerName+playerToken | pin | ownerToken} -> confirms a game: a player on the other team from whoever recorded it, or an organizer
 // POST   /api/games {code, keepBoth: [idA, idB], pin|ownerToken}  -> organizer: these two similar games are really two games, stop flagging them
 // GET    /api/games?code=ABC123&rating=Name[&mode=singles] -> {points: [[ended at, rating after]]}: that player's stored Dink Rating line, oldest first
+// GET    /api/games?code=ABC123&reactions=g123 -> {gameId, reactions: { [key]: [name, ...] }} for one finished game
+// POST   /api/games {code, react: id, reaction, playerName, playerToken} -> toggles a member's reaction on a finished game
 // GET    /api/games?code=ABC123&audit=1[&id=g123]  -> organizer only: the history of changes to games (who, what, when, before and after), newest first
 import { checkLog } from './_rallylog.js';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, requireOrganizer, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, coOrganizer, verifiedSender } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, requireOrganizer, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, coOrganizer, verifiedSender, clientIp } from './_db.js';
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 import { confirmBlocker } from './_confirm.js';
 import { refreshRatings, historyOf } from './_rating_store.js';
+import { getGameReactions, toggleReaction } from './_reactions.js';
 
 export default handler(async (req, res) => {
   const sql = db();
@@ -47,6 +50,9 @@ export default handler(async (req, res) => {
       await refreshRatings(sql, club);
       return send(res, 200, { points: await historyOf(sql, club, url.searchParams.get('mode'), nameKey(String(url.searchParams.get('rating')))) });
     }
+    if (url.searchParams.get('reactions')) {
+      return send(res, 200, await getGameReactions(sql, club.code, url.searchParams.get('reactions')));
+    }
     const [row] = await sql`SELECT rally_log FROM games WHERE club = ${club.code} AND id = ${String(url.searchParams.get('id') || '')} AND deleted_at IS NULL`;
     if (!row) throw fail(404, 'That game no longer exists.');
     return send(res, 200, { rallyLog: row.rally_log || null });
@@ -62,6 +68,19 @@ export default handler(async (req, res) => {
     if (!rows.length) throw fail(404, 'That game can no longer be restored.');
     await audit(sql, code, rows[0].id, 'restore', await organizerActor(club, body.ownerToken ?? ownerFrom(req)), null, snapshot(rows[0].data));
     return send(res, 200, { ok: true });
+  }
+
+  if (body.react) {
+    const out = await toggleReaction(sql, {
+      code,
+      gameId: body.react,
+      rawReaction: body.reaction,
+      playerName: body.playerName,
+      playerToken: body.playerToken,
+      tokenMatches,
+      ip: clientIp(req)
+    });
+    return send(res, 200, out);
   }
 
   if (body.confirm) {
