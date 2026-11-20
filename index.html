@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Pickleball scorekeeper with server tracking, saved players, a Dink Rating leaderboard and a game record.">
-<meta name="theme-color" content="#0F241E">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F2F4F7">
+<script>(function(){try{var d=JSON.parse(localStorage.getItem('pb.display')||'{}')||{};var r=document.documentElement;var t=d.theme==='light'||d.theme==='dark'?d.theme:'';if(t)r.setAttribute('data-theme',t);if(d.outdoor)r.setAttribute('data-outdoor','');if(d.large)r.setAttribute('data-large','');var dk=d.outdoor?false:(t?t==='dark':!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches));var cs=document.querySelector('meta[name=color-scheme]');if(cs)cs.content=d.outdoor?'light':(t||'light dark');var tc=document.querySelector('meta[name=theme-color]');if(tc)tc.content=d.outdoor?'#000000':(dk?'#0A0F17':'#F2F4F7');}catch(e){}})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,7 +17,7 @@
 <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 <script defer src="/_vercel/insights/script.js"></script>
 <style>
-:root { color-scheme: light; }
+:root { color-scheme: light dark; }
 body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }
@@ -50,7 +52,9 @@ img { max-width: 100%; }
   --shadow: 0 1px 2px rgb(14 23 38 / .06), 0 8px 24px -12px rgb(14 23 38 / .18);
   --display: "Bricolage Grotesque", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
   --ui: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light dark;
 }
+:root[data-theme="light"] { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
@@ -92,12 +96,14 @@ button { cursor: pointer; }
   padding-block: calc(18px + env(safe-area-inset-top, 0px)) calc(112px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-direction: column; gap: 22px;
 }
-.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .wordmark { display: flex; align-items: center; gap: 10px; flex: none; }
 .wordmark svg { width: 34px; height: 34px; flex: none; }
 .wordmark h1 { font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: 28px; letter-spacing: -.02em; line-height: 1; margin: 0; white-space: nowrap; }
 .top-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; flex: 1; }
 .top-right .sync { min-width: 0; }
+.set-btn { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); padding: 0; background: var(--surface); color: var(--ink); display: grid; place-items: center; }
+.set-btn svg { width: 20px; height: 20px; }
 .me-btn { position: relative; --r: 26px; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; padding: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 2px var(--surface), 0 4px 12px -4px rgb(0 0 0 / .35); }
 .me-btn svg { width: 22px; height: 22px; }
 .me-btn .av-emoji { font-size: 22px; }
@@ -145,7 +151,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .field + .field { margin-top: 14px; }
 .lab { font-size: 13px; font-weight: 500; color: var(--muted); }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-2); border-radius: 14px; padding: 4px; gap: 4px; }
-.seg button { border: 0; background: transparent; border-radius: 10px; padding: 10px 6px; font-weight: 600; font-size: 15px; color: var(--muted); transition: background .15s, color .15s; }
+.seg button { min-width: 0; border: 0; background: transparent; border-radius: 10px; padding: 10px 6px; font-weight: 600; font-size: 15px; line-height: 1.2; color: var(--muted); transition: background .15s, color .15s; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(14 23 38 / .14); }
 .seg.sm button { padding: 7px 10px; font-size: 14px; }
 .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
@@ -1121,6 +1127,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 <div id="sheet6"></div>
 <div id="sheet7"></div>
 <div id="sheet8"></div>
+<div id="sheet9"></div>
 <div id="tour"></div>
 
 <script>
@@ -1872,14 +1879,48 @@ const store = {
   },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
 };
-// Display options live on this phone only (nothing is sent to the club): outdoor = high contrast, large = bigger court numbers.
-let display = (() => { const d = store.get('pb.display', {}); return { outdoor: d.outdoor ? 1 : 0, large: d.large ? 1 : 0 }; })();
+// Display options live on this phone only (nothing is sent to the club): theme = auto|light|dark, outdoor = high contrast, large = bigger court numbers.
+/*DISPLAY-START*/
+const DisplayPrefs = (() => {
+  const THEMES = { auto: 'auto', light: 'light', dark: 'dark' };
+  const normalize = d => {
+    const o = d && typeof d === 'object' ? d : {};
+    return { theme: THEMES[o.theme] || 'auto', outdoor: o.outdoor ? 1 : 0, large: o.large ? 1 : 0 };
+  };
+  const resolve = (d, prefersDark) => {
+    const p = normalize(d);
+    const dataTheme = p.theme === 'light' || p.theme === 'dark' ? p.theme : null;
+    const effective = p.outdoor ? 'light' : (dataTheme || (prefersDark ? 'dark' : 'light'));
+    const colorScheme = p.outdoor ? 'light' : (dataTheme || 'light dark');
+    const themeColor = p.outdoor ? '#000000' : (effective === 'dark' ? '#0A0F17' : '#F2F4F7');
+    return { dataTheme, effective, colorScheme, themeColor, outdoor: !!p.outdoor, large: !!p.large };
+  };
+  return { normalize, resolve };
+})();
+/*DISPLAY-END*/
+let display = DisplayPrefs.normalize(store.get('pb.display', {}));
+const darkMQ = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 function applyDisplay() {
   const r = document.documentElement;
-  r.toggleAttribute('data-outdoor', !!display.outdoor); r.toggleAttribute('data-large', !!display.large);
-  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = display.outdoor ? '#000000' : '#0F241E';
+  const res = DisplayPrefs.resolve(display, !!(darkMQ && darkMQ.matches));
+  if (res.dataTheme) r.setAttribute('data-theme', res.dataTheme); else r.removeAttribute('data-theme');
+  r.toggleAttribute('data-outdoor', res.outdoor); r.toggleAttribute('data-large', res.large);
+  const cs = document.querySelector('meta[name=color-scheme]'); if (cs) cs.content = res.colorScheme;
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = res.themeColor;
 }
-function setDisplay(patch) { display = Object.assign({}, display, patch); store.set('pb.display', display); applyDisplay(); }
+function setDisplay(patch) { display = DisplayPrefs.normalize(Object.assign({}, display, patch)); store.set('pb.display', display); applyDisplay(); }
+applyDisplay();
+if (darkMQ && darkMQ.addEventListener) {
+  darkMQ.addEventListener('change', () => { applyDisplay(); if (typeof settingsOpen !== 'undefined' && settingsOpen) renderSettings(); });
+}
+window.addEventListener('storage', e => {
+  if (e.key === 'pb.display') {
+    display = DisplayPrefs.normalize(store.get('pb.display', {}));
+    applyDisplay();
+    if (typeof settingsOpen !== 'undefined' && settingsOpen) renderSettings();
+    if (typeof render === 'function') render();
+  }
+});
 // Screen readers: one live region that is never rebuilt (the court redraws itself every rally, which would drop its own announcements).
 function announce(msg) {
   const el = document.getElementById('a11y-live'); if (!el) return;
@@ -3508,13 +3549,14 @@ function renderApp() {
   const y = document.body.scrollTop;
   if (!club && tab === 'events') tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
-  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${API_OK ? '<button class="dupr-btn" data-act="dupr-open" aria-label="Your DUPR">DUPR</button>' : ''}${profileButtonHTML()}</div></header>`;
+  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${API_OK ? '<button class="dupr-btn" data-act="dupr-open" aria-label="Your DUPR">DUPR</button>' : ''}<button class="set-btn" data-act="settings-open" aria-label="Settings">${ICON.settings}</button>${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
   renderClub();
   renderProfile();
   renderRatingExplain();
+  renderSettings();
   renderTour();
   renderEvents();
   if (document.body.scrollTop !== y) document.body.scrollTop = y;
@@ -3748,9 +3790,8 @@ let lbScope = store.get('pb.lbScope', 'all');
 
 function rulesView() {
   return `<section><h2>Rules</h2><p class="sub">The essentials, for settling it at the kitchen line.</p></section>
-  <div class="rule" role="group" aria-labelledby="disp-h"><h3 id="disp-h">Display on this phone</h3><p>For bright sun: the court and the whole app switch to black, white and solid colours. Large scores make the numbers fill the court. Only this phone changes. You can also switch it from the sun button while you score.</p>
-    <div class="seg-row"><div><span class="lab" id="disp-o">Contrast</span>${seg('data-disp', [['outdoor-0', 'Standard'], ['outdoor-1', 'Sunlight']], 'outdoor-' + display.outdoor).replace('role="group"', 'role="group" aria-labelledby="disp-o"')}</div>
-    <div><span class="lab" id="disp-l">Scores</span>${seg('data-disp', [['large-0', 'Normal'], ['large-1', 'Large']], 'large-' + display.large).replace('role="group"', 'role="group" aria-labelledby="disp-l"')}</div></div></div>
+  <div class="rule" role="group" aria-labelledby="disp-h"><h3 id="disp-h">Display on this phone</h3><p>Choose light, dark or match-phone appearance, or turn on sunlight contrast and large court numbers. Only this phone changes. You can also toggle sunlight display from the sun button while you score.</p>
+    <button class="btn btn-soft" data-act="settings-open" style="margin-top:10px;padding:11px 16px;border-radius:12px;font-size:15px">Appearance &amp; display settings</button></div>
   <div class="rule"><h3>New to Dink Score?</h3><p>Take the quick tour of how to set up games, keep score, log results and read the leaderboard.</p><button class="btn btn-ink replay" data-tour="open" style="padding:11px 16px;border-radius:12px;font-size:15px">Show the tour</button></div>
   <div class="rules">
     <div class="rule"><h3>Calling the score</h3><p>In doubles, say three numbers before each serve.</p>
@@ -3811,6 +3852,7 @@ const ICON = {
   undo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
   sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></svg>',
+  settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 12v7h14v-7"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg>'
 };
@@ -6208,6 +6250,45 @@ async function toggleGameReaction(gameId, key) {
 }
 /*MODULE-END:reactions*/
 
+let settingsOpen = false;
+let settingsOpener = null;
+function openSettings() {
+  settingsOpener = document.activeElement;
+  settingsOpen = true;
+  renderSettings();
+  const h = $('#settings-h'); if (h) h.focus();
+}
+function closeSettings() {
+  settingsOpen = false;
+  renderSettings();
+  if (settingsOpener && settingsOpener.isConnected && settingsOpener.focus) settingsOpener.focus();
+  settingsOpener = null;
+}
+function renderSettings() {
+  const root = $('#sheet9');
+  if (!root) return;
+  if (!settingsOpen) { root.innerHTML = ''; root._html = root._key = ''; return; }
+  const prefersDark = !!(darkMQ && darkMQ.matches);
+  const themeNote = display.outdoor
+    ? 'Sunlight contrast is on, so the app stays bright white until you turn it off.'
+    : display.theme === 'auto'
+      ? `Following your phone (currently ${prefersDark ? 'Dark' : 'Light'}).`
+      : display.theme === 'dark' ? 'Always dark on this device.' : 'Always light on this device.';
+  setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-h"><span class="grip"></span>
+    <div class="sheet-head"><h2 id="settings-h" tabindex="-1">Settings</h2><button type="button" class="x" data-act="settings-close" aria-label="Close">✕</button></div>
+    <div class="field" style="margin:0"><span class="lab" id="set-app-l">Appearance</span>
+      ${seg('data-theme-pick', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], display.theme).replace('role="group"', 'role="group" aria-labelledby="set-app-l"')}
+      <p class="note">${themeNote}</p></div>
+    <div class="field" style="margin:0"><span class="lab" id="disp-o">Sunlight contrast</span>
+      ${seg('data-disp', [['outdoor-0', 'Standard'], ['outdoor-1', 'Sunlight']], 'outdoor-' + display.outdoor).replace('role="group"', 'role="group" aria-labelledby="disp-o"')}
+      <p class="note">White page, black text and solid team colours for bright sun.</p></div>
+    <div class="field" style="margin:0"><span class="lab" id="disp-l">Court scores</span>
+      ${seg('data-disp', [['large-0', 'Normal'], ['large-1', 'Large']], 'large-' + display.large).replace('role="group"', 'role="group" aria-labelledby="disp-l"')}
+      <p class="note">Bigger numbers, names and score call on the scoring screen.</p></div>
+    <p class="note">Saved on this device only. Nothing is sent to the club.</p>
+    <div class="btns"><button type="button" class="btn btn-soft" data-act="settings-close">Done</button></div></div></div>`, 'settings');
+}
+
 /*MODULE-START:tutorial*/
 /* ---------- first-visit tutorial ---------- */
 let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
@@ -7410,6 +7491,7 @@ document.addEventListener('click', e => {
   const el = e.target.closest('button');
   if (!el) {
     if (ratingExplain && e.target.closest && e.target.closest('#sheet8') && e.target.classList.contains('sheet-bg')) { closeRatingExplain(); return; }
+    if (settingsOpen && e.target.closest && e.target.closest('#sheet9') && e.target.classList.contains('sheet-bg')) { closeSettings(); return; }
     if (shareSheet && e.target.closest && e.target.closest('#sheet5') && e.target.classList.contains('sheet-bg')) { closeShare(); return; }
     if (profile && e.target.closest && e.target.closest('#sheet4') && e.target.classList.contains('sheet-bg')) { profile = null; renderProfile(); return; }
     if (logForm && e.target.classList && e.target.classList.contains('sheet-bg') && e.target.classList.contains('top')) { logForm = null; render(); }
@@ -7631,7 +7713,16 @@ document.addEventListener('click', e => {
     render(); return;
   }
   if (ds.lbscope) { lbScope = ds.lbscope; store.set('pb.lbScope', lbScope); render(); return; }
-  if (ds.disp) { const [k, v] = ds.disp.split('-'); if (k === 'outdoor' || k === 'large') { setDisplay({ [k]: v === '1' ? 1 : 0 }); render(); announce(`${k === 'outdoor' ? 'Sunlight contrast' : 'Large scores'} ${v === '1' ? 'on' : 'off'}`); } return; }
+  if (ds.themePick) {
+    const t = ds.themePick;
+    if (t === 'auto' || t === 'light' || t === 'dark') {
+      setDisplay({ theme: t });
+      if (settingsOpen) renderSettings();
+      announce(t === 'auto' ? 'Appearance: match phone' : `Appearance: ${t}`);
+    }
+    return;
+  }
+  if (ds.disp) { const [k, v] = ds.disp.split('-'); if (k === 'outdoor' || k === 'large') { setDisplay({ [k]: v === '1' ? 1 : 0 }); if (settingsOpen) renderSettings(); render(); announce(`${k === 'outdoor' ? 'Sunlight contrast' : 'Large scores'} ${v === '1' ? 'on' : 'off'}`); } return; }
   if (ds.rmode) { ratingMode = ds.rmode; store.set('pb.rmode', ratingMode); render(); return; }
   if (ds.first) { setup.first = +ds.first; store.set('pb.setup', setup); render(); return; }
   if (ds.confirm) { confirmGame(ds.confirm); return; }
@@ -7657,6 +7748,8 @@ document.addEventListener('click', e => {
   }
   const act = ds.act;
   if (act === 'display') { const on = !display.outdoor; setDisplay({ outdoor: on ? 1 : 0, large: on ? 1 : 0 }); renderCourt(); announce(on ? 'Sunlight display on' : 'Sunlight display off'); return; }
+  if (act === 'settings-open') { openSettings(); return; }
+  if (act === 'settings-close') { closeSettings(); return; }
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
@@ -7773,12 +7866,13 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape' && ratingExplain) { closeRatingExplain(); return; }
+  if (e.key === 'Escape' && settingsOpen) { closeSettings(); return; }
   if (e.key === 'Escape' && shareSheet) { closeShare(); return; }
   if (e.key === 'Escape' && profile) { profile = null; renderProfile(); return; }
   if (e.key === 'Escape' && clubSheet) { clubSheet = null; renderClub(); if (renderPending) safeRender(); return; }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
   if (e.key === 'Escape' && evScreen && !(live && live.open)) { evAct('back', {}); return; }
-  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet || profile || ratingExplain) return;
+  if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet || profile || ratingExplain || settingsOpen) return;
   if (e.target.matches && e.target.matches('input')) return;
   if (e.key === '1' || e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); document.querySelector('[data-rally="0"]').click(); }
   if (e.key === '2' || e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); document.querySelector('[data-rally="1"]').click(); }
