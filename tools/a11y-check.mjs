@@ -103,6 +103,28 @@ for (const [mode, opt] of states) {
     await ctx.close();
   }
 }
+{ // The scoring screen of a game shared from a club phone: the "Link a watch to this game" button (stubbed club, nothing is sent).
+  for (const colorScheme of ['light', 'dark']) {
+    const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+    await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); } catch {} });
+    await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
+    await page.click('[data-act="start"]'); await sleep(400);
+    await page.evaluate(() => { club = { code: 'ABC123', name: 'Check club' }; live.shared = true; live.id = 'live-1'; renderCourt(); });
+    if (!(await page.$('[data-act="watch-court"]'))) report.push({ label: `court with watch button (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'the Link a watch button is missing', px: 0 }] });
+    else {
+      await audit(page, `court with watch button (${colorScheme})`, report, '.court');
+      for (const w of [320]) { // the call row itself is wider than a 195 px screen (it was before the button), so only 320 px is held to this
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(250);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.watch-chip')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `court with watch button: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+    }
+    await ctx.close();
+  }
+}
 await browser.close(); srv.kill();
 let bad = 0;
 for (const r of report) {

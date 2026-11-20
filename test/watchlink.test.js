@@ -144,3 +144,11 @@ test('the phone page: a watch link with no club leads to one game, not a dead en
   for (const a of ["action: 'watch-offer'", "action: 'watch-claim-game'", 'single: true']) assert.ok(mod.includes(a), a);
   assert.ok(html.includes(mod.slice(mod.indexOf('async function watchGameClaim'), mod.indexOf('async function watchGameClaim') + 200)), 'the built page carries the module');
 });
+
+test('the scoring screen has a Link a watch button for a shared game that opens the camera and links on the scan', () => {
+  const html = read('dink-score.html');
+  assert.match(html, /isShared\(\) && !live\.event && s\.winner === null \? '<button type="button" class="watch-chip" data-act="watch-court">Link a watch to this game<\/button>'/);
+  assert.match(html, /clubSheet = \{ view: 'watch-link', single: true, auto: true \}; renderClub\(\); watchScanStart\(\)/, 'straight to the camera, for this game only');
+  assert.match(html, /if \(c\.auto && digits\) setTimeout\(watchClaim, 0\)/, 'the numbers come in the code, so the scan is the whole job');
+  assert.match(html, /c\.auto\) \{ clubSheet = null; renderClub\(\); showToast\(msg\)/, 'and back to the court');
+});
