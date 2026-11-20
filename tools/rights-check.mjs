@@ -69,6 +69,9 @@ ok(await call(games, 'POST', { body: { code, react: 'g-three', reaction: 'clap',
 ok(await call(games, 'POST', { body: { code, react: 'g-one', reaction: 'fire', playerName: 'Ben', playerToken: tok.Ben } }));
 const ev = ok(await call(events, 'POST', { body: { code, action: 'create', ...ORG, event: { name: 'Friday round robin', format: 'roundrobin', rotation: 'auto', courts: 1, players: ['Ana', 'Ben', 'Cy', 'Di'], seed: 'r' } } }), 201).event;
 ok(await call(events, 'POST', { body: { code, action: 'league-create', ...ORG, league: { kind: 'ladder', name: 'Ladder', mode: 'singles', players: ['Ana', 'Ben', 'Cy', 'Di'] } } }), 201);
+const gn = ok(await C('night-create', { ...ORG, night: { title: 'Tuesday play', startsAt: Date.now() + 864e5, location: 'Court 1', cap: 8 } }), 201).night;
+ok(await C('night-rsvp', { id: gn.id, status: 'in', playerName: 'Ana', playerToken: tok.Ana }));
+ok(await C('night-rsvp', { id: gn.id, status: 'maybe', playerName: 'Ben', playerToken: tok.Ben }));
 await pg.query(`UPDATE events SET refs = '{"Ana":"1234567","Ben":"7654321"}'::jsonb WHERE club = (SELECT code FROM clubs LIMIT 1)`);
 await pg.query(`UPDATE roster SET avatar = '{"type":"emoji","value":"🔥"}'::jsonb, dupr_rating = 3.5 WHERE name_key = 'ana'`);
 await pg.query(`INSERT INTO accounts (id, display_name) VALUES ('acct1', 'x')`);
@@ -95,6 +98,8 @@ await step('player export: only the phone that holds the name gets it, and it ha
   assert.deepEqual(d.reactions.map(r => `${r.gameId}:${r.reaction}`).sort(), ['g-one:fire', 'g-three:clap']);
   assert.equal(d.events.length, 1);
   assert.equal(d.leagues.length, 1);
+  assert.equal(d.gameNights.length, 1);
+  assert.equal(d.gameNights[0].rsvp, 'in');
   assert.ok(!/pin_hash|owner_hash|claim_hash|ownerToken/.test(text(d)));
 });
 
@@ -124,6 +129,7 @@ await step('anonymise: own phone replaces the name everywhere; others\' games an
   assert.ok(!/Ana/.test(text(lgNow.data)) && text(lgNow.data).includes(label), 'a ladder entry is relabelled too');
   assert.equal(text(evNow.refs), '{"Ben":"7654321"}'); // the DUPR reference for that name is gone
   assert.equal((await pg.query(`SELECT 1 FROM roster WHERE name_key = 'ana'`)).rows.length, 0); // picture, DUPR number and phone link go with it
+  assert.equal((await pg.query(`SELECT 1 FROM game_night_rsvps WHERE name_key = 'ana'`)).rows.length, 0); // game night RSVP removed on anonymise
   assert.equal((await pg.query(`SELECT 1 FROM account_identities`)).rows.length, 0);
   const shown = ok(await call(club, 'GET', { query: '?code=' + code }));
   assert.ok(!/\bAna\b/.test(text(shown)), 'the club view no longer shows the name');
@@ -163,6 +169,8 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.ok(!/\bAna\b/.test(text(viaOwner.reactions)), 'exported reactions carry the anonymous label');
   assert.equal(viaOwner.events.length, 1);
   assert.equal(viaOwner.leagues.length, 1);
+  assert.equal(viaOwner.gameNights.length, 1);
+  assert.deepEqual(viaOwner.gameNights[0].rsvps.map(r => r.name), ['Ben']);
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
@@ -219,7 +227,7 @@ await step('delete club: once the window has passed everything is removed, and t
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
   assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 401, 'once the window has passed the watch is refused too');
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers']) {
+  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'game_nights', 'game_night_rsvps', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }

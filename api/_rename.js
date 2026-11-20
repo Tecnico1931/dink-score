@@ -103,11 +103,14 @@ export function renameWrites(sql, code, plan, extra = []) {
   if (fromKey !== toKey) {
     // Drop duplicate reactions before merging two names into one, then keep at most the per-member cap per game.
     writes.push(sql`DELETE FROM game_reactions f WHERE f.club = ${code} AND f.name_key = ${fromKey} AND EXISTS (SELECT 1 FROM game_reactions t WHERE t.club = f.club AND t.game_id = f.game_id AND t.name_key = ${toKey} AND t.reaction = f.reaction)`);
+    writes.push(sql`DELETE FROM game_night_rsvps WHERE club = ${code} AND name_key = ${fromKey} AND night_id IN (SELECT night_id FROM game_night_rsvps WHERE club = ${code} AND name_key = ${toKey})`);
   }
   writes.push(sql`UPDATE game_reactions SET name_key = ${toKey}, name = ${toName} WHERE club = ${code} AND name_key = ${fromKey}`);
   if (fromKey !== toKey) {
     writes.push(sql`DELETE FROM game_reactions WHERE club = ${code} AND name_key = ${toKey} AND (game_id, reaction) IN (SELECT game_id, reaction FROM (SELECT game_id, reaction, row_number() OVER (PARTITION BY game_id ORDER BY created_at ASC, reaction ASC) AS rn FROM game_reactions WHERE club = ${code} AND name_key = ${toKey}) s WHERE rn > ${MAX_REACTIONS_PER_MEMBER_PER_GAME})`);
   }
+  writes.push(sql`UPDATE game_night_rsvps SET name_key = ${toKey}, name = ${toName} WHERE club = ${code} AND name_key = ${fromKey}`);
+  writes.push(sql`UPDATE game_nights SET updated_at = now() WHERE club = ${code} AND id IN (SELECT night_id FROM game_night_rsvps WHERE club = ${code} AND name_key = ${toKey})`);
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(...dropRatings(sql, code)); // stored ratings carry names: rebuilt from the renamed games on the next read

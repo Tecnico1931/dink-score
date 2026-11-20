@@ -47,7 +47,11 @@ export async function clubDigest(sql, code) {
     (SELECT coalesce(string_agg(h, ',' ORDER BY at DESC, old_key), '') FROM (SELECT old_key, at, md5(concat_ws('|', old_key, new_name)) AS h
       FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC, old_key LIMIT 100) n),
     (SELECT coalesce(string_agg(h, ',' ORDER BY game_id, reaction, name_key), '') FROM (SELECT r.game_id, r.reaction, r.name_key, md5(concat_ws('|', r.game_id, r.reaction, r.name)) AS h
-      FROM game_reactions r JOIN (SELECT id FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC, id LIMIT 2000) g ON g.id = r.game_id WHERE r.club = ${code}) rx)
+      FROM game_reactions r JOIN (SELECT id FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC, id LIMIT 2000) g ON g.id = r.game_id WHERE r.club = ${code}) rx),
+    (SELECT coalesce(string_agg(h, ',' ORDER BY starts_at ASC, id), '') FROM (SELECT id, starts_at, md5(concat_ws('|', id, title, starts_at::text, location, note, cap::text, status, reminder_count::text, updated_at::text)) AS h
+      FROM game_nights WHERE club = ${code} AND status = 'open' ORDER BY starts_at ASC, id LIMIT 20) gn),
+    (SELECT coalesce(string_agg(h, ',' ORDER BY night_id, name_key), '') FROM (SELECT night_id, name_key, md5(concat_ws('|', night_id, name_key, name, status)) AS h
+      FROM game_night_rsvps WHERE club = ${code} ORDER BY night_id, name_key LIMIT 500) gnr)
   )) AS d`;
   return r.d;
 }

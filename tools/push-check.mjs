@@ -75,6 +75,10 @@ await step('without VAPID keys the feature is off with a clear message, and stor
   }
   assert.equal((await rows()).length, 0);
   assert.equal(await push.notify(await (async () => (await import('@neondatabase/serverless')).neon(process.env.DATABASE_URL))(), 'x', new Map([['Ana', { title: 'T', body: 'B' }]])), 0);
+  const gnOff = ok(await call(club, 'POST', { body: { code, action: 'night-create', ...ORG, night: { title: 'Off check', startsAt: Date.now() + 864e5 } } }), 201).night;
+  const remOff = ok(await call(club, 'POST', { body: { code, action: 'night-remind', id: gnOff.id, ...ORG } }));
+  assert.equal(remOff.enabled, false); assert.equal(remOff.sent, 0); assert.match(remOff.message, /not set up/);
+  ok(await call(club, 'POST', { body: { code, action: 'night-delete', id: gnOff.id, ...ORG } }));
 });
 
 const e = createECDH('prime256v1'); e.generateKeys();
@@ -175,6 +179,29 @@ await step('the court board: finishing a game tells the group next for that cour
     assert.match(s.message.body, /^\w+, court 1 is free\. You're up next\.$/);
   }
   assert.ok(!sent.some(s => s.endpoint === device('z1').endpoint), 'never another club');
+});
+
+await step('game night reminder: organizer only, respects opt-in and audience, never includes club code/name, enforces cooldown', async () => {
+  const gn = ok(await call(club, 'POST', { body: { code, action: 'night-create', ...ORG, night: { title: 'Tuesday lights', startsAt: Date.now() + 864e5, location: 'Courts 1-2' } } }), 201).night;
+  ok(await call(club, 'POST', { body: { code, action: 'night-rsvp', id: gn.id, status: 'in', ...me('Ana') } }));
+  ok(await call(club, 'POST', { body: { code, action: 'night-rsvp', id: gn.id, status: 'out', ...me('Ben') } }));
+  assert.equal((await call(club, 'POST', { body: { code, action: 'night-remind', id: gn.id, ...me('Ana') } })).status, 403, 'non-organizer refused');
+  take();
+  const rem = ok(await call(club, 'POST', { body: { code, action: 'night-remind', id: gn.id, audience: 'all', tz: 'UTC', ...ORG } }));
+  assert.equal(rem.enabled, true);
+  assert.ok(rem.sent >= 1);
+  const sent = take();
+  const ends = sent.map(s => s.endpoint);
+  assert.ok(ends.includes(device('a1').endpoint), 'Ana (In) notified');
+  assert.ok(ends.includes(C1.endpoint), 'Cy (unanswered) notified');
+  assert.ok(!ends.includes(B1.endpoint), 'Ben (Out) skipped');
+  assert.ok(!ends.includes(device('z1').endpoint), 'other club never notified');
+  for (const s of sent) {
+    assert.equal(s.message.title, 'Tuesday lights');
+    assert.ok(!text(s.message).includes(code) && !text(s.message).includes('Push check club'), 'no club code or name in reminder');
+  }
+  assert.equal((await call(club, 'POST', { body: { code, action: 'night-remind', id: gn.id, ...ORG } })).status, 429, 'per-night cooldown enforced');
+  assert.equal(take().length, 0);
 });
 
 await step('a rename keeps the notifications with the player; anonymising removes them', async () => {
