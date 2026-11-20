@@ -73,9 +73,9 @@ function watchLinkHTML(c) {
     <input id="watch-confirm" class="field-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="0000" value="${esc(c.confirm || '')}">
     <p class="note">The 4 numbers show that you are looking at this watch.</p>
     ${c.pairId && !gameOn ? '<button type="button" class="btn btn-soft block" data-act="watch-other-game">Link it to a game on another phone instead</button>' : ''}
-    ${gameOn ? `<label class="check" style="display:flex;gap:10px;align-items:flex-start;min-height:44px;margin:8px 0"><input type="checkbox" id="watch-single" ${c.single ? 'checked' : ''} style="width:24px;height:24px;flex:none"><span>This game only. The watch scores this game and cannot see the club.</span></label>` : ''}
+    ${gameOn && !c.auto ? `<label class="check" style="display:flex;gap:10px;align-items:flex-start;min-height:44px;margin:8px 0"><input type="checkbox" id="watch-single" ${c.single ? 'checked' : ''} style="width:24px;height:24px;flex:none"><span>This game only. The watch scores this game and cannot see the club.</span></label>` : ''}
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}<button type="submit" id="watch-link-go" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>${c.busy ? 'Linking…' : 'Link this watch'}</button></form>
-  <div class="btns"><button class="btn btn-soft" data-act="watch-link-back">Back</button></div>`;
+  <div class="btns"><button class="btn btn-soft" data-act="${c.auto ? 'club-close' : 'watch-link-back'}">${c.auto ? 'Cancel' : 'Back'}</button></div>`;
 }
 
 function watchOpen() { clubSheet = { view: 'watch', links: null }; renderClub(); loadWatchLinks(); }
@@ -187,6 +187,7 @@ async function watchScanStart() {
       watchScan = null; c.scanning = false; c.pairId = pair; c.pairText = ''; c.confirm = digits; c.error = ''; renderClub();
       announce(digits ? 'Code scanned. The 4 numbers are filled in. Tap Link this watch.' : 'Code scanned. Type the 4 numbers shown on the watch.');
       const n = $(digits ? '#watch-link-go' : '#watch-confirm'); if (n) n.focus();
+      if (c.auto && digits) setTimeout(watchClaim, 0); // from the court the scan is the whole job: the numbers came in the code, so nothing is left to type
       return true;
     });
     if (c.pairId) return; // the first look already found it and the scanner has stopped itself
@@ -220,6 +221,7 @@ async function watchClaim() {
     const msg = `${d.link.label || 'The watch'} is linked${single ? ' to this game only' : ''}.${sent ? ' This game is on it now.' : ''}`;
     announce(msg);
     // The watch collects its token within a couple of seconds; until then the server does not list it, so this phone shows it as waiting.
+    if (clubSheet === c && c.auto) { clubSheet = null; renderClub(); showToast(msg); return; } // back to the court, which now shows the watch's score
     if (clubSheet === c) { const p = { id: d.link.id, label: d.link.label, createdAt: Date.now(), lastSeenAt: null, pending: true }; clubSheet = { view: 'watch', links: [p], pending: [p], msg }; renderClub(); loadWatchLinks(); }
   } catch (err) { if (clubSheet === c) { c.busy = false; c.error = err.message; renderClub(); } }
 }
@@ -247,8 +249,14 @@ async function watchSend(id) {
   } catch (err) { c.error = err.message; }
   if (clubSheet === c) renderClub();
 }
+// "Link a watch" on the scoring screen: straight to the camera for this game; the typed code stays below it.
+function watchCourtOpen() {
+  if (!(live && !live.event && isShared())) return;
+  clubSheet = { view: 'watch-link', single: true, auto: true }; renderClub(); watchScanStart();
+}
 function watchClick(ds) {
   const a = ds.act;
+  if (a === 'watch-court') { watchCourtOpen(); return; }
   if (a === 'watch-link-open') { clubSheet = { view: 'watch-link' }; renderClub(); return; }
   if (a === 'watch-game-open') { clubSheet = { view: 'watch-link', single: true }; renderClub(); return; }
   if (a === 'watch-offer') { watchOfferOpen(); return; }

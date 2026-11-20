@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached on install; fonts are same-origin and cached the first time they load.
 // Bump VERSION whenever index.html changes so phones pick up the new copy.
-const VERSION = 'dink-score-v96';
+const VERSION = 'dink-score-v97';
 const SHELL = ['./', 'index.html', 'dupr-export.js', 'sheet-import.js', 'scan.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
