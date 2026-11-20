@@ -145,10 +145,16 @@ test('the phone page: a watch link with no club leads to one game, not a dead en
   assert.ok(html.includes(mod.slice(mod.indexOf('async function watchGameClaim'), mod.indexOf('async function watchGameClaim') + 200)), 'the built page carries the module');
 });
 
-test('the scoring screen has a Link a watch button for a shared game that opens the camera and links on the scan', () => {
-  const html = read('dink-score.html');
-  assert.match(html, /isShared\(\) && !live\.event && s\.winner === null \? '<button type="button" class="watch-chip" data-act="watch-court">Link a watch to this game<\/button>'/);
-  assert.match(html, /clubSheet = \{ view: 'watch-link', single: true, auto: true \}; renderClub\(\); watchScanStart\(\)/, 'straight to the camera, for this game only');
+test('the scoring screen has a Link a watch button for any game in progress that offers the camera and a code, and links on the scan', () => {
+  const html = read('dink-score.html'), mod = read('src/app/watch-link.js');
+  assert.match(html, /\$\{s\.winner === null \? '<button type="button" class="watch-chip" data-act="watch-court">Link a watch to this game<\/button>'/, 'shown for a club game, a quick game, a pickup game and an event match alike');
+  assert.match(html, /c\.view === 'watch-court'\) \{\n    body = watchCourtHTML\(c\)/, 'the court sheet renders with or without a club');
+  assert.match(html, /clubSheet = \{ view: 'watch-link', single: true, auto: true, from: 'court' \}; renderClub\(\); watchScanStart\(\)/, 'straight to the camera, for this game only');
+  for (const a of ['data-act="watch-court-scan"', 'data-act="watch-offer"', 'data-act="watch-share"']) assert.ok(mod.includes(a), a + ' is on the court sheet');
+  assert.ok(mod.includes('room: true'), 'a game with no club is shared into a quick game room');
+  assert.ok(mod.includes('What happens when you share it'), 'and says plainly what that does');
+  assert.ok(mod.includes('Event matches are scored on this phone'), 'an event match says why a watch cannot score it');
+  assert.ok(html.includes('const liveCode = () => live && live.room ? live.room : club && !pickup ? club.code : null;'), 'the game is held under its room, else its club');
   assert.match(html, /if \(c\.auto && digits\) setTimeout\(watchClaim, 0\)/, 'the numbers come in the code, so the scan is the whole job');
   assert.match(html, /c\.auto\) \{ clubSheet = null; renderClub\(\); showToast\(msg\)/, 'and back to the court');
 });

@@ -2381,6 +2381,36 @@ await step('the public league link: organizer makes it, a spectator sees only al
     ok(await joinW(await offerOf('live-t3', 'tourSecret03', t)));
   });
 
+  await step('quick game room: a phone with no club gets a throwaway room, links a watch by code or scan, and the room goes with the game', async () => {
+    await pg.query(`DELETE FROM lookup_fails`);
+    const r = ok(await call(club, 'POST', { body: { room: true } }), 201).room;
+    assert.match(r, /^[A-Z0-9]{6}$/);
+    const q = (await pg.query('SELECT name, quick, pin_hash, owner_hash, delete_at FROM clubs WHERE code = $1', [r])).rows[0];
+    assert.equal(q.quick, true); assert.equal(q.pin_hash, null, 'no organizer PIN'); assert.equal(q.owner_hash, null, 'no organizer phone');
+    assert.ok(hours(q.delete_at, new Date()) > 23.5 && hours(q.delete_at, new Date()) <= 24, 'it expires in a day at the latest');
+    assert.equal((await call(club, 'POST', { body: { code: r, action: 'delete-club', confirm: 'Quick game', pin: '000000' } })).status >= 400, true, 'nobody can organize a room');
+    await publish('live-q1', 'quickSecret11', r);
+    const A = await link({ game: 'live-q1', secret: 'quickSecret11', single: true }, r);
+    assert.equal(A.p.link.game, 'live-q1');
+    const B = await joinW(await offerOf('live-q1', 'quickSecret11', r)).then(ok);
+    ok(await as(B.token, 'watch-rally', { opId: 'tap-quick-001', side: 0 }));
+    assert.deepEqual(ok(await as(A.token, 'watch-state')).game.score, [1, 0], 'both watches see the same game');
+    ok(await call(live, 'POST', { body: { code: r, action: 'end', id: 'live-q1', secret: 'quickSecret11' } }));
+    assert.equal((await pg.query('SELECT 1 FROM clubs WHERE code = $1', [r])).rows.length, 0, 'the room is removed with its game');
+    assert.equal((await pg.query('SELECT 1 FROM watch_links WHERE club = $1', [r])).rows.length, 0);
+    assert.equal((await as(A.token, 'watch-state')).status, 401);
+    // A real club is never removed by an end.
+    await publish('live-q2', 'quickSecret22'); ok(await call(live, 'POST', { body: { code: wcode, action: 'end', id: 'live-q2', secret: 'quickSecret22' } }));
+    assert.equal((await pg.query('SELECT 1 FROM clubs WHERE code = $1', [wcode])).rows.length, 1);
+    // A venue: 100 rooms from one network in an hour are fine; the limit still exists.
+    const venue = { 'x-real-ip': '198.51.100.40' };
+    for (let i = 0; i < 100; i++) ok(await call(club, 'POST', { headers: venue, body: { room: true } }), 201);
+    let blocked = 0; for (let i = 0; i < 30; i++) if ((await call(club, 'POST', { headers: venue, body: { room: true } })).status === 429) blocked++;
+    assert.ok(blocked > 0, 'rooms are throttled per network');
+    assert.equal((await call(club, 'POST', { headers: venue, body: { name: 'Still allowed', pin: '112233' } })).status, 201, 'rooms do not use up club creation');
+    await pg.query(`DELETE FROM clubs WHERE quick`); await pg.query(`DELETE FROM lookup_fails`);
+  });
+
   await step('club deletion removes its watch links and the token stops working; other clubs keep theirs', async () => {
     const gone = ok(await call(club, 'POST', { body: { name: 'Doomed watch club', pin: '246810' } }), 201).club.code;
     await publish('live-gone', 'goneSecret111', gone);

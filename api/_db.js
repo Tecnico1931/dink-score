@@ -50,6 +50,7 @@ export function ensureSchema() {
       await q`CREATE INDEX IF NOT EXISTS lookup_fails_ip_at ON lookup_fails (ip, at)`;
       await q`ALTER TABLE lookup_fails ADD COLUMN IF NOT EXISTS id bigserial`;
       // Per-club counters for the game limits, updated atomically in reserveGames().
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS quick boolean NOT NULL DEFAULT false`; // a throwaway room that holds one live game for a phone with no club (api/club.js room:true)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_start timestamptz NOT NULL DEFAULT now()`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_count int NOT NULL DEFAULT 0`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`;
@@ -424,16 +425,18 @@ export async function purgeMarks(sql) {
 }
 // Club creation: at most 10 per network (per /64 for IPv6) per hour, and 300 per hour across the whole app.
 // Attempts are recorded before counting, and a refused one takes its own mark back off.
-const MAX_CREATES_PER_NET = 10, MAX_CREATES_GLOBAL = 300;
-export async function throttleClubCreate(req) {
+// Quick game rooms (one per shared game with no club) have their own, higher counts: a venue's courts share one network address.
+const MAX_CREATES_PER_NET = 10, MAX_CREATES_GLOBAL = 300, MAX_ROOMS_PER_NET = 120, MAX_ROOMS_GLOBAL = 3000;
+export async function throttleClubCreate(req, room = false) {
   const sql = db();
   await purgeMarks(sql);
-  for (const [key, max] of [['mkclub:' + clientIp(req), MAX_CREATES_PER_NET], ['mkclub:*', MAX_CREATES_GLOBAL]]) {
+  const p = room ? 'mkroom:' : 'mkclub:';
+  for (const [key, max] of [[p + clientIp(req), room ? MAX_ROOMS_PER_NET : MAX_CREATES_PER_NET], [p + '*', room ? MAX_ROOMS_GLOBAL : MAX_CREATES_GLOBAL]]) {
     const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${key}) RETURNING id`;
     const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${key} AND at > now() - interval '1 hour'`;
     if (Number(n) > max) {
       await sql`DELETE FROM lookup_fails WHERE id = ${id}`;
-      throw fail(429, 'Too many clubs were created just now. Try again in an hour.');
+      throw fail(429, room ? 'Too many games were shared just now. Try again in a few minutes.' : 'Too many clubs were created just now. Try again in an hour.');
     }
   }
 }
