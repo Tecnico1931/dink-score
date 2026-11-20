@@ -2,7 +2,7 @@
 // The handlers are in _watch.js and are reached through /api/live (watch-* actions, see live.js; the function count is at its limit).
 // A watch holds a random token that is checked by its hash. It is made when the watch is linked (a QR the phone scans) and only
 // ever lets that watch read and score the live games a phone has attached to it.
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { call as pbCall } from './_pb.js';
 
 export const PAIR_TTL_MIN = 5;          // a QR on the watch is good for 5 minutes, then the watch shows a new one
@@ -12,7 +12,11 @@ export const MAX_POLLS = 200;           // polls of one pairing (every 2 seconds
 export const LINK_TTL_DAYS = 90;         // a link lasts this long after the watch last called (sliding) ...
 export const LINK_MAX_DAYS = 365;        // ... but never longer than this from when it was made
 export const TOUCH_EVERY_MS = 60 * 60 * 1000; // last_seen_at and the sliding expiry move at most once an hour
-export const MAX_LINKS_PER_CLUB = 20;
+export const MAX_LINKS_PER_CLUB = 20;   // club-wide links; single-game links are counted per game (below), so a tournament is not capped by them
+export const GAME_LINK_HOURS = 8;        // a single-game link lasts this long from when the watch collects it (not sliding) ...
+export const GAME_LINK_END_MIN = 15;     // ... or this long after the watch finishes the game, so a retry after a lost answer still works
+export const MAX_GAME_LINKS = 8;         // watches on one game at once
+export const OFFER_TTL_MIN = 10;         // the code a scoring phone shows for a watch to type
 export const OPS_KEEP = 32;              // tap ids remembered per live game, so a retried tap is not counted twice
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -22,6 +26,8 @@ export const pairHash = pairId => sha('watch-id:' + pairId);
 export const pollHash = pollSecret => sha('watch-poll:' + pollSecret);
 export const shortHash = short => sha('watch-short:' + short);
 export const hashWatchToken = token => sha('watch-token:' + token);
+export const offerHash = id => sha('watch-offer:' + id);
+export const offerShortHash = short => sha('watch-offer-short:' + short);
 export const hashRevokeKey = key => sha('watch-revoke:' + key);
 export function hashEq(a, b) {
   const x = Buffer.from(String(a ?? ''), 'hex'), y = Buffer.from(String(b ?? ''), 'hex');
@@ -37,6 +43,8 @@ export function tokenFrom(req) {
 }
 export const newLinkId = () => randomBytes(8).toString('hex');
 export const newRevokeKey = () => randomBytes(16).toString('hex');
+export const newOfferId = () => randomBytes(16).toString('hex');   // in the game link; its first 30 bits are the typed code (shortCode)
+export const newConfirm = () => String(randomInt(10000)).padStart(4, '0');
 
 export const cleanHash = v => (/^[0-9a-f]{64}$/.test(String(v ?? '')) ? String(v) : null);
 export const cleanPairId = v => { const s = String(v ?? '').toLowerCase(); return /^[0-9a-f]{32}$/.test(s) ? s : null; };

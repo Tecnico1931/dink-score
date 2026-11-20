@@ -145,6 +145,20 @@ export function ensureSchema() {
       )`;
       await q`CREATE INDEX IF NOT EXISTS watch_links_club ON watch_links (club)`;
       await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS watch_links text[] NOT NULL DEFAULT '{}'`;
+      // Single-game watch links: a link with `game_id` set may only read and score that one live game and lasts hours, not months. An offer is the
+      // short code a scoring phone shows so a watch can attach to its game; a hash of it is kept, it is used once and lapses in minutes.
+      await q`ALTER TABLE watch_links ADD COLUMN IF NOT EXISTS game_id text`;
+      await q`CREATE TABLE IF NOT EXISTS watch_offers (
+        id_hash text PRIMARY KEY,
+        short_hash text NOT NULL,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        game_id text NOT NULL,
+        confirm text NOT NULL,
+        tries int NOT NULL DEFAULT 0,
+        expires_at timestamptz NOT NULL
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS watch_offers_short ON watch_offers (short_hash)`;
+      await q`CREATE INDEX IF NOT EXISTS watch_offers_game ON watch_offers (club, game_id)`;
       await q`ALTER TABLE live_games ADD COLUMN IF NOT EXISTS ops jsonb NOT NULL DEFAULT '[]'::jsonb`;
       // Private reference data typed into an imported sheet: { "player name": "DUPR ID" }. Kept out of `data` on purpose, so no
       // event view, spectator page or export can include it. Only an organizer can read it (events.js, action 'refs').

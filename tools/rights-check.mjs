@@ -209,7 +209,7 @@ await step('delete club: once the window has passed everything is removed, and t
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
   assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 401, 'once the window has passed the watch is refused too');
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases', 'watch_links']) {
+  for (const t of ['clubs', 'games', 'roster', 'events', 'leagues', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }
