@@ -138,6 +138,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .week i.has { background: var(--green); }
 .week i.today { outline: 2px solid var(--ball); outline-offset: 1px; }
 .week span { font-size: 12px; color: var(--muted); }
+.play-greeting { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 19px; line-height: 1.2; letter-spacing: -.01em; color: var(--ink); margin: 0; overflow-wrap: anywhere; }
 
 /* Setup */
 .field { display: flex; flex-direction: column; gap: 8px; }
@@ -3519,7 +3520,8 @@ function homeTiles(games) {
   const counts = days.map(d => games.filter(g => g.endedAt >= d.getTime() && g.endedAt < d.getTime() + DAY).length);
   const max = Math.max(1, ...counts);
   const total = counts.reduce((a, b) => a + b, 0);
-  tiles.push(`<div class="tile wide" style="min-height:0"><div class="sec-head"><span class="t-k">This week</span><span class="t-k">${total} game${total === 1 ? '' : 's'}</span></div>
+  const greet = Greeting.text(linkedPlayerName());
+  tiles.push(`<div class="tile wide" style="min-height:0">${greet ? `<p class="play-greeting">${esc(greet)}</p>` : ''}<div class="sec-head"><span class="t-k">This week</span><span class="t-k">${total} game${total === 1 ? '' : 's'}</span></div>
     <div class="week">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></div>`);
   return `<section class="tiles">${tiles.join('')}</section>${challengesCard()}${monthCard(games)}`;
 }
@@ -4617,6 +4619,31 @@ function saveShareImage() {
 let me = Heal.map(store.get('pb.me', {})); // { [clubCode]: { name, token } }
 const myName = () => (club && me[club.code] ? me[club.code].name : null);
 const myToken = () => (club && me[club.code] ? me[club.code].token : null);
+const linkedPlayerName = () => myName() || (acctIn() && acct.account.name) || '';
+/*GREETING-START*/
+const Greeting = (() => {
+  function firstName(raw) {
+    const parts = String(raw || '').trim().split(/\s+/);
+    for (const p of parts) {
+      const clean = p.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+      if (clean) return clean;
+    }
+    return '';
+  }
+  function bucket(date = new Date()) {
+    const h = date instanceof Date ? date.getHours() : Number(date);
+    if (!Number.isFinite(h)) return 'Hello';
+    if (h >= 5 && h < 12) return 'Good morning';
+    if (h >= 12 && h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+  function text(raw, date = new Date()) {
+    const name = firstName(raw);
+    return name ? `${bucket(date)}, ${name}` : '';
+  }
+  return { firstName, bucket, text };
+})();
+/*GREETING-END*/
 const isMe = n => !!myName() && sameName(n, myName());
 const whoamiSkipped = () => !!(club && store.get('pb.whoamiSkip', {})[club.code]);
 function skipWhoami() { const s = store.get('pb.whoamiSkip', {}); s[club.code] = Date.now(); store.set('pb.whoamiSkip', s); }

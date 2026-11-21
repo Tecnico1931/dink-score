@@ -3,6 +3,31 @@
 let me = Heal.map(store.get('pb.me', {})); // { [clubCode]: { name, token } }
 const myName = () => (club && me[club.code] ? me[club.code].name : null);
 const myToken = () => (club && me[club.code] ? me[club.code].token : null);
+const linkedPlayerName = () => myName() || (acctIn() && acct.account.name) || '';
+/*GREETING-START*/
+const Greeting = (() => {
+  function firstName(raw) {
+    const parts = String(raw || '').trim().split(/\s+/);
+    for (const p of parts) {
+      const clean = p.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+      if (clean) return clean;
+    }
+    return '';
+  }
+  function bucket(date = new Date()) {
+    const h = date instanceof Date ? date.getHours() : Number(date);
+    if (!Number.isFinite(h)) return 'Hello';
+    if (h >= 5 && h < 12) return 'Good morning';
+    if (h >= 12 && h < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+  function text(raw, date = new Date()) {
+    const name = firstName(raw);
+    return name ? `${bucket(date)}, ${name}` : '';
+  }
+  return { firstName, bucket, text };
+})();
+/*GREETING-END*/
 const isMe = n => !!myName() && sameName(n, myName());
 const whoamiSkipped = () => !!(club && store.get('pb.whoamiSkip', {})[club.code]);
 function skipWhoami() { const s = store.get('pb.whoamiSkip', {}); s[club.code] = Date.now(); store.set('pb.whoamiSkip', s); }
