@@ -99,3 +99,56 @@ test('watch score screen: team colours match phone court and pass contrast', () 
     }
   }
 });
+
+test('appearance setting: light, dark and match-phone tokens, color-scheme and Settings sheet', () => {
+  // :root defaults to light dark; explicit light and dark themes both set color-scheme, and @media dark respects data-theme="light".
+  assert.match(tokenBlock, /:root\s*\{[\s\S]*?color-scheme:\s*light dark;/);
+  assert.match(tokenBlock, /:root\[data-theme="light"\]\s*\{\s*color-scheme:\s*light;\s*\}/);
+  assert.match(tokenBlock, /@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)/);
+  assert.match(tokenBlock, /:root\[data-theme="dark"\]\s*\{[\s\S]*?color-scheme:\s*dark;/);
+  // Media-query dark block uses the exact same dark tokens as :root[data-theme="dark"].
+  const mediaDark = Object.assign({}, light, vars(tokenBlock.split(':root:not([data-theme="light"])')[1].split('}')[0]));
+  assert.deepEqual(mediaDark, dark);
+  // Settings sheet has Match phone, Light, Dark plus Sunlight contrast and Court scores.
+  assert.match(html, /data-act="settings-open"/);
+  assert.match(html, /data-theme-pick/);
+  assert.match(html, /Match phone/);
+  assert.match(html, /prefers-color-scheme: dark[\s\S]*?addEventListener\('change'/);
+  // Built index.html applies pb.display in <head> before paint to prevent FOUC.
+  const indexHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const headHtml = indexHtml.split('</head>')[0];
+  assert.match(headHtml, /<meta name="color-scheme" content="light dark">/);
+  assert.match(headHtml, /localStorage\.getItem\('pb\.display'\)/);
+});
+
+test('DisplayPrefs: normalizes and resolves Match phone, Light, Dark and Outdoor states', () => {
+  const m = html.match(/\/\*DISPLAY-START\*\/([\s\S]*?)\/\*DISPLAY-END\*\//);
+  assert.ok(m, 'DISPLAY-START/END block missing');
+  const DisplayPrefs = new Function(m[1] + '\nreturn DisplayPrefs;')();
+
+  assert.deepEqual(DisplayPrefs.normalize(null), { theme: 'auto', outdoor: 0, large: 0 });
+  assert.deepEqual(DisplayPrefs.normalize({ theme: 'bogus', outdoor: true, large: 1 }), { theme: 'auto', outdoor: 1, large: 1 });
+  assert.deepEqual(DisplayPrefs.normalize({ theme: 'dark', outdoor: 0, large: 0 }), { theme: 'dark', outdoor: 0, large: 0 });
+  assert.deepEqual(DisplayPrefs.normalize({ theme: 'light' }), { theme: 'light', outdoor: 0, large: 0 });
+
+  // Match phone follows OS preference without pinning data-theme.
+  assert.deepEqual(DisplayPrefs.resolve({ theme: 'auto' }, false), {
+    dataTheme: null, effective: 'light', colorScheme: 'light dark', themeColor: '#F2F4F7', outdoor: false, large: false
+  });
+  assert.deepEqual(DisplayPrefs.resolve({ theme: 'auto' }, true), {
+    dataTheme: null, effective: 'dark', colorScheme: 'light dark', themeColor: '#0A0F17', outdoor: false, large: false
+  });
+
+  // Explicit Light overrides dark OS; explicit Dark overrides light OS.
+  assert.deepEqual(DisplayPrefs.resolve({ theme: 'light' }, true), {
+    dataTheme: 'light', effective: 'light', colorScheme: 'light', themeColor: '#F2F4F7', outdoor: false, large: false
+  });
+  assert.deepEqual(DisplayPrefs.resolve({ theme: 'dark' }, false), {
+    dataTheme: 'dark', effective: 'dark', colorScheme: 'dark', themeColor: '#0A0F17', outdoor: false, large: false
+  });
+
+  // Outdoor overrides both Dark choice and dark OS to high-contrast light.
+  assert.deepEqual(DisplayPrefs.resolve({ theme: 'dark', outdoor: 1, large: 1 }, true), {
+    dataTheme: 'dark', effective: 'light', colorScheme: 'light', themeColor: '#000000', outdoor: true, large: true
+  });
+});

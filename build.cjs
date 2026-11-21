@@ -42,7 +42,9 @@ const head = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Pickleball scorekeeper with server tracking, saved players, a Dink Rating leaderboard and a game record.">
-<meta name="theme-color" content="#0F241E">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F2F4F7">
+<script>(function(){try{var d=JSON.parse(localStorage.getItem('pb.display')||'{}')||{};var r=document.documentElement;var t=d.theme==='light'||d.theme==='dark'?d.theme:'';if(t)r.setAttribute('data-theme',t);if(d.outdoor)r.setAttribute('data-outdoor','');if(d.large)r.setAttribute('data-large','');var dk=d.outdoor?false:(t?t==='dark':!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches));var cs=document.querySelector('meta[name=color-scheme]');if(cs)cs.content=d.outdoor?'light':(t||'light dark');var tc=document.querySelector('meta[name=theme-color]');if(tc)tc.content=d.outdoor?'#000000':(dk?'#0A0F17':'#F2F4F7');}catch(e){}})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -53,7 +55,7 @@ const head = `<!doctype html>
 <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
 <script defer src="/_vercel/insights/script.js"></script>
 <style>
-:root { color-scheme: light; }
+:root { color-scheme: light dark; }
 body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }
