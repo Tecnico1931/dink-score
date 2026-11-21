@@ -48,7 +48,7 @@ function clSheetHTML(c) {
       <section class="rows" aria-live="off" style="margin-top:12px">${rows || '<p class="note">No rated players yet.</p>'}</section>
       <div class="btns"><button type="button" class="btn btn-soft" data-cl="list">Back</button><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>`;
   }
-  const links = !d ? '<p class="note">Loading…</p>' : !d.links.length ? '<p class="note">Not linked with any club yet.</p>'
+  const links = !d ? skel(3) : !d.links.length ? '<p class="note">Not linked with any club yet.</p>'
     : `<ul class="deleted">${d.links.map(l => `<li style="display:block"><b>${esc(l.club)}</b> <span class="note">since ${esc(new Date(l.since).toLocaleDateString())}</span>
       <div class="btns" style="margin-top:6px"><button type="button" class="btn btn-ink" data-cl="view" data-cl-id="${esc(l.id)}" ${st && st.loading ? 'disabled' : ''}>Combined standing</button>${clCanOrg() ? `<button type="button" class="btn btn-line-danger" data-cl="leave" data-cl-id="${esc(l.id)}">${c.armed === l.id ? 'Tap again to unlink' : 'Unlink'}</button>` : ''}</div></li>`).join('')}</ul>`;
   const org = !clCanOrg() ? '<p class="note">An organizer links the clubs. Anyone in either club can see the combined standing.</p>' : `

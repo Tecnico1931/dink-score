@@ -80,7 +80,7 @@ function gamesHTML(c) {
   const mine = live && !live.event ? (live.id || liveGameId()) : null;
   const line = (teams, score, winner, serving, t) => `<div class="line ${winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(teams[t]))}</span>${serving === t ? '<span class="tag">serving</span>' : ''}<span class="pts">${Number(score[t])}</span></div>`;
   let rows;
-  if (!c.games) rows = '<p class="note">Loading\u2026</p>';
+  if (!c.games) rows = skel(3);
   else if (!c.games.length) rows = '<p>No games are being scored right now. Start one from the Play tab and it shows up here, on every phone in the club.</p>';
   else rows = c.games.map(g => {
     const ago = Math.max(0, Math.round((Date.now() - (g.updatedAt || Date.now())) / 1000));

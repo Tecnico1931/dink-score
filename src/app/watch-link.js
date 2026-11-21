@@ -29,7 +29,7 @@ function watchHTML(c) {
   const links = all && all.filter(l => !l.game), mine = all ? all.filter(l => l.game && l.game === gid) : []; // single-game watches are listed under their own game
   const row = (l, btn) => `<li><span><b>${esc(l.label || 'Apple Watch')}</b><small>Linked ${esc(new Date(l.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))} · ${esc(l.pending ? 'waiting for the watch' : watchSeen(l.lastSeenAt))}</small></span>${btn}</li>`;
   const unlinkBtn = l => `<button class="btn btn-soft" style="min-height:44px" data-act="watch-unlink" data-link="${esc(l.id)}">${c.confirmUnlink === l.id ? 'Tap again to unlink' : 'Unlink'}</button>`;
-  const list = !links ? '<p class="note">Loading…</p>' : !links.length ? '<p class="note">No watch is linked to this club yet.</p>'
+  const list = !links ? skel(3) : !links.length ? '<p class="note">No watch is linked to this club yet.</p>'
     : `<ul class="club-list">${links.map(l => `<li><span><b>${esc(l.label || 'Apple Watch')}</b><small>Linked ${esc(new Date(l.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))} · ${esc(l.pending ? 'waiting for the watch' : watchSeen(l.lastSeenAt))}</small></span>
       <button class="btn btn-soft" style="min-height:44px" data-act="watch-unlink" data-link="${esc(l.id)}">${c.confirmUnlink === l.id ? 'Tap again to unlink' : 'Unlink'}</button></li>`).join('')}</ul>`;
   const ready = (links || []).filter(l => !l.pending); // a watch that has not collected its link yet cannot be sent a game

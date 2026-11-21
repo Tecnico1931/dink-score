@@ -384,7 +384,7 @@ function gnSheetHTML(c) {
     : club.hasPin
       ? '<div class="org-card"><p>Scheduling game nights and sending reminders needs the organizer PIN.</p><button type="button" class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div>'
       : '';
-  const body = c.loading && !all.length ? '<p class="note" role="status">Loading game nights…</p>'
+  const body = c.loading && !all.length ? skel(2, true)
     : upcoming.length ? `<div class="gn-stack">${upcoming.map(n => gnCardHTML(n, c, org, false)).join('')}</div>`
     : '<div class="org-card"><p>No upcoming game nights yet. An organizer can schedule a future night and members can tap In, Maybe or Out.</p></div>';
   const pastHTML = past.length ? `<details class="gn-past"><summary>Recent past nights (${past.length})</summary><div class="gn-stack" style="margin-top:10px">${past.map(n => gnCardHTML(n, c, org, true)).join('')}</div></details>` : '';
