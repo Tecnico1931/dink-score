@@ -28,14 +28,19 @@ function tourSteps() {
   return steps;
 }
 /* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
-const NEWS = { id: '2026-11-20', title: "What's new", items: [
-  ['🏆', 'Leagues and ladders', 'Organizers can run a league or ladder for the club. Results are kept if you lose signal and sent when you are back online, and a public league page lets anyone follow along without joining.'],
-  ['🔑', 'Sign in with a passkey', 'Use your fingerprint, face or screen lock to sign in and <b>bring your clubs</b> to a new phone. Sign in now comes first when you have no club, and the app checks before making a new one if you already have some.'],
-  ['⌚', 'Apple Watch', 'Score from your wrist and record the game as a pickleball workout. Needs the separate Dink Score watch app. In a club, open <b>Apple Watch</b> to link a watch; on the live game, tap <b>Link a watch</b> and scan its code to use it for just that game.'],
-  ['📋', 'Your games across clubs', 'See your own games and rating from every club on this phone in one place, and download them as a CSV.'],
-  ['🔗', 'Public result links', 'If your organizers turn it on, share a saved game as a link with a preview picture. Anyone can open it without joining.'],
-  ['🎾', 'Open play court board', 'Courts, a queue and fair rotation for open play, with a big board for a TV at the courts.'],
-  ['📣', 'Pickup sessions', 'Start a 24-hour session with its own code and QR. Results stay in the session unless a member saves them to a club.']
+const NEWS = { id: '2026-11-21', title: "What's new", items: [
+  ['📅', 'Game nights', 'Organizers can schedule a game night and members answer <b>In</b>, <b>Maybe</b> or <b>Out</b>. Everyone sees who is coming, and reminders can be sent.'],
+  ['🔥', 'Win streaks', 'A flame shows beside anyone on a winning streak of 3 or more games, on Leaders and in the member list.'],
+  ['🎉', 'Win celebration', 'Turn on confetti and a chime when a game ends, in <b>Settings</b>. Off by default, and just for this phone.'],
+  ['🏓', 'Paddle tracker', 'Save up to 6 paddles, with a photo if you like. Pick one when you start a game and see your record with each on your profile.'],
+  ['🤝', 'Linked clubs', 'Two friendly clubs can link their leaderboards into one combined standing. Both organizers have to agree, and either can unlink.'],
+  ['🙋', 'Ask an organizer', 'No PIN? Tap <b>Ask an organizer</b> and they get a request to approve, so nobody has to share the PIN.'],
+  ['↩️', 'Undo for organizer changes', 'Organizers can undo a role change or a rename within 7 days. Every undo is logged.'],
+  ['🏆', 'Season history', 'Each new league season keeps the final tables of every earlier one, on the league screen. Organizers can also end the club season early.'],
+  ['⚙️', 'Settings and dark mode', 'Open <b>Settings</b> to match your phone, or pick Light or Dark.'],
+  ['📈', 'Why my rating moved', 'Tap the up or down arrow beside a rating to see the game behind the change.'],
+  ['👏', 'Reactions', 'React to finished games in the Record with a clap, flame, pickle, sweat or trophy.'],
+  ['🗓️', 'Year in review', 'Every player profile now has a recap of the year, with a card you can share.']
 ] };
 // Someone opening the app for the first time gets the tour instead, so they never see old news.
 if (!store.get('pb.tutorialSeen', false)) store.set('pb.newsSeen', NEWS.id);
