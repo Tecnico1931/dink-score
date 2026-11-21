@@ -156,6 +156,19 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .seg.sm button { padding: 7px 10px; font-size: 14px; }
 .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
+/* Skeletons: placeholder shapes while data loads. Hidden for the first 250 ms so cached or instant data never flashes one; the shimmer only runs when motion is allowed. */
+.skel-wrap { display: flex; flex-direction: column; gap: 10px; opacity: 0; animation: skel-in .01s linear .25s forwards; }
+.skel { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px 12px; align-items: center; padding: 12px; border-radius: 16px; background: var(--surface); }
+.skel i { grid-row: span 2; width: 44px; height: 44px; border-radius: 50%; }
+.skel b { display: block; height: 12px; border-radius: 6px; }
+.skel b + b { width: 55%; }
+.skel-card { grid-template-columns: minmax(0, 1fr); padding: 16px; border-radius: 22px; gap: 10px; }
+.skel-card i { display: none; }
+.skel i, .skel b { background: var(--surface-2); }
+@keyframes skel-in { to { opacity: 1; } }
+@keyframes skel-shimmer { to { background-position: -300% 0; } }
+@media (prefers-reduced-motion: no-preference) { .skel i, .skel b { background: linear-gradient(90deg, var(--surface-2) 35%, var(--line) 50%, var(--surface-2) 65%) 0 0 / 300% 100%; animation: skel-shimmer 1.4s linear infinite; } }
+@media (prefers-reduced-motion: reduce) { .skel-wrap { animation: skel-in .01s linear .25s forwards !important; } }
 .setup-opts { margin-top: 12px; }
 .setup-opts-toggle { width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 14px; background: var(--surface-2); color: var(--ink); display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
 .setup-opts-toggle:active { transform: scale(.99); }
@@ -1919,6 +1932,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const skel = (n = 3, card = false) => `<div class="skel-wrap" role="status" aria-busy="true"><span class="vh">Loading…</span>${Array.from({ length: n }, () => `<div class="skel${card ? ' skel-card' : ''}" aria-hidden="true"><i></i><b></b><b></b></div>`).join('')}</div>`;
 const store = {
   // A stored value of the wrong kind (a null or a string where an object or list belongs) counts as missing.
   get(k, d) {
@@ -5369,7 +5383,7 @@ function gamesHTML(c) {
   const mine = live && !live.event ? (live.id || liveGameId()) : null;
   const line = (teams, score, winner, serving, t) => `<div class="line ${winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(teams[t]))}</span>${serving === t ? '<span class="tag">serving</span>' : ''}<span class="pts">${Number(score[t])}</span></div>`;
   let rows;
-  if (!c.games) rows = '<p class="note">Loading\u2026</p>';
+  if (!c.games) rows = skel(3);
   else if (!c.games.length) rows = '<p>No games are being scored right now. Start one from the Play tab and it shows up here, on every phone in the club.</p>';
   else rows = c.games.map(g => {
     const ago = Math.max(0, Math.round((Date.now() - (g.updatedAt || Date.now())) / 1000));
@@ -5406,7 +5420,7 @@ function boardHTML(c) {
   const head = `<h2 id="club-h">Court board</h2>`;
   const foot = `<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
-  if (b === undefined) return `${head}<p class="note">Loading…</p>${err}${foot}`;
+  if (b === undefined) return `${head}${skel(3)}${err}${foot}`;
   if (!b) return `${head}<p>Open play with a queue: players check in, get called to a free court, and the next group is suggested when a game ends, spread so people meet new partners and opponents. It also shows on the club's TV page.</p>${err}
     ${org ? '<button class="btn btn-ink block" data-act="board-on">Turn on the court board</button>' : '<p class="note">An organizer can turn the court board on from this screen.</p>'}${foot}`;
   const runner = boardRunner(b), here = boardHere(b), hasName = !!myName();
@@ -5525,7 +5539,7 @@ function watchHTML(c) {
   const links = all && all.filter(l => !l.game), mine = all ? all.filter(l => l.game && l.game === gid) : []; // single-game watches are listed under their own game
   const row = (l, btn) => `<li><span><b>${esc(l.label || 'Apple Watch')}</b><small>Linked ${esc(new Date(l.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))} · ${esc(l.pending ? 'waiting for the watch' : watchSeen(l.lastSeenAt))}</small></span>${btn}</li>`;
   const unlinkBtn = l => `<button class="btn btn-soft" style="min-height:44px" data-act="watch-unlink" data-link="${esc(l.id)}">${c.confirmUnlink === l.id ? 'Tap again to unlink' : 'Unlink'}</button>`;
-  const list = !links ? '<p class="note">Loading…</p>' : !links.length ? '<p class="note">No watch is linked to this club yet.</p>'
+  const list = !links ? skel(3) : !links.length ? '<p class="note">No watch is linked to this club yet.</p>'
     : `<ul class="club-list">${links.map(l => `<li><span><b>${esc(l.label || 'Apple Watch')}</b><small>Linked ${esc(new Date(l.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }))} · ${esc(l.pending ? 'waiting for the watch' : watchSeen(l.lastSeenAt))}</small></span>
       <button class="btn btn-soft" style="min-height:44px" data-act="watch-unlink" data-link="${esc(l.id)}">${c.confirmUnlink === l.id ? 'Tap again to unlink' : 'Unlink'}</button></li>`).join('')}</ul>`;
   const ready = (links || []).filter(l => !l.pending); // a watch that has not collected its link yet cannot be sent a game
@@ -5856,7 +5870,7 @@ function analyticsHTML(c) {
   const d = c.data, back = '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>';
   const head = '<h2 id="club-h">Attendance and busiest hours</h2>';
   if (c.error) return `${head}<p class="err" role="alert">${esc(c.error)}</p>${back}`;
-  if (!d) return `${head}<p class="note">Loading…</p>${back}`;
+  if (!d) return `${head}${skel(3)}${back}`;
   if (!d.games) return `${head}<p class="note">No games in the last ${d.weeksShown} weeks yet.</p>${back}`;
   const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const hr = h => (h % 12 || 12) + (h < 12 ? ' am' : ' pm');
@@ -6266,7 +6280,7 @@ function gnSheetHTML(c) {
     : club.hasPin
       ? '<div class="org-card"><p>Scheduling game nights and sending reminders needs the organizer PIN.</p><button type="button" class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div>'
       : '';
-  const body = c.loading && !all.length ? '<p class="note" role="status">Loading game nights…</p>'
+  const body = c.loading && !all.length ? skel(2, true)
     : upcoming.length ? `<div class="gn-stack">${upcoming.map(n => gnCardHTML(n, c, org, false)).join('')}</div>`
     : '<div class="org-card"><p>No upcoming game nights yet. An organizer can schedule a future night and members can tap In, Maybe or Out.</p></div>';
   const pastHTML = past.length ? `<details class="gn-past"><summary>Recent past nights (${past.length})</summary><div class="gn-stack" style="margin-top:10px">${past.map(n => gnCardHTML(n, c, org, true)).join('')}</div></details>` : '';
@@ -6320,7 +6334,7 @@ function linkLabel(l) {
 }
 function linksHTML(c) {
   const d = c.data, on = d ? d.enabled : !!club.publicResults;
-  const list = !d ? '<p class="note">Loading…</p>' : !d.links.length ? '<p class="note">No links yet. Players make them from a game\'s Share button.</p>'
+  const list = !d ? skel(3) : !d.links.length ? '<p class="note">No links yet. Players make them from a game\'s Share button.</p>'
     : `<ul class="deleted">${d.links.map(l => `<li style="display:block"><b>${esc(linkLabel(l))}</b> <span class="note">${esc(new Date(l.createdAt).toLocaleDateString())}</span><br><div class="invite"><input readonly value="${esc(resultUrl(l.path))}" aria-label="Link"></div><span class="g-actions"><button class="link" data-link-copy="${esc(l.path)}">Copy</button><button class="link" data-link-revoke="${esc(l.token)}">Turn off</button></span></li>`).join('')}</ul>`;
   return `<h2 id="club-h">Public result links</h2>
     <p class="note">${on ? 'On. Anyone in the club can make a read-only link for a finished game or a day\'s games. Whoever holds a link sees the teams, the score, the date and the score flow, nothing else: no club name, no code, no member list.' : 'Off. Turn this on to let players share a finished game or a day\'s games as a read-only link with a preview picture. Names on those games become visible to whoever receives the link.'}</p>
@@ -6364,7 +6378,7 @@ async function loadAudit() {
 }
 function auditHTML(c) {
   const res = g => g ? `${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}` : '';
-  const rows = !c.rows ? '<p class="note">Loading\u2026</p>' : !c.rows.length ? '<p>Nothing recorded yet. Changes to games from now on show up here.</p>'
+  const rows = !c.rows ? skel(3) : !c.rows.length ? '<p>Nothing recorded yet. Changes to games from now on show up here.</p>'
     : `<ul class="deleted">${c.rows.map(r => `<li style="display:block"><b>${esc(AUDIT_WORDS[r.action] || r.action)}</b> ${esc(res(r.after || r.before))}${r.before && r.after && r.action === 'edit' ? ` <span class="note">(was ${esc(res(r.before))})</span>` : ''}<br><span class="note">${esc(new Date(r.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))} by ${esc(auditWho(r.actor))}${r.note ? ', ' + esc(r.note) : ''}</span></li>`).join('')}</ul>`;
   return `<h2 id="club-h">Game history</h2><p class="note">Newest first: who recorded, edited, deleted or confirmed each game. Only organizers see this.</p>${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}${rows}<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
@@ -7162,7 +7176,7 @@ function clSheetHTML(c) {
       <section class="rows" aria-live="off" style="margin-top:12px">${rows || '<p class="note">No rated players yet.</p>'}</section>
       <div class="btns"><button type="button" class="btn btn-soft" data-cl="list">Back</button><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>`;
   }
-  const links = !d ? '<p class="note">Loading…</p>' : !d.links.length ? '<p class="note">Not linked with any club yet.</p>'
+  const links = !d ? skel(3) : !d.links.length ? '<p class="note">Not linked with any club yet.</p>'
     : `<ul class="deleted">${d.links.map(l => `<li style="display:block"><b>${esc(l.club)}</b> <span class="note">since ${esc(new Date(l.since).toLocaleDateString())}</span>
       <div class="btns" style="margin-top:6px"><button type="button" class="btn btn-ink" data-cl="view" data-cl-id="${esc(l.id)}" ${st && st.loading ? 'disabled' : ''}>Combined standing</button>${clCanOrg() ? `<button type="button" class="btn btn-line-danger" data-cl="leave" data-cl-id="${esc(l.id)}">${c.armed === l.id ? 'Tap again to unlink' : 'Unlink'}</button>` : ''}</div></li>`).join('')}</ul>`;
   const org = !clCanOrg() ? '<p class="note">An organizer links the clubs. Anyone in either club can see the combined standing.</p>' : `
@@ -7421,7 +7435,7 @@ function evListHTML(s) {
     <span class="note">${esc(EV_FORMAT_NAME[e.format])}${e.partners === 'rotating' ? ', partners rotate' : ', fixed teams'} · ${e.players} players · ${e.courts} court${e.courts === 1 ? '' : 's'}</span><span class="note">${esc(evProgress(e))}</span></button>`).join('');
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}${make}
     <button class="btn btn-soft block" data-lg="open">Leagues and ladders</button>
-    ${s.list === null ? '<p class="note">Loading events…</p>' : items ? `<div class="ev-sec">${items}</div>${s.more ? `<button class="btn btn-soft block" data-ev="more" ${s.loadingMore ? 'disabled' : ''}>${s.loadingMore ? 'Loading…' : 'Show more events'}</button>` : ''}` : '<div class="empty"><p>No events yet. An organizer can run a round robin with rotating partners, a pool play and knockout, or a single or double elimination bracket.</p></div>'}`;
+    ${s.list === null ? skel(3, true) : items ? `<div class="ev-sec">${items}</div>${s.more ? `<button class="btn btn-soft block" data-ev="more" ${s.loadingMore ? 'disabled' : ''}>${s.loadingMore ? 'Loading…' : 'Show more events'}</button>` : ''}` : '<div class="empty"><p>No events yet. An organizer can run a round robin with rotating partners, a pool play and knockout, or a single or double elimination bracket.</p></div>'}`;
 }
 // Seeding and divisions from Dink Rating. The ratings are the club's, read by the server when the event is made.
 function evSeedingHTML(f, n, elim, fixed, imported) {
@@ -7660,7 +7674,7 @@ function evEditHTML(ev, ed) {
 }
 function evDetailHTML(s) {
   const ev = s.event;
-  if (!ev) return s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : '<p class="note">Loading…</p>';
+  if (!ev) return s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : skel(3);
   const org = canOrganize(), live = ev.status === 'live';
   const out = [];
   if (s.error) out.push(`<p class="err" role="alert">${esc(s.error)}</p>`);
@@ -7792,7 +7806,7 @@ async function evCopyLink() {
 }
 function evBracketHTML(s) {
   const ev = s.event;
-  if (!ev) return s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : '<p class="note">Loading…</p>';
+  if (!ev) return s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : skel(3);
   const org = canOrganize(), live = ev.status === 'live', pool = ev.format === 'pool_knockout';
   const sel = s.sel && ev.tree ? ev.tree.matches.find(m => m.id === s.sel && m.status !== 'bye') : null;
   const out = [];
@@ -8142,7 +8156,7 @@ setInterval(() => { if (lgScreen && lgScreen.view === 'detail' && !document.hidd
 
 function lgHTML() {
   const s = lgScreen, L = s.league;
-  const body = s.view === 'new' ? lgNewHTML(s) : s.view === 'detail' ? (s.loading || !L ? `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : '<p class="note">Loading…</p>'}` : L.kind === 'ladder' ? lgLadderHTML(s, L) : lgLeagueHTML(s, L)) : lgListHTML(s);
+  const body = s.view === 'new' ? lgNewHTML(s) : s.view === 'detail' ? (s.loading || !L ? `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : skel(3)}` : L.kind === 'ladder' ? lgLadderHTML(s, L) : lgLeagueHTML(s, L)) : lgListHTML(s);
   const title = s.view === 'new' ? 'New league or ladder' : s.view === 'detail' ? (L ? L.name : 'League') : 'Leagues and ladders';
   return `<div class="ev-screen" role="dialog" aria-modal="true" aria-labelledby="lg-h"><div class="ev-wrap">
     <div class="ev-top"><button class="ev-back" data-lg="back" aria-label="${s.view === 'list' ? 'Close leagues and ladders' : 'Back to leagues and ladders'}">${ICON.back}</button><h2 id="lg-h">${esc(title)}</h2></div>${body}</div></div>`;
@@ -8155,7 +8169,7 @@ function lgListHTML(s) {
   const items = (s.list || []).map(e => `<button class="ev-card ev-item" data-lg="open-one" data-id="${esc(e.id)}"><span class="ev-item-head"><b>${esc(e.name)}</b><span class="badge ${e.status === 'live' ? 'hot' : 'prov'}">${e.kind === 'ladder' ? 'Ladder' : e.status === 'live' ? 'Live' : 'Finished'}</span></span>
     <span class="note">${esc(e.season)} · ${e.kind === 'ladder' ? 'Ladder' : `League, ${e.divisions} division${e.divisions === 1 ? '' : 's'}`} · ${e.entries} ${e.mode === 'doubles' ? 'teams' : 'players'}</span><span class="note">${esc(lgProgress(e))}</span></button>`).join('');
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}${make}
-    ${s.list === null ? '<p class="note">Loading…</p>' : items ? `<div class="ev-sec">${items}</div>` : '<div class="empty"><p>Nothing yet. A league plays a season of weekly matches in divisions; a ladder lets players challenge the ones above them.</p></div>'}`;
+    ${s.list === null ? skel(3) : items ? `<div class="ev-sec">${items}</div>` : '<div class="empty"><p>Nothing yet. A league plays a season of weekly matches in divisions; a ladder lets players challenge the ones above them.</p></div>'}`;
 }
 function lgNewHTML(s) {
   const f = s.form, n = f.players.length, ladder = f.kind === 'ladder', singles = f.mode === 'singles';
@@ -8922,7 +8936,7 @@ function renderDsso() {
     inner = `<div class="sheet-head"><h2 id="dsso-h">Send to DUPR</h2><button type="button" class="x" data-dsso="close" aria-label="Close">✕</button></div>
       <p class="note">${esc(u.event.name)}. Sent to DUPR: the four players’ DUPR IDs, the score, the match date and the event name. DUPR changes real ratings from these, so check them first.</p>
       ${u.error ? `<p class="err" role="alert">${esc(u.error)}</p>` : ''}
-      ${!r ? '<p class="note" role="status">Loading…</p>' : `
+      ${!r ? skel(3) : `
         ${r.paused ? `<p class="err" role="status">Sending${r.paused.club ? ' for ' + esc(r.paused.club) : ''} is paused: ${esc(r.paused.reason)} It tries again later.</p>` : ''}
         ${u.results ? `<p class="note" role="status"><b>Done.</b> ${[['created', 'sent'], ['updated', 'updated'], ['deleted', 'removed'], ['alreadyAtDupr', 'already at DUPR'], ['failed', 'refused by DUPR'], ['retryLater', 'to retry later']].filter(([k]) => u.results[k]).map(([k, w]) => `${u.results[k]} ${w}`).join(', ') || 'Nothing to send.'}</p>` : ''}
         <p class="note"><b>${r.summary.ready}</b> ready · <b>${r.summary.blocked}</b> blocked · <b>${r.summary.sent}</b> sent${r.summary.failed ? ` · <b>${r.summary.failed}</b> refused` : ''}</p>

@@ -20,7 +20,7 @@ function linkLabel(l) {
 }
 function linksHTML(c) {
   const d = c.data, on = d ? d.enabled : !!club.publicResults;
-  const list = !d ? '<p class="note">Loading…</p>' : !d.links.length ? '<p class="note">No links yet. Players make them from a game\'s Share button.</p>'
+  const list = !d ? skel(3) : !d.links.length ? '<p class="note">No links yet. Players make them from a game\'s Share button.</p>'
     : `<ul class="deleted">${d.links.map(l => `<li style="display:block"><b>${esc(linkLabel(l))}</b> <span class="note">${esc(new Date(l.createdAt).toLocaleDateString())}</span><br><div class="invite"><input readonly value="${esc(resultUrl(l.path))}" aria-label="Link"></div><span class="g-actions"><button class="link" data-link-copy="${esc(l.path)}">Copy</button><button class="link" data-link-revoke="${esc(l.token)}">Turn off</button></span></li>`).join('')}</ul>`;
   return `<h2 id="club-h">Public result links</h2>
     <p class="note">${on ? 'On. Anyone in the club can make a read-only link for a finished game or a day\'s games. Whoever holds a link sees the teams, the score, the date and the score flow, nothing else: no club name, no code, no member list.' : 'Off. Turn this on to let players share a finished game or a day\'s games as a read-only link with a preview picture. Names on those games become visible to whoever receives the link.'}</p>
@@ -64,7 +64,7 @@ async function loadAudit() {
 }
 function auditHTML(c) {
   const res = g => g ? `${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}` : '';
-  const rows = !c.rows ? '<p class="note">Loading\u2026</p>' : !c.rows.length ? '<p>Nothing recorded yet. Changes to games from now on show up here.</p>'
+  const rows = !c.rows ? skel(3) : !c.rows.length ? '<p>Nothing recorded yet. Changes to games from now on show up here.</p>'
     : `<ul class="deleted">${c.rows.map(r => `<li style="display:block"><b>${esc(AUDIT_WORDS[r.action] || r.action)}</b> ${esc(res(r.after || r.before))}${r.before && r.after && r.action === 'edit' ? ` <span class="note">(was ${esc(res(r.before))})</span>` : ''}<br><span class="note">${esc(new Date(r.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))} by ${esc(auditWho(r.actor))}${r.note ? ', ' + esc(r.note) : ''}</span></li>`).join('')}</ul>`;
   return `<h2 id="club-h">Game history</h2><p class="note">Newest first: who recorded, edited, deleted or confirmed each game. Only organizers see this.</p>${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}${rows}<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }

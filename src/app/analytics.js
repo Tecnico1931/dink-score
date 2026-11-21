@@ -11,7 +11,7 @@ function analyticsHTML(c) {
   const d = c.data, back = '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>';
   const head = '<h2 id="club-h">Attendance and busiest hours</h2>';
   if (c.error) return `${head}<p class="err" role="alert">${esc(c.error)}</p>${back}`;
-  if (!d) return `${head}<p class="note">Loading…</p>${back}`;
+  if (!d) return `${head}${skel(3)}${back}`;
   if (!d.games) return `${head}<p class="note">No games in the last ${d.weeksShown} weeks yet.</p>${back}`;
   const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
   const hr = h => (h % 12 || 12) + (h < 12 ? ' am' : ' pm');
