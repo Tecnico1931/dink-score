@@ -1,5 +1,7 @@
 # The main script's modules, in the order of dink-score.html. build.cjs checks this list against src/app/*.js and the page.
 # Modules without a MODULE block in the page are emitted at its /*@APP*/ line in index.html.
+core
+display-celebration
 log-result
 share-image
 identity
