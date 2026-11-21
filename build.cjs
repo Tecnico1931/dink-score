@@ -76,7 +76,7 @@ const head = `<!doctype html>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script src="/analytics.js"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <style>
 :root { color-scheme: light dark; }
@@ -186,7 +186,7 @@ console.log(`Wrote vercel.json (${hashes.length} inline scripts allowed by hash)
 const out = path.join(__dirname, 'public');
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'icons'), { recursive: true });
-for (const f of ['index.html', 'b.html', 'l.html', 'r.css', 'r.js', 'manifest.webmanifest', 'sw.js', 'dupr-export.js', 'sheet-import.js', 'scan.js', 'jsqr.js', 'privacy.html', 'terms.html', 'legal.css']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
+for (const f of ['index.html', 'b.html', 'l.html', 'r.css', 'r.js', 'manifest.webmanifest', 'sw.js', 'analytics.js', 'dupr-export.js', 'sheet-import.js', 'scan.js', 'jsqr.js', 'privacy.html', 'terms.html', 'legal.css']) fs.copyFileSync(path.join(__dirname, f), path.join(out, f));
 for (const f of fs.readdirSync(path.join(__dirname, 'icons'))) fs.copyFileSync(path.join(__dirname, 'icons', f), path.join(out, 'icons', f));
 for (const d of ['fonts', '.well-known']) {
   fs.mkdirSync(path.join(out, d), { recursive: true });
