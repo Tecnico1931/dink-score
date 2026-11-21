@@ -69,6 +69,7 @@ export function ensureSchema() {
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS shop jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS claim_hash text`; // hash of the token on the phone that claimed this name
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS equipped jsonb NOT NULL DEFAULT '{}'::jsonb`;
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS paddles jsonb`; // L14: {list: [{id, name, photo?}], used: {gameId: paddleId}}, private to the player's phone
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS avatar jsonb`; // {type: emoji|icon|photo, value}; none means initials
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS prestige jsonb`; // unused legacy: {count, xpAt}
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS dupr_rating numeric(4,3)`; // self-reported, display only (see _dupr.js)

@@ -257,6 +257,30 @@ await step('DUPR: an organizer (PIN or creator phone) can set it, including on a
   assert.equal(await dupr('Guesty'), 3.1);
   assert.equal((await sh({ action: 'dupr', name: 'Nobody', ownerToken: owner, rating: '3' })).status, 404);
 });
+await step('paddles: only the linked phone reads or writes them, photos follow the avatar limits, and they never reach the club payload', async () => {
+  const pad = (action, extra) => sh({ action, name: 'Ana', ...extra });
+  assert.deepEqual(ok(await pad('paddles-get', { playerToken: anaToken })).paddles, { list: [], used: {} });
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(200);
+  const doc = { list: [{ id: 'ab12', name: 'Vanguard', photo }, { id: 'cd34', name: 'Joola' }], used: { 'g-pad1': 'ab12', 'g-pad2': 'gone' } };
+  assert.deepEqual(ok(await pad('paddles-set', { playerToken: anaToken, paddles: doc })).paddles.used, { 'g-pad1': 'ab12' }, 'a tag for a missing paddle is dropped');
+  assert.equal(ok(await pad('paddles-get', { playerToken: anaToken })).paddles.list[0].photo, photo);
+  // Not the organizer, not another phone, not a bad token.
+  for (const creds of [{ pin: PIN }, { ownerToken: owner }, { playerToken: 'f'.repeat(48) }, {}]) {
+    assert.equal((await pad('paddles-get', creds)).status, 403);
+    assert.equal((await pad('paddles-set', { ...creds, paddles: doc })).status, 403);
+  }
+  // Same limits as an avatar photo.
+  for (const bad of ['data:image/png;base64,AAAA', 'data:image/jpeg;base64,' + 'A'.repeat(60000), 'https://x.test/p.jpg']) {
+    assert.equal((await pad('paddles-set', { playerToken: anaToken, paddles: { list: [{ id: 'ab12', name: 'x', photo: bad }], used: {} } })).status, 400);
+  }
+  assert.equal((await pad('paddles-set', { playerToken: anaToken, paddles: { list: Array.from({ length: 7 }, (_, i) => ({ id: 'p' + i + 'xyz', name: 'p' })), used: {} } })).status, 400);
+  // Private: never in the club payload, the sync digest or the live list.
+  const clubJson = JSON.stringify(ok(await call(club, 'GET', { query: '?code=' + code })));
+  assert.ok(!clubJson.includes('Vanguard') && !clubJson.includes(photo) && !/paddle/i.test(clubJson));
+  // Your own export has it.
+  const exp = ok(await sh({ action: 'export', name: 'Ana', playerToken: anaToken }));
+  assert.equal(exp.player.paddles.list.length, 2);
+});
 await step('DUPR: releasing a name clears it, and it never changes ratings or the club record', async () => {
   const before = JSON.stringify(ok(await call(club, 'GET', { query: '?code=' + code })).games);
   ok(await sh({ action: 'release', name: 'Ana', pin: PIN }));
