@@ -67,6 +67,29 @@ export function seasonOf(ts) {
   const d = new Date(ts), q = Math.floor(d.getUTCMonth() / 3), y = d.getUTCFullYear();
   return { id: `${y}-Q${q + 1}`, name: `${SEASON_NAMES[q]} ${y}`, start: Date.UTC(y, q * 3, 1), end: Date.UTC(y, q * 3 + 3, 1) };
 }
+// Ending a season early (L21): an organizer closes the current season now and names the next. Each close is a "cut" {at, name}
+// (the moment it happened and the NEXT season's name), kept in club_seasons. A club with no cuts has exactly the calendar quarters
+// above. With cuts: the season before the first cut is its calendar quarter, ended early at the cut; a season that starts at a cut
+// runs under its own name until the next cut or the end of the calendar quarter it began in, whichever comes first, and the
+// calendar quarters carry on from there. So seasons never overlap and each moment belongs to exactly one season.
+export const SEASON_NAME_MAX = 40;
+export function seasonAt(ts, cuts = []) {
+  const q = seasonOf(ts);
+  let i = -1;
+  for (let k = 0; k < cuts.length; k++) if (cuts[k].at <= ts) i = k;
+  const next = cuts[i + 1];
+  if (i >= 0) {
+    const c = cuts[i], end = Math.min(seasonOf(c.at).end, next ? next.at : Infinity);
+    if (ts < end) return { id: `x${c.at}`, name: c.name, start: c.at, end, custom: true };
+  }
+  return next && next.at < q.end ? Object.assign({}, q, { end: next.at }) : q;
+}
+// A sensible name for the season that follows `name` when the organizer doesn't pick one: "Summer 2026" -> "Summer 2026, part 2".
+export function nextSeasonName(name) {
+  const m = /^(.*), part (\d+)$/.exec(String(name));
+  const base = (m ? m[1] : String(name)), n = m ? Number(m[2]) + 1 : 2, tail = `, part ${n}`;
+  return base.slice(0, SEASON_NAME_MAX - tail.length).trimEnd() + tail;
+}
 export const SEASON_MIN_GAMES = 5;
 // Final standings of a season for one format: everyone starts at 2.00 and only that season's verified games count
 // (sent from a linked player's phone), so made-up results can't win a season. The app's season table uses the same rule.
@@ -79,7 +102,7 @@ export function seasonStandings(games, season, mode) {
 }
 
 // Everything per player: achievements, weekly challenges and trophies.
-export function computeProgress(games, now = Date.now()) {
+export function computeProgress(games, now = Date.now(), cuts = []) {
   const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
   // Forecasts and ratings used to judge achievements and challenges (Giant killer, upsets, Two point five) come from
   // verified games only, so results sent from other phones can't be used to set them up.
@@ -144,11 +167,11 @@ export function computeProgress(games, now = Date.now()) {
   }
   // Finished seasons: the top 3 in each format get a trophy.
   const seasons = new Map();
-  for (const g of sorted) { if (g.hold) continue; const s = seasonOf(when(g)); if (s.end <= now) seasons.set(s.id, s); }
+  for (const g of sorted) { if (g.hold) continue; const s = seasonAt(when(g), cuts); if (s.end <= now) seasons.set(s.id, s); }
   for (const s of seasons.values()) for (const mode of ['doubles', 'singles']) {
     seasonStandings(sorted, s, mode).slice(0, 3).forEach((row, i) => {
       const p = get(row.key, row.name);
-      p.trophies.push({ season: s.id, name: s.name, mode, place: i + 1, rating: Math.round(row.rating * 100) / 100 });
+      p.trophies.push({ season: s.id, name: s.name, start: s.start, mode, place: i + 1, rating: Math.round(row.rating * 100) / 100 });
     });
   }
   // Keep the current run with the progress payload. This is the same chronological,

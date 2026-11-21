@@ -112,7 +112,7 @@ function rivalriesHTML(name, mode) {
   }).join('')}</div></div>`;
 }
 
-// Season leaderboard: the current quarter's verified games only, everyone starting at 2.00 (same as the server).
+// Season leaderboard: the current season's (a calendar quarter, or one an organizer started early) verified games only, everyone starting at 2.00 (same as the server).
 function seasonRows(mode) {
   const info = progressInfo();
   if (!info) return [];
@@ -126,10 +126,10 @@ function pastChampionsHTML(mode) {
   if (!info) return '';
   const bySeason = new Map();
   for (const p of Object.values(info.players)) for (const t of p.trophies) if (t.mode === mode) {
-    const e = bySeason.get(t.season) || { name: t.name, places: [] };
+    const e = bySeason.get(t.season) || { name: t.name, start: t.start || 0, places: [] };
     e.places[t.place - 1] = p.name; bySeason.set(t.season, e);
   }
   if (!bySeason.size) return '';
-  return `<section><h2 style="font-size:22px">Past champions</h2><div class="champs">${[...bySeason.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([, e]) => `<div class="champ"><b>${esc(e.name)}</b>${e.places.map((n, i) => n ? `<span>${MEDAL[i]} ${esc(n)}</span>` : '').join('')}</div>`).join('')}</div></section>`;
+  return `<section><h2 style="font-size:22px">Past champions</h2><div class="champs">${[...bySeason.entries()].sort((a, b) => b[1].start - a[1].start || b[0].localeCompare(a[0])).map(([, e]) => `<div class="champ"><b>${esc(e.name)}</b>${e.places.map((n, i) => n ? `<span>${MEDAL[i]} ${esc(n)}</span>` : '').join('')}</div>`).join('')}</div></section>`;
 }
 

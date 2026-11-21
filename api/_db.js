@@ -244,6 +244,14 @@ export function ensureSchema() {
         detail jsonb
       )`;
       await q`CREATE INDEX IF NOT EXISTS club_audit_club_at ON club_audit (club, at DESC)`;
+      // Seasons ended early (see _seasons.js): each row is the moment a season was closed and the name of the one that began.
+      await q`CREATE TABLE IF NOT EXISTS club_seasons (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        starts_at bigint NOT NULL,
+        name text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, starts_at)
+      )`;
       // Game confirmation, duplicate marks and the audit trail (see _confirm.js and _audit.js). All additive.
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_by text`; // 'organizer' or the confirming player's name key
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_at timestamptz`;

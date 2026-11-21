@@ -5,7 +5,7 @@
 // the app sends If-None-Match itself. A client that sends no tag gets the same full answer as before.
 import { createHash } from 'node:crypto';
 
-export const SYNC_V = 3; // bump when an answer's shape changes, so every held tag stops matching
+export const SYNC_V = 4; // bump when an answer's shape changes, so every held tag stops matching
 export const BUCKET_MS = 10 * 60 * 1000; // answers that depend on the clock (ratings reliability) are refreshed at least this often
 
 export const tagOf = (scope, text) => 'W/"' + createHash('sha256').update(`${SYNC_V}|${scope}|${text}`).digest('base64url').slice(0, 24) + '"';
@@ -51,7 +51,8 @@ export async function clubDigest(sql, code) {
     (SELECT coalesce(string_agg(h, ',' ORDER BY starts_at ASC, id), '') FROM (SELECT id, starts_at, md5(concat_ws('|', id, title, starts_at::text, location, note, cap::text, status, reminder_count::text, updated_at::text)) AS h
       FROM game_nights WHERE club = ${code} AND status = 'open' ORDER BY starts_at ASC, id LIMIT 20) gn),
     (SELECT coalesce(string_agg(h, ',' ORDER BY night_id, name_key), '') FROM (SELECT night_id, name_key, md5(concat_ws('|', night_id, name_key, name, status)) AS h
-      FROM game_night_rsvps WHERE club = ${code} ORDER BY night_id, name_key LIMIT 500) gnr)
+      FROM game_night_rsvps WHERE club = ${code} ORDER BY night_id, name_key LIMIT 500) gnr),
+    (SELECT coalesce(string_agg(md5(concat_ws('|', starts_at::text, name)), ',' ORDER BY starts_at), '') FROM club_seasons WHERE club = ${code})
   )) AS d`;
   return r.d;
 }

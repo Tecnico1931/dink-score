@@ -16,10 +16,12 @@
 // POST /api/club {code, action: 'set-note', note, pin|ownerToken}      -> organizer: a pinned note (plain text, 500 characters, empty clears it) shown to every member
 //   Both come back to members as payLink and note on `club` in GET answers.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
+// POST /api/club {code, action: 'season-end', seasonId, name?, pin|ownerToken} -> organizer: ends the current season now (trophies as usual) and starts the next, called `name` (see _seasons.js)
 // GET  /api/club?code=ABC123&nights=1 -> upcoming & recent game nights with RSVPs + pushEnabled (see _gamenights.js)
 // POST /api/club {code, action: 'night-create'|'night-edit'|'night-cancel'|'night-delete'|'night-rsvp'|'night-remind', ...} -> game nights (see _gamenights.js)
 import { manageResults } from './_resultsadmin.js';
 import { analyticsRoute } from './_analytics.js';
+import { SEASON_ACTIONS, seasonAction, loadCuts } from './_seasons.js';
 import { NIGHT_ACTIONS, nightsGet, nightAction, upcomingNights } from './_gamenights.js';
 import { tagOf, sameTag, notModified, replyTagged, clubDigest, BUCKET_MS } from './_sync.js';
 import { cleanPayLink, cleanNote } from './_clubinfo.js';
@@ -29,15 +31,15 @@ import { duprFrom } from './_dupr.js';
 import { audit, organizerActor } from './_audit.js';
 import { counts, findDuplicates } from './_confirm.js';
 import { DELETE_UNDO_HOURS, gamesCsv } from './_privacy.js';
-import { computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, SEASON_MIN_GAMES } from './_progress.js';
+import { computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, seasonAt, SEASON_MIN_GAMES } from './_progress.js';
 import { refreshRatings, ratingsFor } from './_rating_store.js';
 import { groupReactions } from './_reactions.js';
 
 // Achievements, this week's challenges, and trophies for every player, as the server counts them.
-function progressFor(games) {
-  const now = Date.now(), week = weekOf(now), season = seasonOf(now);
+function progressFor(games, cuts) {
+  const now = Date.now(), week = weekOf(now), season = seasonAt(now, cuts);
   const players = {};
-  for (const [k, p] of computeProgress(games, now)) {
+  for (const [k, p] of computeProgress(games, now, cuts)) {
     players[k] = { name: p.name, achievements: p.achievements, trophies: p.trophies, streak: p.streak, week: p.weeks[week.id] || null };
   }
   return {
@@ -57,6 +59,11 @@ export default handler(async (req, res) => {
     if (NIGHT_ACTIONS.includes(body.action)) {
       const club = await requireClub(cleanCode(body.code), req);
       const out = await nightAction(sql, club, body, req);
+      return send(res, out.status || 200, out.body);
+    }
+    if (SEASON_ACTIONS.includes(body.action)) {
+      const club = await requireClub(cleanCode(body.code), req);
+      const out = await seasonAction(sql, club, body, req);
       return send(res, out.status || 200, out.body);
     }
     if (body.action === 'reset-allowance') {
@@ -91,7 +98,7 @@ export default handler(async (req, res) => {
       if (body.action !== 'export' && who.by === 'organizer') throw fail(403, 'Only the club creator or the organizer PIN can delete the club.');
       const code = club.code;
       if (body.action === 'export') {
-        const [games, roster, events, leagues, nights, nightRsvps, trail, gameTrail, reactions] = await Promise.all([
+        const [games, roster, events, leagues, nights, nightRsvps, trail, gameTrail, reactions, seasons] = await Promise.all([
           sql`SELECT data, deleted_at, rally_log FROM games WHERE club = ${code} ORDER BY ended_at DESC`,
           sql`SELECT name, claim_hash IS NOT NULL AS claimed, avatar, dupr_rating, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name)`,
           sql`SELECT id, data, status, created_at, updated_at, deleted_at FROM events WHERE club = ${code} ORDER BY created_at`,
@@ -100,7 +107,8 @@ export default handler(async (req, res) => {
           sql`SELECT night_id, name, status, updated_at FROM game_night_rsvps WHERE club = ${code} ORDER BY updated_at ASC`,
           sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id`,
           sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`,
-          sql`SELECT game_id, name, reaction, created_at FROM game_reactions WHERE club = ${code} ORDER BY created_at ASC, name_key ASC`
+          sql`SELECT game_id, name, reaction, created_at FROM game_reactions WHERE club = ${code} ORDER BY created_at ASC, name_key ASC`,
+          loadCuts(sql, code)
         ]);
         // Not exported: the PIN and phone tokens, public bracket tokens, and DUPR links and IDs (those stay out of every club export).
         if (body.format === 'csv') {
@@ -121,6 +129,8 @@ export default handler(async (req, res) => {
           club: { name: club.name, code: club.public_code || club.code },
           players: roster.map(r => ({ name: r.name, linkedToPhone: r.claimed, avatar: r.avatar || null, duprSelfReported: duprFrom(r.dupr_rating), role: r.role || 'player', removed: !!r.blocked_at })),
           games: games.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
+          // Seasons an organizer ended early: when, and the name of the season that began. The default quarters aren't stored.
+          seasons: seasons.map(c => ({ startsAt: new Date(c.at).toISOString(), name: c.name })),
           reactions: reactions.map(r => ({ game: r.game_id, player: r.name, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
           events: events.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, event: r.data })),
           leagues: leagues.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, league: r.data })),
@@ -245,14 +255,15 @@ export default handler(async (req, res) => {
   const tag = tagOf(code, [await clubDigest(sql, code), JSON.stringify(publicClub(club)), weekOf(now).id, seasonOf(now).id, Math.floor(now / BUCKET_MS)].join('#'));
   if (sameTag(req, tag)) return notModified(res, tag);
   res.setHeader('ETag', tag);
-  const [games, deleted, roster, renamed, reactionRows, nights] = await Promise.all([
+  const [games, deleted, roster, renamed, reactionRows, nights, cuts] = await Promise.all([
     // rally_log itself stays out of this payload (GET /api/games?id= has it); a game just says whether it can be replayed.
     sql`SELECT data, rally_log IS NOT NULL AS replay, confirmed_by, confirmed_at, dup_ok FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
     sql`SELECT name, claim_hash IS NOT NULL AS claimed, role, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
     sql`SELECT old_key, new_name FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC LIMIT 100`,
     sql`SELECT r.game_id, r.reaction, r.name FROM game_reactions r JOIN (SELECT id FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC, id LIMIT 2000) g ON g.id = r.game_id WHERE r.club = ${code} ORDER BY r.created_at ASC, r.name_key ASC`,
-    upcomingNights(sql, code, now)
+    upcomingNights(sql, code, now),
+    loadCuts(sql, code)
   ]);
   const rxByGame = groupReactions(reactionRows);
   // Confirmation lives beside the game, never inside its data. With the club setting on, games nobody has confirmed are
@@ -280,7 +291,7 @@ export default handler(async (req, res) => {
     // Who has claimed a name (never the claim itself), plus pictures and self-reported DUPR numbers.
     players: roster.map(r => ({ name: r.name, claimed: r.claimed, ...(r.role ? { role: r.role } : {}), avatar: r.avatar || null, dupr: duprFrom(r.dupr_rating) })),
     nights,
-    progress: progressFor(gamesIn.filter(g => counts(g, required))),
+    progress: progressFor(gamesIn.filter(g => counts(g, required)), cuts),
     ratings
   });
 });
