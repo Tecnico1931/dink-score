@@ -133,11 +133,14 @@ export default handler(async (req, res) => {
     if (body.action === 'export' && !own) throw fail(403, 'This phone isn\'t linked to that player. Pick your name in the club first.');
     if (!own) await requireOrganizer(club, body.pin, req, body.ownerToken);
     const like = likeFor(k);
-    const [games, events, leagues, myReactions] = await Promise.all([
+    const [games, events, leagues, myReactions, nightRsvps] = await Promise.all([
       sql`SELECT id, data, deleted_at, rally_log FROM games WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
       sql`SELECT id, data, refs FROM events WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
       sql`SELECT id, data FROM leagues WHERE club = ${code} AND lower(data::text) LIKE ${like}`,
-      sql`SELECT game_id, reaction, created_at FROM game_reactions WHERE club = ${code} AND name_key = ${k} ORDER BY created_at ASC, game_id ASC`
+      sql`SELECT game_id, reaction, created_at FROM game_reactions WHERE club = ${code} AND name_key = ${k} ORDER BY created_at ASC, game_id ASC`,
+      sql`SELECT n.id, n.title, n.starts_at, n.location, n.status AS night_status, r.status, r.updated_at
+        FROM game_night_rsvps r JOIN game_nights n ON n.club = r.club AND n.id = r.night_id
+        WHERE r.club = ${code} AND r.name_key = ${k} ORDER BY n.starts_at DESC`
     ]);
     const mine = games.filter(r => ((r.data && r.data.teams) || []).flat().some(n => nameKey(n) === k));
     if (body.action === 'export') {
@@ -148,7 +151,8 @@ export default handler(async (req, res) => {
         games: mine.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
         reactions: myReactions.map(r => ({ gameId: r.game_id, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
         events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status })),
-        leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status }))
+        leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status })),
+        gameNights: nightRsvps.map(r => ({ id: r.id, title: r.title, startsAt: Number(r.starts_at), location: r.location || '', nightStatus: r.night_status, rsvp: r.status, updatedAt: new Date(r.updated_at).toISOString() }))
       });
     }
     // Anonymise: one random label everywhere the name appears, so that person's games stay linked to each other and to the
@@ -194,6 +198,12 @@ export default handler(async (req, res) => {
     if (myReactions.length) {
       touched += myReactions.length;
       ops.push(sql`UPDATE game_reactions SET name_key = ${lk}, name = ${label} WHERE club = ${code} AND name_key = ${k}`);
+    }
+    if (nightRsvps.length) {
+      touched += nightRsvps.length;
+      const nightIds = nightRsvps.map(r => r.id);
+      ops.push(sql`DELETE FROM game_night_rsvps WHERE club = ${code} AND name_key = ${k}`);
+      ops.push(sql`UPDATE game_nights SET updated_at = now() WHERE club = ${code} AND id IN (SELECT jsonb_array_elements_text(${JSON.stringify(nightIds)}::jsonb))`);
     }
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM push_subs WHERE club = ${code} AND name_key = ${k}`);

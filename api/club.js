@@ -16,9 +16,12 @@
 // POST /api/club {code, action: 'set-note', note, pin|ownerToken}      -> organizer: a pinned note (plain text, 500 characters, empty clears it) shown to every member
 //   Both come back to members as payLink and note on `club` in GET answers.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
+// GET  /api/club?code=ABC123&nights=1 -> upcoming & recent game nights with RSVPs + pushEnabled (see _gamenights.js)
+// POST /api/club {code, action: 'night-create'|'night-edit'|'night-cancel'|'night-delete'|'night-rsvp'|'night-remind', ...} -> game nights (see _gamenights.js)
 import { manageResults } from './_resultsadmin.js';
 import { analyticsRoute } from './_analytics.js';
-import { tagOf, sameTag, notModified, clubDigest, BUCKET_MS } from './_sync.js';
+import { NIGHT_ACTIONS, nightsGet, nightAction, upcomingNights } from './_gamenights.js';
+import { tagOf, sameTag, notModified, replyTagged, clubDigest, BUCKET_MS } from './_sync.js';
 import { cleanPayLink, cleanNote } from './_clubinfo.js';
 import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, publicClub, codeTaken, requireOrganizer, pinFrom, ownerFrom, cleanPin, hashPin, requirePin, deviceKey, throttleClubCreate, resetAllowance, MAX_LIVE_GAMES, MAX_PHOTOS, newOwnerToken, hashToken, tokenMatches, cleanName } from './_db.js';
 import { randomInt } from 'node:crypto';
@@ -51,6 +54,11 @@ export default handler(async (req, res) => {
   if (req.method === 'POST') {
     const body = await readBody(req);
     if (String(body.action || '').startsWith('results-')) return manageResults(req, res, body);
+    if (NIGHT_ACTIONS.includes(body.action)) {
+      const club = await requireClub(cleanCode(body.code), req);
+      const out = await nightAction(sql, club, body, req);
+      return send(res, out.status || 200, out.body);
+    }
     if (body.action === 'reset-allowance') {
       const club = await requireClub(cleanCode(body.code), req);
       await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -83,11 +91,13 @@ export default handler(async (req, res) => {
       if (body.action !== 'export' && who.by === 'organizer') throw fail(403, 'Only the club creator or the organizer PIN can delete the club.');
       const code = club.code;
       if (body.action === 'export') {
-        const [games, roster, events, leagues, trail, gameTrail, reactions] = await Promise.all([
+        const [games, roster, events, leagues, nights, nightRsvps, trail, gameTrail, reactions] = await Promise.all([
           sql`SELECT data, deleted_at, rally_log FROM games WHERE club = ${code} ORDER BY ended_at DESC`,
           sql`SELECT name, claim_hash IS NOT NULL AS claimed, avatar, dupr_rating, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name)`,
           sql`SELECT id, data, status, created_at, updated_at, deleted_at FROM events WHERE club = ${code} ORDER BY created_at`,
           sql`SELECT id, data, status, created_at, deleted_at FROM leagues WHERE club = ${code} ORDER BY created_at`,
+          sql`SELECT id, title, starts_at, location, note, cap, status, reminded_at, reminder_count, created_at FROM game_nights WHERE club = ${code} ORDER BY starts_at DESC`,
+          sql`SELECT night_id, name, status, updated_at FROM game_night_rsvps WHERE club = ${code} ORDER BY updated_at ASC`,
           sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id`,
           sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`,
           sql`SELECT game_id, name, reaction, created_at FROM game_reactions WHERE club = ${code} ORDER BY created_at ASC, name_key ASC`
@@ -100,6 +110,12 @@ export default handler(async (req, res) => {
           res.setHeader('Cache-Control', 'no-store');
           return res.end(gamesCsv(games));
         }
+        const rsvpsByNight = new Map();
+        for (const r of nightRsvps) {
+          let a = rsvpsByNight.get(r.night_id);
+          if (!a) { a = []; rsvpsByNight.set(r.night_id, a); }
+          a.push({ name: r.name, status: r.status, updatedAt: new Date(r.updated_at).toISOString() });
+        }
         return send(res, 200, {
           format: 'dink-score-club-export', version: 1, exportedAt: new Date().toISOString(),
           club: { name: club.name, code: club.public_code || club.code },
@@ -108,6 +124,7 @@ export default handler(async (req, res) => {
           reactions: reactions.map(r => ({ game: r.game_id, player: r.name, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
           events: events.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, event: r.data })),
           leagues: leagues.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, league: r.data })),
+          gameNights: nights.map(n => ({ id: n.id, title: n.title, startsAt: Number(n.starts_at), location: n.location || '', note: n.note || '', cap: n.cap == null ? null : Number(n.cap), status: n.status, createdAt: new Date(n.created_at).toISOString(), rsvps: rsvpsByNight.get(n.id) || [] })),
           // Who changed what. Actors are kinds of credential ('creator', 'organizer-pin', 'player:<name>'), never tokens or PINs.
           memberLog: trail.map(r => ({ at: new Date(r.at).toISOString(), actor: r.actor, actorName: r.actor_name, action: r.action, target: r.target, detail: r.detail })),
           gameLog: gameTrail.map(r => ({ game: r.game, at: new Date(r.at).toISOString(), action: r.action, actor: r.actor, before: r.before, after: r.after, note: r.note }))
@@ -205,6 +222,9 @@ export default handler(async (req, res) => {
     await requireOrganizer(club, pinFrom(req), req, ownerFrom(req));
     return send(res, 200, await analyticsRoute(sql, club, url.searchParams.get('tz')));
   }
+  if (url.searchParams.get('nights')) {
+    return replyTagged(req, res, code + ':nights', await nightsGet(sql, club));
+  }
   if (url.searchParams.get('avatars')) {
     // Photos are the only large part of a player, so they come separately; `v` is a short fingerprint the app compares
     // with the one in the main response to know when a cached photo is stale. The browser keeps this answer and
@@ -225,13 +245,14 @@ export default handler(async (req, res) => {
   const tag = tagOf(code, [await clubDigest(sql, code), JSON.stringify(publicClub(club)), weekOf(now).id, seasonOf(now).id, Math.floor(now / BUCKET_MS)].join('#'));
   if (sameTag(req, tag)) return notModified(res, tag);
   res.setHeader('ETag', tag);
-  const [games, deleted, roster, renamed, reactionRows] = await Promise.all([
+  const [games, deleted, roster, renamed, reactionRows, nights] = await Promise.all([
     // rally_log itself stays out of this payload (GET /api/games?id= has it); a game just says whether it can be replayed.
     sql`SELECT data, rally_log IS NOT NULL AS replay, confirmed_by, confirmed_at, dup_ok FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC LIMIT 2000`,
     sql`SELECT data, deleted_at FROM games WHERE club = ${code} AND deleted_at > now() - interval '30 days' ORDER BY deleted_at DESC LIMIT 50`,
     sql`SELECT name, claim_hash IS NOT NULL AS claimed, role, CASE WHEN avatar->>'type' = 'photo' THEN jsonb_build_object('type', 'photo', 'v', left(md5(avatar->>'value'), 8)) ELSE avatar END AS avatar, dupr_rating FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
     sql`SELECT old_key, new_name FROM name_changes WHERE club = ${code} AND at > now() - interval '90 days' ORDER BY at DESC LIMIT 100`,
-    sql`SELECT r.game_id, r.reaction, r.name FROM game_reactions r JOIN (SELECT id FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC, id LIMIT 2000) g ON g.id = r.game_id WHERE r.club = ${code} ORDER BY r.created_at ASC, r.name_key ASC`
+    sql`SELECT r.game_id, r.reaction, r.name FROM game_reactions r JOIN (SELECT id FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at DESC, id LIMIT 2000) g ON g.id = r.game_id WHERE r.club = ${code} ORDER BY r.created_at ASC, r.name_key ASC`,
+    upcomingNights(sql, code, now)
   ]);
   const rxByGame = groupReactions(reactionRows);
   // Confirmation lives beside the game, never inside its data. With the club setting on, games nobody has confirmed are
@@ -258,6 +279,7 @@ export default handler(async (req, res) => {
     renamed: Object.fromEntries(renamed.map(r => [r.old_key, r.new_name])),
     // Who has claimed a name (never the claim itself), plus pictures and self-reported DUPR numbers.
     players: roster.map(r => ({ name: r.name, claimed: r.claimed, ...(r.role ? { role: r.role } : {}), avatar: r.avatar || null, dupr: duprFrom(r.dupr_rating) })),
+    nights,
     progress: progressFor(gamesIn.filter(g => counts(g, required))),
     ratings
   });

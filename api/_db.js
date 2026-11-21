@@ -374,6 +374,34 @@ export function ensureSchema() {
       )`;
       await q`CREATE INDEX IF NOT EXISTS game_reactions_club_game ON game_reactions (club, game_id)`;
       await q`CREATE INDEX IF NOT EXISTS game_reactions_club_name ON game_reactions (club, name_key)`;
+      // Game nights with In / Maybe / Out RSVPs (see _gamenights.js). Cascades with the club.
+      await q`CREATE TABLE IF NOT EXISTS game_nights (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        title text NOT NULL,
+        starts_at bigint NOT NULL,
+        location text NOT NULL DEFAULT '',
+        note text NOT NULL DEFAULT '',
+        cap int,
+        status text NOT NULL DEFAULT 'open',
+        reminded_at timestamptz,
+        reminder_count int NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, id)
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS game_nights_club_starts ON game_nights (club, starts_at)`;
+      await q`CREATE TABLE IF NOT EXISTS game_night_rsvps (
+        club text NOT NULL,
+        night_id text NOT NULL,
+        name_key text NOT NULL,
+        name text NOT NULL,
+        status text NOT NULL,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, night_id, name_key),
+        FOREIGN KEY (club, night_id) REFERENCES game_nights(club, id) ON DELETE CASCADE
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS game_night_rsvps_club_name ON game_night_rsvps (club, name_key)`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

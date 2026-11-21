@@ -2567,5 +2567,82 @@ await step('the public league link: organizer makes it, a spectator sees only al
   });
 }
 
+// Game nights with In / Maybe / Out RSVPs (L11, api/_gamenights.js via api/club.js).
+{
+  const gnc = ok(await call(club, 'POST', { body: { name: 'Game night club', pin: '246810' } }), 201);
+  const gcode = gnc.club.code, GORG = { ownerToken: gnc.ownerToken };
+  const gtok = {};
+  for (const n of ['Ana', 'Ben', 'Cy']) gtok[n] = ok(await call(playersApi, 'POST', { body: { code: gcode, action: 'claim', name: n, ...GORG } })).playerToken;
+  const GN = (action, body) => call(club, 'POST', { body: { code: gcode, action, ...body } });
+  const future = Date.now() + 2 * 864e5;
+  let nightId;
+
+  await step('game nights: organizer schedules and edits; non-organizers are refused', async () => {
+    assert.equal((await GN('night-create', { night: { title: 'Tuesday play', startsAt: future }, playerName: 'Ana', playerToken: gtok.Ana })).status, 403);
+    assert.equal((await GN('night-create', { ...GORG, night: { title: 'Past night', startsAt: Date.now() - 3600_000 } })).status, 400);
+    const made = ok(await GN('night-create', { ...GORG, night: { title: 'Tuesday play', startsAt: future, location: 'Courts 1-2', note: 'Bring balls', cap: 2 } }), 201).night;
+    nightId = made.id;
+    assert.equal(made.title, 'Tuesday play');
+    assert.equal(made.cap, 2);
+    assert.deepEqual(made.counts, { in: 0, maybe: 0, out: 0 });
+    assert.equal((await GN('night-edit', { id: nightId, night: { title: 'Hacked', startsAt: future }, playerName: 'Ana', playerToken: gtok.Ana })).status, 403);
+    const edited = ok(await GN('night-edit', { ...GORG, id: nightId, night: { title: 'Tuesday lights', startsAt: future + 3600_000, location: 'West Park', note: 'Outdoor balls', cap: 2 } })).night;
+    assert.equal(edited.title, 'Tuesday lights');
+    assert.equal(edited.location, 'West Park');
+  });
+
+  await step('game nights: members RSVP In/Maybe/Out, cap is enforced, clear works, and club ETag updates', async () => {
+    assert.equal((await GN('night-rsvp', { id: nightId, status: 'in' })).status, 403, 'unlinked caller refused');
+    assert.equal((await GN('night-rsvp', { id: nightId, status: 'in', playerName: 'Ana', playerToken: gtok.Ben })).status, 403, 'wrong player token refused');
+    const c1 = await call(club, 'GET', { query: '?code=' + gcode });
+    assert.equal(c1.status, 200);
+    const tag1 = c1.headers.etag;
+    assert.equal(c1.json.nights.length, 1);
+
+    ok(await GN('night-rsvp', { id: nightId, status: 'in', playerName: 'Ana', playerToken: gtok.Ana }));
+    ok(await GN('night-rsvp', { id: nightId, status: 'in', playerName: 'Ben', playerToken: gtok.Ben }));
+    // Cap is 2: third player cannot mark In, but can mark Maybe or Out.
+    assert.equal((await GN('night-rsvp', { id: nightId, status: 'in', playerName: 'Cy', playerToken: gtok.Cy })).status, 409);
+    const afterMaybe = ok(await GN('night-rsvp', { id: nightId, status: 'maybe', playerName: 'Cy', playerToken: gtok.Cy })).night;
+    assert.deepEqual(afterMaybe.counts, { in: 2, maybe: 1, out: 0 });
+    assert.deepEqual(afterMaybe.rsvps.in, ['Ana', 'Ben']);
+    // Club ETag changed after RSVPs.
+    const c2 = await call(club, 'GET', { query: '?code=' + gcode, headers: { 'if-none-match': tag1 } });
+    assert.equal(c2.status, 200);
+    assert.deepEqual(c2.json.nights[0].counts, { in: 2, maybe: 1, out: 0 });
+    // Ben switches to Out -> frees a spot so Cy can switch to In.
+    ok(await GN('night-rsvp', { id: nightId, status: 'out', playerName: 'Ben', playerToken: gtok.Ben }));
+    const afterCyIn = ok(await GN('night-rsvp', { id: nightId, status: 'in', playerName: 'Cy', playerToken: gtok.Cy })).night;
+    assert.deepEqual(afterCyIn.counts, { in: 2, maybe: 0, out: 1 });
+    assert.deepEqual(afterCyIn.rsvps.in, ['Ana', 'Cy']);
+    // Clearing RSVP works.
+    const afterClear = ok(await GN('night-rsvp', { id: nightId, status: 'none', playerName: 'Ben', playerToken: gtok.Ben })).night;
+    assert.deepEqual(afterClear.counts, { in: 2, maybe: 0, out: 0 });
+  });
+
+  await step('game nights: rename and merge update RSVPs cleanly without PK conflicts', async () => {
+    ok(await call(playersApi, 'POST', { body: { code: gcode, action: 'rename', name: 'Ana', newName: 'Anastasia', ...GORG } }));
+    const list1 = ok(await call(club, 'GET', { query: `?code=${gcode}&nights=1` })).nights;
+    assert.ok(list1[0].rsvps.in.includes('Anastasia') && !list1[0].rsvps.in.includes('Ana'));
+    // Add a guest RSVP then merge guest into Cy (both already RSVPed on the same night).
+    ok(await call(roster, 'POST', { body: { code: gcode, name: 'Cy Guest' } }));
+    ok(await GN('night-rsvp', { ...GORG, id: nightId, name: 'Cy Guest', status: 'maybe' }));
+    ok(await call(playersApi, 'POST', { body: { code: gcode, action: 'merge', name: 'Cy Guest', into: 'Cy', ...GORG } }));
+    const list2 = ok(await call(club, 'GET', { query: `?code=${gcode}&nights=1` })).nights;
+    assert.deepEqual(list2[0].rsvps.in, ['Anastasia', 'Cy']);
+    assert.deepEqual(list2[0].rsvps.maybe, []);
+  });
+
+  await step('game nights: cancel blocks new RSVPs and hides from upcoming; delete removes it', async () => {
+    const cancelled = ok(await GN('night-cancel', { ...GORG, id: nightId })).night;
+    assert.equal(cancelled.status, 'cancelled');
+    assert.equal((await GN('night-rsvp', { id: nightId, status: 'in', playerName: 'Ben', playerToken: gtok.Ben })).status, 409);
+    assert.equal(ok(await call(club, 'GET', { query: '?code=' + gcode })).nights.length, 0, 'cancelled night leaves upcoming list');
+    assert.equal(ok(await call(club, 'GET', { query: `?code=${gcode}&nights=1` })).nights[0].status, 'cancelled');
+    ok(await GN('night-delete', { ...GORG, id: nightId }));
+    assert.equal(ok(await call(club, 'GET', { query: `?code=${gcode}&nights=1` })).nights.length, 0);
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);
