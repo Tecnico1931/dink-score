@@ -2,6 +2,9 @@
 # Modules without a MODULE block in the page are emitted at its /*@APP*/ line in index.html.
 core
 display-celebration
+display-live
+site-constants
+github-pages-import
 log-result
 share-image
 identity
