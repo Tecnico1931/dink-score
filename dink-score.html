@@ -1326,6 +1326,8 @@ if (typeof document !== 'undefined') {
 
 <script id="engine">
 /*ENGINE-START*/
+/*PB-START*/
+// Generated from pb-engine.js by build.cjs: edit that file, not this block.
 const PB = (() => {
   const clone = o => JSON.parse(JSON.stringify(o));
   function newGame(cfg) {
@@ -1379,6 +1381,7 @@ const PB = (() => {
   }
   return { newGame, rally, call, serverSide, switchAt };
 })();
+/*PB-END*/
 
 /*SCORING-START*/
 // The live game's moves, in one place for taps, watch intents and undo. Beside live.stack (the states Undo steps back through)
