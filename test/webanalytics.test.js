@@ -84,7 +84,7 @@ test('the service worker keeps the analytics route out of its cache and ships th
   const sw = read('sw.js');
   assert.match(sw, /startsWith\("\/_vercel\/"\)\) return/);
   assert.match(sw, /SHELL = \[[^\]]*'analytics\.js'/);
-  assert.ok(fs.existsSync(fileURLToPath(new URL('public/analytics.js', root))), 'build copies analytics.js to public/');
+  assert.match(read('build.cjs'), /for \(const f of \[[^\]]*'analytics\.js'/, 'build copies analytics.js to public/');
 });
 
 test('the privacy page describes the page-view counter honestly', () => {
