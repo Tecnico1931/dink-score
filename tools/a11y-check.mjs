@@ -49,7 +49,7 @@ for (const [mode, opt] of states) {
   await page.evaluateOnNewDocument(o => { try { if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
   await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
   await audit(page, `${mode}: first-run tour`, report, '.tour');
-  await page.evaluate(() => localStorage.setItem('pb.tutorialSeen', 'true')); await page.evaluate(() => localStorage.setItem('pb.newsSeen', '"2026-11-20"')); await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
+  await page.evaluate(() => localStorage.setItem('pb.tutorialSeen', 'true')); await page.evaluate(() => localStorage.setItem('pb.newsSeen', '"2026-11-21"')); await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
   await audit(page, `${mode}: home`, report);
   for (const tab of ['leaders', 'history', 'rules']) { await page.click(`[data-tab="${tab}"]`); await sleep(250); await audit(page, `${mode}: ${tab}`, report); }
   await page.click('[data-tab="play"]'); await sleep(200);
@@ -108,7 +108,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-20"'); } catch {} });
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-21"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(400);
@@ -130,7 +130,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-20"'); } catch {} });
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-21"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(400);
