@@ -3097,5 +3097,129 @@ await step('the public league link: organizer makes it, a spectator sees only al
   });
 }
 
+// Per-phone organizer keys: unlock, list, remove, lock, upgrade from the old club-wide key, PIN change (api/_orgkeys.js, _devices.js).
+{
+  const PIN0 = '482913';
+  const dc = ok(await call(club, 'POST', { body: { name: 'Phones club', pin: PIN0 } }), 201);
+  const dcode = dc.club.code, downer = dc.ownerToken;
+  const DC = (action, body) => call(club, 'POST', { body: { code: dcode, action, ...body } });
+  const unlock = async (extra = {}) => ok(await DC('verify-pin', { pin: PIN0, device: true, ...extra }));
+  const list = async creds => ok(await DC('device-list', creds)).devices;
+  const marks = async () => (await pg.query(`SELECT count(*)::int AS n FROM lookup_fails`)).rows[0].n;
+  let A, B;
+
+  await step('phone keys: unlocking with device:true returns a private key (not the club-wide one); old apps still get the club-wide key', async () => {
+    A = (await unlock()).organizerKey; B = (await unlock()).organizerKey;
+    assert.match(A, /^[0-9a-f]{80}$/); assert.notEqual(A, B);
+    const v = await unlock();
+    assert.equal(v.deviceKey, undefined, 'a current app is never handed the club-wide key');
+    const old = ok(await DC('verify-pin', { pin: PIN0 }));
+    assert.match(old.deviceKey, /^[0-9a-f]{64}$/); assert.equal(old.organizerKey, undefined);
+    ok(await DC('set-confirmation', { required: false, pin: PIN0 + ':' + old.deviceKey }), 200); // the old club-wide key keeps working
+    assert.equal(ok(await DC('verify-pin', { pin: PIN0, device: true })).shortPin, false);
+    await pg.query(`DELETE FROM organizer_devices WHERE club = $1 AND id <> $2 AND id <> $3`, [dcode, A.slice(0, 16), B.slice(0, 16)]);
+  });
+
+  await step('phone keys: only the hash is stored; a key works on its own, a wrong secret or a removed id is refused without counting as a wrong PIN', async () => {
+    const rows = (await pg.query(`SELECT * FROM organizer_devices WHERE club = $1`, [dcode])).rows;
+    assert.equal(rows.length, 2);
+    assert.ok(!JSON.stringify(rows).includes(A.slice(16)) && !JSON.stringify(rows).includes(PIN0), 'the table holds no key and no PIN');
+    ok(await DC('set-confirmation', { required: true, pin: ':' + A }));
+    const before = await marks();
+    const bad = await DC('set-confirmation', { required: true, pin: ':' + A.slice(0, 16) + '0'.repeat(64) });
+    assert.equal(bad.status, 403); assert.equal(bad.json.removed, true);
+    assert.equal((await DC('set-confirmation', { required: true, pin: ':' + 'f'.repeat(80) })).status, 403);
+    assert.equal(await marks(), before, 'a refused key leaves no mark against the network or the club');
+    assert.equal((await DC('set-confirmation', { required: true, pin: ':' + A.slice(0, 40) })).status, 403, 'a malformed key is just a wrong PIN');
+    assert.equal((await DC('device-list', {})).status, 403, 'strangers cannot list');
+  });
+
+  await step('who is an organizer: the list shows linked name, dates and which phone is yours; remove cuts one phone and leaves the rest', async () => {
+    const dee = ok(await call(playersApi, 'POST', { body: { code: dcode, action: 'claim', name: 'Dee', ownerToken: downer } })).playerToken;
+    const C1 = (await unlock({ playerName: 'Dee', playerToken: dee })).organizerKey;
+    const stranger = (await unlock({ playerName: 'Dee', playerToken: 'a'.repeat(48) })).organizerKey; // a token that does not check out: unnamed
+    const l = await list({ pin: ':' + A });
+    assert.equal(l.length, 4);
+    assert.deepEqual(l.map(d => d.name).sort((a, b) => String(a).localeCompare(String(b))), [null, null, null, 'Dee'].sort((a, b) => String(a).localeCompare(String(b))));
+    assert.deepEqual(l.filter(d => d.you).map(d => d.id), [A.slice(0, 16)]);
+    assert.ok(l.every(d => /^[0-9a-f]{16}$/.test(d.id) && d.createdAt > 0 && d.lastUsedAt >= d.createdAt - 1000));
+    assert.ok(!JSON.stringify(l).includes(A.slice(16)), 'ids only, never keys');
+    assert.equal(l.find(d => d.name === 'Dee').you, false);
+    assert.equal((await list({ ownerToken: downer })).length, 4, 'the creating phone lists too');
+    ok(await DC('device-remove', { id: B.slice(0, 16), pin: ':' + A }));
+    assert.equal((await DC('set-confirmation', { required: true, pin: ':' + B })).status, 403, 'the removed phone is out at once');
+    ok(await DC('set-confirmation', { required: true, pin: ':' + A })); ok(await DC('set-confirmation', { required: true, pin: ':' + C1 }));
+    ok(await DC('verify-pin', { pin: PIN0 })); // the PIN itself is untouched, nobody has to change it
+    assert.equal((await DC('device-remove', { id: B.slice(0, 16), pin: ':' + A })).status, 404);
+    assert.equal((await DC('device-remove', { id: 'zz', pin: ':' + A })).status, 400);
+    assert.equal((await DC('device-remove', { id: A.slice(0, 16), pin: ':' + B })).status, 403, 'a removed phone cannot remove another');
+    // renaming the linked player follows; anonymising it unnames the phone
+    ok(await call(playersApi, 'POST', { body: { code: dcode, action: 'rename', name: 'Dee', newName: 'Dina', ownerToken: downer } }));
+    assert.ok((await list({ pin: ':' + A })).some(d => d.name === 'Dina'));
+    ok(await DC('device-remove', { id: stranger.slice(0, 16), ownerToken: downer }));
+  });
+
+  await step('lock this phone: revokes its own key with only that key, idempotent, and a wrong secret revokes nothing', async () => {
+    const D = (await unlock()).organizerKey;
+    const before = (await list({ pin: ':' + A })).length;
+    ok(await DC('device-lock', { pin: ':' + D.slice(0, 16) + '1'.repeat(64) }));
+    assert.equal((await list({ pin: ':' + A })).length, before, 'a wrong secret does not lock anyone');
+    ok(await DC('device-lock', { pin: ':' + D }));
+    assert.equal((await DC('set-confirmation', { required: true, pin: ':' + D })).status, 403);
+    assert.equal((await list({ pin: ':' + A })).length, before - 1);
+    ok(await DC('device-lock', { pin: ':' + D })); ok(await DC('device-lock', { pin: PIN0 })); ok(await DC('device-lock', {}));
+    // guessing the PIN is paused for the club, but a phone that is locked or unlocked by key still works
+    for (let i = 0; i < 25; i++) await DC('verify-pin', { pin: '000000', device: true });
+    assert.equal((await DC('verify-pin', { pin: PIN0, device: true })).status, 429);
+    ok(await DC('device-lock', { pin: ':' + (await list({ pin: ':' + A })).length })); // junk keys are still accepted quietly
+    ok(await DC('set-confirmation', { required: true, pin: ':' + A }));
+    await pg.query(`DELETE FROM lookup_fails`);
+  });
+
+  await step('upgrade: an old raw PIN or club-wide key trades for a phone key; a PIN change ends every key and gives the changing phone a fresh one', async () => {
+    const old = ok(await DC('verify-pin', { pin: PIN0 })).deviceKey;
+    const viaKey = ok(await DC('verify-pin', { pin: PIN0 + ':' + old, device: true }));
+    const viaPin = ok(await DC('verify-pin', { pin: PIN0, device: true }));
+    assert.ok(viaKey.organizerKey && viaPin.organizerKey);
+    const NEW = '735190';
+    const changed = ok(await DC('set-pin', { pin: NEW, oldPin: ':' + viaKey.organizerKey, device: true }));
+    assert.match(changed.organizerKey, /^[0-9a-f]{80}$/);
+    for (const k of [A, viaKey.organizerKey, viaPin.organizerKey]) assert.equal((await DC('set-confirmation', { required: true, pin: ':' + k })).status, 403);
+    assert.equal((await DC('set-confirmation', { required: true, pin: PIN0 + ':' + old })).status, 403, 'the club-wide key ends with the old PIN');
+    ok(await DC('set-confirmation', { required: true, pin: ':' + changed.organizerKey }));
+    assert.equal((await list({ pin: ':' + changed.organizerKey })).length, 1);
+    A = changed.organizerKey;
+  });
+
+  await step('phone keys: capped per club (the club-wide key is the fallback), long-unused phones are forgotten', async () => {
+    const PIN1 = '735190';
+    let issued = 1, last;
+    for (let i = 0; i < 30 && issued < 25; i++) { last = ok(await DC('verify-pin', { pin: PIN1, device: true })); if (last.organizerKey) issued++; }
+    const over = ok(await DC('verify-pin', { pin: PIN1, device: true }));
+    assert.equal(over.organizerKey, undefined); assert.match(over.deviceKey, /^[0-9a-f]{64}$/, 'a full club still unlocks the phone, with the club-wide key');
+    assert.equal((await list({ pin: ':' + A })).length, 25);
+    await pg.query(`UPDATE organizer_devices SET last_used_at = now() - interval '181 days' WHERE club = $1 AND id <> $2`, [dcode, A.slice(0, 16)]);
+    assert.ok(ok(await DC('verify-pin', { pin: PIN1, device: true })).organizerKey);
+    assert.equal((await list({ pin: ':' + A })).length, 2, 'the stale phones were forgotten');
+  });
+
+  await step('phone keys: every unlock, removal, lock and PIN change is in the club history, with ids and names but no key or PIN', async () => {
+    const rows = (await pg.query(`SELECT actor, actor_name, action, target, detail FROM club_audit WHERE club = $1 ORDER BY id`, [dcode])).rows;
+    const kinds = new Set(rows.map(r => r.action));
+    for (const a of ['device-unlock', 'device-remove', 'device-lock', 'pin-change']) assert.ok(kinds.has(a), a + ' is logged');
+    const s = JSON.stringify(rows);
+    assert.ok(!/[0-9a-f]{80}/.test(s) && !s.includes('482913') && !s.includes('735190') && !/[0-9a-f]{64}/.test(s.replace(/"device":"[0-9a-f]{16}"/g, '')), 'no key or PIN in the log');
+    assert.ok(rows.some(r => r.action === 'device-unlock' && r.target === 'Dee' || r.target === 'Dina'));
+    assert.equal(rows.find(r => r.action === 'pin-change').detail.phonesRemoved >= 1, true);
+    const hist = ok(await call(playersApi, 'POST', { body: { code: dcode, action: 'members', ownerToken: downer } })).audit;
+    assert.ok(hist.some(e => e.action === 'device-remove'), 'organizers read it in the member history');
+  });
+
+  await step('phone keys: the table is additive and cascades from the club', async () => {
+    const [fk] = (await pg.query(`SELECT confdeltype FROM pg_constraint WHERE conrelid = 'organizer_devices'::regclass AND contype = 'f'`)).rows;
+    assert.equal(fk.confdeltype, 'c');
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

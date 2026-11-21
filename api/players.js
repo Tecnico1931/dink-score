@@ -264,6 +264,7 @@ export default handler(async (req, res) => {
     }
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM push_subs WHERE club = ${code} AND name_key = ${k}`);
+    ops.push(sql`UPDATE organizer_devices SET name_key = NULL WHERE club = ${code} AND name_key = ${k}`); // the unlocked phone stays unlocked, just unnamed
     ops.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key = ${k}`);
     if (!row && !touched) throw fail(404, 'No player has that name in this club.');
     ops.push(sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${k}`);

@@ -111,6 +111,7 @@ export function renameWrites(sql, code, plan, extra = []) {
   }
   writes.push(sql`UPDATE game_night_rsvps SET name_key = ${toKey}, name = ${toName} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE game_nights SET updated_at = now() WHERE club = ${code} AND id IN (SELECT night_id FROM game_night_rsvps WHERE club = ${code} AND name_key = ${toKey})`);
+  writes.push(sql`UPDATE organizer_devices SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`); // the player an unlocked organizer phone is linked to
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key IN (${fromKey}, ${toKey})`); // short-lived: the asker just asks again for the new name
