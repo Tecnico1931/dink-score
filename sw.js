@@ -1,7 +1,7 @@
 // Offline support: the app shell is cached on install; fonts are same-origin and cached the first time they load.
 // Bump VERSION whenever index.html changes so phones pick up the new copy.
-const VERSION = 'dink-score-v122';
-const SHELL = ['./', 'index.html', 'dupr-export.js', 'sheet-import.js', 'scan.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const VERSION = 'dink-score-v123';
+const SHELL = ['./', 'index.html', 'analytics.js', 'dupr-export.js', 'sheet-import.js', 'scan.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -36,7 +36,7 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin === location.origin && url.pathname.startsWith('/api/')) return; // club data always comes live from the server
-  if (url.origin === location.origin && url.pathname.startsWith("/_vercel/")) return; // Vercel Web Analytics
+  if (url.origin === location.origin && url.pathname.startsWith("/_vercel/")) return; // Vercel Web Analytics: never cached, and offline the script and beacon just fail quietly
   if (url.origin === location.origin && /^\/(b\/|r\/|privacy|terms)/.test(url.pathname)) return; // the public bracket page is its own page, never the app shell
   if (req.mode === 'navigate') {
     // Network first for the page, so updates arrive; fall back to the cached copy offline.

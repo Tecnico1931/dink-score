@@ -69,6 +69,7 @@ const line = (g, i) => `<div class="rs-line ${g.winner === i ? 'win' : ''}" styl
 const head = (title, o, token, v, noindex = true) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="#0F241E">
+<script src="/analytics.js"></script><script defer src="/_vercel/insights/script.js"></script>
 <title>${esc(title)}</title><link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 ${v ? meta(o, token, v) : ''}
 <link rel="stylesheet" href="/fonts/fonts.css"><link rel="stylesheet" href="/r.css"></head>`;

@@ -37,11 +37,15 @@
 <tr><td>Network address (IP) of failed club-code, PIN and similar attempts</td><td>Blocking guessing attacks</td><td>Nobody in the app. Not linked to a player</td></tr>
 <tr><td>On your own phone: saved settings, your name on this phone, games scored before joining a club</td><td>Making the app work offline</td><td>Only you. It stays in your browser until you clear site data</td></tr>
 </table>
-<p>Dink Score does not ask for email addresses, phone numbers, locations or payment details, and does not use advertising or cross-site tracking. Do not put sensitive personal details in names, club names or team names.</p>
+<p>Dink Score does not ask for email addresses, phone numbers, locations or payment details, and does not use advertising or cross-site tracking (see Visit counts below for the page-view counter).</p>
+<p> Do not put sensitive personal details in names, club names or team names.</p>
+
+<h2>Visit counts (Vercel Web Analytics)</h2>
+<p>The website counts page views with Vercel Web Analytics so the owner can see roughly how many people use it. It sets no cookies and does not follow you across other websites. For each page view it records the page (with any club code, share link, name or other detail removed from the address: a shared bracket, league or result page counts only as "a shared page"), the time, the website you came from (its name only), your country, and your browser, device and operating system type. It does not receive player names, club names or codes, scores, PINs or tokens. Vercel works out a visitor count without storing your IP address, using a daily-changing code that cannot be traced back to you. Browsers that send Do Not Track or Global Privacy Control are not counted. The counting script is served from Dink Score's own address, and when you are offline it simply does not run.</p>
 
 <h2>Who handles the data (processors)</h2>
 <ul>
-<li><b>Vercel</b> hosts the website and its server functions, and runs Vercel Web Analytics, which counts page views without cookies. Vercel sees ordinary web request data such as IP address and browser type.</li>
+<li><b>Vercel</b> hosts the website and its server functions, and runs Vercel Web Analytics (see below). Vercel sees ordinary web request data such as IP address and browser type.</li>
 <li><b>Neon</b> hosts the Postgres database that holds the club data above.</li>
 <li><b>DUPR</b>, only if the DUPR feature is switched on and a player chooses to link: you sign in on DUPR's own page inside the app, and DUPR's own privacy terms apply to what you do there. Results are sent to DUPR only when someone sends them.</li>
 <li><b>Your browser's push service</b> (Google, Apple, Mozilla or Microsoft, depending on the phone), only when you turn notifications on: the Dink Score server sends each message, encrypted so only your phone can read it, through that service, which sees that a message was sent to your phone and its size and time.</li>
