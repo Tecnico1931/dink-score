@@ -1926,6 +1926,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 })();
 </script>
 <script>
+/*@APP*/
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const skel = (n = 3, card = false) => `<div class="skel-wrap" role="status" aria-busy="true"><span class="vh">Loading…</span>${Array.from({ length: n }, () => `<div class="skel${card ? ' skel-card' : ''}" aria-hidden="true"><i></i><b></b><b></b></div>`).join('')}</div>`;

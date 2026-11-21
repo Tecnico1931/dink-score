@@ -35,18 +35,29 @@ let body = fs.readFileSync(src, 'utf8');
   if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated the PB block in', path.basename(src), 'from pb-engine.js'); }
 }
 
-// The app's own script is split into src/app/<name>.js (X9). Each file is pasted between MODULE-START:<name>/MODULE-END:<name> in the
-// source page, byte for byte, so dink-score.html stays one self-contained file the tests can load. Edit the module file, not the block.
+// The app's own script is split into src/app/<name>.js (X9), listed in order in src/app/manifest (one name per line, # comments).
+// A module with a MODULE-START:<name>/MODULE-END:<name> block in the source page is pasted there, byte for byte, so dink-score.html stays
+// one self-contained file the tests can load: edit the module file, not the block. A module without a block is not in the page;
+// it is emitted, in manifest order, at the /*@APP*/ line of the main script, in index.html only.
+let app = '';
 {
   const dir = path.join(__dirname, 'src', 'app');
-  let next = body;
-  for (const f of fs.readdirSync(dir).filter(n => n.endsWith('.js')).sort()) {
-    const name = f.slice(0, -3), a = `/*MODULE-START:${name}*/`, z = `/*MODULE-END:${name}*/`;
+  const names = fs.readFileSync(path.join(dir, 'manifest'), 'utf8').split('\n').map(l => l.replace(/#.*/, '').trim()).filter(Boolean);
+  const files = fs.readdirSync(dir).filter(n => n.endsWith('.js')).map(n => n.slice(0, -3)).sort();
+  if (new Set(names).size !== names.length || names.slice().sort().join() !== files.join()) throw new Error('src/app/manifest and the src/app/*.js files must list the same modules, once each');
+  let next = body, at = -1, loose = '';
+  for (const name of names) {
+    const a = `/*MODULE-START:${name}*/`, z = `/*MODULE-END:${name}*/`, code = fs.readFileSync(path.join(dir, name + '.js'), 'utf8');
     const i = next.indexOf(a), j = next.indexOf(z);
+    if (i < 0 && j < 0) { loose += code; continue; }
     if (i < 0 || j < i) throw new Error(`Missing ${a} ... ${z} in ${path.basename(src)}`);
-    next = next.slice(0, i + a.length) + '\n' + fs.readFileSync(path.join(dir, f), 'utf8') + next.slice(j);
+    if (i < at) throw new Error(`src/app/manifest lists ${name} out of the order of the page`);
+    at = i;
+    next = next.slice(0, i + a.length) + '\n' + code + next.slice(j);
   }
   if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated module blocks in', path.basename(src), 'from src/app/'); }
+  if (body.split('/*@APP*/\n').length !== 2) throw new Error('The main script of ' + path.basename(src) + ' needs exactly one /*@APP*/ line');
+  app = body.replace('/*@APP*/\n', () => loose);
 }
 
 const head = `<!doctype html>
@@ -100,7 +111,7 @@ if ('serviceWorker' in navigator) {
 </html>
 `;
 
-const html = head + body + tail;
+const html = head + app + tail;
 fs.writeFileSync(path.join(__dirname, 'index.html'), html);
 console.log('Wrote index.html from', path.basename(src));
 
