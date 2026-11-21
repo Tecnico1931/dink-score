@@ -292,6 +292,16 @@ Opened from the Brackets button on the event screen, and also the public page at
 
 The canvas scrolls and snaps round by round on a phone. Where it fits at 93% of its design size or more it is scaled to fit instead (up to 1.35x in the app, 1.6x on the public page), so text is never below 13px; TV mode fits both width and height and may grow to 3x. Round robin and pool tables use the same squeezed numerals. A match tapped in the app opens as a sticky bottom card holding the event screen's own match row and score entry.
 
+### Rewards
+Rewards (Dinks, shop, levels and the like) are a calm extra, never the point of the app. They follow these rules without exception:
+- **Off by default, per club.** A club has no rewards until an organizer switches the economy on for it. Off means no reward UI, no reward copy and no reward calls for that club's players.
+- **Dinks are play money.** They have no cash value and no purchase path: nothing is sold for real money, and nothing converts Dinks into money, goods or prizes.
+- **Odds are always shown.** Any random reward (a spin, a box, a drop) states its odds in plain numbers before the player takes part.
+- **Calm motion.** No flashing and no storm effects (confetti, particle bursts, full-screen takeovers). A reward shows as a quiet card, count-up or check mark, and under `prefers-reduced-motion` it appears with no animation at all.
+- **Sound is off until the player turns it on**, per device.
+- **One tap hides it all.** Every player has a single switch that hides all reward UI on their device, and the app works the same without it.
+- **Rewards never touch the game.** They never change a rating, a score, a rank, a pairing or a result, and they never decide who plays.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -305,7 +315,7 @@ The canvas scrolls and snaps round by round on a phone. Where it fits at 93% of 
 
 ### Don't:
 - **Don't** let it look like a corporate fitness app: no gradients on daylight surfaces, no stock athletes, no hype copy. Gradients belong only to the court panels.
-- **Don't** make achievements or rewards look like a casino or gacha game: no slot-machine flashing, confetti storms or loot-box theatrics.
+- **Don't** let a reward flash, storm or sell: no slot-machine flashing, confetti storms, loot-box theatrics, real-money prices or hidden odds. The Rewards rules above are the whole contract.
 - **Don't** set text below 13px for reading or below 11px for labels, and don't pack dense small type that needs squinting outdoors.
 - **Don't** add a second accent color, or use ball yellow as a background wash.
 - **Don't** add hover-only affordances. Every state must work on touch.
