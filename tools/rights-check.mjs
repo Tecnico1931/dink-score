@@ -174,7 +174,7 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
-  assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321|token_hash|revoke_hash/.test(s) && !s.includes(watchToken), 'no secrets, tokens or DUPR data');
+  assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321|token_hash|revoke_hash|key_hash/.test(s) && !s.includes(watchToken), 'no secrets, tokens or DUPR data');
 });
 await step('club export as CSV: games, with spreadsheet formulas defused', async () => {
   const r = await raw(club, 'POST', { body: { code, action: 'export', format: 'csv', ...ORG } });
@@ -186,6 +186,22 @@ await step('club export as CSV: games, with spreadsheet formulas defused', async
   assert.match(lines[0], /^id,ended_at,mode,team1,team2,score1,score2/);
   assert.ok(r.text.includes("'=SUM(1+1)"));
   assert.equal((await raw(club, 'POST', { body: { code, action: 'export', format: 'csv', playerToken: tok.Ben } })).status, 403);
+});
+
+await step('organizer phones: listed by linked name and dates only, unnamed when the player is anonymised, never with a key', async () => {
+  const eve = ok(await P('claim', { name: 'Eve', ...ORG })).playerToken;
+  const v = ok(await C('verify-pin', { pin: PIN, device: true, playerName: 'Eve', playerToken: eve }));
+  assert.match(v.organizerKey, /^[0-9a-f]{80}$/);
+  const ex = ok(await C('export', ORG));
+  assert.deepEqual(ex.organizerPhones.map(p => p.player), ['Eve']);
+  assert.ok(!text(ex).includes(v.organizerKey.slice(16)), 'no phone secret in the export (its public id only appears in the change history)');
+  assert.ok(!text(ex.organizerPhones).includes(v.organizerKey.slice(0, 16)), 'no ids in the phone list');
+  ok(await P('anonymise', { name: 'Eve', ...ORG }));
+  const after = ok(await C('export', ORG));
+  assert.equal(after.organizerPhones.length, 1);
+  assert.equal(after.organizerPhones[0].player, null, 'the phone stays unlocked but loses its name');
+  assert.equal(ok(await C('device-list', { pin: ':' + v.organizerKey })).devices[0].name, null);
+  assert.ok(!text(after).includes('Eve'), 'the anonymised name is gone from the export');
 });
 
 await step('co-organizer: may export the club, may not delete it or undo a deletion; the export lists roles and history without credentials', async () => {
@@ -236,7 +252,7 @@ await step('delete club: once the window has passed everything is removed, and t
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
   assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 401, 'once the window has passed the watch is refused too');
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'game_nights', 'game_night_rsvps', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers', 'club_seasons']) {
+  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'game_nights', 'game_night_rsvps', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers', 'club_seasons', 'organizer_devices']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }

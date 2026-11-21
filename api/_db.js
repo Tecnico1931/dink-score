@@ -4,6 +4,7 @@ import { scryptSync, randomBytes, timingSafeEqual, createHmac } from 'node:crypt
 import { cleanName, nameKey } from './_names.js';
 import { reportError } from './_report.js';
 import { netKey, lockSeconds, waitText } from './_limits.js';
+import { findDevice, parseDeviceKey, keyPart } from './_orgkeys.js';
 
 let sql = null;
 let ready = null;
@@ -441,6 +442,17 @@ export function ensureSchema() {
         PRIMARY KEY (club, id)
       )`;
       await q`CREATE UNIQUE INDEX IF NOT EXISTS approval_requests_pending ON approval_requests (club, name_key) WHERE status = 'pending'`;
+      // One row per phone unlocked for organizer actions (see _orgkeys.js). Only a hash of the phone's random key is kept; name_key is the
+      // player the phone is linked to (a label for the list, kept in step by rename and anonymise). Cascades with the club.
+      await q`CREATE TABLE IF NOT EXISTS organizer_devices (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        key_hash text NOT NULL,
+        name_key text,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_used_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, id)
+      )`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;
@@ -580,6 +592,7 @@ export function cleanPin(raw) {
 // A phone that has entered the right PIN is handed a device key (an HMAC of the stored hash, so it stops working when
 // the PIN changes). The app keeps it with the PIN as "123456:<key>", so every place that already sends the PIN carries it.
 // A phone with a valid key is never slowed down by other people's wrong guesses.
+export { keyPart };
 export const deviceKey = club => createHmac('sha256', String(club.pin_hash)).update('device:' + club.code).digest('hex');
 function deviceKeyMatches(club, key) {
   const want = Buffer.from(deviceKey(club), 'hex'), got = Buffer.from(/^[0-9a-f]{64}$/.test(key || '') ? key : '', 'hex');
@@ -613,6 +626,13 @@ export async function requirePin(club, pin, req, ownerToken) {
   if (co) return { by: 'organizer', name: co };
   const [digits, key] = String(pin ?? '').split(':');
   if (key && deviceKeyMatches(club, key)) return { by: 'pin' };
+  if (key && parseDeviceKey(key)) {
+    const d = await findDevice(db(), club.code, key);
+    if (d) return { by: 'pin', device: d.id };
+    // A per-phone key that is not (or no longer) valid, sent without PIN digits: refused outright, without counting as a wrong PIN, so
+    // a removed phone that keeps retrying can't use up the club's or its network's free tries.
+    if (!digits) throw Object.assign(fail(403, 'This phone is no longer unlocked for organizer actions. Enter the organizer PIN again.'), { extra: { removed: true } });
+  }
   const sql = db();
   const keys = [PIN_LIMITS[0][0] + clientIp(req), PIN_LIMITS[1][0] + club.code];
   const marks = [];

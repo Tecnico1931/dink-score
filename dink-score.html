@@ -2392,6 +2392,7 @@ async function api(path, opts = {}) {
   }
   let body = {}, text = '';
   try { text = await res.text(); body = JSON.parse(text); } catch {}
+  if (!res.ok && body.removed && club && /^:[0-9a-f]{80}$/.test(pins[club.code] || '')) { delete pins[club.code]; store.set('pb.pins', pins); } // an organizer removed this phone: it stops showing organizer options
   if (!res.ok) { if (tagged) etags.delete(path); throw Object.assign(new Error(body.error || 'Something went wrong. Try again.'), { status: res.status, data: body }); }
   if (tagged) {
     const tag = res.headers.get('ETag');
@@ -2494,6 +2495,7 @@ async function refreshClub() {
     followRenames(data.renamed);
     if (myName() && clubData.players.length && !clubData.players.some(p => p.claimed && sameName(p.name, myName()))) { delete me[club.code]; store.set('pb.me', me); }
     syncCoOrg(); // promoted or demoted from another phone: this one follows
+    odUpgrade(); // a phone that still holds the raw PIN trades it for its own key
     clubState = 'idle';
     safeRender();
     loadPhotos();
@@ -2573,7 +2575,7 @@ const Move = {
   },
   // What this phone holds per club: the player claim, the creator token and the remembered organizer PIN.
   pack(clubs, me, owners, pins) {
-    return { v: 1, clubs: clubs.map(c => ({ code: c.code, name: c.name, me: me[c.code] || null, owner: owners[c.code] || null, pin: pins[c.code] || null })) };
+    return { v: 1, clubs: clubs.map(c => ({ code: c.code, name: c.name, me: me[c.code] || null, owner: owners[c.code] || null, pin: /^\d{4,8}$/.test(pins[c.code] || '') ? pins[c.code] : null })) }; // a phone key stays on its phone
   },
   // Folds a received bundle into this phone's own records. Anything this phone already has for a club is kept. Returns how many clubs were added.
   merge(payload, clubs, me, owners, pins) {
@@ -3002,8 +3004,9 @@ async function pinUnlock(raw) {
   if (!/^\d{6,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 6 to 8 digits.'; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
-    const ver = await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'verify-pin', pin }) });
-    rememberPin(club.code, ver.deviceKey ? pin + ':' + ver.deviceKey : pin); // the key keeps this phone working if others guess wrong
+    const ver = await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'verify-pin', pin, device: true }, odWho())) });
+    // The phone's own key replaces the PIN, so removing this phone ends its access and it keeps working if others guess wrong.
+    rememberPin(club.code, ver.organizerKey ? ':' + ver.organizerKey : ver.deviceKey ? pin + ':' + ver.deviceKey : pin);
     club.shortPin = !!ver.shortPin; saveClubs();
     const { pending, back } = clubSheet;
     clubSheet = back === 'club' ? { view: 'club' } : null;
@@ -3326,10 +3329,10 @@ async function pinSet(oldPin, pin, again) {
   if (pin !== String(again || '').trim()) { clubSheet.error = "The two PINs don't match."; renderClub(); return; }
   clubSheet.busy = true; clubSheet.error = ''; renderClub();
   try {
-    const data = await api('club', { method: 'POST', body: JSON.stringify({ code: club.code, action: 'set-pin', pin, oldPin: String(oldPin || '').trim(), ownerToken: owners[club.code] || '' }) });
+    const data = await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-pin', pin, oldPin: String(oldPin || '').trim() || (pins[club.code] || ''), ownerToken: owners[club.code] || '', device: true }, odWho())) });
     rememberOwner(club.code, data.ownerToken);
     club.hasPin = true; club.openClaim = false; saveClubs();
-    rememberPin(club.code, data.deviceKey ? pin + ':' + data.deviceKey : pin);
+    rememberPin(club.code, data.organizerKey ? ':' + data.organizerKey : data.deviceKey ? pin + ':' + data.deviceKey : pin);
     club.shortPin = false; saveClubs();
     clubSheet = { view: 'club', msg: 'Organizer PIN saved. Share it only with organizers.' };
     render();
@@ -3363,6 +3366,8 @@ function renderClub() {
     body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   } else if (c.view === 'whoami' && club) {
     body = whoamiHTML(c);
+  } else if (c.view === 'devices' && club && odCanOrg()) {
+    body = odHTML(c);
   } else if (c.view === 'links' && club) {
     body = linksHTML(c);
   } else if (c.view === 'analytics' && club) {
@@ -3542,6 +3547,7 @@ function renderClub() {
           : isCreator() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button>'
           : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
           : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
+      ${odCanOrg() ? '<button class="btn btn-soft block" data-od="open">Who’s an organizer: unlocked phones</button>' : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
       ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
@@ -6511,7 +6517,7 @@ async function loadMembers() {
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
   const t = a.target || 'a member';
-  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
+  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'device-unlock': a.target ? `unlocked a phone linked to ${a.target}` : 'unlocked a phone', 'device-remove': a.target ? `removed the phone linked to ${a.target}` : 'removed an unlocked phone', 'device-lock': a.target ? `locked the phone linked to ${a.target}` : 'locked a phone', 'pin-change': `changed the organizer PIN${a.detail && a.detail.phonesRemoved ? ` (${a.detail.phonesRemoved} unlocked phone${a.detail.phonesRemoved === 1 ? '' : 's'} had to unlock again)` : ''}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
   return `${who} ${did}`;
 }
 function memberLeave(el) {
@@ -7356,6 +7362,88 @@ function clAct(a, ds) {
   else if (a === 'leave') { if (c.armed !== ds.clId && c.data && c.data.links.some(l => l.id === ds.clId)) { c.armed = ds.clId; renderClub(); } else clLeave(ds.clId); }
 }
 /*MODULE-END:club-links*/
+
+/*MODULE-START:organizer-devices*/
+/* ---------- who is an organizer: the phones unlocked with the PIN, one private key each (api/_devices.js via api/club.js) ---------- */
+// pins[code] is "<digits>[:<club-wide key>]" from an older app, or ":<phone key>" (80 hex) once this phone has its own key.
+const odOwnKey = code => /^:[0-9a-f]{80}$/.test(pins[code] || '');
+const odCanOrg = () => !!club && (isCreator() || (club.hasPin && hasOrganizer()));
+const odCall = body => api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
+// Who this phone is linked to, so the list can name it. The server only believes it when the player token checks out.
+const odWho = () => (myName() && myToken() ? { playerName: myName(), playerToken: myToken() } : {});
+function odAgo(ms) {
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (m < 2) return 'just now';
+  if (m < 60) return m + ' minutes ago';
+  if (m < 1440) return Math.round(m / 60) + (Math.round(m / 60) === 1 ? ' hour ago' : ' hours ago');
+  if (m < 43200) return Math.round(m / 1440) + (Math.round(m / 1440) === 1 ? ' day ago' : ' days ago');
+  return new Date(ms).toLocaleDateString();
+}
+function odOpen() {
+  clubSheet = { view: 'devices', data: null, error: '', msg: '', busy: false, armed: null };
+  renderClub(); odLoad();
+  const h = $('#club-h'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+}
+async function odLoad() {
+  const c = clubSheet;
+  try {
+    const d = await odCall(Object.assign({ action: 'device-list' }, adminCreds()));
+    if (clubSheet === c) { c.data = d; renderClub(); }
+  } catch (err) { if (clubSheet === c) { c.error = err.message; c.data = c.data || { devices: [] }; renderClub(); } }
+}
+// A phone that still holds the raw PIN (or the old club-wide key) trades it, once per launch, for a key of its own. After that it
+// keeps no PIN, so removing this phone later really does end its access without changing the PIN for everyone.
+const odTried = new Set();
+async function odUpgrade() {
+  if (!club || !club.hasPin || odTried.has(club.code) || !/^\d{4,8}(:[0-9a-f]{64})?$/.test(pins[club.code] || '')) return;
+  odTried.add(club.code);
+  const code = club.code;
+  try {
+    const v = await odCall(Object.assign({ action: 'verify-pin', pin: pins[code], device: true }, odWho()));
+    if (v.organizerKey && club && club.code === code && /^\d{4,8}/.test(pins[code] || '')) { rememberPin(code, ':' + v.organizerKey); if (clubSheet) renderClub(); }
+  } catch (e) { /* the PIN may have changed, or the network is down: it stays as it was and the next launch tries again */ }
+}
+// Lock this phone: the server forgets its key too (it needs only the key), so a phone that is locked can't be unlocked by copying anything.
+async function odLockThis() {
+  const code = club.code, key = pins[code] || '';
+  let revoked = !odOwnKey(code);
+  if (!revoked) { try { await odCall({ action: 'device-lock', pin: key }); revoked = true; } catch (e) { /* offline: locked here anyway, see the message */ } }
+  forgetPin();
+  const msg = revoked ? 'This phone is locked. Deleting games needs the PIN again.' : 'This phone is locked here, but the server could not be reached to cancel its key. Remove it from Who’s an organizer when you are online.';
+  clubSheet = { view: 'club', msg }; announce(msg); renderClub(); render();
+}
+async function odRemove(id) {
+  const c = clubSheet; if (!c || c.busy) return;
+  const mine = (c.data && c.data.devices.find(d => d.id === id) || {}).you;
+  if (mine) return odLockThis();
+  c.busy = true; c.error = ''; c.msg = ''; renderClub();
+  try {
+    await odCall(Object.assign({ action: 'device-remove', id }, adminCreds()));
+    c.msg = 'That phone is removed. It needs the PIN to be unlocked again.'; c.armed = null;
+    await odLoad();
+  } catch (err) { c.error = err.message || "Couldn't remove that phone."; }
+  c.busy = false;
+  if (clubSheet === c) { renderClub(); announce(c.error || c.msg); }
+}
+function odHTML(c) {
+  const back = `<div class="btns"><button type="button" class="btn btn-soft" data-act="club-back">Back</button><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>`;
+  const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '', msg = c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : '';
+  const d = c.data;
+  const rows = !d ? skel(3) : !d.devices.length ? '<p class="note">No phones are listed yet. A phone appears here the next time its organizer opens the app or enters the PIN.</p>'
+    : `<ul class="deleted">${d.devices.map(p => `<li style="display:block"><b>${esc(p.name || 'Unnamed phone')}</b>${p.you ? ' <span class="badge on">This phone</span>' : ''}
+      <span class="note" style="display:block">Unlocked ${esc(new Date(p.createdAt).toLocaleDateString())} · last used ${esc(odAgo(p.lastUsedAt))}</span>
+      <div class="btns" style="margin-top:6px"><button type="button" class="btn btn-line-danger" data-od="remove" data-od-id="${esc(p.id)}" ${c.busy ? 'disabled' : ''}>${c.armed === p.id ? 'Tap again to ' : ''}${p.you ? 'Lock this phone' : 'Remove'}<span class="vh"> ${esc(p.name || 'unnamed phone')}</span></button></div></li>`).join('')}</ul>`;
+  const own = pins[club.code] && !(d && d.devices.some(p => p.you)) ? `<button type="button" class="btn btn-soft block" data-od="lock" ${c.busy ? 'disabled' : ''}>Lock this phone</button>` : '';
+  return `<h2 id="club-h">Who’s an organizer</h2>
+    <p class="note">Phones unlocked with the organizer PIN. Remove one and only that phone loses access; the PIN and every other phone stay as they are.</p>${msg}${err}${rows}${own}
+    <p class="note">${isCreator() ? 'This phone created the club, so it is always an organizer and is not listed. ' : ''}A phone that has not opened the app since this update is listed once it does. To cut off a phone that still knows the PIN, change the PIN: that locks every phone out.</p>${back}`;
+}
+function odAct(a, ds) {
+  const c = clubSheet; if (!c || c.view !== 'devices') return;
+  if (a === 'remove') { if (c.armed !== ds.odId) { c.armed = ds.odId; renderClub(); announce('Tap again to confirm.'); } else odRemove(ds.odId); }
+  else if (a === 'lock') odLockThis();
+}
+/*MODULE-END:organizer-devices*/
 
 /*MODULE-START:tutorial*/
 /* ---------- first-visit tutorial ---------- */
@@ -8777,7 +8865,7 @@ document.addEventListener('click', e => {
     if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && (clubSheet.view === 'setpin' || clubSheet.view === 'rotate' || clubSheet.view === 'rights')) ? { view: 'club' } : null;
     if (a === 'pin-set-open') clubSheet = { view: 'setpin' };
     if (a === 'pin-unlock-open') clubSheet = { view: 'unlock', back: 'club' };
-    if (a === 'pin-lock') { forgetPin(); clubSheet = { view: 'club', msg: 'This phone is locked. Deleting games needs the PIN again.' }; }
+    if (a === 'pin-lock') { odLockThis(); return; }
     renderClub(); if (!clubSheet) render(); return;
   }
   if (ds.act === 'rating-note-ok') { const cl = clubData && clubData.ratings && clubData.ratings.changelog; if (cl) store.set(ratingNoteKey(), cl.version); render(); return; }
@@ -8823,6 +8911,7 @@ document.addEventListener('click', e => {
     renderClub(); return;
   }
   if (ds.gn) { gnAct(ds.gn, ds); return; }
+  if (ds.od) { if (ds.od === 'open') odOpen(); else odAct(ds.od, ds); return; }
   if (ds.cl) { if (ds.cl === 'open') clOpen(el); else clAct(ds.cl, ds); return; }
   if (ds.clMode && clubSheet && clubSheet.view === 'clublinks') { if (clubSheet.standing) clStanding(clubSheet.standing.id, ds.clMode); return; }
   if (ds.se) { if (ds.se === 'open') seOpen(el); else if (ds.se === 'cancel') seClose(); return; }

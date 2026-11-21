@@ -22,6 +22,7 @@
 // POST /api/club {code, action: 'night-create'|'night-edit'|'night-cancel'|'night-delete'|'night-rsvp'|'night-remind', ...} -> game nights (see _gamenights.js)
 import { manageResults } from './_resultsadmin.js';
 import { analyticsRoute } from './_analytics.js';
+import { DEVICE_ACTIONS, deviceAction, issueFor } from './_devices.js';
 import { SEASON_ACTIONS, seasonAction, loadCuts } from './_seasons.js';
 import { LINK_ACTIONS, linkAction, linksGet } from './_clublinks.js';
 import { NIGHT_ACTIONS, nightsGet, nightAction, upcomingNights } from './_gamenights.js';
@@ -31,6 +32,7 @@ import { db, handler, send, readBody, fail, newCode, cleanCode, requireClub, pub
 import { randomInt } from 'node:crypto';
 import { duprFrom } from './_dupr.js';
 import { audit, organizerActor } from './_audit.js';
+import { audit as clubAudit } from './_members.js';
 import { counts, findDuplicates } from './_confirm.js';
 import { DELETE_UNDO_HOURS, gamesCsv } from './_privacy.js';
 import { computeProgress, ACHIEVEMENTS, CHALLENGES, challengesFor, weekOf, seasonOf, seasonAt, SEASON_MIN_GAMES } from './_progress.js';
@@ -73,6 +75,11 @@ export default handler(async (req, res) => {
       const out = await seasonAction(sql, club, body, req);
       return send(res, out.status || 200, out.body);
     }
+    if (DEVICE_ACTIONS.includes(body.action)) {
+      const club = await requireClub(cleanCode(body.code), req);
+      const out = await deviceAction(sql, club, body, req);
+      return send(res, out.status || 200, out.body);
+    }
     if (body.action === 'reset-allowance') {
       const club = await requireClub(cleanCode(body.code), req);
       await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -105,7 +112,7 @@ export default handler(async (req, res) => {
       if (body.action !== 'export' && who.by === 'organizer') throw fail(403, 'Only the club creator or the organizer PIN can delete the club.');
       const code = club.code;
       if (body.action === 'export') {
-        const [games, roster, events, leagues, nights, nightRsvps, trail, gameTrail, reactions, seasons, clubLinks] = await Promise.all([
+        const [games, roster, events, leagues, nights, nightRsvps, trail, gameTrail, reactions, seasons, clubLinks, phones] = await Promise.all([
           sql`SELECT data, deleted_at, rally_log FROM games WHERE club = ${code} ORDER BY ended_at DESC`,
           sql`SELECT name, claim_hash IS NOT NULL AS claimed, avatar, dupr_rating, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name)`,
           sql`SELECT id, data, status, created_at, updated_at, deleted_at FROM events WHERE club = ${code} ORDER BY created_at`,
@@ -116,7 +123,8 @@ export default handler(async (req, res) => {
           sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`,
           sql`SELECT game_id, name, reaction, created_at FROM game_reactions WHERE club = ${code} ORDER BY created_at ASC, name_key ASC`,
           loadCuts(sql, code),
-          sql`SELECT l.accepted_at, o.name FROM club_links l JOIN clubs o ON o.code = CASE WHEN l.club_a = ${code} THEN l.club_b ELSE l.club_a END WHERE (l.club_a = ${code} OR l.club_b = ${code}) AND l.club_b IS NOT NULL ORDER BY l.accepted_at`
+          sql`SELECT l.accepted_at, o.name FROM club_links l JOIN clubs o ON o.code = CASE WHEN l.club_a = ${code} THEN l.club_b ELSE l.club_a END WHERE (l.club_a = ${code} OR l.club_b = ${code}) AND l.club_b IS NOT NULL ORDER BY l.accepted_at`,
+          sql`SELECT d.created_at, d.last_used_at, r.name FROM organizer_devices d LEFT JOIN roster r ON r.club = d.club AND r.name_key = d.name_key WHERE d.club = ${code} ORDER BY d.created_at`
         ]);
         // Not exported: the PIN and phone tokens, public bracket tokens, and DUPR links and IDs (those stay out of every club export).
         if (body.format === 'csv') {
@@ -139,6 +147,8 @@ export default handler(async (req, res) => {
           games: games.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
           // Seasons an organizer ended early: when, and the name of the season that began. The default quarters aren't stored.
           seasons: seasons.map(c => ({ startsAt: new Date(c.at).toISOString(), name: c.name })),
+          // Phones unlocked for organizer actions: the linked player, when unlocked and last used. Never ids or keys.
+          organizerPhones: phones.map(p => ({ player: p.name || null, unlockedAt: new Date(p.created_at).toISOString(), lastUsedAt: new Date(p.last_used_at).toISOString() })),
           // Clubs whose leaderboard this one is linked to (their names and when it began; never their codes).
           linkedClubs: clubLinks.map(l => ({ name: l.name, since: new Date(l.accepted_at).toISOString() })),
           reactions: reactions.map(r => ({ game: r.game_id, player: r.name, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
@@ -164,10 +174,14 @@ export default handler(async (req, res) => {
       const code = club.code; // permanent key
       if (body.action === 'verify-pin') {
         if (!club.pin_hash) throw fail(400, "This club doesn't have an organizer PIN yet.");
-        await requirePin(club, body.pin, req);
-        // deviceKey: lets this phone keep working when others guess wrong (see requirePin). shortPin: this PIN predates
-        // the 6-digit minimum, so the app asks the organizer to change it.
-        return send(res, 200, { ok: true, deviceKey: deviceKey(club), shortPin: String(body.pin).split(':')[0].length < 6 });
+        const who = await requirePin(club, body.pin, req);
+        // A current app asks for its own key (`device: true`): organizerKey is that phone's private key, which can be removed on its own
+        // (see _devices.js). Older apps, and a club at its limit of phones, get deviceKey, the club-wide key, as before. Either keeps this
+        // phone working when others guess wrong (see requirePin). shortPin: this PIN predates the 6-digit minimum, so the app asks the
+        // organizer to change it (known only when the PIN digits were sent).
+        const digits = String(body.pin).split(':')[0];
+        const issued = body.device === true ? await issueFor(sql, club, body, who) : {};
+        return send(res, 200, { ok: true, ...(issued.organizerKey ? issued : { deviceKey: deviceKey(club) }), ...(digits ? { shortPin: digits.length < 6 } : {}) });
       }
       if (body.action === 'rotate-code') {
         await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -186,10 +200,14 @@ export default handler(async (req, res) => {
       const pin = cleanPin(body.pin);
       if (club.pin_hash) {
         // Changing a PIN needs the current one.
-        await requirePin(club, body.oldPin, req, body.ownerToken); // the creating phone can reset a forgotten PIN
+        const who = await requirePin(club, body.oldPin, req, body.ownerToken); // the creating phone can reset a forgotten PIN
         const pinHash = hashPin(pin);
         await sql`UPDATE clubs SET pin_hash = ${pinHash} WHERE code = ${code}`;
-        return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), deviceKey: deviceKey({ code, pin_hash: pinHash }) });
+        // A new PIN ends every phone's key (the old club-wide key stops with the old hash); the phone that changed it gets a fresh one.
+        const gone = await sql`DELETE FROM organizer_devices WHERE club = ${code} RETURNING id`;
+        await clubAudit(sql, code, who, 'pin-change', null, { phonesRemoved: gone.length });
+        const issued = body.device === true ? await issueFor(sql, club, body, who) : {};
+        return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), ...(issued.organizerKey ? issued : { deviceKey: deviceKey({ code, pin_hash: pinHash }) }) });
       }
       // The first PIN: only the phone that created the club (it holds the creator token) may set it.
       // Older clubs made before creator tokens existed can be claimed once by any member, who then becomes the creator.
@@ -205,7 +223,8 @@ export default handler(async (req, res) => {
         ? await sql`UPDATE clubs SET pin_hash = ${pinHash}, owner_hash = ${hashToken(ownerToken)} WHERE code = ${code} AND pin_hash IS NULL AND owner_hash IS NULL RETURNING code`
         : await sql`UPDATE clubs SET pin_hash = ${pinHash} WHERE code = ${code} AND pin_hash IS NULL RETURNING code`;
       if (!rows.length) throw fail(409, 'Someone just set a PIN for this club. Ask your organizer for it.');
-      return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), deviceKey: deviceKey({ code, pin_hash: pinHash }), ...(ownerToken ? { ownerToken } : {}) });
+      const issued = body.device === true ? await issueFor(sql, club, body, { by: ownerToken ? 'pin' : 'owner' }) : {};
+      return send(res, 200, { ok: true, club: Object.assign(publicClub(club), { hasPin: true, openClaim: false }), ...(issued.organizerKey ? issued : { deviceKey: deviceKey({ code, pin_hash: pinHash }) }), ...(ownerToken ? { ownerToken } : {}) });
     }
     if (body.room === true) { // a phone with no club shares one game: a nameless room with no organizer that goes with the game, or after 24 hours
       await throttleClubCreate(req, true);
