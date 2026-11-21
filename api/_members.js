@@ -10,6 +10,7 @@
 // name. Every change is written to club_audit with who did it: 'owner', 'pin' (the PIN is shared, so no name), the
 // co-organizer's name, or the member themselves.
 import { fail, requireOrganizer, cleanName, nameKey, tokenMatches } from './_db.js';
+import { pendingRequests } from './_approvals.js';
 
 export const MAX_ORGANIZERS = 10;
 export const AUDIT_LIMIT = 100;
@@ -44,13 +45,15 @@ export async function memberAction(sql, club, body, req) {
   const actor = await requireOrganizer(club, body.pin, req, body.ownerToken);
 
   if (action === 'members') {
-    const [members, log] = await Promise.all([
+    const [members, log, requests] = await Promise.all([
       sql`SELECT name, claim_hash IS NOT NULL AS claimed, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
       sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id DESC LIMIT ${AUDIT_LIMIT}`,
+      pendingRequests(sql, code),
     ]);
     return {
       members: members.map(r => ({ name: r.name, claimed: r.claimed, role: r.role || 'player', blocked: !!r.blocked_at })),
       audit: log.map(r => ({ at: new Date(r.at).getTime(), actor: r.actor, actorName: r.actor_name, action: r.action, target: r.target, detail: r.detail })),
+      requests,
       you: actor.by,
     };
   }

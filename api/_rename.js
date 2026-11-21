@@ -113,6 +113,7 @@ export function renameWrites(sql, code, plan, extra = []) {
   writes.push(sql`UPDATE game_nights SET updated_at = now() WHERE club = ${code} AND id IN (SELECT night_id FROM game_night_rsvps WHERE club = ${code} AND name_key = ${toKey})`);
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
+  writes.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key IN (${fromKey}, ${toKey})`); // short-lived: the asker just asks again for the new name
   writes.push(...dropRatings(sql, code)); // stored ratings carry names: rebuilt from the renamed games on the next read
   return writes.concat(extra);
 }
