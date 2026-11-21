@@ -11,6 +11,7 @@
 // co-organizer's name, or the member themselves.
 import { fail, requireOrganizer, cleanName, nameKey, tokenMatches } from './_db.js';
 import { pendingRequests } from './_approvals.js';
+import { undoKind } from './_undo.js';
 
 export const MAX_ORGANIZERS = 10;
 export const AUDIT_LIMIT = 100;
@@ -18,6 +19,17 @@ export const AUDIT_LIMIT = 100;
 export async function audit(sql, club, actor, action, target, detail) {
   await sql`INSERT INTO club_audit (club, actor, actor_name, action, target, detail)
     VALUES (${club}, ${actor.by}, ${actor.name || null}, ${action}, ${target || null}, ${detail ? JSON.stringify(detail) : null}::jsonb)`;
+}
+
+// Set a member's role (null = ordinary member) and log it; a no-op when it already is that role. Shared with undo (players.js).
+export async function changeRole(sql, code, actor, row, role) {
+  if ((row.role || null) === role) return;
+  if (role) {
+    const [{ n }] = await sql`SELECT count(*)::int AS n FROM roster WHERE club = ${code} AND role = 'organizer'`;
+    if (n >= MAX_ORGANIZERS) throw fail(400, `A club can have up to ${MAX_ORGANIZERS} co-organizers.`);
+  }
+  await sql`UPDATE roster SET role = ${role} WHERE club = ${code} AND name_key = ${nameKey(row.name)}`;
+  await audit(sql, code, actor, role ? 'promote' : 'demote', row.name, { from: row.role || 'player', to: role || 'player' });
 }
 
 const targetKey = raw => {
@@ -47,12 +59,12 @@ export async function memberAction(sql, club, body, req) {
   if (action === 'members') {
     const [members, log, requests] = await Promise.all([
       sql`SELECT name, claim_hash IS NOT NULL AS claimed, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name) LIMIT 300`,
-      sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id DESC LIMIT ${AUDIT_LIMIT}`,
+      sql`SELECT id, at, actor, actor_name, action, target, detail, undone_at FROM club_audit WHERE club = ${code} ORDER BY id DESC LIMIT ${AUDIT_LIMIT}`,
       pendingRequests(sql, code),
     ]);
     return {
       members: members.map(r => ({ name: r.name, claimed: r.claimed, role: r.role || 'player', blocked: !!r.blocked_at })),
-      audit: log.map(r => ({ at: new Date(r.at).getTime(), actor: r.actor, actorName: r.actor_name, action: r.action, target: r.target, detail: r.detail })),
+      audit: log.map(r => ({ id: Number(r.id), undoable: !!undoKind(r, Date.now()), undone: !!r.undone_at, at: new Date(r.at).getTime(), actor: r.actor, actorName: r.actor_name, action: r.action, target: r.target, detail: r.detail })),
       requests,
       you: actor.by,
     };
@@ -74,13 +86,7 @@ export async function memberAction(sql, club, body, req) {
     const role = body.role === 'organizer' ? 'organizer' : body.role === 'player' ? null : undefined;
     if (role === undefined) throw fail(400, 'Role must be organizer or player.');
     if (role && !row.claim_hash) throw fail(400, `${row.name} needs to pick their name on their own phone before they can be an organizer.`);
-    if ((row.role || null) === role) return { ok: true, role: role || 'player' };
-    if (role) {
-      const [{ n }] = await sql`SELECT count(*)::int AS n FROM roster WHERE club = ${code} AND role = 'organizer'`;
-      if (n >= MAX_ORGANIZERS) throw fail(400, `A club can have up to ${MAX_ORGANIZERS} co-organizers.`);
-    }
-    await sql`UPDATE roster SET role = ${role} WHERE club = ${code} AND name_key = ${k}`;
-    await audit(sql, code, actor, role ? 'promote' : 'demote', row.name, { from: row.role || 'player', to: role || 'player' });
+    await changeRole(sql, code, actor, row, role);
     return { ok: true, role: role || 'player' };
   }
 

@@ -5813,7 +5813,7 @@ function membersHTML(c) {
     ${rows.length ? `<p>${rows.length} player${rows.length === 1 ? '' : 's'}, ${linked} linked to phones, ${active} played in the last 30 days.${dc ? ` ${duprCount} connected to DUPR.` : ''}</p>
     <ul class="mem-list">${list}</ul>
     <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones. Removing someone stops their phone from acting as that name; their games and ratings stay. ${isCoOrganizer() ? 'Only the club creator or the organizer PIN can change roles or remove organizers.' : 'Organizers can do everything except change roles and remove other organizers.'}</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
-    ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</span></span></li>`).join('')}</ul>` : ''}
+    ${md.audit.length ? `<h3 class="lab" style="margin-top:16px">Recent changes</h3><ul class="mem-list">${md.audit.slice(0, 20).map(a => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(auditText(a))}</span><span class="mem-meta">${esc(new Date(a.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}${a.undone ? ', undone' : ''}</span></span>${a.undoable && (a.action === 'rename' || !isCoOrganizer()) ? `<span class="mem-acts"><button class="link" data-undo="${a.id}" aria-label="Undo: ${esc(auditText(a))}">Undo</button></span>` : ''}</li>`).join('')}</ul><p class="note">An organizer can undo a role change or a rename for 7 days. The undo shows up here too. Merges can't be undone.</p>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 /*MODULE-START:analytics*/
@@ -6354,7 +6354,7 @@ async function loadMembers() {
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
   const t = a.target || 'a member';
-  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list', 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
+  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
   return `${who} ${did}`;
 }
 function memberLeave(el) {
@@ -8468,6 +8468,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'members-open') { clubSheet = { view: 'members' }; renderClub(); loadMembers(); return; }
   if (ds.act === 'member-leave') { memberLeave(el); return; }
   if (ds.role) { adminAction({ action: 'set-role', name: ds.role, role: ds.to }, ds.to === 'organizer' ? `${ds.role} is now an organizer` : `${ds.role} is a regular member again`); return; }
+  if (ds.undo) { adminAction({ action: 'undo', id: Number(ds.undo) }, 'Change undone'); return; }
   if (ds.unblock) { adminAction({ action: 'unblock', name: ds.unblock }, `${ds.unblock} can be picked again`); return; }
   if (ds.remove || ds.removeBlock) {
     const key = ds.removeBlock ? '!' + ds.removeBlock : ds.remove, name = ds.removeBlock || ds.remove;

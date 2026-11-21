@@ -21,8 +21,9 @@ import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanName, n
 import { cleanDupr, duprFrom } from './_dupr.js';
 import { newAnonLabel, renameDeep, likeFor } from './_privacy.js';
 import { renamePlayer, renameWrites } from './_rename.js';
-import { MEMBER_ACTIONS, memberAction, audit } from './_members.js';
+import { MEMBER_ACTIONS, memberAction, audit, changeRole } from './_members.js';
 import { APPROVAL_ACTIONS, approvalAction } from './_approvals.js';
+import { undoKind, undoConflict } from './_undo.js';
 import { dropRatings } from './_rating_store.js';
 import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
 
@@ -60,6 +61,38 @@ function cleanAvatar(a) {
     return { type: 'photo', value };
   }
   throw fail(400, 'Unknown avatar type.');
+}
+
+// The rename or merge itself (one transaction), shared by the organizer actions and by undoing a rename.
+async function applyRename(sql, code, from, into, toName) {
+  const merge = !!into;
+  const plan = await renamePlayer(sql, code, from, toName, into);
+  // Phones that held the old name look it up here to follow the player (see `renamed` in GET /api/club).
+  const extra = [sql`INSERT INTO name_changes (club, old_key, new_name) VALUES (${code}, ${from.name_key}, ${toName}) ON CONFLICT (club, old_key) DO UPDATE SET new_name = EXCLUDED.new_name, at = now()`,
+    sql`DELETE FROM name_changes WHERE club = ${code} AND old_key = ${plan.toKey} AND old_key <> ${from.name_key}`];
+  if (!merge) {
+    extra.push(sql`UPDATE roster SET name_key = ${plan.toKey}, name = ${toName} WHERE club = ${code} AND name_key = ${from.name_key}`);
+    if (plan.toKey !== from.name_key) extra.push(sql`UPDATE account_identities SET name_key = ${plan.toKey} WHERE club = ${code} AND kind = 'player' AND name_key = ${from.name_key}
+      AND NOT EXISTS (SELECT 1 FROM account_identities x WHERE x.club = ${code} AND x.kind = 'player' AND x.name_key = ${plan.toKey})`);
+  } else {
+    // The kept player takes whatever the other one had that it lacks: the phone link, picture and DUPR details.
+    extra.push(sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${from.name_key}`);
+    extra.push(sql`UPDATE roster SET claim_hash = ${into.claim_hash || from.claim_hash || null},
+      role = ${into.role || from.role || null},
+      avatar = ${JSON.stringify(into.avatar || from.avatar || null)}::jsonb,
+      paddles = ${JSON.stringify(into.paddles || from.paddles || null)}::jsonb,
+      dupr_rating = ${into.dupr_rating ?? from.dupr_rating ?? null}, dupr_set_at = ${into.dupr_rating != null ? into.dupr_set_at : from.dupr_set_at ?? null}
+      WHERE club = ${code} AND name_key = ${into.name_key}`);
+    if ('dupr_id' in from && from.dupr_id) extra.push(sql`UPDATE roster SET dupr_id = ${from.dupr_id}, dupr_linked_at = ${from.dupr_linked_at}, dupr_snapshot = ${JSON.stringify(from.dupr_snapshot ?? null)}::jsonb WHERE club = ${code} AND name_key = ${into.name_key}`);
+    if (from.claim_hash && !into.claim_hash) {
+      extra.push(sql`INSERT INTO account_identities (account_id, club, kind, name_key, proof) SELECT account_id, club, kind, ${into.name_key}, proof FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${from.name_key}
+        ON CONFLICT (club, kind, name_key) DO UPDATE SET account_id = EXCLUDED.account_id, proof = EXCLUDED.proof`);
+    }
+    extra.push(sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${from.name_key}`);
+  }
+  try { await sql.transaction(renameWrites(sql, code, plan, extra)); }
+  catch (e) { if (e && e.code === '23505') throw fail(409, 'Someone changed this player at the same time. Try again.'); throw e; }
+  return plan;
 }
 
 export default handler(async (req, res) => {
@@ -260,6 +293,24 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
+  if (body.action === 'undo') {
+    // Reverse a logged role change or rename (see _undo.js). The state is checked again, so a later change is never trampled.
+    const [e] = await sql`SELECT id, at, action, target, detail, undone_at FROM club_audit WHERE club = ${code} AND id = ${Number.isSafeInteger(body.id) ? body.id : 0}`;
+    if (!e) throw fail(404, 'That change is not in the history.');
+    const kind = undoKind(e, Date.now());
+    if (!kind) throw fail(409, e.undone_at ? 'That change was already undone.' : 'That change can no longer be undone.');
+    if (kind === 'role' && actor.by === 'organizer') throw fail(403, 'Only the phone that created the club, or the organizer PIN, can change roles.');
+    const [row] = await sql`SELECT * FROM roster WHERE club = ${code} AND name_key = ${nameKey(e.target)}`;
+    const [other] = kind === 'rename' ? await sql`SELECT name, name_key FROM roster WHERE club = ${code} AND name_key = ${nameKey(e.detail.from)}` : [];
+    const conflict = undoConflict(e, kind, row, other);
+    if (conflict) throw fail(409, conflict);
+    if (kind === 'role') await changeRole(sql, code, actor, row, e.detail.from === 'organizer' ? 'organizer' : null);
+    else await applyRename(sql, code, row, null, e.detail.from);
+    await sql`UPDATE club_audit SET undone_at = now() WHERE club = ${code} AND id = ${e.id} AND undone_at IS NULL`;
+    await audit(sql, code, actor, 'undo', kind === 'rename' ? e.detail.from : e.target, { undid: e.action, id: e.id, ...(kind === 'rename' ? { from: e.target, to: e.detail.from } : {}) });
+    return send(res, 200, { ok: true });
+  }
+
   if (body.action === 'rename' || body.action === 'merge') {
     const merge = body.action === 'merge';
     const [from] = await sql`SELECT * FROM roster WHERE club = ${code} AND name_key = ${nameKey(body.name)}`;
@@ -285,32 +336,8 @@ export default handler(async (req, res) => {
       if (from.claim_hash && into.claim_hash) throw fail(409, `${from.name} and ${into.name} are both linked to phones. Release one of them first, then merge.`);
       if (from.dupr_id && into.dupr_id) throw fail(409, `${from.name} and ${into.name} are both connected to DUPR. Disconnect one of them first, then merge.`);
     }
-    const plan = await renamePlayer(sql, code, from, toName, into);
-    // Phones that held the old name look it up here to follow the player (see `renamed` in GET /api/club).
-    const extra = [sql`INSERT INTO name_changes (club, old_key, new_name) VALUES (${code}, ${from.name_key}, ${toName}) ON CONFLICT (club, old_key) DO UPDATE SET new_name = EXCLUDED.new_name, at = now()`,
-      sql`DELETE FROM name_changes WHERE club = ${code} AND old_key = ${plan.toKey} AND old_key <> ${from.name_key}`];
-    if (!merge) {
-      extra.push(sql`UPDATE roster SET name_key = ${plan.toKey}, name = ${toName} WHERE club = ${code} AND name_key = ${from.name_key}`);
-      if (plan.toKey !== from.name_key) extra.push(sql`UPDATE account_identities SET name_key = ${plan.toKey} WHERE club = ${code} AND kind = 'player' AND name_key = ${from.name_key}
-        AND NOT EXISTS (SELECT 1 FROM account_identities x WHERE x.club = ${code} AND x.kind = 'player' AND x.name_key = ${plan.toKey})`);
-    } else {
-      // The kept player takes whatever the other one had that it lacks: the phone link, picture and DUPR details.
-      extra.push(sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${from.name_key}`);
-      extra.push(sql`UPDATE roster SET claim_hash = ${into.claim_hash || from.claim_hash || null},
-        role = ${into.role || from.role || null},
-        avatar = ${JSON.stringify(into.avatar || from.avatar || null)}::jsonb,
-        paddles = ${JSON.stringify(into.paddles || from.paddles || null)}::jsonb,
-        dupr_rating = ${into.dupr_rating ?? from.dupr_rating ?? null}, dupr_set_at = ${into.dupr_rating != null ? into.dupr_set_at : from.dupr_set_at ?? null}
-        WHERE club = ${code} AND name_key = ${into.name_key}`);
-      if ('dupr_id' in from && from.dupr_id) extra.push(sql`UPDATE roster SET dupr_id = ${from.dupr_id}, dupr_linked_at = ${from.dupr_linked_at}, dupr_snapshot = ${JSON.stringify(from.dupr_snapshot ?? null)}::jsonb WHERE club = ${code} AND name_key = ${into.name_key}`);
-      if (from.claim_hash && !into.claim_hash) {
-        extra.push(sql`INSERT INTO account_identities (account_id, club, kind, name_key, proof) SELECT account_id, club, kind, ${into.name_key}, proof FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${from.name_key}
-          ON CONFLICT (club, kind, name_key) DO UPDATE SET account_id = EXCLUDED.account_id, proof = EXCLUDED.proof`);
-      }
-      extra.push(sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${from.name_key}`);
-    }
-    try { await sql.transaction(renameWrites(sql, code, plan, extra)); }
-    catch (e) { if (e && e.code === '23505') throw fail(409, 'Someone changed this player at the same time. Try again.'); throw e; }
+    const plan = await applyRename(sql, code, from, into, toName);
+    await audit(sql, code, actor, merge ? 'merge' : 'rename', toName, { from: from.name, [merge ? 'into' : 'to']: toName });
     return send(res, 200, { ok: true, name: toName, games: plan.games.length, events: plan.events.length, leagues: plan.leagues.length });
   }
 
