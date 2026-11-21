@@ -71,7 +71,7 @@ export const SEASON_MIN_GAMES = 5;
 // Final standings of a season for one format: everyone starts at 2.00 and only that season's verified games count
 // (sent from a linked player's phone), so made-up results can't win a season. The app's season table uses the same rule.
 export function seasonStandings(games, season, mode) {
-  const inSeason = games.filter(g => verified(g) && when(g) >= season.start && when(g) < season.end && (g.mode === 'singles' ? 'singles' : 'doubles') === mode)
+  const inSeason = games.filter(g => verified(g) && !g.hold && when(g) >= season.start && when(g) < season.end && (g.mode === 'singles' ? 'singles' : 'doubles') === mode)
     .sort((a, b) => a.endedAt - b.endedAt);
   const { tables } = replay(inSeason);
   return [...tables[mode].values()].filter(p => isNamed(p.name) && p.games >= SEASON_MIN_GAMES)
@@ -83,7 +83,7 @@ export function computeProgress(games, now = Date.now()) {
   const sorted = [...games].sort((a, b) => a.endedAt - b.endedAt);
   // Forecasts and ratings used to judge achievements and challenges (Giant killer, upsets, Two point five) come from
   // verified games only, so results sent from other phones can't be used to set them up.
-  const { pA, after } = replay(sorted.filter(verified));
+  const { pA, after } = replay(sorted.filter(g => verified(g) && !g.hold));
   const people = new Map();
   const get = (k, name) => {
     if (!people.has(k)) people.set(k, { name, achievements: [], weeks: {}, trophies: [],
@@ -96,7 +96,7 @@ export function computeProgress(games, now = Date.now()) {
   };
   const weekState = new Map(); // player key -> Map(week id -> tallies). Nested, never a joined string, so names can't collide.
   for (const g of sorted) {
-    if (!verified(g)) continue;
+    if (!verified(g) || g.hold) continue;
     const ts = when(g), wk = weekOf(ts).id;
     for (const t of [0, 1]) {
       const won = g.winner === t, my = g.score[t], their = g.score[1 - t];
@@ -144,13 +144,16 @@ export function computeProgress(games, now = Date.now()) {
   }
   // Finished seasons: the top 3 in each format get a trophy.
   const seasons = new Map();
-  for (const g of sorted) { const s = seasonOf(when(g)); if (s.end <= now) seasons.set(s.id, s); }
+  for (const g of sorted) { if (g.hold) continue; const s = seasonOf(when(g)); if (s.end <= now) seasons.set(s.id, s); }
   for (const s of seasons.values()) for (const mode of ['doubles', 'singles']) {
     seasonStandings(sorted, s, mode).slice(0, 3).forEach((row, i) => {
       const p = get(row.key, row.name);
       p.trophies.push({ season: s.id, name: s.name, mode, place: i + 1, rating: Math.round(row.rating * 100) / 100 });
     });
   }
-  for (const p of people.values()) delete p._s;
+  // Keep the current run with the progress payload. This is the same chronological,
+  // verified-game replay used for achievements, so UI callers do not need to
+  // reconstruct a streak from a differently filtered game list.
+  for (const p of people.values()) { p.streak = p._s.streak; delete p._s; }
   return people;
 }

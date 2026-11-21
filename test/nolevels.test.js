@@ -19,7 +19,7 @@ test('achievements, weekly challenges and seasons still compute', () => {
   const games = [g(1, [11, 0], 0), g(2, [11, 5], 0)];
   const p = m.computeProgress(games, Date.UTC(2026, 6, 1));
   const ana = p.get('ana');
-  assert.deepEqual(Object.keys(ana).sort(), ['achievements', 'name', 'trophies', 'weeks']);
+  assert.deepEqual(Object.keys(ana).sort(), ['achievements', 'name', 'streak', 'trophies', 'weeks']);
   assert.ok(['first-win', 'shutout'].every(id => ana.achievements.some(a => a.id === id)));
   const wk = m.weekOf(Date.UTC(2026, 0, 5, 10)).id;
   assert.equal(ana.weeks[wk].length, 3);

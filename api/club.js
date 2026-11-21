@@ -38,7 +38,7 @@ function progressFor(games) {
   const now = Date.now(), week = weekOf(now), season = seasonOf(now);
   const players = {};
   for (const [k, p] of computeProgress(games, now)) {
-    players[k] = { name: p.name, achievements: p.achievements, trophies: p.trophies, week: p.weeks[week.id] || null };
+    players[k] = { name: p.name, achievements: p.achievements, trophies: p.trophies, streak: p.streak, week: p.weeks[week.id] || null };
   }
   return {
     players,
