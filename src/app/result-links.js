@@ -74,8 +74,9 @@ async function adminAction(body, okMsg) {
 }
 // Members sheet extras only organizers can read: who is blocked, and the log of role changes and removals.
 async function loadMembers() {
-  if (!club || !clubSheet || clubSheet.view !== 'members') return;
-  try { const d = await playerCall(Object.assign({ action: 'members' }, adminCreds())); if (clubSheet && clubSheet.view === 'members') { clubSheet.membersData = d; renderClub(); } } catch (e) { /* the list still works without it */ }
+  const here = () => clubSheet && (clubSheet.view === 'members' || clubSheet.view === 'orgtools');
+  if (!club || !here()) return;
+  try { const d = await playerCall(Object.assign({ action: 'members' }, adminCreds())); if (here()) { clubSheet.membersData = d; renderClub(); } } catch (e) { /* the list still works without it */ }
 }
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
