@@ -3,6 +3,9 @@
 //   claim    {name, pin?|ownerToken?}                 -> links a player name to this phone, returns {playerToken}
 //   avatar   {name, playerToken, avatar}              -> sets your picture: {type: emoji|icon|photo, value} or {type: initials}
 //   clear-avatar {pin|ownerToken, name}               -> organizer: put a player back to initials
+//   paddles-get {name, playerToken}                  -> your saved paddles: {paddles: {list: [{id, name, photo?}], used: {gameId: paddleId}}}. Only that
+//                                                       name's phone; never in the club payload or anyone else's view (see _paddles.js)
+//   paddles-set {name, playerToken, paddles}         -> replaces your paddle list and the paddle you used in each game
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
 //   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events, leagues and ladders you are in
@@ -19,6 +22,7 @@ import { newAnonLabel, renameDeep, likeFor } from './_privacy.js';
 import { renamePlayer, renameWrites } from './_rename.js';
 import { MEMBER_ACTIONS, memberAction, audit } from './_members.js';
 import { dropRatings } from './_rating_store.js';
+import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -109,6 +113,23 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true, avatar });
   }
 
+  if (body.action === 'paddles-get' || body.action === 'paddles-set') {
+    // Your paddles are yours alone: only the phone linked to this name reads or writes them, an organizer cannot.
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    const [{ paddles: mine }] = await sql`SELECT paddles FROM roster WHERE club = ${code} AND name_key = ${player.name_key}`;
+    if (body.action === 'paddles-get') return send(res, 200, { paddles: mine || { list: [], used: {} } });
+    let doc;
+    try { doc = cleanPaddles(body.paddles); } catch (e) { throw fail(e.status || 400, e.message); }
+    if (countPaddlePhotos(doc) > countPaddlePhotos(mine)) {
+      // Same club cap as photo avatars: 50 photos a club, counting the other players' paddle photos.
+      const others = await sql`SELECT paddles FROM roster WHERE club = ${code} AND name_key <> ${player.name_key} AND paddles IS NOT NULL`;
+      const n = others.reduce((sum, r) => sum + countPaddlePhotos(r.paddles), 0);
+      if (!paddlePhotoRoom(n, mine, doc)) throw fail(409, 'This club already has the most paddle photos it can hold. Save the paddle without a photo, or ask an organizer to make room.');
+    }
+    await sql`UPDATE roster SET paddles = ${JSON.stringify(doc)}::jsonb WHERE club = ${code} AND name_key = ${player.name_key}`;
+    return send(res, 200, { ok: true, paddles: doc });
+  }
+
   if (body.action === 'dupr') {
     // The phone that linked this name, or an organizer (the only way to set one on a guest name). Nobody else.
     const k = nameKey(body.name);
@@ -146,7 +167,7 @@ export default handler(async (req, res) => {
     if (body.action === 'export') {
       return send(res, 200, {
         format: 'dink-score-player-export', version: 1, exportedAt: new Date().toISOString(), club: { name: club.name },
-        player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, duprSelfReported: duprFrom(row.dupr_rating),
+        player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, paddles: row.paddles || null, duprSelfReported: duprFrom(row.dupr_rating),
           duprLink: row.dupr_id ? { duprId: row.dupr_id, linkedAt: row.dupr_linked_at, ratings: row.dupr_snapshot || null } : null } : { name: cleanName(body.name) },
         games: mine.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
         reactions: myReactions.map(r => ({ gameId: r.game_id, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
@@ -274,6 +295,7 @@ export default handler(async (req, res) => {
       extra.push(sql`UPDATE roster SET claim_hash = ${into.claim_hash || from.claim_hash || null},
         role = ${into.role || from.role || null},
         avatar = ${JSON.stringify(into.avatar || from.avatar || null)}::jsonb,
+        paddles = ${JSON.stringify(into.paddles || from.paddles || null)}::jsonb,
         dupr_rating = ${into.dupr_rating ?? from.dupr_rating ?? null}, dupr_set_at = ${into.dupr_rating != null ? into.dupr_set_at : from.dupr_set_at ?? null}
         WHERE club = ${code} AND name_key = ${into.name_key}`);
       if ('dupr_id' in from && from.dupr_id) extra.push(sql`UPDATE roster SET dupr_id = ${from.dupr_id}, dupr_linked_at = ${from.dupr_linked_at}, dupr_snapshot = ${JSON.stringify(from.dupr_snapshot ?? null)}::jsonb WHERE club = ${code} AND name_key = ${into.name_key}`);

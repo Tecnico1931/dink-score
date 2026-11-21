@@ -665,6 +665,10 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .av-pick small { font-size: 12px; color: var(--muted); font-weight: 600; text-align: center; line-height: 1.1; }
 .av-pick.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--ink); background: var(--surface); }
 .photo-drop { display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center; border: 2px dashed var(--line); border-radius: 18px; padding: 22px 16px; cursor: pointer; font-weight: 700; }
+.pd-row .who { flex-wrap: nowrap; }
+.pd-thumb { width: 34px; height: 34px; flex: none; }
+.pd-edit { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 8px 12px; margin-bottom: 8px; }
+.pd-edit .pd-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .photo-drop small { font-weight: 500; color: var(--muted); max-width: 32ch; }
 .photo-drop:focus-within, .photo-drop:hover { border-color: var(--blue); }
 
@@ -3317,6 +3321,8 @@ function renderClub() {
   let body;
   if (c.view === 'avatar' && club && myName()) {
     body = avatarSheetHTML(c);
+  } else if (c.view === 'paddles' && club && myName()) {
+    body = paddleSheetHTML(c);
   } else if (c.view === 'dupr') {
     body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   } else if (c.view === 'whoami' && club) {
@@ -3780,6 +3786,7 @@ function playView() {
       </div>
     </div>
     <div class="teams">${teamCard(0)}<button type="button" class="swap" data-act="swap" aria-label="Swap teams">⇅</button>${teamCard(1)}</div>
+    ${paddlePickHTML()}
     <div class="roster"><div class="rhead"><span class="lab">${pickup ? 'Players in this session' : names.length ? (rosterEdit ? 'Tap a name to remove it' : 'Saved players') : 'Saved players'}</span>
       ${names.length && !pickup ? `<button type="button" class="link" data-act="roster-edit">${rosterEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
       ${names.length ? `<div class="chips">${chipsHTML(setup.names, setup.mode, 'setup')}</div>` : `<p class="note">${pickup ? 'Names show up here as people join and play.' : 'Names you play with are saved here automatically.'}</p>`}
@@ -6624,6 +6631,7 @@ function renderProfile() {
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${selfDuprHTML(pr.name)}
     ${dssoProfileHTML(pr.name)}
+    ${paddlesProfileHTML(pr.name, rated)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}
     ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`, profile.name + '|' + profile.mode);
@@ -6784,6 +6792,128 @@ async function toggleGameReaction(gameId, key) {
   }
 }
 /*MODULE-END:reactions*/
+/*MODULE-START:paddles*/
+/* ---------- paddle tracker (L14: players.js paddles-get / paddles-set, rules in api/_paddles.js) ---------- */
+// A player's own paddles, each with an optional photo (shrunk by photoToAvatar, so the limits are the avatar's), the one chosen for a
+// game, and the record with each. Private to the phone linked to the name: it never rides in the club payload.
+const PADDLE_MAX = 6, PADDLE_USED_MAX = 1000;
+let paddleDocs = store.get('pb.paddles', {}); // club code -> {list: [{id, name, photo?}], used: {gameId: paddleId}}
+let paddleChoice = store.get('pb.paddleNow', {}); // club code -> the paddle picked for the next game
+const paddleAsked = new Set();
+const paddleDoc = () => (club && myName() ? paddleDocs[club.code] || null : null);
+const paddleList = () => (paddleDoc() ? paddleDoc().list : []);
+function paddleCache() { store.set('pb.paddles', paddleDocs); store.set('pb.paddleNow', paddleChoice); }
+// Fetches your paddles once per club per visit; the app works from the saved copy meanwhile.
+async function paddleLoad() {
+  if (!club || !myName() || !myToken()) return;
+  const code = club.code;
+  if (paddleAsked.has(code)) return;
+  paddleAsked.add(code);
+  try {
+    const d = await playerCall({ action: 'paddles-get', name: myName(), playerToken: myToken() });
+    if (!club || club.code !== code || !d.paddles) return;
+    paddleDocs[code] = { list: d.paddles.list || [], used: d.paddles.used || {} };
+    paddleCache(); render(); renderProfile();
+  } catch { paddleAsked.delete(code); }
+}
+async function paddleSave(doc) {
+  const d = await playerCall({ action: 'paddles-set', name: myName(), playerToken: myToken(), paddles: doc });
+  paddleDocs[club.code] = d.paddles;
+  if (paddleChoice[club.code] && !d.paddles.list.some(p => p.id === paddleChoice[club.code])) delete paddleChoice[club.code];
+  paddleCache();
+}
+const paddleNewId = () => Math.random().toString(36).slice(2, 10).padEnd(4, 'x');
+
+// Your record with each paddle, from the rated games you were in. A game with no paddle chosen counts for none of them.
+function paddleTally(name, games) {
+  const doc = paddleDoc();
+  const rows = new Map(paddleList().map(p => [p.id, { p, w: 0, l: 0 }]));
+  for (const g of doc ? games : []) {
+    const row = rows.get(doc.used[g.id]);
+    if (!row) continue;
+    const t = g.teams[0].some(n => sameName(n, name)) ? 0 : g.teams[1].some(n => sameName(n, name)) ? 1 : -1;
+    if (t < 0) continue;
+    if (g.winner === t) row.w++; else row.l++;
+  }
+  return [...rows.values()];
+}
+const paddleThumb = p => (p.photo && /^data:image\/(jpeg|webp);base64,/.test(p.photo) ? `<img class="av-img" src="${esc(p.photo)}" alt="">` : `<span class="av-icon">${iconSvg('paddle')}</span>`);
+
+// The row of paddles on your own profile, with the record for each.
+function paddlesProfileHTML(name, games) {
+  if (!club || !isMe(name)) return '';
+  paddleLoad();
+  const rows = paddleTally(name, games);
+  const list = rows.length ? `<div class="pf-list">${rows.map(({ p, w, l }) => `<div class="pf-row pd-row"><span class="who"><span class="av pd-thumb">${paddleThumb(p)}</span><span>${esc(p.name)}</span></span><span class="n">${w + l ? w + '–' + l : 'No games'}</span><span class="pct">${w + l ? Math.round(100 * w / (w + l)) + '%' : ''}</span></div>`).join('')}</div>`
+    : '<p class="note">Save your paddles, pick one when you start a game, and see how you do with each.</p>';
+  return `<div class="field" style="margin:0"><span class="lab">Paddles</span>${list}<button class="link" data-act="paddle-open" style="align-self:flex-start">${rows.length ? 'Manage paddles' : 'Add a paddle'}</button></div>`;
+}
+
+// "Paddle" on the New game card: only for a linked player who has saved at least one.
+function paddlePickHTML() {
+  if (!club || !myName()) return '';
+  paddleLoad();
+  const list = paddleList();
+  if (!list.length) return '';
+  const cur = paddleChoice[club.code] || 'none';
+  return `<div class="field"><span class="lab">Your paddle</span><div class="seg" role="group">${[['none', 'None'], ...list.map(p => [p.id, esc(p.name)])].map(([v, l]) => `<button type="button" data-paddle-pick="${v}" aria-pressed="${v === cur}">${l}</button>`).join('')}</div></div>`;
+}
+function paddlePick(id) {
+  if (!club) return;
+  if (id === 'none') delete paddleChoice[club.code]; else if (paddleList().some(p => p.id === id)) paddleChoice[club.code] = id;
+  paddleCache(); render();
+  const b = document.querySelector(`[data-paddle-pick="${id}"]`);
+  if (b) b.focus({ preventScroll: true });
+}
+// Called when a game is finished and saved: remembers which paddle this player used for it. Best effort; the choice stays on the
+// phone and goes up with the next successful save.
+async function paddleTag(gameId) {
+  const doc = paddleDoc(), id = club && paddleChoice[club.code];
+  if (!doc || !id || !doc.list.some(p => p.id === id) || !myToken()) return;
+  const used = Object.assign({}, doc.used, { [gameId]: id });
+  for (const k of Object.keys(used).slice(0, Math.max(0, Object.keys(used).length - PADDLE_USED_MAX))) delete used[k];
+  doc.used = used;
+  paddleCache();
+  try { await paddleSave({ list: doc.list, used }); } catch {}
+}
+
+// The sheet where paddles are added and removed.
+function paddleSheetHTML(c) {
+  const list = paddleList();
+  const d = c.draft || (c.draft = { name: '', photo: '' });
+  const rows = list.map(p => `<div class="pd-edit"><span class="av pd-thumb">${paddleThumb(p)}</span><span class="pd-name">${esc(p.name)}</span><button type="button" class="link armed" data-paddle-del="${esc(p.id)}" aria-label="Remove ${esc(p.name)}">Remove</button></div>`).join('');
+  const add = list.length >= PADDLE_MAX ? `<p class="note">You can save up to ${PADDLE_MAX} paddles. Remove one to add another.</p>`
+    : `<form class="club-form" data-form="paddle-add"><label class="lab" for="pd-name">Paddle name</label><input id="pd-name" class="field-input" maxlength="40" autocomplete="off" placeholder="Selkirk Vanguard" value="${esc(d.name)}">
+      <label class="photo-drop" for="pd-file"><span>${d.photo ? 'Choose a different photo' : 'Add a photo (optional)'}</span><small>It's cropped to a square and shrunk before it's saved. Only you can see it.</small><input id="pd-file" type="file" accept="image/*" hidden></label>
+      ${d.photo ? `<div class="pd-edit"><span class="av pd-thumb"><img class="av-img" src="${esc(d.photo)}" alt=""></span><span class="pd-name">Photo ready</span><button type="button" class="link" data-paddle-nophoto="1">Remove photo</button></div>` : ''}
+      <button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Save paddle</button></form>`;
+  return `<h2 id="club-h">Your paddles</h2>
+    <p class="note">Only you can see your paddles and photos. Pick one on the New game card to see your record with it.</p>
+    ${rows}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}${add}
+    <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
+async function paddleSubmit() {
+  const c = clubSheet, doc = paddleDoc();
+  if (!c || !doc || c.busy) return;
+  const name = (document.getElementById('pd-name').value || '').trim();
+  c.draft.name = name;
+  if (!name) { c.error = 'Give the paddle a name.'; renderClub(); return; }
+  c.busy = true; c.error = ''; renderClub();
+  try {
+    await paddleSave({ list: [...doc.list, Object.assign({ id: paddleNewId(), name }, c.draft.photo ? { photo: c.draft.photo } : {})], used: doc.used });
+    c.draft = { name: '', photo: '' };
+  } catch (err) { c.error = err.message; }
+  c.busy = false; renderClub();
+}
+async function paddleRemove(id) {
+  const c = clubSheet, doc = paddleDoc();
+  if (!c || !doc || c.busy) return;
+  c.busy = true; c.error = ''; renderClub();
+  try { await paddleSave({ list: doc.list.filter(p => p.id !== id), used: doc.used }); }
+  catch (err) { c.error = err.message; }
+  c.busy = false; renderClub();
+}
+/*MODULE-END:paddles*/
 
 let settingsOpen = false;
 let settingsOpener = null;
@@ -8176,6 +8306,10 @@ document.addEventListener('click', e => {
   }
   // Avatars
   if (ds.act === 'av-open') { if (!myName()) { clubSheet = { view: 'whoami' }; renderClub(); return; } profile = null; renderProfile(); clubSheet = { view: 'avatar', atab: (avatarOf(myName()) || {}).type || 'emoji' }; if (clubSheet.atab === 'initials') clubSheet.atab = 'emoji'; renderClub(); return; }
+  if (ds.act === 'paddle-open') { if (!myName()) { clubSheet = { view: 'whoami' }; renderClub(); return; } profile = null; renderProfile(); clubSheet = { view: 'paddles' }; renderClub(); return; }
+  if (ds.paddlePick) { paddlePick(ds.paddlePick); return; }
+  if (ds.paddleDel) { paddleRemove(ds.paddleDel); return; }
+  if (ds.paddleNophoto) { clubSheet.draft.photo = ''; renderClub(); return; }
   if (ds.avTab) { clubSheet.atab = ds.avTab; clubSheet.error = ''; renderClub(); return; }
   if (ds.avEmoji) { clubSheet.pending = { type: 'emoji', value: ds.avEmoji }; renderClub(); return; }
   if (ds.avIcon) { clubSheet.pending = { type: 'icon', value: ds.avIcon }; renderClub(); return; }
@@ -8394,6 +8528,7 @@ document.addEventListener('click', e => {
     if (live.event) { finishEventMatch(s); return; } // an event match goes to the event; the server adds it to the club's games
     const rec = record(s, Scoring.logOf(live), live.shared && live.id ? live.id : null);
     saveGame(rec);
+    paddleTag(rec.id);
     if (act === 'finish-club') { live = null; persistLive(); keepAwake(false); tab = 'history'; store.set('pb.tab', tab); saveAfterJoin = [rec.id]; clubSheet = { view: 'add', reason: 'save' }; render(); renderClub(); return; }
     if (act === 'rematch') startGame(Object.assign({}, s.cfg, { first: 1 - (s.cfg.first || 0) }));
     else { live = null; persistLive(); keepAwake(false); tab = 'history'; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} }
@@ -8401,6 +8536,13 @@ document.addEventListener('click', e => {
 });
 let fcTimer;
 document.addEventListener('change', e => {
+  if (e.target.id === 'pd-file' && clubSheet && clubSheet.view === 'paddles') {
+    const file = e.target.files && e.target.files[0];
+    clubSheet.draft.name = (document.getElementById('pd-name') || {}).value || clubSheet.draft.name;
+    photoToAvatar(file).then(url => { clubSheet.draft.photo = url; clubSheet.error = ''; renderClub(); })
+      .catch(err => { clubSheet.error = err.message; renderClub(); });
+    return;
+  }
   if (e.target.id === 'av-file' && clubSheet && clubSheet.view === 'avatar') {
     const file = e.target.files && e.target.files[0];
     photoToAvatar(file).then(url => { clubSheet.pending = { type: 'photo', value: url }; clubSheet.error = ''; renderClub(); })
@@ -8456,6 +8598,7 @@ document.addEventListener('submit', e => {
   if (form.matches('[data-form="code-rotate"]')) { e.preventDefault(); codeRotate($('#rot-grace').value); return; }
   if (form.matches('[data-form="club-create"]')) { e.preventDefault(); clubCreate($('#club-name').value, $('#club-new-pin').value); return; }
   if (form.matches('[data-form="pin-unlock"]')) { e.preventDefault(); pinUnlock($('#pin-input').value); return; }
+  if (form.matches('[data-form="paddle-add"]')) { e.preventDefault(); paddleSubmit(); return; }
   if (form.matches('[data-form="av-emoji"]')) {
     e.preventDefault();
     const v = $('#av-emoji-in').value.trim();
