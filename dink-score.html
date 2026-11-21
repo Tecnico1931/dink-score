@@ -118,6 +118,23 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .week i.has { background: var(--green); }
 .week i.today { outline: 2px solid var(--ball); outline-offset: 1px; }
 .week span { font-size: 12px; color: var(--muted); }
+.hero { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+.hero-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.hero-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hero .play-greeting { font-size: 22px; }
+.hero-club { margin: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.hero-art { width: 88px; height: auto; flex: none; }
+.hero-total { display: flex; align-items: baseline; gap: 8px; }
+.hero-total .n { font-size: 34px; line-height: 1; }
+.hero .week { margin-top: 0; }
+.tile.newg { background: var(--ink); color: var(--bg); }
+.tile.newg .t-k { color: inherit; }
+.tile.newg .plus { width: 34px; height: 34px; border-radius: 50%; background: rgb(128 128 128 / .3); display: grid; place-items: center; }
+.tile.newg .t-name { margin-top: auto; font-size: 17px; }
+.sh-end { display: flex; align-items: center; gap: 8px; }
+.sheet.newgame .setup-opts, .sheet.newgame .teams, .sheet.newgame .roster { margin-top: 0; }
+.sheet.newgame .start { margin-top: 0; }
+.chip-btn.add { border-style: dashed; color: var(--blue-text); font-weight: 600; }
 .play-greeting { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size: 19px; line-height: 1.2; letter-spacing: -.01em; color: var(--ink); margin: 0; overflow-wrap: anywhere; }
 
 /* Setup */
@@ -1185,6 +1202,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 <div id="sheet7"></div>
 <div id="sheet8"></div>
 <div id="sheet9"></div>
+<div id="sheet10"></div>
 <div id="tour"></div>
 
 <script>
@@ -2139,6 +2157,7 @@ if (location.hash.startsWith('#import=')) {
 const defaults = { mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, first: 0, names: [['', ''], ['', '']] };
 let setup = Heal.setup(store.get('pb.setup', {}), defaults);
 let setupOptsOpen = false;
+let newGameOpen = false, addingPlayer = false; // the New game bottom sheet, and its "+ Add" player input
 let tab = store.get('pb.tab', 'play');
 if (!['play', 'leaders', 'events', 'history', 'rules'].includes(tab)) tab = 'play';
 let live = Heal.live(store.get('pb.live', null)); // { state, stack, open }; a damaged game in progress is dropped, not allowed to blank the app
@@ -3688,7 +3707,7 @@ window.addEventListener('online', () => { if (club) flush(); });
 const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="var(--ink)"/><circle cx="17" cy="17" r="10.5" fill="var(--ball)"/><g fill="var(--ink)" opacity=".85"><circle cx="13.2" cy="13.2" r="1.3"/><circle cx="19.2" cy="12.1" r="1.3"/><circle cx="16.6" cy="17" r="1.3"/><circle cx="12.5" cy="19.6" r="1.3"/><circle cx="21.1" cy="18" r="1.3"/><circle cx="17.4" cy="22.3" r="1.3"/></g></svg>`;
 
 // Set body overflow only when it actually changes (WebKit can reset scroll position on reassignment).
-function lockBody(on) { if (shareSheet) on = true; const v = on ? 'hidden' : ''; if (document.body.style.overflow !== v) document.body.style.overflow = v; }
+function lockBody(on) { if (shareSheet || newGameOpen) on = true; const v = on ? 'hidden' : ''; if (document.body.style.overflow !== v) document.body.style.overflow = v; }
 
 // The Events tab opens the events screen on tap; this is the page behind it, shown when the screen is closed or the tab is restored.
 function eventsTabView() {
@@ -3710,6 +3729,7 @@ function renderApp() {
   $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
+  renderNewGame();
   renderClub();
   renderProfile();
   renderRatingExplain();
@@ -3724,6 +3744,8 @@ function seg(attr, options, value, cls = '') {
     `<button type="button" ${attr}="${v}" aria-pressed="${String(v) === String(value)}">${l}</button>`).join('')}</div>`;
 }
 
+// Own artwork for the hero card: a court seen from above and a ball, in neutral tokens only (blue and green mean the two teams, yellow means live).
+const HERO_ART = `<svg class="hero-art" viewBox="0 0 104 64" aria-hidden="true" focusable="false"><rect x="3" y="6" width="66" height="52" rx="7" fill="var(--surface-2)" stroke="var(--line)" stroke-width="2"/><path d="M24 6v52M48 6v52M3 32h21M48 32h21" stroke="var(--line)" stroke-width="2" fill="none"/><path d="M36 2v60" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="26" r="16" fill="var(--surface)" stroke="var(--ink)" stroke-width="3"/><g fill="var(--ink)"><circle cx="74" cy="20" r="2.3"/><circle cx="83" cy="18" r="2.3"/><circle cx="79" cy="27" r="2.3"/><circle cx="70" cy="30" r="2.3"/><circle cx="88" cy="28" r="2.3"/><circle cx="80" cy="35" r="2.3"/></g></svg>`;
 function homeTiles(games) {
   const tiles = [];
   if (live && live.state.winner === null) {
@@ -3731,6 +3753,7 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
+  tiles.push(`<button class="tile newg" data-act="new-open"><span class="plus"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span><span class="t-name">New game</span><span class="t-k">Score one live</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
   if (club) {
     const liveEv = evSummary.find(e => e.status === 'live');
@@ -3746,10 +3769,12 @@ function homeTiles(games) {
   const counts = days.map(d => games.filter(g => g.endedAt >= d.getTime() && g.endedAt < d.getTime() + DAY).length);
   const max = Math.max(1, ...counts);
   const total = counts.reduce((a, b) => a + b, 0);
-  const greet = Greeting.text(linkedPlayerName());
-  tiles.push(`<div class="tile wide" style="min-height:0">${greet ? `<p class="play-greeting">${esc(greet)}</p>` : ''}<div class="sec-head"><span class="t-k">This week</span><span class="t-k">${total} game${total === 1 ? '' : 's'}</span></div>
-    <div class="week">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></div>`);
-  return `<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${challengesCard()}${monthCard(games)}`;
+  const greet = Greeting.text(linkedPlayerName()) || Greeting.bucket();
+  const perDay = days.map((d, i) => `${d.toLocaleDateString(undefined, { weekday: 'long' })} ${counts[i]}`).join(', ');
+  const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div>${HERO_ART}</div>
+    <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
+    <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
+  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${challengesCard()}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
@@ -3818,11 +3843,11 @@ function setupSummary(s) {
   return `${mode} · ${scoring} · to ${+s.target || 11} · win by ${+s.winBy || 2}`;
 }
 
-function playView() {
-  const games = allGames(), names = rosterNames();
-  return `${announceBannerHTML()}${pickupBannerHTML()}${homeTiles(ratedGames())}
-  <section class="card" aria-labelledby="new-h">
-    <div class="new-head"><h2 id="new-h">New game</h2><button type="button" class="link" data-act="clear-names" ${setup.names.flat().some(n => n && n.trim()) ? '' : 'hidden'}>Clear names</button></div>
+// New game is a bottom sheet opened from the tile at the top of Play; Start game closes it and opens the court.
+function newGameHTML() {
+  const names = rosterNames();
+  return `<div class="sheet-bg top" role="dialog" aria-modal="true" aria-labelledby="new-h"><div class="sheet newgame"><span class="grip"></span>
+    <div class="sheet-head"><h2 id="new-h" tabindex="-1">New game</h2><span class="sh-end"><button type="button" class="link" data-act="clear-names" ${setup.names.flat().some(n => n && n.trim()) ? '' : 'hidden'}>Clear names</button><button type="button" class="x" data-act="new-close" aria-label="Close">✕</button></span></div>
     <div class="setup-opts">
       <button type="button" class="setup-opts-toggle" data-act="setup-opts" aria-expanded="${setupOptsOpen}" aria-controls="setup-opts-panel"><span class="setup-opts-summary">${esc(setupSummary(setup))}</span><span class="setup-opts-act">${setupOptsOpen ? 'Hide' : 'Edit'}<svg class="setup-opts-chev" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
       <div class="setup-opts-panel" id="setup-opts-panel" ${setupOptsOpen ? '' : 'hidden'}>
@@ -3837,15 +3862,34 @@ function playView() {
     ${paddlePickHTML()}
     <div class="roster"><div class="rhead"><span class="lab">${pickup ? 'Players in this session' : names.length ? (rosterEdit ? 'Tap a name to remove it' : 'Saved players') : 'Saved players'}</span>
       ${names.length && !pickup ? `<button type="button" class="link" data-act="roster-edit">${rosterEdit ? 'Done' : 'Edit'}</button>` : ''}</div>
-      ${names.length ? `<div class="chips">${chipsHTML(setup.names, setup.mode, 'setup')}</div>` : `<p class="note">${pickup ? 'Names show up here as people join and play.' : 'Names you play with are saved here automatically.'}</p>`}
-      <form class="add-player" data-form="add-player"><input id="new-player" placeholder="Add a player" autocomplete="off" aria-label="New player name" maxlength="40"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px">Save</button></form></div>
+      <div class="chips">${chipsHTML(setup.names, setup.mode, 'setup')}${addingPlayer || rosterEdit ? '' : '<button type="button" class="chip-btn add" data-act="add-open" aria-label="Add a player">+ Add</button>'}</div>
+      ${names.length ? '' : `<p class="note">${pickup ? 'Names show up here as people join and play.' : 'Names you play with are saved here automatically.'}</p>`}
+      ${addingPlayer ? `<form class="add-player" data-form="add-player"><input id="new-player" placeholder="Add a player" autocomplete="off" aria-label="New player name" maxlength="40"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px">Save</button></form>` : ''}</div>
     <datalist id="roster-list">${names.map(n => `<option value="${esc(n)}"></option>`).join('')}</datalist>
     <button class="btn btn-ink block start" data-act="start"><span class="ball"></span>Start game</button>
     <div id="forecast">${forecastHTML()}</div>
     ${API_OK && !club && !pickup ? `<p class="note" style="margin-top:8px;text-align:center">No club needed. Games stay on this phone until you save them to a club.</p>` : ''}
     ${API_OK && !pickup ? `<p class="note" style="margin-top:8px;text-align:center"><button type="button" class="link" data-act="pk-open">Playing with people you don't know? Start a pickup session</button></p>` : ''}
     ${pickup ? `<p class="note" style="margin-top:8px;text-align:center">Games you finish are added to the pickup session, not to a club.</p>` : ''}
-  </section>
+  </div></div>`;
+}
+function renderNewGame() {
+  const root = $('#sheet10');
+  if (!root) return;
+  if (!newGameOpen) { if (root._html) { root.innerHTML = ''; root._html = root._key = ''; if (!(live && live.open)) lockBody(!!logForm); } return; }
+  lockBody(true);
+  const hadSheet = !!root.querySelector('.sheet');
+  setSheet(root, newGameHTML(), 'new');
+  if (!hadSheet) { const h = $('#new-h'); if (h) h.focus({ preventScroll: true }); }
+}
+function closeNewGame() {
+  newGameOpen = false; addingPlayer = false; render();
+  const b = $('[data-act="new-open"]'); if (b) b.focus({ preventScroll: true });
+}
+
+function playView() {
+  const games = allGames();
+  return `${announceBannerHTML()}${pickupBannerHTML()}${homeTiles(ratedGames())}
   ${games.length ? `<section><div class="sec-head"><h2>Recent</h2><button class="link" data-tab-go="history">See all</button></div><ul class="games" style="margin-top:10px">${games.slice(0, 3).map(gameItem).join('')}</ul></section>` : ''}`;
 }
 
@@ -4297,6 +4341,7 @@ function localDateTimeValue(t) {
 // saveAfterJoin: game ids to upload once a club is joined ("Save to a club" after a game).
 let saveAfterJoin = null;
 function beginGame() {
+  newGameOpen = false; addingPlayer = false;
   addToRoster([...teamPlayers(0), ...teamPlayers(1)]);
   startGame();
 }
@@ -8703,6 +8748,7 @@ document.addEventListener('click', e => {
     if (shareSheet && e.target.closest && e.target.closest('#sheet5') && e.target.classList.contains('sheet-bg')) { closeShare(); return; }
     if (profile && e.target.closest && e.target.closest('#sheet4') && e.target.classList.contains('sheet-bg')) { profile = null; renderProfile(); return; }
     if (logForm && e.target.classList && e.target.classList.contains('sheet-bg') && e.target.classList.contains('top')) { logForm = null; render(); }
+    if (newGameOpen && e.target.closest && e.target.closest('#sheet10') && e.target.classList.contains('sheet-bg')) { closeNewGame(); return; }
     return;
   }
   const ds = el.dataset;
@@ -8980,6 +9026,9 @@ document.addEventListener('click', e => {
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
+  if (act === 'new-open') { newGameOpen = true; render(); return; }
+  if (act === 'new-close') { closeNewGame(); return; }
+  if (act === 'add-open') { addingPlayer = true; render(); const i = $('#new-player'); if (i) i.focus(); return; }
   if (act === 'setup-opts') { setupOptsOpen = !setupOptsOpen; render(); const b = $('[data-act="setup-opts"]'); if (b) b.focus({ preventScroll: true }); return; }
   if (act === 'clear-names') { setup.names = [['', ''], ['', '']]; store.set('pb.setup', setup); render(); return; }
   if (act === 'swap') { setup.names = [setup.names[1], setup.names[0]]; setup.first = 1 - setup.first; store.set('pb.setup', setup); render(); }
@@ -9088,8 +9137,8 @@ document.addEventListener('submit', e => {
   if (!name) return;
   const like = similarSaved(name);
   if (like.length && !confirm(`Did you mean ${like[0]}? Tap Cancel to use ${like[0]}, or OK to add ${name} as a different person.`)) { $('#new-player').value = ''; return; }
-  addToRoster([name]); render();
-  const again = $('#new-player'); if (again) again.focus();
+  addToRoster([name]); addingPlayer = false; render();
+  const add = $('[data-act="add-open"]'); if (add) add.focus({ preventScroll: true });
 });
 document.addEventListener('keydown', e => {
   if (tourStep === null && newsOpen && $('#tour .news')) {
@@ -9114,6 +9163,10 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && profile) { profile = null; renderProfile(); return; }
   if (e.key === 'Escape' && clubSheet) { clubSheet = null; renderClub(); if (renderPending) safeRender(); return; }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
+  if (e.key === 'Escape' && newGameOpen) {
+    if (addingPlayer) { addingPlayer = false; render(); const b = $('[data-act="add-open"]'); if (b) b.focus({ preventScroll: true }); } else closeNewGame();
+    return;
+  }
   if (e.key === 'Escape' && evScreen && !(live && live.open)) { evAct('back', {}); return; }
   if (!live || !live.open || live.state.winner !== null || live.confirmEnd || logForm || clubSheet || profile || ratingExplain || settingsOpen) return;
   if (e.target.matches && e.target.matches('input')) return;
