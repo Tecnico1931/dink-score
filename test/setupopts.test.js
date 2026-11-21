@@ -1,11 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
+import { page, fn } from './helpers/app.js';
 
-const html = fs.readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const fnMatch = html.match(/function setupSummary\(s\)\s*\{[\s\S]*?\n\}/);
-assert.ok(fnMatch, 'setupSummary(s) is missing from dink-score.html');
-const setupSummary = new Function(`${fnMatch[0]}\nreturn setupSummary;`)();
+const html = page();
+const setupSummary = new Function(`${fn('setupSummary')}\nreturn setupSummary;`)();
 
 test('setupSummary formats format, scoring, target and win-by into one line', () => {
   assert.equal(setupSummary({ mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2 }), 'Doubles · Side-out · to 11 · win by 2');

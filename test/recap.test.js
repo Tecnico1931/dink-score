@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { page, section, iife } from './helpers/app.js';
 
 // Load both DR and YearRecap straight from the built dink-score.html so the app's copy is tested directly with zero app globals.
-const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const DR = new Function(html.match(/const DR = \(\(\) => \{[\s\S]*?\n\}\)\(\);/)[0].replace('const DR =', 'return'))();
-const YearRecap = new Function(html.match(/\/\*YEARRECAP-START\*\/([\s\S]*?)\/\*YEARRECAP-END\*\//)[1] + '\nreturn YearRecap;')();
+const html = page();
+const DR = new Function(iife('DR').replace('const DR =', 'return'))();
+const YearRecap = new Function(section('YEARRECAP') + '\nreturn YearRecap;')();
 
 let seq = 0;
 const at = (y, m = 6, d = 15, h = 12) => new Date(y, m - 1, d, h).getTime();

@@ -1,14 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { newRecoveryCode, cleanRecoveryCode, hashRecovery, recoveryMatches, cleanTransferId, idHash } from '../api/_transfer.js';
+import { section } from './helpers/app.js';
 
-const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dink-score.html'), 'utf8');
-const block = src.match(/\/\*MOVE-START\*\/([\s\S]*?)\/\*MOVE-END\*\//);
-assert.ok(block, 'the MOVE block is missing from dink-score.html');
-const Move = new Function('crypto', block[1] + '\nreturn Move;')(globalThis.crypto);
+const Move = new Function('crypto', section('MOVE') + '\nreturn Move;')(globalThis.crypto);
 const tok = c => c.repeat(48);
 
 test('transfer code: 12 characters, no look-alikes, cleaned from typing', () => {

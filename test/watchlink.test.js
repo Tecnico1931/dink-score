@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { pairFromUrl, confirmFromUrl, watchFragment, cleanPair, cleanConfirm, cameraMessage, readQr, gameFragment, gameLink, cleanShort } from '../scan.js';
 import * as W from '../api/_watchrules.js';
+import { page } from './helpers/app.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => readFileSync(path.join(root, f), 'utf8');
@@ -75,7 +76,7 @@ test('a camera problem says what to do next', () => {
 const jsqrSource = read('jsqr.js');
 const jsQR = (() => { const m = { exports: {} }; new Function('module', 'exports', jsqrSource)(m, m.exports); return m.exports; })();
 // A QR code as the phone's camera sees it: the page's own generator, drawn as dark squares on white with a quiet zone.
-const lib = read('dink-score.html').match(/<script>\s*\/\* qrcode-generator[\s\S]*?<\/script>/)[0].replace(/^<script>|<\/script>$/g, '');
+const lib = page().match(/<script>\s*\/\* qrcode-generator[\s\S]*?<\/script>/)[0].replace(/^<script>|<\/script>$/g, '');
 const qrcode = new Function(lib + '\nreturn qrcode;')();
 function frameOf(text, cell = 6, quiet = 4) {
   const q = qrcode(0, 'M'); q.addData(text); q.make();
@@ -137,7 +138,7 @@ test('a game link is #game= and 32 hex, and a typed game code is 6 base32 charac
 });
 
 test('the phone page: a watch link with no club leads to one game, not a dead end, and the game link and code are wired', () => {
-  const html = read('dink-score.html'), mod = read('src/app/watch-link.js');
+  const html = page(), mod = read('src/app/watch-link.js');
   assert.ok(!html.includes('watchOpenHTML') && !html.includes("view: 'watch-open'"), 'the "open from your Home Screen" dead end is gone');
   assert.match(html, /if \(!club\) \{ watchGameFrom\(\{ pair, confirm: confirm \|\| '' \}\); return; \}/);
   assert.match(html, /\^#game=\(\[0-9A-Fa-f\]\{32\}\)\$/);
@@ -146,7 +147,7 @@ test('the phone page: a watch link with no club leads to one game, not a dead en
 });
 
 test('the scoring screen has a Link a watch button for any game in progress that offers the camera and a code, and links on the scan', () => {
-  const html = read('dink-score.html'), mod = read('src/app/watch-link.js');
+  const html = page(), mod = read('src/app/watch-link.js');
   assert.match(html, /\$\{s\.winner === null \? '<button type="button" class="watch-chip" data-act="watch-court">Link a watch to this game<\/button>'/, 'shown for a club game, a quick game, a pickup game and an event match alike');
   assert.match(html, /c\.view === 'watch-court'\) \{\n    body = watchCourtHTML\(c\)/, 'the court sheet renders with or without a club');
   assert.match(html, /clubSheet = \{ view: 'watch-link', single: true, auto: true, from: 'court' \}; renderClub\(\); watchScanStart\(\)/, 'straight to the camera, for this game only');

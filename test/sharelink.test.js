@@ -1,13 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { page, section } from './helpers/app.js';
 
-const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dink-score.html'), 'utf8');
-const block = src.match(/\/\*SHARELINK-START\*\/([\s\S]*?)\/\*SHARELINK-END\*\//);
-assert.ok(block, 'the SHARELINK block is missing from dink-score.html');
-const ShareLink = new Function(block[1] + '\nreturn ShareLink;')();
+const src = page();
+const ShareLink = new Function(section('SHARELINK') + '\nreturn ShareLink;')();
 // The vendored qrcode-generator script, loaded the way the page loads it.
 const lib = src.match(/<script>\s*\/\* qrcode-generator[\s\S]*?<\/script>/)[0].replace(/^<script>|<\/script>$/g, '');
 const qrcode = new Function(lib + '\nreturn qrcode;')();

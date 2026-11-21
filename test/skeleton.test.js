@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { page } from './helpers/app.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
-const html = read('dink-score.html');
+const html = page();
 const skel = new Function(html.match(/^const skel = .*$/m)[0] + '; return skel;')();
 
 test('skel() renders n placeholder rows with a screen-reader label', () => {

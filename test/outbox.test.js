@@ -1,14 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { section } from './helpers/app.js';
 
 // The outbox rules live inline in dink-score.html; load just that block.
-const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dink-score.html'), 'utf8');
-const block = src.match(/\/\*OUTBOX-START\*\/([\s\S]*?)\/\*OUTBOX-END\*\//);
-assert.ok(block, 'the OUTBOX block is missing from dink-score.html');
-const Outbox = new Function(block[1] + '\nreturn Outbox;')();
+const Outbox = new Function(section('OUTBOX') + '\nreturn Outbox;')();
 
 const game = id => ({ id, teams: [['Ana'], ['Bo']], score: [11, 5], endedAt: 1 });
 const err = (status, message) => Object.assign(new Error(message), { status });
