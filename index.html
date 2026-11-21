@@ -412,6 +412,13 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .progress b { display: block; height: 100%; background: #fff; border-radius: 2px; transition: width .35s ease; }
 .ripple { position: absolute; width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: 50%; background: rgb(255 255 255 / .5); pointer-events: none; animation: ripple .65s ease-out forwards; }
 @keyframes ripple { to { transform: scale(20); opacity: 0; } }
+.celebration-confetti { position: fixed; inset: 0; z-index: 96; overflow: hidden; pointer-events: none; }
+.celebration-confetti i { position: absolute; left: 50%; top: 38%; width: 9px; height: 6px; border-radius: 2px; background: var(--confetti); transform: translate(-50%, -50%) rotate(0deg); }
+@media (prefers-reduced-motion: no-preference) {
+  .celebration-confetti i { animation: confetti-burst 900ms cubic-bezier(.16, .8, .3, 1) var(--d, 0ms) forwards; }
+}
+@keyframes confetti-burst { to { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r)); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .celebration-confetti { display: none; } }
 
 .net { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; }
 .net::before { content: ""; position: absolute; left: -12px; right: -12px; top: 42px; height: 3px; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .6) 18%, rgb(255 255 255 / .6) 82%, transparent); }
@@ -1938,7 +1945,26 @@ const DisplayPrefs = (() => {
   return { normalize, resolve };
 })();
 /*DISPLAY-END*/
+/*CELEBRATION-START*/
+const Celebration = (() => {
+  // Team 0 = Court Blue, Team 1 = Court Green (DESIGN.md Team Color Rule).
+  const PALETTES = [
+    ['var(--blue)', '#4361FF', '#9DB0FF', '#FFFFFF'],
+    ['var(--green)', '#17B988', '#3DD69E', '#FFFFFF']
+  ];
+  const normalize = d => {
+    const o = d && typeof d === 'object' ? d : {};
+    return { on: o.on ? 1 : 0, muted: o.muted ? 1 : 0 };
+  };
+  const justFinished = (beforeWinner, winner) => beforeWinner === null && (winner === 0 || winner === 1);
+  const shouldConfetti = ({ on, beforeWinner, winner, reducedMotion }) => !!on && justFinished(beforeWinner, winner) && !reducedMotion;
+  const shouldSound = ({ on, beforeWinner, winner, muted }) => !!on && justFinished(beforeWinner, winner) && !muted;
+  const palette = winner => PALETTES[winner === 1 ? 1 : 0];
+  return { normalize, justFinished, shouldConfetti, shouldSound, palette };
+})();
+/*CELEBRATION-END*/
 let display = DisplayPrefs.normalize(store.get('pb.display', {}));
+let celebration = Celebration.normalize(store.get('pb.celebration', {}));
 const darkMQ = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 function applyDisplay() {
   const r = document.documentElement;
@@ -1949,6 +1975,7 @@ function applyDisplay() {
   const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = res.themeColor;
 }
 function setDisplay(patch) { display = DisplayPrefs.normalize(Object.assign({}, display, patch)); store.set('pb.display', display); applyDisplay(); }
+function setCelebration(patch) { celebration = Celebration.normalize(Object.assign({}, celebration, patch)); store.set('pb.celebration', celebration); }
 applyDisplay();
 if (darkMQ && darkMQ.addEventListener) {
   darkMQ.addEventListener('change', () => { applyDisplay(); if (typeof settingsOpen !== 'undefined' && settingsOpen) renderSettings(); });
@@ -1960,6 +1987,10 @@ window.addEventListener('storage', e => {
     if (typeof settingsOpen !== 'undefined' && settingsOpen) renderSettings();
     if (typeof render === 'function') render();
   }
+  if (e.key === 'pb.celebration') {
+    celebration = Celebration.normalize(store.get('pb.celebration', {}));
+    if (typeof settingsOpen !== 'undefined' && settingsOpen) renderSettings();
+  }
 });
 // Screen readers: one live region that is never rebuilt (the court redraws itself every rally, which would drop its own announcements).
 function announce(msg) {
@@ -1968,6 +1999,59 @@ function announce(msg) {
   announce.t = setTimeout(() => { el.textContent = msg; }, 60);
 }
 const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch {} };
+let confettiTimer = null;
+function clearConfetti() {
+  clearTimeout(confettiTimer); confettiTimer = null;
+  document.querySelectorAll('.celebration-confetti').forEach(el => el.remove());
+}
+function launchConfetti(winner) {
+  clearConfetti();
+  const burst = document.createElement('div');
+  burst.className = 'celebration-confetti';
+  burst.setAttribute('aria-hidden', 'true');
+  const colors = Celebration.palette(winner);
+  for (let i = 0; i < 20; i++) {
+    const piece = document.createElement('i');
+    const angle = (Math.PI * 2 * i) / 20 + (i % 3) * .12;
+    const dist = 18 + (i % 5) * 7;
+    piece.style.setProperty('--confetti', colors[i % colors.length]);
+    piece.style.setProperty('--x', `${(Math.cos(angle) * dist).toFixed(1)}vmin`);
+    piece.style.setProperty('--y', `${(Math.sin(angle) * dist + 10).toFixed(1)}vmin`);
+    piece.style.setProperty('--r', `${(i % 2 ? 1 : -1) * (120 + i * 14)}deg`);
+    piece.style.setProperty('--d', `${(i % 4) * 18}ms`);
+    burst.appendChild(piece);
+  }
+  document.body.appendChild(burst);
+  confettiTimer = setTimeout(clearConfetti, 1100);
+}
+function playCelebrationSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(() => {});
+    const now = ctx.currentTime;
+    [[523.25, 0], [659.25, .09], [783.99, .18]].forEach(([freq, at]) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + at);
+      gain.gain.setValueAtTime(.0001, now + at);
+      gain.gain.exponentialRampToValueAtTime(.08, now + at + .015);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + at + .26);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + at);
+      osc.stop(now + at + .28);
+    });
+    setTimeout(() => { try { ctx.close(); } catch {} }, 650);
+  } catch {}
+}
+function celebrateWin(beforeWinner, winner) {
+  if (!live || !live.open) return;
+  const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const opts = { on: celebration.on, beforeWinner, winner, reducedMotion, muted: celebration.muted };
+  if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
+  if (Celebration.shouldSound(opts)) playCelebrationSound();
+}
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];
 const TEAM_NAME = ['Blue', 'Green'];
 const DAY = 864e5;
@@ -4072,20 +4156,24 @@ function queueShared(fn) { sharedInFlight++; sharedChain = sharedChain.then(fn).
 // Shared scoring: this phone shows the tap at once, then the server referees it. If someone else
 // scored first, the server answers with a conflict and the latest state; this rally goes on top.
 function adoptShared(state, version) {
+  const beforeWinner = live.state ? live.state.winner : null;
   live.state = state; live.version = version; live.stale = false;
   if (live.log && live.log.length !== state.rallies) live.log = null; // rallies scored on other phones are not in this phone's log; such a game saves without a replay
   persistLive(); renderCourt();
+  celebrateWin(beforeWinner, live.state.winner);
 }
 function serverRally(side, fromIntent) {
   if (!isShared()) return false;
   const id = live.id || liveGameId(), secret = liveSecret();
   if (!fromIntent) {
     buzz();
+    const beforeWinner = live.state.winner;
     const before = live.state.score.slice();
     Scoring.rally(live, side);
     bumpTeam = live.state.score[0] !== before[0] ? 0 : live.state.score[1] !== before[1] ? 1 : null;
     if (live.state.justSwitched && live.state.winner === null) showToast(`Change ends. A team reached ${PB.switchAt(live.state.cfg.target)}.`);
     persistLive(); renderCourt();
+    celebrateWin(beforeWinner, live.state.winner);
   }
   queueShared(async () => {
     if (!live || (live.id || liveGameId()) !== id) return;
@@ -4126,10 +4214,13 @@ function applyWatchIntent(it) {
     return;
   }
   if (it.kind === 'point' && live.state.winner === null && !live.confirmEnd && !logForm) {
+    const beforeWinner = live.state.winner;
     buzz();
     Scoring.rally(live, it.side === 1 ? 1 : 0);
     persistLive(); renderCourt();
+    celebrateWin(beforeWinner, live.state.winner);
   } else if (it.kind === 'undo' && live.stack.length) {
+    clearConfetti();
     Scoring.undo(live); live.toast = null;
     persistLive(); renderCourt();
   }
@@ -6744,6 +6835,9 @@ function renderSettings() {
     : display.theme === 'auto'
       ? `Following your phone (currently ${prefersDark ? 'Dark' : 'Light'}).`
       : display.theme === 'dark' ? 'Always dark on this device.' : 'Always light on this device.';
+  const soundNote = celebration.on
+    ? (celebration.muted ? 'Chime is muted. Confetti still shows unless reduced motion is on.' : 'Plays a brief chime when a live game ends.')
+    : 'Applies when win celebration is on. Mute to keep this device silent.';
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-h"><span class="grip"></span>
     <div class="sheet-head"><h2 id="settings-h" tabindex="-1">Settings</h2><button type="button" class="x" data-act="settings-close" aria-label="Close">✕</button></div>
     <div class="field" style="margin:0"><span class="lab" id="set-app-l">Appearance</span>
@@ -6755,6 +6849,12 @@ function renderSettings() {
     <div class="field" style="margin:0"><span class="lab" id="disp-l">Court scores</span>
       ${seg('data-disp', [['large-0', 'Normal'], ['large-1', 'Large']], 'large-' + display.large).replace('role="group"', 'role="group" aria-labelledby="disp-l"')}
       <p class="note">Bigger numbers, names and score call on the scoring screen.</p></div>
+    <div class="field" style="margin:0"><span class="lab" id="disp-c">Win celebration</span>
+      ${seg('data-celebration', [['0', 'Off'], ['1', 'On']], String(celebration.on)).replace('role="group"', 'role="group" aria-labelledby="disp-c"')}
+      <p class="note">Optional confetti and a short chime when a live game ends. Confetti stays off when reduced motion is on.</p></div>
+    <div class="field" style="margin:0"><span class="lab" id="disp-s">Celebration sound</span>
+      ${seg('data-celebration-sound', [['0', 'Sound on'], ['1', 'Muted']], String(celebration.muted)).replace('role="group"', 'role="group" aria-labelledby="disp-s"')}
+      <p class="note">${soundNote}</p></div>
     <p class="note">Saved on this device only. Nothing is sent to the club.</p>
     <div class="btns"><button type="button" class="btn btn-soft" data-act="settings-close">Done</button></div></div></div>`, 'settings');
 }
@@ -8268,6 +8368,8 @@ document.addEventListener('click', e => {
     return;
   }
   if (ds.disp) { const [k, v] = ds.disp.split('-'); if (k === 'outdoor' || k === 'large') { setDisplay({ [k]: v === '1' ? 1 : 0 }); if (settingsOpen) renderSettings(); render(); announce(`${k === 'outdoor' ? 'Sunlight contrast' : 'Large scores'} ${v === '1' ? 'on' : 'off'}`); } return; }
+  if (ds.celebration !== undefined) { const on = ds.celebration === '1' ? 1 : 0; setCelebration({ on }); if (settingsOpen) renderSettings(); announce(`Win celebration ${on ? 'on' : 'off'}`); return; }
+  if (ds.celebrationSound !== undefined) { const muted = ds.celebrationSound === '1' ? 1 : 0; setCelebration({ muted }); if (settingsOpen) renderSettings(); announce(`Celebration sound ${muted ? 'muted' : 'on'}`); return; }
   if (ds.rmode) { ratingMode = ds.rmode; store.set('pb.rmode', ratingMode); render(); return; }
   if (ds.first) { setup.first = +ds.first; store.set('pb.setup', setup); render(); return; }
   if (ds.confirm) { confirmGame(ds.confirm); return; }
@@ -8282,11 +8384,13 @@ document.addEventListener('click', e => {
   if (ds.rally !== undefined && live && live.state.winner === null && !live.confirmEnd && !logForm) {
     if (isShared()) { serverRally(+ds.rally); return; }
     buzz();
+    const beforeWinner = live.state.winner;
     const before = live.state.score.slice();
     Scoring.rally(live, +ds.rally);
     bumpTeam = live.state.score[0] !== before[0] ? 0 : live.state.score[1] !== before[1] ? 1 : null;
     if (live.state.justSwitched && live.state.winner === null) showToast(`Change ends. A team reached ${PB.switchAt(live.state.cfg.target)}.`);
     persistLive(); renderCourt();
+    celebrateWin(beforeWinner, live.state.winner);
     { const st = live.state, c = PB.call(st), t = TEAM_NAME;
       announce(st.winner !== null ? `${teamLabel(st.cfg.teams[st.winner])} won ${st.score[st.winner]} to ${st.score[1 - st.winner]}.` : `${t[0]} ${st.score[0]}, ${t[1]} ${st.score[1]}. Score call ${c.join(' ')}. ${st.cfg.teams[st.serving][st.server]} serves.`); }
     return;
@@ -8304,13 +8408,14 @@ document.addEventListener('click', e => {
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
   if (act === 'start') beginGame();
   if (act === 'resume') { live.open = true; persistLive(); keepAwake(true); render(); }
-  if (act === 'undo' && live) { if (isShared()) { serverUnrally(); return; } if (live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); } }
+  if (act === 'undo' && live) { clearConfetti(); if (isShared()) { serverUnrally(); return; } if (live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); } }
   if (act === 'end') { live.confirmEnd = true; renderCourt(); }
   if (act === 'keep') { live.confirmEnd = false; renderCourt(); }
-  if (act === 'minimize') { live.confirmEnd = false; live.open = false; persistLive(); keepAwake(false); render(); }
-  if (act === 'discard') { live = null; persistLive(); keepAwake(false); render(); }
+  if (act === 'minimize') { clearConfetti(); live.confirmEnd = false; live.open = false; persistLive(); keepAwake(false); render(); }
+  if (act === 'discard') { clearConfetti(); live = null; persistLive(); keepAwake(false); render(); }
   if (act === 'save-club') { saveAfterJoin = null; clubSheet = { view: 'add', reason: 'save' }; renderClub(); return; }
   if (act === 'finish' || act === 'rematch' || act === 'finish-club') {
+    clearConfetti();
     const s = live.state;
     if (live.event) { finishEventMatch(s); return; } // an event match goes to the event; the server adds it to the club's games
     const rec = record(s, Scoring.logOf(live), live.shared && live.id ? live.id : null);
