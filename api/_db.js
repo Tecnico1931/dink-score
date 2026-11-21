@@ -245,6 +245,8 @@ export function ensureSchema() {
         detail jsonb
       )`;
       await q`CREATE INDEX IF NOT EXISTS club_audit_club_at ON club_audit (club, at DESC)`;
+      // Set when an organizer undoes a logged role change or rename (see _undo.js); a row can be undone once.
+      await q`ALTER TABLE club_audit ADD COLUMN IF NOT EXISTS undone_at timestamptz`;
       // Seasons ended early (see _seasons.js): each row is the moment a season was closed and the name of the one that began.
       await q`CREATE TABLE IF NOT EXISTS club_seasons (
         club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,

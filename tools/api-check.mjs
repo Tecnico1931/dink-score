@@ -924,6 +924,77 @@ await step('rally log: the column is additive and nullable, so older rows and ol
   assert.ok(withLog > 0 && withLog < total);
 });
 
+// ---- undo for organizer changes (L19): a role change or a rename, once, within 7 days; merges never ----
+{
+  const PIN = '735194';
+  const made = ok(await call(club, 'POST', { body: { name: 'Undo club', pin: PIN } }), 201);
+  const uc = made.club.code, own = { ownerToken: made.ownerToken };
+  const P = (body, creds = own) => call(playersApi, 'POST', { body: { code: uc, ...body, ...creds } });
+  const log = async () => ok(await P({ action: 'members' })).audit;
+  const last = async action => (await log()).find(a => a.action === action);
+  await step('undo: a promotion is undone once, logged, and a later role change blocks it', async () => {
+    const tok = ok(await P({ action: 'claim', name: 'Ana' }, {})).playerToken;
+    ok(await P({ action: 'claim', name: 'Ben' }, {}));
+    ok(await P({ action: 'set-role', name: 'Ana', role: 'organizer' }));
+    const promo = await last('promote');
+    assert.ok(promo.undoable && !promo.undone);
+    assert.equal((await P({ action: 'undo', id: promo.id }, { playerToken: tok, playerName: 'Ana' })).status, 403, 'only organizers undo');
+    ok(await P({ action: 'undo', id: promo.id }));
+    const members = ok(await P({ action: 'members' })).members;
+    assert.equal(members.find(m => m.name === 'Ana').role, 'player');
+    assert.ok((await log()).find(a => a.id === promo.id).undone, 'the original is marked');
+    const u = await last('undo');
+    assert.deepEqual([u.target, u.detail.undid], ['Ana', 'promote']);
+    assert.equal((await P({ action: 'undo', id: promo.id })).status, 409, 'once only');
+    assert.equal((await P({ action: 'undo', id: u.id })).status, 409, 'an undo is not itself undoable');
+    ok(await P({ action: 'set-role', name: 'Ben', role: 'organizer' }));
+    const benPromo = await last('promote');
+    ok(await P({ action: 'set-role', name: 'Ben', role: 'player' }));
+    assert.equal((await P({ action: 'undo', id: benPromo.id })).status, 409, 'the role changed again since');
+    const demote = await last('demote');
+    ok(await P({ action: 'undo', id: demote.id })); // puts Ben back as an organizer
+    assert.equal(ok(await P({ action: 'members' })).members.find(m => m.name === 'Ben').role, 'organizer');
+  });
+  await step('undo: a co-organizer can undo a rename but not a role change; a rename goes back with games and the phone pointer', async () => {
+    const coTok = ok(await P({ action: 'claim', name: 'Cy' }, {})).playerToken;
+    ok(await P({ action: 'set-role', name: 'Cy', role: 'organizer' }));
+    const co = { ownerToken: `${coTok}:Cy` }; // a co-organizer's credential goes where the owner token does
+    ok(await call(games, 'POST', { body: { code: uc, games: [{ id: 'u-g001', mode: 'doubles', teams: [['Di', 'Ed'], ['Fay', 'Gus']], score: [11, 4], endedAt: Date.now() - 5000 }], ...own } }));
+    ok(await P({ action: 'rename', name: 'Di', newName: 'Dina' }, co));
+    const ren = await last('rename');
+    assert.deepEqual([ren.target, ren.detail.from, ren.undoable], ['Dina', 'Di', true]);
+    const promo = await last('promote');
+    assert.equal((await P({ action: 'undo', id: promo.id }, co)).status, 403);
+    ok(await P({ action: 'undo', id: ren.id }, co));
+    const v = ok(await call(club, 'GET', { query: '?code=' + uc }));
+    assert.ok(v.players.some(p => p.name === 'Di') && !v.players.some(p => p.name === 'Dina'));
+    assert.deepEqual(v.games.find(g => g.id === 'u-g001').teams, [['Di', 'Ed'], ['Fay', 'Gus']]);
+    assert.equal(v.renamed.dina, 'Di', 'a phone still holding the new name follows it back');
+    assert.ok(!v.renamed.di);
+    assert.equal((await last('undo')).target, 'Di');
+  });
+  await step('undo: a rename is blocked when the old name is taken, the player is gone or the window passed; merges are not undoable', async () => {
+    ok(await P({ action: 'rename', name: 'Ed', newName: 'Eddie' }));
+    const ren = await last('rename');
+    ok(await call(roster, 'POST', { body: { code: uc, name: 'Ed' } }));
+    assert.equal((await P({ action: 'undo', id: ren.id })).status, 409, 'Ed is a saved player again');
+    ok(await P({ action: 'rename', name: 'Fay', newName: 'Faye' }));
+    const ren2 = await last('rename');
+    ok(await call(roster, 'POST', { body: { code: uc, name: 'Hal' } }));
+    ok(await P({ action: 'merge', name: 'Faye', into: 'Hal' }));
+    const mrg = await last('merge');
+    assert.equal(mrg.undoable, false);
+    assert.equal((await P({ action: 'undo', id: mrg.id })).status, 409);
+    assert.equal((await P({ action: 'undo', id: ren2.id })).status, 409, 'Faye is gone');
+    ok(await P({ action: 'rename', name: 'Gus', newName: 'Gustav' }));
+    const old = await last('rename');
+    await pg.query("UPDATE club_audit SET at = now() - interval '8 days' WHERE id = $1", [old.id]);
+    assert.equal((await P({ action: 'undo', id: old.id })).status, 409, 'past 7 days');
+    assert.equal((await log()).find(a => a.id === old.id).undoable, false);
+    assert.equal((await P({ action: 'undo', id: 999999 })).status, 404);
+    assert.equal((await P({ action: 'undo', id: 'x' })).status, 404);
+  });
+}
 // ---- player names: normalisation, did-you-mean, rename and merge ----
 {
   const PIN = '482916';
