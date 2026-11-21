@@ -1,0 +1,20 @@
+# The main script's modules, in the order of dink-score.html. build.cjs checks this list against src/app/*.js and the page.
+# Modules without a MODULE block in the page are emitted at its /*@APP*/ line in index.html.
+log-result
+share-image
+identity
+achievements
+avatars
+watch-link
+analytics
+organizer-tools
+game-nights
+result-links
+year-recap
+announce-banner
+reactions
+paddles
+season-end
+club-links
+organizer-devices
+tutorial
