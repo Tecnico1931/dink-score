@@ -7,6 +7,7 @@ function localDateTimeValue(t) {
 // saveAfterJoin: game ids to upload once a club is joined ("Save to a club" after a game).
 let saveAfterJoin = null;
 function beginGame() {
+  newGameOpen = false; addingPlayer = false;
   addToRoster([...teamPlayers(0), ...teamPlayers(1)]);
   startGame();
 }

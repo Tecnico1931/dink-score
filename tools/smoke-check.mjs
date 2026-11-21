@@ -32,6 +32,24 @@ try {
   await page.getByRole('button', { name: 'Skip' }).click();
   console.log('ok  loads, no script error or CSP violation');
 
+  const hero = page.locator('.hero');
+  assert.match(await hero.innerText(), /Good (morning|afternoon|evening)/, 'the hero card greets by time of day');
+  assert.match(await hero.innerText(), /game(s)? this week/);
+  assert.equal(await hero.locator('.week i').count(), 7, 'the hero card draws seven days');
+  assert.equal(await page.locator('#name-0-0').count(), 0, 'the setup card is not inline on Play');
+  await page.locator('[data-act=new-open]').click();
+  await page.getByRole('dialog', { name: 'New game' }).waitFor();
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
+  await page.locator('[data-act=new-open]').click();
+  assert.equal(await page.locator('#new-player').count(), 0, 'the new-player input stays hidden until + Add is tapped');
+  await page.locator('[data-act=add-open]').click();
+  await page.fill('#new-player', 'Eli');
+  await page.keyboard.press('Enter');
+  await page.locator('.chip-btn', { hasText: 'Eli' }).waitFor();
+  assert.equal(await page.locator('#new-player').count(), 0, 'the input hides again after saving');
+  console.log('ok  hero card, New game sheet and + Add chip');
+
   for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.fill(`#name-${i < 2 ? 0 : 1}-${i % 2}`, n);
   const optsBtn = page.locator('[data-act="setup-opts"]');
   assert.equal(await optsBtn.getAttribute('aria-expanded'), 'false', 'game settings start collapsed');

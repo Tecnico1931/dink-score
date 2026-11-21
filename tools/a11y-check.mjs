@@ -54,7 +54,8 @@ for (const [mode, opt] of states) {
   for (const tab of ['leaders', 'history', 'rules']) { await page.click(`[data-tab="${tab}"]`); await sleep(250); await audit(page, `${mode}: ${tab}`, report); }
   await page.click('[data-tab="play"]'); await sleep(200);
   if (await page.$('[data-act="me-open"]')) { await page.click('[data-act="me-open"]'); await sleep(300); await audit(page, `${mode}: profile sheet`, report); await page.keyboard.press('Escape'); await sleep(200); if (await page.$('.sheet-bg')) await page.evaluate(() => document.querySelector('.sheet-bg')?.click()); await sleep(200); }
-  if (await page.$('[data-act="start"]')) { for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
+  if (await page.$('[data-act="new-open"]')) { await page.click('[data-act="new-open"]'); await sleep(400); await audit(page, `${mode}: new game sheet`, report, '.sheet');
+    for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(500); await audit(page, `${mode}: court`, report, '.court');
     if (await page.$('.half')) { for (let i = 0; i < 3; i++) { await page.click('.half[data-k="a"]'); await sleep(150); } await audit(page, `${mode}: court after rallies`, report, '.court'); } }
   // Sheets over the court: leave-game, then the winner sheet once team 1 wins.
@@ -110,6 +111,7 @@ for (const [mode, opt] of states) {
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
     await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-21"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    await page.click('[data-act="new-open"]'); await sleep(300);
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(400);
     await page.evaluate(() => { club = { code: 'ABC123', name: 'Check club' }; live.shared = true; live.id = 'live-1'; renderCourt(); });
@@ -132,6 +134,7 @@ for (const [mode, opt] of states) {
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
     await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-21"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    await page.click('[data-act="new-open"]'); await sleep(300);
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(400);
     const states = [['no club, not shared', () => {}, '[data-act="watch-share"]'], ['shared: scan or code', () => { live.room = 'ABCDEF'; live.shared = true; live.id = 'live-1'; }, '[data-act="watch-court-scan"]'], ['event match', () => { live.room = null; live.shared = false; live.event = { id: 'e1', name: 'Spring ladder' }; }, '[data-act="club-close"]']];

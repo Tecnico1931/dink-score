@@ -222,7 +222,7 @@ The palette is cool slate neutrals with two court colors and one electric ball y
 
 ## Layout
 
-The layout is a single phone column, with a maximum width of 560px centered on larger screens. Side gutters are max(16px, safe-area inset). The vertical rhythm between sections is 22px. Inside cards the spacing runs 6, 10, 14 and 18px. The home screen is a two-column tile grid with a 10px gap. Tiles have a minimum height of 132px, and wide tiles span both columns.
+The layout is a single phone column, with a maximum width of 560px centered on larger screens. Side gutters are max(16px, safe-area inset). The vertical rhythm between sections is 22px. Inside cards the spacing runs 6, 10, 14 and 18px. The home screen opens with a hero card (time-of-day greeting, club name, the week's game total and a 7-day bar strip, with a small court-and-ball drawing in neutral tokens), then a two-column tile grid with a 10px gap. The "New game" tile (ink) sits next to "Log a result" (blue) and opens game setup as a bottom sheet. Tiles have a minimum height of 132px, and wide tiles span both columns.
 
 A floating tab bar with five tabs (Events appears only in a club) sits fixed at the bottom. It's at most 420px wide and inset 12px above the safe area. The page reserves about 112px plus the safe area at the bottom so content clears it. The page scrolls inside `<body>`, not the window.
 
