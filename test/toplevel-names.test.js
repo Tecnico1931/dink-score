@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { page } from './helpers/app.js';
 
 // Inline scripts of a page share one global scope, and a repeated top-level `function` silently replaces the
 // earlier one (PR #5 and #6 both declared duprHTML, which broke the profile rating box). Fail on any repeat.
@@ -73,7 +74,7 @@ test('topLevelNames sees the declaration kinds', () => {
 
 for (const f of ['dink-score.html', 'b.html', 'dupr-export.js']) {
   test(`${f}: no top-level name is declared twice`, () => {
-    const src = readFileSync(path.join(root, f), 'utf8');
+    const src = f === 'dink-score.html' ? page() : readFileSync(path.join(root, f), 'utf8');
     const names = (f.endsWith('.html') ? scripts(src) : [src]).flatMap(topLevelNames);
     assert.ok(names.length > 0, 'found no declarations; the scanner is broken');
     const dup = [...new Set(names.filter((n, i) => names.indexOf(n) !== i))];
