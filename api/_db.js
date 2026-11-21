@@ -337,6 +337,7 @@ export function ensureSchema() {
         PRIMARY KEY (club, endpoint)
       )`;
       await q`CREATE INDEX IF NOT EXISTS push_subs_club_name ON push_subs (club, name_key)`;
+      await q`ALTER TABLE push_subs ADD COLUMN IF NOT EXISTS organizer boolean NOT NULL DEFAULT false`; // a device subscribed with the creating phone's owner token, so organizer pushes (_approvals.js) reach it
       await q`CREATE TABLE IF NOT EXISTS pickup_games (
         session text NOT NULL REFERENCES pickup_sessions(code) ON DELETE CASCADE,
         id text NOT NULL,
@@ -425,6 +426,19 @@ export function ensureSchema() {
         FOREIGN KEY (club, night_id) REFERENCES game_nights(club, id) ON DELETE CASCADE
       )`;
       await q`CREATE INDEX IF NOT EXISTS game_night_rsvps_club_name ON game_night_rsvps (club, name_key)`;
+      // Short-lived "ask an organizer to approve" requests (see _approvals.js). Only a hash of the asking phone's key is kept. Cascades with the club.
+      await q`CREATE TABLE IF NOT EXISTS approval_requests (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        id text NOT NULL,
+        name_key text NOT NULL,
+        token_hash text NOT NULL,
+        status text NOT NULL DEFAULT 'pending',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL,
+        decided_at timestamptz,
+        PRIMARY KEY (club, id)
+      )`;
+      await q`CREATE UNIQUE INDEX IF NOT EXISTS approval_requests_pending ON approval_requests (club, name_key) WHERE status = 'pending'`;
     })().catch(err => { ready = null; throw err; });
   }
   return ready;

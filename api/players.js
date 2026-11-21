@@ -12,6 +12,7 @@
 //   anonymise {name, playerToken | pin|ownerToken}    -> replaces the name everywhere in the club with "Former player XXXXX", removes the saved
 //                                                       player (picture, DUPR, phone link). Games stay, so other people's ratings don't change.
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
+//   approval-request|approval-status|approval-decide -> a member asks an organizer to approve linking a name instead of using the PIN (see _approvals.js)
 //   rename   {pin|ownerToken, name, newName}         -> organizer: changes a player's name everywhere (games, events, purchases, links)
 //   merge    {pin|ownerToken, name, into}            -> organizer: folds the player `name` into `into`; games, links, picture, DUPR follow
 // A claim for a new name that looks like a saved one ("Jose" / "José") answers 409 with a `similar` list of those names
@@ -21,6 +22,7 @@ import { cleanDupr, duprFrom } from './_dupr.js';
 import { newAnonLabel, renameDeep, likeFor } from './_privacy.js';
 import { renamePlayer, renameWrites } from './_rename.js';
 import { MEMBER_ACTIONS, memberAction, audit } from './_members.js';
+import { APPROVAL_ACTIONS, approvalAction } from './_approvals.js';
 import { dropRatings } from './_rating_store.js';
 import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
 
@@ -68,6 +70,7 @@ export default handler(async (req, res) => {
   const code = club.code; // the club's permanent key, even when an old club code was used
 
   if (MEMBER_ACTIONS.includes(body.action)) return send(res, 200, await memberAction(sql, club, body, req));
+  if (APPROVAL_ACTIONS.includes(body.action)) return send(res, 200, await approvalAction(sql, club, body, req));
 
   if (body.action === 'claim') {
     const name = cleanName(body.name);
@@ -228,6 +231,7 @@ export default handler(async (req, res) => {
     }
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM push_subs WHERE club = ${code} AND name_key = ${k}`);
+    ops.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key = ${k}`);
     if (!row && !touched) throw fail(404, 'No player has that name in this club.');
     ops.push(sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${k}`);
     ops.push(sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${k}`);

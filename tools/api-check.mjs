@@ -2848,5 +2848,107 @@ await step('the public league link: organizer makes it, a spectator sees only al
   });
 }
 
+// Ask an organizer to approve instead of sharing the PIN (L17, api/_approvals.js via api/players.js).
+{
+  const ap = ok(await call(club, 'POST', { body: { name: 'Approval club', pin: '246810' } }), 201);
+  const acode = ap.club.code, AORG = { ownerToken: ap.ownerToken };
+  const atok = {};
+  for (const n of ['Ana', 'Ben', 'Cy', 'Di']) atok[n] = ok(await call(playersApi, 'POST', { body: { code: acode, action: 'claim', name: n, ...AORG } })).playerToken;
+  const AP = (action, body) => call(playersApi, 'POST', { body: { code: acode, action, ...body } });
+  const fresh = () => Array.from({ length: 48 }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
+  const state = async (id, t) => ok(await AP('approval-status', { id, playerToken: t })).status;
+  const mine = async (name, t) => (await AP('export', { name, playerToken: t })).status; // 200 only for the phone the name is linked to
+  const log = async () => ok(await AP('members', AORG)).audit;
+
+  await step('approvals: asking needs a made-up key and a saved name, and only one request per name waits at a time', async () => {
+    assert.equal((await AP('approval-request', { name: 'Ana', playerToken: 'nope' })).status, 400);
+    assert.equal((await AP('approval-request', { name: 'Nobody', playerToken: fresh() })).status, 404);
+    const t = fresh();
+    const r = ok(await AP('approval-request', { name: 'Ana', playerToken: t }));
+    assert.match(r.id, /^ap-/);
+    assert.ok(r.expiresAt > Date.now() + 14 * 60e3 && r.expiresAt < Date.now() + 16 * 60e3, 'about 15 minutes');
+    assert.equal(await state(r.id, t), 'pending');
+    assert.equal((await AP('approval-request', { name: 'ana', playerToken: fresh() })).status, 409, 'a second ask for the same name is refused');
+    assert.equal((await AP('approval-status', { id: r.id, playerToken: fresh() })).status, 404, 'another phone cannot read it');
+    assert.equal((await AP('approval-status', { id: r.id })).status, 404);
+    const [row] = (await pg.query(`SELECT token_hash FROM approval_requests WHERE id = $1`, [r.id])).rows;
+    assert.ok(row.token_hash && !row.token_hash.includes(t), 'only a hash of the key is kept');
+  });
+
+  await step('approvals: organizers see the waiting request; a member without credentials cannot decide', async () => {
+    const [pend] = ok(await AP('members', AORG)).requests;
+    assert.equal(pend.name, 'Ana'); assert.equal(pend.linked, true);
+    assert.equal((await AP('members', {})).status, 403, 'the list is for organizers');
+    assert.equal((await AP('approval-decide', { id: pend.id, decision: 'approve' })).status, 403);
+    assert.equal((await AP('approval-decide', { id: pend.id, decision: 'approve', pin: '000000' })).status, 403);
+    assert.equal((await AP('approval-decide', { id: pend.id, decision: 'maybe', ...AORG })).status, 400);
+    assert.equal((await AP('approval-decide', { id: 'ap-none', decision: 'deny', ...AORG })).status, 404);
+    assert.equal(await mine('Ana', atok.Ana), 200, 'still linked to the first phone');
+  });
+
+  await step('approvals: a denial changes nothing, is logged with who made it, and the name can be asked for again', async () => {
+    const [pend] = ok(await AP('members', AORG)).requests;
+    assert.equal(ok(await AP('approval-decide', { id: pend.id, decision: 'deny', ...AORG })).status, 'denied');
+    assert.equal((await AP('approval-decide', { id: pend.id, decision: 'approve', ...AORG })).status, 409, 'already decided');
+    assert.equal(await mine('Ana', atok.Ana), 200);
+    assert.deepEqual(ok(await AP('members', AORG)).requests, []);
+    const l = (await log()).find(a => a.action === 'deny-claim');
+    assert.equal(l.target, 'Ana'); assert.equal(l.actor, 'owner'); assert.equal(l.detail.request, pend.id);
+  });
+
+  await step('approvals: an approval moves the name to the asking phone, clears the old link, role and devices, and is logged', async () => {
+    ok(await AP('set-role', { name: 'Ben', role: 'organizer', ...AORG }));
+    await pg.query(`INSERT INTO push_subs (club, endpoint, name_key, p256dh, auth) VALUES ($1, 'https://fcm.googleapis.com/x/ben', 'ben', 'p', 'a')`, [acode]);
+    const t = fresh();
+    const r = ok(await AP('approval-request', { name: 'Ben', playerToken: t }));
+    const co = { ownerToken: atok.Ben + ':Ben' };
+    assert.equal((await AP('approval-decide', { id: r.id, decision: 'approve', ...co })).status, 403, 'a co-organizer cannot hand over an organizer');
+    assert.equal(await state(r.id, t), 'pending');
+    assert.equal(ok(await AP('approval-decide', { id: r.id, decision: 'approve', pin: '246810' })).status, 'approved');
+    assert.equal(await state(r.id, t), 'approved');
+    assert.equal(await mine('Ben', atok.Ben), 403, 'the old phone no longer acts as Ben');
+    assert.equal(await mine('Ben', t), 200, 'the asking phone does');
+    const [b] = ok(await AP('members', AORG)).members.filter(m => m.name === 'Ben');
+    assert.equal(b.role, 'player'); assert.equal(b.claimed, true);
+    assert.equal((await pg.query(`SELECT count(*)::int AS n FROM push_subs WHERE club = $1 AND name_key = 'ben'`, [acode])).rows[0].n, 0, 'the old phone stops hearing Ben');
+    const l = (await log()).find(a => a.action === 'approve-claim');
+    assert.equal(l.target, 'Ben'); assert.equal(l.actor, 'pin'); assert.equal(l.detail.request, r.id);
+    assert.ok((await log()).every(a => !/246810/.test(JSON.stringify(a)) && !JSON.stringify(a).includes(t)), 'no PIN or key in the log');
+  });
+
+  await step('approvals: a request that runs out cannot be approved, and is gone from the list', async () => {
+    const t = fresh();
+    const r = ok(await AP('approval-request', { name: 'Cy', playerToken: t }));
+    await pg.query(`UPDATE approval_requests SET expires_at = now() - interval '1 minute' WHERE id = $1`, [r.id]);
+    assert.equal(await state(r.id, t), 'expired');
+    assert.deepEqual(ok(await AP('members', AORG)).requests, []);
+    assert.equal((await AP('approval-decide', { id: r.id, decision: 'approve', ...AORG })).status, 409);
+    assert.equal(await mine('Cy', atok.Cy), 200, 'nothing moved');
+    ok(await AP('approval-request', { name: 'Cy', playerToken: fresh() })); // an expired one does not block asking again
+  });
+
+  await step('approvals: a removed (blocked) name cannot be asked for, and renaming a name drops its waiting request', async () => {
+    ok(await AP('remove', { name: 'Di', block: true, ...AORG }));
+    assert.equal((await AP('approval-request', { name: 'Di', playerToken: fresh() })).status, 403);
+    const [pend] = ok(await AP('members', AORG)).requests;
+    assert.equal(pend.name, 'Cy');
+    ok(await AP('rename', { name: 'Cy', newName: 'Cyrus', ...AORG }));
+    assert.deepEqual(ok(await AP('members', AORG)).requests, []);
+    assert.equal((await pg.query(`SELECT count(*)::int AS n FROM approval_requests WHERE club = $1 AND status = 'pending'`, [acode])).rows[0].n, 0);
+  });
+
+  await step('approvals: asks are limited per network, and the table is additive and cascades from the club', async () => {
+    const same = { 'x-real-ip': '10.9.9.9' };
+    let last = 0;
+    for (let i = 0; i < 7; i++) last = (await call(playersApi, 'POST', { headers: same, body: { code: acode, action: 'approval-request', name: 'Nobody', playerToken: fresh() } })).status;
+    assert.equal(last, 404, 'unknown names are refused before they count');
+    let limited = 0;
+    for (let i = 0; i < 8; i++) limited = (await call(playersApi, 'POST', { headers: same, body: { code: acode, action: 'approval-request', name: 'Ana', playerToken: fresh() } })).status;
+    assert.equal(limited, 429, 'a network that keeps asking is slowed down');
+    const [fk] = (await pg.query(`SELECT confdeltype FROM pg_constraint WHERE conrelid = 'approval_requests'::regclass AND contype = 'f'`)).rows;
+    assert.equal(fk.confdeltype, 'c');
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

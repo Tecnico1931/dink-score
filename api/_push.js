@@ -129,6 +129,8 @@ export async function pushAction(sql, club, body, req) {
   if (!who || !who.claim_hash || !tokenMatches(who.claim_hash, body.playerToken)) throw fail(403, 'Pick your name in the club on this phone first to get notifications.');
   const key = who.name_key;
   if (action === 'push-status') {
+    // A device the creating phone subscribed before organizer requests existed gets its flag here (_approvals.js).
+    if (body.endpoint && club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)) await sql`UPDATE push_subs SET organizer = true WHERE club = ${code} AND name_key = ${key} AND endpoint = ${String(body.endpoint)}`;
     const [row] = body.endpoint ? await sql`SELECT 1 AS x FROM push_subs WHERE club = ${code} AND name_key = ${key} AND endpoint = ${String(body.endpoint)}` : [];
     return { enabled: true, publicKey: vapid.pub, subscribed: !!row };
   }
@@ -137,8 +139,9 @@ export async function pushAction(sql, club, body, req) {
     const [{ mine, club: total, has }] = await sql`SELECT count(*) FILTER (WHERE name_key = ${key})::int AS mine, count(*)::int AS club, count(*) FILTER (WHERE endpoint = ${s.endpoint})::int AS has FROM push_subs WHERE club = ${code}`;
     if (!Number(has) && Number(mine) >= MAX_PER_PLAYER) throw fail(409, `You already get notifications on ${MAX_PER_PLAYER} devices. Turn one off first.`);
     if (!Number(has) && Number(total) >= MAX_PER_CLUB) throw fail(409, 'This club has as many notification devices as it can hold.');
-    await sql`INSERT INTO push_subs (club, endpoint, name_key, p256dh, auth) VALUES (${code}, ${s.endpoint}, ${key}, ${s.p256dh}, ${s.auth})
-      ON CONFLICT (club, endpoint) DO UPDATE SET name_key = EXCLUDED.name_key, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`;
+    const organizer = !!(club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)); // the creating phone: it hears organizer requests too (_approvals.js)
+    await sql`INSERT INTO push_subs (club, endpoint, name_key, p256dh, auth, organizer) VALUES (${code}, ${s.endpoint}, ${key}, ${s.p256dh}, ${s.auth}, ${organizer})
+      ON CONFLICT (club, endpoint) DO UPDATE SET name_key = EXCLUDED.name_key, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, organizer = EXCLUDED.organizer`;
     return { enabled: true, subscribed: true };
   }
   if (action === 'push-unsubscribe') {

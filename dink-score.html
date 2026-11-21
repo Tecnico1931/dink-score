@@ -3038,7 +3038,7 @@ async function pushEndpoint() {
 async function notifyOpen() {
   clubSheet = { view: 'notify', loading: true }; renderClub();
   let next;
-  try { next = { view: 'notify', st: await playerCall(pushCreds({ action: 'push-status', endpoint: await pushEndpoint() })) }; }
+  try { next = { view: 'notify', st: await playerCall(pushCreds({ action: 'push-status', endpoint: await pushEndpoint(), ownerToken: owners[club.code] || '' })) }; }
   catch (err) { next = { view: 'notify', error: err.message }; }
   if (clubSheet && clubSheet.view === 'notify') { clubSheet = next; renderClub(); }
 }
@@ -3051,7 +3051,7 @@ async function notifyToggle(on) {
     if (on) {
       if (await Notification.requestPermission() !== 'granted') throw new Error('Notifications are blocked for Dink Score. Allow them in your phone or browser settings, then try again.');
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(clubSheet.st.publicKey) });
-      await playerCall(pushCreds({ action: 'push-subscribe', subscription: sub.toJSON() }));
+      await playerCall(pushCreds({ action: 'push-subscribe', subscription: sub.toJSON(), ownerToken: owners[club.code] || '' }));
       msg = "Notifications are on for this phone in this club.";
     } else {
       if (sub) { await playerCall(pushCreds({ action: 'push-unsubscribe', endpoint: sub.endpoint })); await sub.unsubscribe(); }
@@ -5013,6 +5013,44 @@ function senderGuess(g) {
   else if (myName() && myToken()) guess.scoredBy = myName().trim().toLowerCase();
   return guess;
 }
+// Ask an organizer to approve instead of typing the PIN (api/_approvals.js). This phone makes up its own key and sends it; approving
+// makes it the name's link, so the key is saved here until the answer comes back (a few minutes at most).
+let askTimer = 0;
+const asks = () => (club && store.get('pb.asks', {})[club.code]) || null;
+function setAsk(a) { const all = store.get('pb.asks', {}); if (a) all[club.code] = a; else delete all[club.code]; store.set('pb.asks', all); }
+async function askOrganizer(name) {
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
+  clubSheet.busy = true; clubSheet.error = ''; renderClub();
+  try {
+    const d = await playerCall({ action: 'approval-request', name, playerToken: token });
+    setAsk({ id: d.id, name, token, expiresAt: d.expiresAt });
+    clubSheet.busy = false; clubSheet.needPinFor = null; renderClub(); pollAsk();
+  } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; renderClub(); }
+}
+function askCancel() { clearTimeout(askTimer); askTimer = 0; setAsk(null); renderClub(); }
+function pollAsk() {
+  clearTimeout(askTimer);
+  const a = asks(), code = club && club.code;
+  if (!a) { askTimer = 0; return; }
+  askTimer = setTimeout(async () => {
+    askTimer = 0;
+    if (!club || club.code !== code) return;
+    try {
+      const d = await playerCall({ action: 'approval-status', id: a.id, playerToken: a.token });
+      if (d.status === 'pending') pollAsk(); else askDone(a, d.status);
+    } catch (err) { if (err.status === 404) askDone(a, 'expired'); else pollAsk(); }
+  }, 5000);
+}
+async function askDone(a, status) {
+  setAsk(null);
+  if (status === 'approved') {
+    me[club.code] = { name: a.name, token: a.token }; store.set('pb.me', me);
+    clubSheet = { view: 'club', msg: `An organizer approved it. This phone is now ${a.name}.` };
+    showToast(`Welcome, ${a.name}`, false);
+    await refreshClub(); render(); renderClub(); return;
+  }
+  if (clubSheet) { clubSheet.error = status === 'denied' ? 'An organizer said no to that request.' : 'The request ran out of time. Ask again, or ask an organizer in person.'; renderClub(); }
+}
 async function claimName(raw, confirmNew) {
   const name = String(raw || '').trim();
   if (!name) { clubSheet.error = 'Enter your name, or tap it above.'; renderClub(); return; }
@@ -5066,16 +5104,21 @@ async function nameEditSubmit(confirmNew) {
 function whoamiHTML(c) {
   const players = clubPlayers().length ? clubPlayers() : roster.map(n => ({ name: n, claimed: false }));
   const free = players.filter(p => !p.claimed), taken = players.filter(p => p.claimed);
+  let ask = asks();
+  if (ask && ask.expiresAt < Date.now()) { setAsk(null); ask = null; }
+  if (ask && !askTimer) pollAsk();
   return `<h2 id="club-h">Who are you?</h2>
     <p>Pick your name so your games count toward your achievements and weekly challenges. Only this phone can use it.</p>
     ${free.length ? `<div class="field" style="margin:0"><span class="lab">Tap your name</span><div class="chips">${free.map(p => `<button type="button" class="chip-btn" data-claim="${esc(p.name)}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
-    ${taken.length ? `<p class="note">Already linked to a phone: ${taken.map(p => esc(p.name)).join(', ')}. Ask an organizer if one of these is you.</p>` : ''}
+    ${ask ? `<div class="field" role="status"><span class="lab">Waiting for an organizer</span><p class="note">You asked to be ${esc(ask.name)}. An organizer can approve it from their own phone. This runs out after a few minutes.</p><div class="btns"><button type="button" class="btn btn-soft" data-act="ask-cancel">Cancel the request</button></div></div>` : ''}
+    ${taken.length && !ask ? `<div class="field" style="margin:0"><span class="lab">Already linked to a phone. Is one of these you?</span><div class="chips">${taken.map(p => `<button type="button" class="chip-btn" data-ask="${esc(p.name)}" ${c.busy ? 'disabled' : ''}>Ask an organizer: ${esc(p.name)}</button>`).join('')}</div></div>` : ''}
     <form class="club-form" data-form="whoami"><label class="lab" for="whoami-name">${free.length ? 'Not listed? Add your name' : 'Your name'}</label>
       <div class="add-player"><input id="whoami-name" autocomplete="off" maxlength="40" placeholder="Your name"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>That's me</button></div></form>
     ${c.dym ? `<div class="field" role="alert"><span class="lab">Did you mean ${esc(c.dym.similar[0])}?</span><div class="chips">${c.dym.similar.map(n => `<button type="button" class="chip-btn" data-claim="${esc(n)}">Yes, ${esc(n)}</button>`).join('')}<button type="button" class="chip-btn" data-claim-new="${esc(c.dym.name)}">No, add ${esc(c.dym.name)}</button></div></div>` : ''}
     ${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     ${c.needPinFor ? `<form class="club-form" data-form="whoami-pin"><label class="lab" for="whoami-pin">Organizer PIN to confirm ${esc(c.needPinFor)}</label>
-      <div class="add-player"><input id="whoami-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="Organizer enters it"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Confirm</button></div></form>` : ''}
+      <div class="add-player"><input id="whoami-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" placeholder="Organizer enters it"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Confirm</button></div></form>
+      <div class="btns"><button type="button" class="btn btn-soft" data-ask="${esc(c.needPinFor)}" ${c.busy ? 'disabled' : ''}>Or ask an organizer to approve</button></div>` : ''}
     <div class="btns"><button class="btn btn-soft" data-act="whoami-skip">Skip for now</button></div>`;
 }
 
@@ -5755,6 +5798,9 @@ function membersHTML(c) {
       <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}<button class="link" data-anon="${esc(p.name)}">Anonymise</button></span></li>`;
   }).join('');
   const ed = c.nameEdit;
+  const waiting = (md.requests || []).length ? `<h3 class="lab">Waiting for you</h3><ul class="mem-list">${md.requests.map(r => `<li class="mem-row"><span class="mem-text"><span class="mem-name">${esc(r.name)}</span>
+      <span class="mem-meta">${r.linked ? 'Linked to another phone. Approve only if you know it is them.' : 'Wants to link this name to their phone.'} Asked ${esc(new Date(r.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }))}.</span></span>
+      <span class="mem-acts"><button class="btn btn-ink" data-decide="${esc(r.id)}" data-verdict="approve" data-who="${esc(r.name)}">Approve</button><button class="btn btn-soft" data-decide="${esc(r.id)}" data-verdict="deny" data-who="${esc(r.name)}">Deny</button></span></li>`).join('')}</ul>` : '';
   const editor = ed ? `<form class="club-form" data-form="name-edit">${ed.kind === 'merge'
     ? `<label class="lab" for="ne-into">Merge ${esc(ed.name)} into</label><select id="ne-into" class="field-input">${rows.filter(r => !sameName(r.p.name, ed.name)).map(r => `<option ${ed.mergeInto && sameName(ed.mergeInto, r.p.name) ? 'selected' : ''}>${esc(r.p.name)}</option>`).join('')}</select>
        <p class="note">Their games, ratings, achievements, phone link and DUPR connection all move to the player you pick, and ${esc(ed.name)} goes away. This can't be undone.</p>`
@@ -5763,7 +5809,7 @@ function membersHTML(c) {
     ${ed.similar ? `<p class="err" role="alert">Did you mean ${esc(ed.similar[0])}? That is already a saved player.</p>` : ''}
     ${ed.mergeInto && ed.kind !== 'merge' ? `<p class="note">${esc(ed.mergeInto)} already exists. <button type="button" class="link" data-merge="${esc(ed.name)}" data-into="${esc(ed.mergeInto)}">Merge the two players</button> instead.</p>` : ''}
     <div class="btns"><button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>${ed.kind === 'merge' ? 'Merge' : 'Rename'}</button>${ed.similar ? '<button type="button" class="btn btn-soft" data-act="name-edit-confirm">They are different people</button>' : ''}<button type="button" class="btn btn-soft" data-act="name-edit-cancel">Cancel</button></div></form>` : '';
-  return `<h2 id="club-h">Members</h2>${editor}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+  return `<h2 id="club-h">Members</h2>${waiting}${editor}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
     ${rows.length ? `<p>${rows.length} player${rows.length === 1 ? '' : 's'}, ${linked} linked to phones, ${active} played in the last 30 days.${dc ? ` ${duprCount} connected to DUPR.` : ''}</p>
     <ul class="mem-list">${list}</ul>
     <p class="note">Linked players picked their name on their own phone. Guests were added to games or saved players but haven't linked a phone. Release a name if someone changes phones. Removing someone stops their phone from acting as that name; their games and ratings stay. ${isCoOrganizer() ? 'Only the club creator or the organizer PIN can change roles or remove organizers.' : 'Organizers can do everything except change roles and remove other organizers.'}</p>` : '<p>No players yet. Players show up here once they are added to a game or saved to the club.</p>'}
@@ -6308,7 +6354,7 @@ async function loadMembers() {
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
   const t = a.target || 'a member';
-  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list' }[a.action] || a.action;
+  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list', 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
   return `${who} ${did}`;
 }
 function memberLeave(el) {
@@ -8402,6 +8448,9 @@ document.addEventListener('click', e => {
   // Who are you
   if (ds.claim) { claimName(ds.claim); return; }
   if (ds.claimNew) { claimName(ds.claimNew, true); return; }
+  if (ds.ask) { askOrganizer(ds.ask); return; }
+  if (ds.act === 'ask-cancel') { askCancel(); return; }
+  if (ds.decide) { adminAction({ action: 'approval-decide', id: ds.decide, decision: ds.verdict }, ds.verdict === 'approve' ? `${ds.who} is linked to their new phone` : `Request for ${ds.who} denied`); return; }
   if (ds.act === 'whoami-open') { clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (ds.act === 'whoami-skip') { const after = clubSheet && clubSheet.afterJoin; skipWhoami(); clubSheet = null; if (after) afterJoin(); else { renderClub(); render(); } return; }
   if (ds.act === 'links-open') { clubSheet = { view: 'links', data: null, error: '' }; renderClub(); loadLinks(); return; }

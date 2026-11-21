@@ -226,6 +226,25 @@ await step('subscribe calls are rate limited per network', async () => {
   assert.equal((await L('push-status', me('Di'), { addr: '10.9.9.10' })).status, 200, 'another network is unaffected');
 });
 
+await step('approval request: only organizers hear it (co-organizer by role, creating phone by its owner token), with no club name or code', async () => {
+  ok(await call(players, 'POST', { body: { code, action: 'set-role', name: 'Di', role: 'organizer', ...ORG } }));
+  tok.Fay = ok(await call(players, 'POST', { body: { code, action: 'claim', name: 'Fay', ...ORG } })).playerToken;
+  const D = device('org-di'), E = device('org-eve'), F = device('org-fay');
+  ok(await L('push-subscribe', { ...me('Di'), subscription: D }));
+  ok(await L('push-subscribe', { ...me('Eve'), ownerToken: created.ownerToken, subscription: E }));
+  ok(await L('push-subscribe', { ...me('Fay'), ownerToken: 'f'.repeat(48), subscription: F })); // a wrong owner token flags nothing
+  assert.deepEqual((await pg.query(`SELECT endpoint FROM push_subs WHERE organizer ORDER BY endpoint`)).rows.map(r => r.endpoint), [E.endpoint]);
+  take();
+  const asked = ok(await call(players, 'POST', { body: { code, action: 'approval-request', name: 'Fay', playerToken: 'a'.repeat(48) } }));
+  assert.equal(asked.notified, 2);
+  const sent = take();
+  assert.deepEqual(sent.map(s => s.endpoint).sort(), [D.endpoint, E.endpoint].sort(), 'not Fay or any other member');
+  for (const s of sent) {
+    assert.equal(s.message.title, 'Approval needed'); assert.match(s.message.body, /Fay/);
+    assert.ok(!s.message.body.includes(code) && !/Push check club/.test(text(s.message)), 'no club name or code');
+  }
+});
+
 await step('deleting the club removes its subscriptions (they cascade)', async () => {
   await pg.query(`DELETE FROM clubs`);
   assert.equal((await rows()).length, 0);
