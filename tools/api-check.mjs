@@ -2742,5 +2742,111 @@ await step('the public league link: organizer makes it, a spectator sees only al
   });
 }
 
+// Linking friendly clubs into one leaderboard (L15, api/_clublinks.js via api/club.js).
+{
+  const mk = async (name, pin) => { const c = ok(await call(club, 'POST', { body: { name, pin } }), 201); return { code: c.club.code, ORG: { ownerToken: c.ownerToken } }; };
+  const A = await mk('Link club A', '246810'), B = await mk('Link club B', '135790'), C = await mk('Link club C', '112233');
+  const LK = (c, action, body = {}) => call(club, 'POST', { body: { code: c.code, action, ...body } });
+  const lget = (c, q = '', headers = {}) => call(club, 'GET', { query: `?code=${c.code}&links=1${q}`, headers });
+  const lgames = (pre, p1, p2) => Array.from({ length: 6 }, (_, i) => ({ id: pre + i, mode: 'doubles', teams: [p1, p2], score: [11, 4], endedAt: Date.now() - 5000 + i, startedAt: Date.now() - 600000 }));
+  const tokA = {}, tokB = {};
+  for (const n of ['Ana', 'Ben', 'Cy', 'Di']) tokA[n] = ok(await call(playersApi, 'POST', { body: { code: A.code, action: 'claim', name: n, ...A.ORG } })).playerToken;
+  for (const n of ['Eve', 'Fay', 'Gus', 'Hal']) tokB[n] = ok(await call(playersApi, 'POST', { body: { code: B.code, action: 'claim', name: n, ...B.ORG } })).playerToken;
+  ok(await call(games, 'POST', { body: { code: A.code, games: lgames('la-', ['Ana', 'Ben'], ['Cy', 'Di']), ...A.ORG } }));
+  ok(await call(games, 'POST', { body: { code: B.code, games: lgames('lb-', ['Eve', 'Fay'], ['Gus', 'Hal']), ...B.ORG } }));
+  let invite, linkId;
+
+  await step('club links: only an organizer can make an invite; players and the code alone are refused', async () => {
+    assert.equal((await LK(A, 'link-invite')).status, 403);
+    assert.equal((await LK(A, 'link-invite', { playerName: 'Ana', playerToken: tokA.Ana })).status, 403);
+    assert.equal((await LK(A, 'link-invite', { pin: '000000' })).status, 403);
+    const r = ok(await LK(A, 'link-invite', { pin: '246810' }), 201);
+    assert.match(r.invite, /^[A-HJKMNP-Z2-9]{8}$/);
+    assert.ok(r.expiresAt > Date.now());
+    invite = r.invite; linkId = r.id;
+  });
+  await step('club links: the invite is seen by A\'s organizers only, and nothing is linked yet', async () => {
+    assert.deepEqual(ok(await lget(A)).links, []);
+    assert.equal(ok(await lget(A)).pending, undefined, 'a plain member never sees the code');
+    assert.deepEqual(ok(await lget(A, '', { 'x-club-owner': A.ORG.ownerToken })).pending.map(p => p.invite), [invite]);
+    assert.equal((await lget(A, `&link=${linkId}`)).status, 404, 'an invite is not a link');
+  });
+  await step('club links: preview and accept need B\'s organizer, show only the name, and say nothing for a bad code', async () => {
+    assert.equal((await LK(B, 'link-preview', { invite })).status, 403);
+    assert.equal((await LK(B, 'link-accept', { invite, playerName: 'Eve', playerToken: tokB.Eve })).status, 403);
+    assert.deepEqual(ok(await LK(B, 'link-preview', { invite: invite.toLowerCase().replace(/^(....)/, '$1-'), pin: '135790' })), { clubName: 'Link club A' });
+    const bad = await LK(B, 'link-accept', { invite: 'AAAAAAAA', pin: '135790' });
+    assert.equal(bad.status, 404);
+    assert.equal((await LK(B, 'link-accept', { invite: 'nope', pin: '135790' })).status, 404);
+    assert.equal(bad.json.error, (await LK(B, 'link-accept', { invite: 'nope', pin: '135790' })).json.error, 'a malformed and an unknown code answer the same');
+    assert.equal((await LK(A, 'link-accept', { invite, pin: '246810' })).status, 400, 'a club cannot accept its own invite');
+    assert.equal((await lget(B)).json.links.length, 0, 'previews and refusals linked nothing');
+  });
+  await step('club links: an expired invite no longer works', async () => {
+    await pg.query(`UPDATE club_links SET invite_expires = now() - interval '1 minute' WHERE id = $1`, [linkId]);
+    assert.equal((await LK(B, 'link-preview', { invite, pin: '135790' })).status, 404);
+    assert.equal((await LK(B, 'link-accept', { invite, pin: '135790' })).status, 404);
+    assert.deepEqual(ok(await lget(A, '', { 'x-club-owner': A.ORG.ownerToken })).pending, [], 'expired invites are not listed');
+    await pg.query(`UPDATE club_links SET invite_expires = now() + interval '1 day' WHERE id = $1`, [linkId]);
+  });
+  await step('club links: accepting makes the link live for both clubs, once', async () => {
+    const r = ok(await LK(B, 'link-accept', { invite, pin: '135790' }));
+    assert.equal(r.club, 'Link club A'); assert.equal(r.id, linkId);
+    assert.equal((await LK(C, 'link-accept', { invite, pin: '112233' })).status, 404, 'the code is spent');
+    assert.deepEqual(ok(await lget(A)).links.map(l => [l.id, l.club]), [[linkId, 'Link club B']]);
+    assert.deepEqual(ok(await lget(B)).links.map(l => [l.id, l.club]), [[linkId, 'Link club A']]);
+    assert.deepEqual(ok(await lget(A, '', { 'x-club-owner': A.ORG.ownerToken })).pending, []);
+    const again = ok(await LK(B, 'link-invite', { pin: '135790' }), 201);
+    assert.equal((await LK(A, 'link-accept', { invite: again.invite, pin: '246810' })).status, 409, 'the same two clubs cannot link twice');
+    ok(await LK(B, 'link-leave', { id: again.id, pin: '135790' }));
+  });
+  await step('club links: members of either club see one combined standing, own club first, nothing else', async () => {
+    const a = ok(await lget(A, `&link=${linkId}`)), b = ok(await lget(B, `&link=${linkId}`));
+    assert.deepEqual(a.clubs, ['Link club A', 'Link club B']);
+    assert.deepEqual(b.clubs, ['Link club B', 'Link club A']);
+    assert.equal(a.rows.length, 8);
+    assert.deepEqual(new Set(a.rows.map(r => r.name)), new Set(['Ana', 'Ben', 'Cy', 'Di', 'Eve', 'Fay', 'Gus', 'Hal']));
+    assert.deepEqual(a.rows.filter(r => r.club === 1).map(r => r.name).sort(), ['Eve', 'Fay', 'Gus', 'Hal']);
+    assert.deepEqual(b.rows.filter(r => r.club === 1).map(r => r.name).sort(), ['Ana', 'Ben', 'Cy', 'Di']);
+    for (const r of a.rows) assert.deepEqual(Object.keys(r).sort(), ['club', 'games', 'name', 'provisional', 'rank', 'rating']);
+    assert.deepEqual(Object.keys(a).sort(), ['clubs', 'mode', 'rows', 'v']);
+    assert.ok(!/246810|135790|ownerToken|code/i.test(JSON.stringify([a, b])), 'no PIN, token or club code leaves');
+    const text = JSON.stringify(a);
+    assert.ok(!text.includes(A.code) && !text.includes(B.code));
+    assert.equal((await lget(C, `&link=${linkId}`)).status, 404, 'a third club cannot read it');
+    assert.equal((await call(club, 'GET', { query: `?links=1&link=${linkId}` })).status === 200, false, 'no club code, no standing');
+    assert.equal(ok(await lget(A, `&link=${linkId}&mode=singles`)).rows.length, 0, 'singles has its own table');
+  });
+  await step('club links: a removed player drops out of the standing', async () => {
+    ok(await call(playersApi, 'POST', { body: { code: B.code, action: 'remove', name: 'Hal', block: true, pin: '135790' } }));
+    const a = ok(await lget(A, `&link=${linkId}`));
+    assert.ok(!a.rows.some(r => r.name === 'Hal'));
+    assert.equal(a.rows.length, 7);
+  });
+  await step('club links: either organizer can leave and it ends at once for both; players cannot', async () => {
+    assert.equal((await LK(B, 'link-leave', { id: linkId, playerName: 'Eve', playerToken: tokB.Eve })).status, 403);
+    assert.equal((await LK(C, 'link-leave', { id: linkId, pin: '112233' })).status, 404, 'a stranger cannot end it');
+    assert.equal(ok(await lget(A)).links.length, 1, 'refusals changed nothing');
+    ok(await LK(B, 'link-leave', { id: linkId, pin: '135790' }));
+    assert.deepEqual(ok(await lget(A)).links, []);
+    assert.equal((await lget(A, `&link=${linkId}`)).status, 404);
+    assert.equal((await LK(A, 'link-leave', { id: linkId, pin: '246810' })).status, 404, 'already gone');
+  });
+  await step('club links: at most five per club, and deleting a club removes its links', async () => {
+    for (let i = 0; i < 5; i++) ok(await LK(A, 'link-invite', { pin: '246810' }), 201);
+    assert.equal((await LK(A, 'link-invite', { pin: '246810' })).status, 400);
+    const ex = ok(await call(club, 'POST', { body: { code: A.code, action: 'export', pin: '246810' } }));
+    assert.deepEqual(ex.linkedClubs, [], 'an invite is not a link');
+    await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE code = $1`, [A.code]);
+    await call(club, 'GET', { query: '?code=' + B.code });
+    await pg.query(`DELETE FROM clubs WHERE delete_at IS NOT NULL AND delete_at <= now()`);
+    assert.equal((await pg.query(`SELECT count(*)::int AS n FROM club_links WHERE club_a = $1 OR club_b = $1`, [A.code])).rows[0].n, 0);
+  });
+  await step('club links: a quick game room cannot link', async () => {
+    const room = ok(await call(club, 'POST', { body: { room: true } }), 201).room;
+    assert.equal((await call(club, 'POST', { body: { code: room, action: 'link-invite' } })).status, 400);
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

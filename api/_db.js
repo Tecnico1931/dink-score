@@ -253,6 +253,20 @@ export function ensureSchema() {
         created_at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (club, starts_at)
       )`;
+      // Friendly clubs linked into one leaderboard (see _clublinks.js): a row is an invite until club_b accepts it, then a live link. Either club's row goes with the club.
+      await q`CREATE TABLE IF NOT EXISTS club_links (
+        id text PRIMARY KEY,
+        club_a text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        club_b text REFERENCES clubs(code) ON DELETE CASCADE,
+        invite text,
+        invite_expires timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        accepted_at timestamptz
+      )`;
+      await q`CREATE UNIQUE INDEX IF NOT EXISTS club_links_invite ON club_links (invite) WHERE invite IS NOT NULL`;
+      await q`CREATE UNIQUE INDEX IF NOT EXISTS club_links_pair ON club_links (least(club_a, club_b), greatest(club_a, club_b)) WHERE club_b IS NOT NULL`;
+      await q`CREATE INDEX IF NOT EXISTS club_links_a ON club_links (club_a)`;
+      await q`CREATE INDEX IF NOT EXISTS club_links_b ON club_links (club_b)`;
       // Game confirmation, duplicate marks and the audit trail (see _confirm.js and _audit.js). All additive.
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_by text`; // 'organizer' or the confirming player's name key
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_at timestamptz`;
