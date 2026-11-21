@@ -13,7 +13,7 @@ struct JoinView: View {
         ScrollView {
             VStack(spacing: 8) {
                 Text("Game code").font(.headline)
-                Text("On the scoring phone choose Apple Watch, then Show a code for the watch to type.").font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Text("On the scoring phone tap Link a watch to this game, then Show a code for the watch to type.").font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 TextField("6 characters", text: $code)
                     .font(.system(.title3, design: .monospaced).weight(.bold)).textInputAutocapitalization(.characters).autocorrectionDisabled()
                     .accessibilityLabel("The 6 characters of the game code")

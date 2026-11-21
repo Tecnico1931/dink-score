@@ -12,9 +12,11 @@ struct LinkView: View {
 
     @ViewBuilder private var qrScreen: some View {
         let session = app.session
-        // The QR is the largest square that fits the screen below the clock, edge to edge; the numbers are one scroll (or Digital Crown turn) below it.
+        // The first screen holds the QR and, right under it, the green Enter a game code button, so typing a code is never hidden below the fold.
+        // The QR is the largest square that fits beside that button; the numbers are one scroll (or Digital Crown turn) below.
         GeometryReader { geo in
-            let side = min(geo.size.width, geo.size.height)
+            let buttonRoom: CGFloat = 46
+            let side = max(60, min(geo.size.width, geo.size.height - buttonRoom))
             ScrollView {
                 VStack(spacing: 6) {
                     if let p = session.pairing {
@@ -22,16 +24,19 @@ struct LinkView: View {
                             .frame(width: side, height: side)
                             .accessibilityElement()
                             .accessibilityLabel("Link code. Open Dink Score on your phone, choose Link a watch, then type \(p.shortCode) and \(p.confirm4.map(String.init).joined(separator: " ")).")
+                    } else {
+                        ProgressView("Getting a code").frame(height: side)
+                    }
+                    Button { session.clearNotice(); entering = true } label: { Text("Enter a game code").frame(maxWidth: .infinity) }
+                        .buttonStyle(.borderedProminent).tint(.green).padding(.horizontal, 10)
+                    if let p = session.pairing {
                         Text(p.confirm4)
                             .font(.system(.title2, design: .monospaced).weight(.bold))
                             .accessibilityLabel("Numbers to type on the phone: \(p.confirm4.map(String.init).joined(separator: " "))")
                         Text("Or type \(p.shortCode)").font(.system(.footnote, design: .monospaced))
                         Text("Dink Score on your phone: Club, Apple Watch, Link a watch.").font(.caption2).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 10)
-                    } else {
-                        ProgressView("Getting a code")
                     }
                     if let n = session.notice { Text(n).font(.caption2).foregroundStyle(.orange).multilineTextAlignment(.center).padding(.horizontal, 10) }
-                    Button("Enter a game code") { session.clearNotice(); entering = true }.padding(.horizontal, 10)
                     if session.hasLink {
                         Button("Cancel") { session.cancelRelink() }.padding(.horizontal, 10)
                     }
