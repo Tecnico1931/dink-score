@@ -17,11 +17,13 @@
 //   Both come back to members as payLink and note on `club` in GET answers.
 // POST /api/club {code, action: 'set-pin', pin, oldPin?, ownerToken?} -> sets the organizer PIN (the first needs the creator token; changing needs the current PIN)
 // POST /api/club {code, action: 'season-end', seasonId, name?, pin|ownerToken} -> organizer: ends the current season now (trophies as usual) and starts the next, called `name` (see _seasons.js)
+// POST /api/club {code, action: 'link-invite'|'link-preview'|'link-accept'|'link-leave', ...} -> link with a friendly club's leaderboard; GET ...&links=1[&link=<id>&mode=] (see _clublinks.js)
 // GET  /api/club?code=ABC123&nights=1 -> upcoming & recent game nights with RSVPs + pushEnabled (see _gamenights.js)
 // POST /api/club {code, action: 'night-create'|'night-edit'|'night-cancel'|'night-delete'|'night-rsvp'|'night-remind', ...} -> game nights (see _gamenights.js)
 import { manageResults } from './_resultsadmin.js';
 import { analyticsRoute } from './_analytics.js';
 import { SEASON_ACTIONS, seasonAction, loadCuts } from './_seasons.js';
+import { LINK_ACTIONS, linkAction, linksGet } from './_clublinks.js';
 import { NIGHT_ACTIONS, nightsGet, nightAction, upcomingNights } from './_gamenights.js';
 import { tagOf, sameTag, notModified, replyTagged, clubDigest, BUCKET_MS } from './_sync.js';
 import { cleanPayLink, cleanNote } from './_clubinfo.js';
@@ -61,6 +63,11 @@ export default handler(async (req, res) => {
       const out = await nightAction(sql, club, body, req);
       return send(res, out.status || 200, out.body);
     }
+    if (LINK_ACTIONS.includes(body.action)) {
+      const club = await requireClub(cleanCode(body.code), req);
+      const out = await linkAction(sql, club, body, req);
+      return send(res, out.status || 200, out.body);
+    }
     if (SEASON_ACTIONS.includes(body.action)) {
       const club = await requireClub(cleanCode(body.code), req);
       const out = await seasonAction(sql, club, body, req);
@@ -98,7 +105,7 @@ export default handler(async (req, res) => {
       if (body.action !== 'export' && who.by === 'organizer') throw fail(403, 'Only the club creator or the organizer PIN can delete the club.');
       const code = club.code;
       if (body.action === 'export') {
-        const [games, roster, events, leagues, nights, nightRsvps, trail, gameTrail, reactions, seasons] = await Promise.all([
+        const [games, roster, events, leagues, nights, nightRsvps, trail, gameTrail, reactions, seasons, clubLinks] = await Promise.all([
           sql`SELECT data, deleted_at, rally_log FROM games WHERE club = ${code} ORDER BY ended_at DESC`,
           sql`SELECT name, claim_hash IS NOT NULL AS claimed, avatar, dupr_rating, role, blocked_at FROM roster WHERE club = ${code} ORDER BY lower(name)`,
           sql`SELECT id, data, status, created_at, updated_at, deleted_at FROM events WHERE club = ${code} ORDER BY created_at`,
@@ -108,7 +115,8 @@ export default handler(async (req, res) => {
           sql`SELECT at, actor, actor_name, action, target, detail FROM club_audit WHERE club = ${code} ORDER BY id`,
           sql`SELECT game, action, actor, at, before, after, note FROM game_audit WHERE club = ${code} ORDER BY id`,
           sql`SELECT game_id, name, reaction, created_at FROM game_reactions WHERE club = ${code} ORDER BY created_at ASC, name_key ASC`,
-          loadCuts(sql, code)
+          loadCuts(sql, code),
+          sql`SELECT l.accepted_at, o.name FROM club_links l JOIN clubs o ON o.code = CASE WHEN l.club_a = ${code} THEN l.club_b ELSE l.club_a END WHERE (l.club_a = ${code} OR l.club_b = ${code}) AND l.club_b IS NOT NULL ORDER BY l.accepted_at`
         ]);
         // Not exported: the PIN and phone tokens, public bracket tokens, and DUPR links and IDs (those stay out of every club export).
         if (body.format === 'csv') {
@@ -131,6 +139,8 @@ export default handler(async (req, res) => {
           games: games.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
           // Seasons an organizer ended early: when, and the name of the season that began. The default quarters aren't stored.
           seasons: seasons.map(c => ({ startsAt: new Date(c.at).toISOString(), name: c.name })),
+          // Clubs whose leaderboard this one is linked to (their names and when it began; never their codes).
+          linkedClubs: clubLinks.map(l => ({ name: l.name, since: new Date(l.accepted_at).toISOString() })),
           reactions: reactions.map(r => ({ game: r.game_id, player: r.name, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
           events: events.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, event: r.data })),
           leagues: leagues.map(r => ({ id: r.id, status: r.status, createdAt: new Date(r.created_at).toISOString(), deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, league: r.data })),
@@ -232,6 +242,7 @@ export default handler(async (req, res) => {
     await requireOrganizer(club, pinFrom(req), req, ownerFrom(req));
     return send(res, 200, await analyticsRoute(sql, club, url.searchParams.get('tz')));
   }
+  if (url.searchParams.get('links')) return linksGet(sql, club, req, res, url.searchParams);
   if (url.searchParams.get('nights')) {
     return replyTagged(req, res, code + ':nights', await nightsGet(sql, club));
   }
