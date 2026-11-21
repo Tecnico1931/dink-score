@@ -88,7 +88,16 @@ test('next season: top of a division goes up, bottom goes down, sizes stay, one 
   assert.deepEqual(div(2), ['P6', 'P8', 'P9']);          // P7 up, P6 arrives
   assert.equal(N.weeks.flatMap(w => w.matches).length, 9);
   assert.equal(N.previous, L.id);
+  assert.equal(N.history.length, 1);
+  assert.equal(N.history[0].season, 'Autumn 1');
+  assert.deepEqual(N.history[0].divisions.map(d => d.label), ['Division A', 'Division B', 'Division C']);
+  assert.deepEqual(N.history[0].divisions[0].rows.map(r => r.members[0]), ['P1', 'P2', 'P3']); // final order, strongest first
+  assert.deepEqual(Object.keys(N.history[0].divisions[0].rows[0]).sort(), ['diff', 'losses', 'members', 'played', 'wins']);
+  assert.deepEqual(view(N).history.map(h => h.season), ['Autumn 1']);
   assert.equal(N.status, 'live');
+  playAll(N); // the history keeps growing, newest first in the view, and a league made before history existed has none
+  assert.deepEqual(view(nextSeason(N, {}, 3000, rand)).history.map(h => h.season), ['Autumn 2', 'Autumn 1']);
+  assert.deepEqual(view(createLeague({ name: 'Old', mode: 'singles', players: P(4) }, {}, 1000, rand)).history, []);
   const one = createLeague({ name: 'One', mode: 'singles', players: P(4) }, {}, 1000, rand);
   playAll(one);
   assert.deepEqual(nextSeason(one, {}, 2000, rand).entries.flat().sort(), P(4));
