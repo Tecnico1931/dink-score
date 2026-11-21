@@ -905,6 +905,8 @@ button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font:
 .ev-entry label span { overflow-wrap: anywhere; }
 .ev-entry input { width: 100%; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 6px 8px; text-align: center; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 34px; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--ink); }
 .ev-entry .err, .ev-entry .ev-actions { grid-column: 1 / -1; }
+.lg-plan { display: grid; gap: 10px; margin-top: 8px; }
+.lg-plan .field { margin: 0; }
 .ev-fs { border: 0; margin: 0; padding: 12px; border-radius: 16px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ev-fs legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
 .ev-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-left: 5px solid var(--c); padding-left: 8px; }
@@ -8101,7 +8103,7 @@ document.addEventListener('change', e => {
 /* ---------- leagues and ladders (api/_leagues.js, through /api/events) ---------- */
 // A league is a season of weekly round robin matches in divisions; a ladder is a ranking moved by challenge matches. A new result goes through the
 // outbox like an event result (queueOp, so it waits for signal); fixing a score is organizer-only and online. The server also saves each result as a normal game, once.
-let lgScreen = null; // null, or { view: 'list' | 'new' | 'detail', list, id, league, form, entry, ch, error, busy }
+let lgScreen = null; // null, or { view: 'list' | 'new' | 'detail', list, id, league, form, entry, ch, plan (week form), rs (move form), ff (forfeit choice), error, busy }
 const lgCall = body => api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, senderCreds(), adminCreds())) });
 const lgName = names => names.join(' & ');
 const lgQueued = id => lgScreen && lgScreen.league && clubOps().find(o => o.type === 'league-result' && o.leagueId === lgScreen.league.id && (o.matchId || o.key) === id);
@@ -8203,9 +8205,38 @@ function lgMatchHTML(s, L, m, org) {
   const mine = m.teams.flat().some(isMe);
   const can = L.status === 'live' && (org || L.resultsBy === 'club' || mine);
   const q = !done && lgQueued(m.id);
-  const actions = q ? `<span class="tag">Waiting to send ${q.score[0]}–${q.score[1]}</span>` : entry ? '' : !done && can ? `<button class="btn btn-soft ev-small" data-lg="enter" data-m="${esc(m.id)}">Enter score</button>` : done && org ? `<button class="link" data-lg="fix" data-m="${esc(m.id)}">Fix score</button>` : '';
+  const rs = s.rs && s.rs.m === m.id ? s.rs : null, ff = s.ff === m.id;
+  const busy = entry || rs || ff, own = org && L.status === 'live' && !busy, id = `data-m="${esc(m.id)}"`;
+  const actions = q ? `<span class="tag">Waiting to send ${q.score[0]}–${q.score[1]}</span>`
+    : (!done && can && !busy ? `<button class="btn btn-soft ev-small" data-lg="enter" ${id}>Enter score</button>` : '')
+      + (!done && own ? `<button class="link" data-lg="resched" ${id}>Move</button><button class="link" data-lg="forfeit" ${id}>Forfeit</button>` : '')
+      + (done && org && !busy ? (m.forfeit ? (own ? `<button class="link" data-lg="forfeit-undo" ${id}>Undo forfeit</button>` : '') : `<button class="link" data-lg="fix" ${id}>Fix score</button>`) : '');
+  const slot = !done ? lgSlot(m.when || {}).map(t => `<span class="tag">${esc(t)}</span>`).join('') : '';
   return `<li class="game ev-game${done ? ' done' : ''}"><div class="lines">${line(0)}${line(1)}</div>
-    <div class="meta">${L.divisions.length > 1 ? `<span class="tag">${esc(L.divisions[m.division].label)}</span>` : ''}${done ? '<span class="tag">Final</span>' : ''}</div>${actions ? `<div class="ev-actions">${actions}</div>` : ''}${entry ? lgScoreForm(entry, m.teams, 'entry', entry.fix ? 'Save the fix' : 'Save score') : ''}</li>`;
+    <div class="meta">${L.divisions.length > 1 ? `<span class="tag">${esc(L.divisions[m.division].label)}</span>` : ''}${slot}${m.forfeit ? '<span class="tag">Forfeit</span>' : done ? '<span class="tag">Final</span>' : ''}</div>${actions ? `<div class="ev-actions">${actions}</div>` : ''}${entry ? lgScoreForm(entry, m.teams, 'entry', entry.fix ? 'Save the fix' : 'Save score') : ''}${rs ? lgMoveForm(rs) : ''}${ff ? lgForfeitChoice(m) : ''}</li>`;
+}
+// Day, time and court wording shared by the match lines, the week header and the forms (the date is a calendar date typed by the organizer, never shifted by a time zone).
+const lgDay = d => { const p = /^(\d{4})-(\d\d)-(\d\d)$/.exec(d || ''); return p ? new Date(+p[1], +p[2] - 1, +p[3]).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : ''; };
+const lgSlot = x => [lgDay(x.date) && (x.moved ? 'Moved to ' : '') + lgDay(x.date) + (x.time ? ' ' + x.time : ''), x.court ? 'Court ' + x.court : ''].filter(Boolean);
+const lgField = (id, label, type, key, val, extra = '') => `<div class="field"><label class="lab" for="${id}">${label}</label><input id="${id}" class="field-input" type="${type}" data-lg-input="${key}" value="${esc(val)}" ${extra}></div>`;
+function lgMoveForm(r) {
+  return `<form class="lg-plan" data-lg-form="resched" novalidate>${lgField('lg-rdate', 'New day', 'date', 'rdate', r.date)}${lgField('lg-rtime', 'Start time (optional)', 'time', 'rtime', r.time)}${lgField('lg-rcourt', 'Court (optional)', 'number', 'rcourt', r.court, 'inputmode="numeric" min="1" max="99"')}
+    <p class="note">Leave the day empty to put the match back on its week's day. The players in it are told if they have notifications on.</p>${r.error ? `<p class="err" role="alert">${esc(r.error)}</p>` : ''}
+    <div class="ev-actions"><button type="submit" class="btn btn-ink ev-small">Save</button><button type="button" class="btn btn-soft ev-small" data-lg="cancel">Cancel</button></div></form>`;
+}
+function lgForfeitChoice(m) {
+  return `<div class="lg-plan"><p class="note">Who wins by forfeit? It counts ${esc(String(lgScreen.league.target))} to 0 in the table. It is not saved as a game, so ratings do not change.</p>
+    <div class="ev-actions">${[0, 1].map(t => `<button class="btn btn-soft ev-small" style="border-left:5px solid ${TEAM_COLOR[t]}" data-lg="forfeit-win" data-w="${t}">${esc(lgName(m.teams[t]))} win</button>`).join('')}<button class="btn btn-soft ev-small" data-lg="cancel">Cancel</button></div></div>`;
+}
+// A week's day and byes, and for an organizer the plan and "tell the players" buttons (the form shows once: skipForm for the copy in All weeks).
+function lgWeekHTML(s, L, w, org, skipForm) {
+  const day = lgDay(w.date), left = w.matches.some(m => m.status === 'pending'), p = !skipForm && s.plan && s.plan.n === w.n ? s.plan : null, byes = w.byes || [];
+  const info = `<p class="note">${day ? esc(day + (w.time ? ' at ' + w.time : '')) : 'No day set yet'}${byes.length ? ` · Bye: ${byes.map(b => esc(lgName(b.members))).join(', ')}` : ''}</p>`;
+  const btns = org && L.status === 'live' && left && !(s.plan && s.plan.n === w.n) ? `<div class="ev-actions"><button class="btn btn-soft ev-small" data-lg="plan" data-n="${w.n}">Plan this week</button><button class="btn btn-soft ev-small" data-lg="notify" data-n="${w.n}" ${s.busy ? 'disabled' : ''}>Tell the players</button></div>` : '';
+  const form = p ? `<form class="lg-plan" data-lg-form="plan" novalidate>${lgField('lg-pdate', 'Day', 'date', 'pdate', p.date)}${lgField('lg-ptime', 'Start time (optional)', 'time', 'ptime', p.time)}${lgField('lg-pcourts', 'Courts (optional)', 'number', 'pcourts', p.courts, 'inputmode="numeric" min="0" max="20"')}
+    <p class="note">Matches get courts in order. With more matches than courts, some share a court and play in turn. Leave courts empty to keep them, or enter 0 to clear them.</p>${p.error ? `<p class="err" role="alert">${esc(p.error)}</p>` : ''}
+    <div class="ev-actions"><button type="submit" class="btn btn-ink ev-small">Save week</button><button type="button" class="btn btn-soft ev-small" data-lg="cancel">Cancel</button></div></form>` : '';
+  return info + btns + form;
 }
 function lgScoreForm(e, teams, kind, label) {
   return `<form class="ev-entry" data-lg-form="${kind}">${[0, 1].map(t => `<label style="--c:${TEAM_COLOR[t]}"><span>${esc(lgName(teams[t]))}</span><input type="number" inputmode="numeric" min="0" max="99" data-lg-input="s${t}" value="${esc(e.s[t])}" aria-label="${esc(lgName(teams[t]))} score"></label>`).join('')}
@@ -8264,9 +8295,9 @@ function lgLeagueHTML(s, L) {
   const champs = L.status === 'done' && L.champions ? `<p class="note"><b>Season winners:</b> ${L.champions.map((c, d) => c ? `${L.divisions.length > 1 ? esc(L.divisions[d].label) + ': ' : ''}${esc(lgName(c))}` : '').filter(Boolean).join(' · ')}</p>` : '';
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}
     <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · ${L.status === 'done' ? 'Season finished' : `Week ${L.current} of ${L.weeks.length}`}</p>${champs}
-    ${L.status === 'live' && wk ? `<section class="ev-sec" aria-labelledby="lg-now"><h3 id="lg-now">${esc(wk.title)}</h3><ul class="games">${wk.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></section>` : ''}
+    ${L.status === 'live' && wk ? `<section class="ev-sec" aria-labelledby="lg-now"><h3 id="lg-now">${esc(wk.title)}</h3>${lgWeekHTML(s, L, wk, org)}<ul class="games">${wk.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></section>` : ''}
     ${tables}
-    <section class="ev-sec" aria-labelledby="lg-all"><h3 id="lg-all">All weeks</h3>${L.weeks.map(w => `<details class="ev-more"><summary>${esc(w.title)}${w.matches.every(m => m.status === 'done') ? ' · done' : ''}</summary><ul class="games">${w.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></details>`).join('')}</section>
+    <section class="ev-sec" aria-labelledby="lg-all"><h3 id="lg-all">All weeks</h3>${L.weeks.map(w => `<details class="ev-more"><summary>${esc(w.title)}${w.matches.every(m => m.status === 'done') ? ' · done' : lgDay(w.date) ? ' · ' + esc(lgDay(w.date)) : ''}</summary>${lgWeekHTML(s, L, w, org, w.n === L.current && L.status === 'live')}<ul class="games">${w.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></details>`).join('')}</section>
     ${lgHistoryHTML(L)}${lgOrgHTML(s, L)}`;
 }
 // Earlier seasons of this league, newest first, each with the final table of every division (kept by api/_league.js nextSeason).
@@ -8307,7 +8338,7 @@ async function lgRun(body, ok) {
   try {
     data = await lgCall(body);
     if (data.league && lgScreen === s) { s.league = data.league; s.id = data.league.id; }
-    s.entry = null; s.armDelete = false;
+    s.entry = s.plan = s.rs = s.ff = null; s.armDelete = false;
     if (ok) showToast(ok, false);
   } catch (err) {
     if (err.status === 403 && body.action !== 'league-result') forgetPin();
@@ -8328,6 +8359,8 @@ function lgCreate() {
     showToast(f.kind === 'ladder' ? 'Ladder started' : 'League started', false);
   }).catch(err => { if (err.status === 403) forgetPin(); f.busy = false; f.error = err.offline ? 'You are offline. Try again when you are back online.' : err.message; }).finally(() => { f.busy = false; renderLeagues(true); });
 }
+const lgSavePlan = () => { const s = lgScreen, p = s.plan; lgRun({ action: 'league-schedule', id: s.league.id, week: p.n, date: p.date, time: p.time, courts: p.courts === '' ? undefined : +p.courts }, 'Week saved').then(d => { if (!d && lgScreen === s && s.plan === p) { p.error = s.error; s.error = ''; renderLeagues(true); } }); };
+const lgSaveMove = () => { const s = lgScreen, r = s.rs; lgRun({ action: 'league-reschedule', id: s.league.id, matchId: r.m, date: r.date, time: r.time, court: r.court === '' ? null : +r.court }, 'Match moved').then(d => { if (!d && lgScreen === s && s.rs === r) { r.error = s.error; s.error = ''; renderLeagues(true); } }); };
 const lgScores = e => { const sc = e.s.map(v => parseInt(v, 10)); return sc.some(v => !Number.isFinite(v) || v < 0 || v > 99) ? 'Enter both scores, from 0 to 99.' : sc[0] === sc[1] ? "Scores can't be tied. Pickleball games need a winner." : sc; };
 async function lgSaveEntry() {
   const s = lgScreen, e = s.entry, L = s.league, sc = lgScores(e);
@@ -8352,10 +8385,10 @@ function lgAct(a, d) {
   if (!s) return;
   if (a === 'back') {
     if (s.view === 'list') { lgClose(); return; }
-    s.view = 'list'; s.league = null; s.entry = s.ch = s.share = null; s.error = ''; s.armDelete = s.arm = false; renderLeagues(true); lgLoadList(); return;
+    s.view = 'list'; s.league = null; s.entry = s.ch = s.share = s.plan = s.rs = s.ff = null; s.error = ''; s.armDelete = s.arm = false; renderLeagues(true); lgLoadList(); return;
   }
   if (a === 'new') { s.view = 'new'; s.form = lgNewForm(); renderLeagues(true); return; }
-  if (a === 'open-one') { Object.assign(s, { view: 'detail', id: d.id, league: null, loading: true, error: '', entry: null, ch: null, share: null, arm: '' }); renderLeagues(true); lgLoad(d.id); return; }
+  if (a === 'open-one') { Object.assign(s, { view: 'detail', id: d.id, league: null, loading: true, error: '', entry: null, ch: null, share: null, arm: '', plan: null, rs: null, ff: null }); renderLeagues(true); lgLoad(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;
     if (a === 'set') { f[d.k] = ['divisions', 'legs', 'target', 'winBy'].includes(d.k) ? +d.v : d.v; f.error = ''; }
@@ -8377,7 +8410,13 @@ function lgAct(a, d) {
   if (a === 'enter') { s.entry = { m: d.m, s: ['', ''], error: '' }; renderLeagues(true); }
   else if (a === 'fix') { const m = L.weeks.flatMap(w => w.matches).find(x => x.id === d.m); s.entry = { m: d.m, s: m ? m.score.map(String) : ['', ''], fix: true, error: '' }; renderLeagues(true); }
   else if (a === 'fix-result') { const r = L.results.find(x => x.id === d.k); s.entry = { m: d.k, s: r ? r.score.map(String) : ['', ''], fix: true, error: '' }; renderLeagues(true); }
-  else if (a === 'cancel') { s.entry = null; renderLeagues(true); }
+  else if (a === 'cancel') { s.entry = s.plan = s.rs = s.ff = null; renderLeagues(true); }
+  else if (a === 'plan') { const w = L.weeks.find(x => x.n === +d.n); s.entry = s.rs = s.ff = null; s.plan = { n: +d.n, date: (w && w.date) || '', time: (w && w.time) || '', courts: '', error: '' }; renderLeagues(true); }
+  else if (a === 'resched') { const m = L.weeks.flatMap(w => w.matches).find(x => x.id === d.m); s.entry = s.plan = s.ff = null; s.rs = { m: d.m, date: (m && m.date) || '', time: (m && m.time) || '', court: (m && m.court) || '', error: '' }; renderLeagues(true); }
+  else if (a === 'forfeit') { s.entry = s.plan = s.rs = null; s.ff = d.m; renderLeagues(true); }
+  else if (a === 'forfeit-win') lgRun({ action: 'league-forfeit', id: L.id, matchId: s.ff, winner: +d.w }, 'Forfeit recorded');
+  else if (a === 'forfeit-undo') lgRun({ action: 'league-forfeit', id: L.id, matchId: d.m, winner: null }, 'Forfeit undone');
+  else if (a === 'notify') lgRun({ action: 'league-notify', id: L.id, week: +d.n }).then(r => { if (r) showToast(r.sent ? `Sent to ${r.sent} phone${r.sent === 1 ? '' : 's'}` : r.on ? 'Nobody has notifications on yet' : 'Notifications are not set up on this server yet', false); });
   else if (a === 'share-open' || a === 'share-new' || a === 'share-off') lgShare(a);
   else if (a === 'share-hide') { s.share = null; s.arm = ''; renderLeagues(true); }
   else if (a === 'share-copy') lgCopyLink();
@@ -8395,7 +8434,7 @@ document.addEventListener('submit', e => {
   if (!f || !lgScreen) return;
   e.preventDefault();
   const k = f.dataset.lgForm;
-  if (k === 'create') lgCreate(); else if (k === 'entry') lgSaveEntry(); else if (k === 'challenge') lgSaveChallenge();
+  if (k === 'create') lgCreate(); else if (k === 'entry') lgSaveEntry(); else if (k === 'challenge') lgSaveChallenge(); else if (k === 'plan') lgSavePlan(); else if (k === 'resched') lgSaveMove();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Enter' && lgScreen && e.target.dataset && e.target.dataset.lgInput === 'guest') { e.preventDefault(); lgAct('guest', {}); } });
 document.addEventListener('input', e => {
@@ -8403,6 +8442,8 @@ document.addEventListener('input', e => {
   if (!k || !lgScreen) return;
   if ((k === 'name' || k === 'season') && lgScreen.form) lgScreen.form[k] = t.value;
   if ((k === 's0' || k === 's1') && (lgScreen.entry || lgScreen.ch)) (lgScreen.entry || lgScreen.ch).s[+k[1]] = t.value;
+  if (/^p(date|time|courts)$/.test(k) && lgScreen.plan) lgScreen.plan[k.slice(1)] = t.value;
+  if (/^r(date|time|court)$/.test(k) && lgScreen.rs) lgScreen.rs[k.slice(1)] = t.value;
 });
 document.addEventListener('change', e => {
   const t = e.target;

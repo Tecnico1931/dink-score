@@ -52,7 +52,9 @@ export function leaguePublicView(L) {
   if (v.kind === 'league') {
     Object.assign(out, { current: int(v.current), champions: Array.isArray(v.champions) ? v.champions.slice(0, 4).map(c => (c ? side(c) : null)) : null,
       divisions: v.tables.slice(0, 4).map(t => ({ label: str(t.label, 20), rows: t.rows.slice(0, 64).map(r => ({ rank: int(r.rank), name: str(r.name), played: int(r.played), wins: int(r.wins), losses: int(r.losses), diff: int(r.diff) })) })),
-      weeks: v.weeks.slice(0, 80).map(w => ({ n: int(w.n), title: str(w.title, 24), matches: w.matches.slice(0, 64).map(m => ({ division: int(m.division), teams: [side(m.teams[0]), side(m.teams[1])], score: score(m.score), status: str(m.status, 8) })) })) });
+      weeks: v.weeks.slice(0, 80).map(w => ({ n: int(w.n), title: str(w.title, 24), byes: (w.byes || []).slice(0, 16).map(b => ({ division: int(b.division), name: side(b.members).join(' & ') })),
+        matches: w.matches.slice(0, 64).map(m => ({ division: int(m.division), teams: [side(m.teams[0]), side(m.teams[1])], score: score(m.score), status: str(m.status, 8), forfeit: m.forfeit === true,
+          when: { date: str(m.when && m.when.date, 10) || null, time: str(m.when && m.when.time, 5) || null, moved: !!(m.when && m.when.moved), court: int(m.when && m.when.court) } })) })) });
   } else {
     Object.assign(out, { jump: int(v.jump),
       rows: v.rows.slice(0, 128).map(r => ({ rank: int(r.rank), name: str(r.name), played: int(r.played), wins: int(r.wins), losses: int(r.losses) })),

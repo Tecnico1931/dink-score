@@ -1974,6 +1974,82 @@ await step('leagues and ladders: organizers create, results reach the record onc
   assert.equal((await lg('league-delete', { id: ladder.id })).status, 404);
 });
 
+await step('league weeks: plan, bye, move, forfeit; a new week tells the opted-in players once, a forfeit is no game', async () => {
+  const { createECDH } = await import('node:crypto'), { setSender } = await import('../api/_push.js');
+  const e = createECDH('prime256v1'); e.generateKeys();
+  Object.assign(process.env, { VAPID_PUBLIC_KEY: e.getPublicKey().toString('base64url'), VAPID_PRIVATE_KEY: Buffer.concat([Buffer.alloc(32), e.getPrivateKey()]).subarray(-32).toString('base64url'), VAPID_SUBJECT: 'mailto:test@example.invalid' });
+  const sent = [];
+  setSender(async (sub, message) => { sent.push({ to: sub.endpoint.split('/').pop(), ...message }); return 201; });
+  try {
+    const lc = ok(await call(club, 'POST', { body: { name: 'League weeks club' } }), 201), lcode = lc.club.code, lown = { ownerToken: lc.ownerToken };
+    const lg = (action, extra = {}, creds = lown) => call(events, 'POST', { body: { code: lcode, action, ...extra, ...creds } });
+    const five = ['Ann', 'Bo', 'Cat', 'Dev', 'Eli'];
+    const L0 = ok(await lg('league-create', { league: { kind: 'league', name: 'Weeks league', mode: 'singles', players: five, target: 11 } }), 201).league;
+    assert.equal(L0.weeks.length, 5); assert.ok(L0.weeks.every(w => w.byes.length === 1), 'five players: one rests each week');
+    for (const n of ['ann', 'bo']) { // two players opted in on their phones
+      await pg.query(`UPDATE roster SET claim_hash = 'h' WHERE club = $1 AND name_key = $2`, [lcode, n]);
+      await pg.query(`INSERT INTO push_subs (club, endpoint, name_key, p256dh, auth) VALUES ($1, $2, $3, 'p', 'a')`, [lcode, 'https://fcm.googleapis.com/x/' + n, n]);
+    }
+    // organizers only, and the input is checked
+    assert.equal((await lg('league-schedule', { id: L0.id, week: 1, date: '2026-03-14' }, {})).status, 403);
+    assert.equal((await lg('league-schedule', { id: L0.id, week: 1, date: '2026-02-30' })).status, 400);
+    const planned = ok(await lg('league-schedule', { id: L0.id, week: 1, date: '2026-03-14', time: '10:00', courts: 2 })).league;
+    assert.deepEqual([planned.weeks[0].date, planned.weeks[0].time, planned.weeks[0].matches.map(m => m.when.court)], ['2026-03-14', '10:00', [1, 2]]);
+    assert.equal(sent.length, 0, 'planning alone tells nobody');
+    // the organizer's button: both opted-in players hear their line once, a second press is held back
+    assert.equal((await lg('league-notify', { id: L0.id, week: 1 }, {})).status, 403);
+    const told = ok(await lg('league-notify', { id: L0.id, week: 1 }));
+    assert.equal(told.sent, 2); assert.equal(told.on, true);
+    assert.deepEqual(sent.map(s => s.to).sort(), ['ann', 'bo']);
+    assert.ok(sent.every(s => s.title === 'Weeks league: week 1' && /on Sat 14 Mar at 10:00, court \d\.$|you have a bye this week\.$/.test(s.body)), JSON.stringify(sent));
+    assert.equal((await lg('league-notify', { id: L0.id, week: 1 })).status, 429);
+    // playing the last match of week 1 opens week 2: its players hear it, and a retried result does not say it twice
+    sent.length = 0;
+    const res = (id, m, score = [11, 5]) => lg('league-result', { id, matchId: m.id, score, endedAt: Date.now() });
+    const [a, b] = L0.weeks[0].matches;
+    ok(await res(L0.id, a)); assert.equal(sent.length, 0, 'half the week is not a new week');
+    const w2 = ok(await res(L0.id, b)).league; assert.equal(w2.current, 2);
+    assert.deepEqual(sent.map(s => s.to).sort(), ['ann', 'bo']); assert.ok(sent.every(s => s.title === 'Weeks league: week 2'));
+    ok(await res(L0.id, b)); assert.equal(sent.length, 2, 'a retry tells nobody again');
+    // a forfeit settles a match, is not a game, and the other match then opens week 3
+    const games = async () => ok(await call(club, 'GET', { query: '?code=' + lcode })).games.length;
+    const before = await games();
+    sent.length = 0;
+    const [c, d] = w2.weeks[1].matches;
+    assert.equal((await lg('league-forfeit', { id: L0.id, matchId: c.id, winner: 1 }, {})).status, 403);
+    assert.equal((await lg('league-forfeit', { id: L0.id, matchId: c.id, winner: 5 })).status, 400);
+    const ff = ok(await lg('league-forfeit', { id: L0.id, matchId: c.id, winner: 1 })).league;
+    assert.deepEqual(ff.weeks[1].matches[0].score, [0, 11]); assert.equal(ff.weeks[1].matches[0].forfeit, true);
+    assert.equal(await games(), before, 'a forfeit never reaches the club record');
+    assert.equal((await res(L0.id, c)).status, 409, 'a forfeit blocks a score');
+    assert.equal((await lg('league-correct', { id: L0.id, matchId: c.id, score: [11, 3] })).status, 409);
+    assert.equal(sent.length, 0);
+    ok(await lg('league-forfeit', { id: L0.id, matchId: c.id, winner: null })); // undone: pending again
+    ok(await lg('league-forfeit', { id: L0.id, matchId: c.id, winner: 0 }));
+    const w3 = ok(await res(L0.id, d)).league; assert.equal(w3.current, 3);
+    assert.equal(await games(), before + 1, 'only the played match is a game');
+    assert.ok(sent.length === 2 && sent.every(s => s.title === 'Weeks league: week 3'));
+    // moving a match tells its players the new slot; moving nothing tells nobody
+    sent.length = 0;
+    const m3 = w3.weeks[2].matches.find(m => m.teams.flat().some(p => p === 'Ann' || p === 'Bo'));
+    const moved = ok(await lg('league-reschedule', { id: L0.id, matchId: m3.id, date: '2026-03-21', time: '18:30', court: 4 })).league;
+    assert.deepEqual(moved.weeks[2].matches.find(m => m.id === m3.id).when, { date: '2026-03-21', time: '18:30', moved: true, court: 4 });
+    assert.ok(sent.length >= 1 && sent.every(s => s.title === 'Weeks league: match moved' && /on Sat 21 Mar at 18:30, court 4\.$/.test(s.body)), JSON.stringify(sent));
+    const n = sent.length;
+    ok(await lg('league-reschedule', { id: L0.id, matchId: m3.id, date: '2026-03-21', time: '18:30', court: 4 })); assert.equal(sent.length, n);
+    assert.equal((await lg('league-reschedule', { id: L0.id, matchId: a.id, date: '2026-03-22' })).status, 409, 'a played match cannot move');
+    // the public page shows the day, court and bye, never the ids
+    const share = ok(await lg('league-share', { id: L0.id })).shareToken;
+    const pub = ok(await call(bracket, 'GET', { query: '?league=' + share }));
+    assert.equal(pub.weeks[2].matches.find(m => m.when.moved).when.court, 4); assert.equal(pub.weeks[2].byes.length, 1);
+    assert.ok(!JSON.stringify(pub).includes(L0.id));
+    // nobody opted in, nobody is sent anything, and the action still works
+    await pg.query(`DELETE FROM push_subs WHERE club = $1`, [lcode]);
+    sent.length = 0;
+    assert.equal(ok(await lg('league-notify', { id: L0.id, week: 4 })).sent, 0); assert.equal(sent.length, 0);
+  } finally { setSender(null); for (const k of ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']) delete process.env[k]; }
+});
+
 await step('the public league link: organizer makes it, a spectator sees only allowed fields, revoking and deleting end it', async () => {
   const lc = ok(await call(club, 'POST', { body: { name: 'League link club' } }), 201), lcode = lc.club.code, lown = { ownerToken: lc.ownerToken };
   const lg = (action, extra = {}, creds = lown) => call(events, 'POST', { body: { code: lcode, action, ...extra, ...creds } });

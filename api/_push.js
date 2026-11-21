@@ -2,10 +2,12 @@
 // Reached through /api/live (push-* actions, see live.js; the function count is at its limit). Off until VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and
 // VAPID_SUBJECT are set in the environment: every route then answers that notifications are not set up, and nothing is ever sent.
 // A subscription belongs to one club and one claimed player name (proven by that phone's player token), so a notification only goes to the
-// phone of a member of the affected club. The text carries a first name as typed in the club and a court number, nothing else.
+// phone of a member of the affected club. The text carries a first name as typed in the club and a court number, nothing else (league messages
+// add the league's name, the opponents and the day, and go only to the players in that week or match, through the same opt-in rules in notify).
 import { createPrivateKey, createPublicKey, createECDH, createCipheriv, hkdfSync, randomBytes, sign } from 'node:crypto';
 import { nameKey } from './_names.js';
 import { suggest } from './_court.js';
+import { slotOf, weekByes } from './_league.js';
 
 export const PUSH_ACTIONS = ['push-status', 'push-subscribe', 'push-unsubscribe'];
 const fail = (status, message) => Object.assign(new Error(message), { status }); // _db.js is only loaded inside the routes, so the pure parts below run under `npm test` without an install
@@ -85,6 +87,31 @@ export function courtFreeMessages(before, after) {
     if (!was || !was.teams) continue; // only courts that were in a game a moment ago
     for (const name of g.teams.flat()) out.set(name, { title: 'Court free', body: `${short(name, 30)}, court ${g.court} is free. You're up next.`, tag: 'court-' + g.court });
   }
+  return out;
+}
+
+// 'Sat 14 Mar at 10:00, court 2' from a league slot ({ date, time, court }); the date is read as a calendar date, never through a time zone.
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export function whenText(slot) {
+  const d = slot.date && new Date(slot.date + 'T00:00:00Z');
+  const day = d && !isNaN(d) ? `on ${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${slot.time ? ' at ' + slot.time : ''}` : 'this week';
+  return day + (slot.court ? `, court ${slot.court}` : '');
+}
+const versus = (m, name) => { const i = m.teams.findIndex(t => t.includes(name)); return m.teams[1 - i].map(p => short(p, 30)).join(' & '); };
+// A league week opened (or the organizer pressed "tell the players"): everyone with a match hears who, when and where; whoever rests hears the bye.
+export function leagueWeekMessages(league, week) {
+  const out = new Map(), tag = 'league-' + league.id, title = short(league.name || 'League', 40) + ': ' + week.title.toLowerCase();
+  for (const m of week.matches) {
+    if (m.status === 'done') continue;
+    for (const name of m.teams.flat()) out.set(name, { title, body: `${short(name, 30)}, you play ${versus(m, name)} ${whenText(slotOf(week, m))}.`, tag });
+  }
+  for (const b of weekByes(league, week)) for (const name of b.members) out.set(name, { title, body: `${short(name, 30)}, you have a bye this week.`, tag });
+  return out;
+}
+// One match was moved by the organizer: its players hear the new day, time and court.
+export function leagueMovedMessages(league, week, m) {
+  const out = new Map(), title = short(league.name || 'League', 40) + ': match moved';
+  for (const name of m.teams.flat()) out.set(name, { title, body: `${short(name, 30)}, you play ${versus(m, name)} ${whenText(slotOf(week, m))}.`, tag: `league-${league.id}-${m.id}` });
   return out;
 }
 
