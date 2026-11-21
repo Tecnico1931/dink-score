@@ -22,6 +22,19 @@ let body = fs.readFileSync(src, 'utf8');
   if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated the DR block in', path.basename(src), 'from rating-engine.js'); }
 }
 
+// The same for the scoring rules (the `PB` block): pb-engine.js, which the server imports through api/_pb.js.
+{
+  const eng = fs.readFileSync(path.join(__dirname, 'pb-engine.js'), 'utf8');
+  const exp = eng.match(/^export \{ (.+) \};\s*$/m);
+  if (!exp) throw new Error('pb-engine.js needs one "export { ... };" line');
+  const code = eng.replace(exp[0], '').replace(/^\/\/ The one pickleball[\s\S]*?keep it one line\.\n/, '').trimEnd().replace(/^(?=.)/gm, '  ');
+  const pb = `/*PB-START*/\n// Generated from pb-engine.js by build.cjs: edit that file, not this block.\nconst PB = (() => {\n${code}\n  return { ${exp[1]} };\n})();\n/*PB-END*/`;
+  const i = body.indexOf('/*PB-START*/'), j = body.indexOf('/*PB-END*/');
+  if (i < 0 || j < i) throw new Error('Missing PB-START/END in ' + path.basename(src));
+  const next = body.slice(0, i) + pb + body.slice(j + '/*PB-END*/'.length);
+  if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated the PB block in', path.basename(src), 'from pb-engine.js'); }
+}
+
 // The app's own script is split into src/app/<name>.js (X9). Each file is pasted between MODULE-START:<name>/MODULE-END:<name> in the
 // source page, byte for byte, so dink-score.html stays one self-contained file the tests can load. Edit the module file, not the block.
 {
