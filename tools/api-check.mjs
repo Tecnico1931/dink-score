@@ -2644,5 +2644,79 @@ await step('the public league link: organizer makes it, a spectator sees only al
   });
 }
 
+// Ending a club season early (L21, api/_seasons.js via api/club.js).
+{
+  const sec = ok(await call(club, 'POST', { body: { name: 'Season end club', pin: '246810' } }), 201);
+  const scode = sec.club.code, SORG = { ownerToken: sec.ownerToken };
+  const stok = {};
+  for (const n of ['Ana', 'Ben', 'Cy', 'Di']) stok[n] = ok(await call(playersApi, 'POST', { body: { code: scode, action: 'claim', name: n, ...SORG } })).playerToken;
+  const SE = (body) => call(club, 'POST', { body: { code: scode, action: 'season-end', ...body } });
+  const sget = async (headers = {}) => call(club, 'GET', { query: '?code=' + scode, headers });
+  const sgames = Array.from({ length: 5 }, (_, i) => ({ id: 'se-' + i, mode: 'doubles', teams: [['Ana', 'Ben'], ['Cy', 'Di']], score: [11, 4], endedAt: Date.now() - 5000 + i, startedAt: Date.now() - 600000 }));
+  ok(await call(games, 'POST', { body: { code: scode, games: sgames, ...SORG } }));
+  let first, tag;
+
+  await step('season end: only an organizer can do it, and the season shown must still be the current one', async () => {
+    first = ok(await sget());
+    const cur = first.progress.season;
+    assert.match(cur.id, /^\d{4}-Q[1-4]$/, 'a club that never ended a season has its calendar quarter');
+    assert.equal(cur.custom, undefined);
+    assert.equal((await SE({ seasonId: cur.id, playerName: 'Ana', playerToken: stok.Ana })).status, 403);
+    assert.equal((await SE({ seasonId: cur.id })).status, 403);
+    assert.equal((await SE({ seasonId: cur.id, pin: '000000' })).status, 403);
+    assert.equal((await SE({ ...SORG })).status, 400, 'the season id is required');
+    assert.equal((await SE({ ...SORG, seasonId: '1999-Q1' })).status, 409, 'a stale season id is refused');
+    assert.equal((await sget()).json.progress.season.id, cur.id, 'refused attempts changed nothing');
+    assert.equal(first.progress.players.ana.trophies.length, 0);
+  });
+  await step('season end: closes the season, awards the usual trophies and starts the named one; the club tag changes', async () => {
+    const before = await sget(); tag = before.headers.etag;
+    assert.ok(tag);
+    assert.equal((await sget({ 'if-none-match': tag })).status, 304);
+    await new Promise(r => setTimeout(r, 10)); // games received this millisecond would count as the new season's
+    const r = ok(await SE({ ...SORG, seasonId: first.progress.season.id, name: '  Autumn   ladder\u0000  ' }));
+    assert.equal(r.closed.id, first.progress.season.id);
+    assert.equal(r.closed.end, r.season.start);
+    assert.equal(r.season.name, 'Autumn ladder');
+    const after = await sget({ 'if-none-match': tag });
+    assert.equal(after.status, 200, 'the old tag no longer matches');
+    assert.notEqual(after.headers.etag, tag);
+    const pg2 = after.json.progress;
+    assert.equal(pg2.season.name, 'Autumn ladder');
+    assert.equal(pg2.season.custom, true);
+    assert.equal(pg2.season.start, r.season.start);
+    assert.ok(pg2.season.end > pg2.season.start);
+    const ana = pg2.players.ana.trophies;
+    assert.deepEqual(ana.map(t => [t.season, t.mode, t.place]), [[first.progress.season.id, 'doubles', 1]]);
+    assert.equal(pg2.players.cy.trophies[0].place, 3, 'a tie for third goes to the player with the name first');
+    assert.equal(pg2.players.di.trophies.length, 0, 'only the top three win');
+    assert.equal(after.json.games.length, 5, 'games stay');
+  });
+  await step('season end: a second close right away is refused, a later one gets a default name, and past champions stay', async () => {
+    const cur = ok(await sget()).progress.season;
+    assert.equal((await SE({ ...SORG, seasonId: cur.id })).status, 409, 'a season has to run for a minute first');
+    // Pretend that happened an hour ago: the new season's start and the games received before the close move back together.
+    await pg.query(`UPDATE club_seasons SET starts_at = starts_at - 3600000 WHERE club = $1`, [scode]);
+    await pg.query(`UPDATE games SET data = jsonb_set(data, '{receivedAt}', to_jsonb((data->>'receivedAt')::bigint - 3600000)) WHERE club = $1`, [scode]);
+    const now = ok(await sget()).progress.season;
+    const r = ok(await SE({ ...SORG, seasonId: now.id }));
+    assert.equal(r.season.name, 'Autumn ladder, part 2');
+    assert.equal(r.closed.name, 'Autumn ladder');
+    const done = ok(await sget()).progress;
+    assert.equal(done.season.name, 'Autumn ladder, part 2');
+    assert.equal(done.players.ana.trophies.length, 1, 'earlier trophies are kept');
+    assert.equal((await SE({ ...SORG, seasonId: now.id })).status, 409, 'a stale season id is refused after the close');
+  });
+  await step('season end: it is in the audit log and the club export, and the club code answers for a PIN holder too', async () => {
+    const ex = ok(await call(club, 'POST', { body: { code: scode, action: 'export', pin: '246810' } }));
+    assert.equal(ex.seasons.length, 2);
+    assert.deepEqual(ex.seasons.map(x => x.name), ['Autumn ladder', 'Autumn ladder, part 2']);
+    assert.ok(ex.memberLog.some(l => l.action === 'season-end' && l.target && l.detail.next.name === 'Autumn ladder'));
+    const pinned = await SE({ pin: '246810', seasonId: 'nope' });
+    assert.equal(pinned.status, 409, 'the organizer PIN is accepted (the stale id is what is refused)');
+    assert.ok(ex.memberLog.every(l => !/246810/.test(JSON.stringify(l))));
+  });
+}
+
 console.log(`\n${passed} API checks passed against a throwaway in-memory Postgres.`);
 server.close(); await pg.close(); process.exit(0);

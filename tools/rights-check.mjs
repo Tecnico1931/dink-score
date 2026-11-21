@@ -203,6 +203,15 @@ await step('co-organizer: may export the club, may not delete it or undo a delet
   ok(await P('set-role', { name: 'Ben', role: 'player', ...ORG }));
 });
 
+await step('season end: organizer only; the export lists the seasons ended early and a player export has no season data', async () => {
+  const cur = ok(await call(club, 'GET', { query: '?code=' + code })).progress.season;
+  assert.equal((await C('season-end', { seasonId: cur.id, playerName: 'Ana', playerToken: tok.Ana })).status, 403);
+  ok(await C('season-end', { seasonId: cur.id, name: 'Second half', ...ORG }));
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM club_seasons WHERE club = $1`, [code])).rows[0].n, 1);
+  const ex = ok(await C('export', { pin: PIN }));
+  assert.deepEqual(ex.seasons.map(x => x.name), ['Second half']);
+  assert.ok(ex.memberLog.some(l => l.action === 'season-end'));
+});
 await step('delete club: organizers only, the name must be typed, and it can be undone', async () => {
   for (const creds of [{}, { playerToken: tok.Ben }]) assert.equal((await C('delete-club', { confirm: 'Rights check club', ...creds })).status, 403);
   assert.equal((await C('delete-club', { confirm: 'rights check', ...ORG })).status, 400);
@@ -227,7 +236,7 @@ await step('delete club: once the window has passed everything is removed, and t
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
   assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 401, 'once the window has passed the watch is refused too');
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'game_nights', 'game_night_rsvps', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers']) {
+  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'game_nights', 'game_night_rsvps', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers', 'club_seasons']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }
