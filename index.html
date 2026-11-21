@@ -563,6 +563,10 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .invite { display: flex; gap: 8px; }
 .invite input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
 .pk-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.ann-banner { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; padding: 4px 4px 4px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-2); color: var(--ink); }
+.ann-banner p { flex: 1; min-width: 0; margin: 0; padding: 10px 0; font-size: 14px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ann-x { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 12px; background: transparent; color: var(--muted); cursor: pointer; }
+.ann-x:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 .pk-banner .pk-code { font-family: var(--display); letter-spacing: .08em; color: var(--blue-text); }
 .pk-banner > span:last-child { color: var(--muted); text-align: right; }
 .pk-h { margin: 16px 0 6px; font-size: 15px; }
@@ -3820,7 +3824,7 @@ function setupSummary(s) {
 
 function playView() {
   const games = allGames(), names = rosterNames();
-  return `${pickupBannerHTML()}${homeTiles(ratedGames())}
+  return `${announceBannerHTML()}${pickupBannerHTML()}${homeTiles(ratedGames())}
   <section class="card" aria-labelledby="new-h">
     <div class="new-head"><h2 id="new-h">New game</h2><button type="button" class="link" data-act="clear-names" ${setup.names.flat().some(n => n && n.trim()) ? '' : 'hidden'}>Clear names</button></div>
     <div class="setup-opts">
@@ -6792,6 +6796,44 @@ function renderRatingExplain() {
   setSheet(root, `<div class="sheet-bg explain"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="exp-h"><span class="grip"></span>${inner}</div></div>`, name + '|' + mode + '|' + scope);
 }
 
+/*MODULE-START:announce-banner*/
+/* ---------- club announcement banner on the Play home screen (the organizer's pinned note, api/_clubinfo.js) ---------- */
+// The dismissed message is remembered on this phone only, as a hash of its text: a changed message hashes differently and shows again.
+/*ANNOUNCE-START*/
+const Announce = {
+  key: 'pb.announceDismissed',
+  // FNV-1a over the NFC text, 8 hex digits: enough to tell one note from the next, not a security hash.
+  hash(text) {
+    let h = 0x811c9dc5;
+    for (const c of String(text == null ? '' : text).normalize('NFC')) {
+      h ^= c.codePointAt(0);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, '0');
+  },
+  // Show a non-empty note unless this phone dismissed exactly this text.
+  shown(note, dismissed) {
+    const t = String(note == null ? '' : note).trim();
+    return !!t && Announce.hash(t) !== dismissed;
+  }
+};
+/*ANNOUNCE-END*/
+
+function announceBannerHTML() {
+  if (!club) return '';
+  const note = String(club.note || '').trim();
+  if (!Announce.shown(note, store.get(Announce.key, ''))) return '';
+  return `<section class="ann-banner" id="ann-banner" aria-label="Club announcement"><p>${esc(note)}</p><button type="button" class="ann-x" data-act="announce-dismiss" aria-label="Dismiss announcement"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></section>`;
+}
+
+function announceDismiss() {
+  if (club) store.set(Announce.key, Announce.hash(String(club.note || '').trim()));
+  render();
+  announce('Announcement dismissed');
+  const h = document.querySelector('.top h1');
+  if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+}
+/*MODULE-END:announce-banner*/
 /*MODULE-START:reactions*/
 /* ---------- reactions on finished games (L12: api/_reactions.js via api/games.js) ---------- */
 const GAME_REACTIONS = [
@@ -8573,6 +8615,7 @@ document.addEventListener('click', e => {
     clubSheet.confirmRemove = null;
     adminAction({ action: 'remove', name, block: !!ds.removeBlock }, `${name} was removed`); return;
   }
+  if (ds.act === 'announce-dismiss') { announceDismiss(); return; }
   if (ds.act === 'info-open') { clubSheet = { view: 'info' }; renderClub(); return; }
   if (ds.act === 'audit-open') { clubSheet = { view: 'audit', rows: null }; renderClub(); loadAudit(); return; }
   if (ds.act === 'confirm-setting') { setConfirmation(!club.requireConfirmation); return; }
