@@ -204,12 +204,19 @@ export function nextSeason(prev, input = {}, now = Date.now(), rand = Math.rando
   tables.forEach((t, d) => t.forEach((m, i) => next[i < move && d > 0 ? d - 1 : i >= t.length - move && d < k - 1 ? d + 1 : d].push(m)));
   const L = base({ ...prev, season: input.season || nextLabel(prev.season) }, 'league', now, rand);
   L.legs = prev.legs; L.previous = prev.id;
+  L.history = [...(prev.history || []), archive(prev)].slice(-MAX_HISTORY);
   L.entries = next.flat(); L.seeds = L.entries.map(() => null);
   let at = 0;
   L.divisions = next.map((t, d) => { const e = { label: prev.divisions[d].label, entries: t.map((_, i) => at + i) }; at += t.length; return e; });
   L.champions = null;
   return schedule(L);
 }
+
+// What a finished season leaves behind for the history view: the final table of every division (names only inside `members` arrays, so
+// rename and anonymise reach them). Each season carries the ones before it, so no lookup of older rows is needed.
+export const MAX_HISTORY = 20;
+const archive = prev => ({ id: prev.id, season: prev.season, endedAt: prev.updatedAt,
+  divisions: prev.divisions.map((dv, d) => ({ label: dv.label, rows: divisionTable(prev, d).map(r => ({ members: r.members, played: r.played, wins: r.wins, losses: r.losses, diff: r.diff })) })) });
 
 const nextLabel = s => { const m = String(s || '').match(/^(.*?)(\d+)$/); return m ? m[1] + (Number(m[2]) + 1) : (String(s || 'Season') + ' 2').slice(0, 40); };
 
@@ -314,6 +321,7 @@ export function view(L) {
   if (L.kind === 'league') {
     out.tables = L.divisions.map((dv, d) => ({ label: dv.label, rows: divisionTable(L, d) }));
     out.current = (L.weeks.find(w => w.matches.some(m => m.status === 'pending')) || {}).n || L.weeks.length;
+    out.history = (L.history || []).slice().reverse(); // newest first; a league made before history existed starts with none
   } else {
     out.rows = ladderRows(L);
     out.rows.forEach(r => { r.canChallenge = challengeable(L, r.index).map(i => L.entries[i]); });

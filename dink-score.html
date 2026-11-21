@@ -8222,7 +8222,15 @@ function lgLeagueHTML(s, L) {
     ${L.status === 'live' && wk ? `<section class="ev-sec" aria-labelledby="lg-now"><h3 id="lg-now">${esc(wk.title)}</h3><ul class="games">${wk.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></section>` : ''}
     ${tables}
     <section class="ev-sec" aria-labelledby="lg-all"><h3 id="lg-all">All weeks</h3>${L.weeks.map(w => `<details class="ev-more"><summary>${esc(w.title)}${w.matches.every(m => m.status === 'done') ? ' · done' : ''}</summary><ul class="games">${w.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></details>`).join('')}</section>
-    ${lgOrgHTML(s, L)}`;
+    ${lgHistoryHTML(L)}${lgOrgHTML(s, L)}`;
+}
+// Earlier seasons of this league, newest first, each with the final table of every division (kept by api/_league.js nextSeason).
+function lgHistoryHTML(L) {
+  if (!L.history || !L.history.length) return '';
+  const one = h => `<details class="ev-more"><summary>${esc(h.season)}${h.divisions[0] && h.divisions[0].rows[0] ? ` · ${esc(lgName(h.divisions[0].rows[0].members))}` : ''}</summary>${h.divisions.map(d => `<div class="ev-card" style="padding:8px 12px"><table class="ev-table"><caption class="vh">${esc(h.season)}, ${esc(d.label)}: final standings</caption>
+    <tr><th class="who" scope="col">${h.divisions.length > 1 ? esc(d.label) : L.mode === 'doubles' ? 'Team' : 'Player'}</th><th scope="col">W</th><th scope="col">L</th><th scope="col">+/-</th></tr>
+    ${d.rows.map((r, i) => `<tr><td class="who">${i + 1}. ${esc(lgName(r.members))}${r.members.some(isMe) ? ' <span class="badge you">You</span>' : ''}</td><td class="num">${r.wins}</td><td class="num">${r.losses}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join('')}</table></div>`).join('')}</details>`;
+  return `<section class="ev-sec" aria-labelledby="lg-hist"><h3 id="lg-hist">Past seasons</h3>${L.history.map(one).join('')}</section>`;
 }
 function lgLadderHTML(s, L) {
   const org = canOrganize(), ch = s.ch || (s.ch = { c: (L.rows.find(r => r.members.some(isMe)) || {}).name || '', d: '', s: ['', ''], key: lgKey(), error: '' });
