@@ -9,6 +9,7 @@ Settings button in the top bar, Rules tab ("Display on this phone"), or the sun 
 - **Appearance** (`data-theme` on `<html>`): Match phone (default, follows `prefers-color-scheme`), Light (`data-theme="light"`), or Dark (`data-theme="dark"`). Applied before paint from `pb.display` to prevent a theme flash on reload.
 - **Sunlight contrast** (`data-outdoor` on `<html>`): white page, black text, solid team colours (no gradients, glass or see-through text), 2 px outlines on court buttons. Overrides the phone's dark theme and manual appearance choice.
 - **Large scores** (`data-large`): scores fill the court, names and the score call grow with them.
+- **Win celebration** (`pb.celebration`): off by default; optional confetti and chime when a live game ends, honoring `prefers-reduced-motion` (confetti stays off) and per-device mute.
 - The sun button on the court turns sunlight contrast and large scores on or off at once.
 
 ## What is checked, and how
