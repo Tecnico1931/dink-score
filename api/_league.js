@@ -5,10 +5,12 @@
 //   v, id, kind: 'league' | 'ladder', name, season, mode: 'singles' | 'doubles', status: 'live' | 'done',
 //   scoring, target, winBy, resultsBy: 'players' | 'club', createdAt, updatedAt,
 //   entries: [[names]], seeds: [rating, ...],           // one entry per player (singles) or team (doubles), strongest first by Dink Rating when made
-//   // league: divisions: [{ label, entries: [index] }], legs, weeks: [{ n, title, matches: [match] }], champions: [[names] per division]
+//   // league: divisions: [{ label, entries: [index] }], legs, weeks: [{ n, title, date?, time?, notifiedAt?, matches: [match] }], champions: [[names] per division]
+//   //   week.date 'YYYY-MM-DD' and week.time 'HH:MM' are the day's wall clock as the organizer typed it (no time zone); see _leagueweeks.js
 //   // ladder: jump (how many places up a challenge may reach), results: [result], seasons: [{ label, endedAt, order: [[names]] }]
 // }
-// match  = { id, division, teams: [[a, b], [c, d]], score: null | [x, y], status: 'pending' | 'done', winner, startedAt, endedAt, rallies, live, gameId }
+// match  = { id, division, teams: [[a, b], [c, d]], score: null | [x, y], status: 'pending' | 'done', winner, startedAt, endedAt, rallies, live, gameId,
+//            court?, date?, time? (this match moved off the week's day), forfeit? (settled by default: target to 0, never a game in the club record) }
 // result = { id, teams: [[challenger], [defender]], c, d (entry indexes), score, winner, startedAt, endedAt, rallies, live, gameId, at }
 // Names only ever sit inside arrays (entries, teams, order), so rename and anonymise (_rename.js, players.js) reach every one.
 import { cleanName } from './_names.js';
@@ -107,7 +109,23 @@ export function createLeague(input, ratings = {}, now = Date.now(), rand = Math.
   return schedule(L);
 }
 
-const allMatches = L => L.weeks.flatMap(w => w.matches);
+export const allMatches = L => L.weeks.flatMap(w => w.matches);
+
+// Where and when a match is played: its own date if the organizer moved it, else the week's. court is null until one is given.
+export const slotOf = (w, m) => (m.date ? { date: m.date, time: m.time || null, moved: true, court: m.court || null } : { date: w.date || null, time: w.time || null, moved: false, court: m.court || null });
+
+// Who rests in a week. A division with an odd number of entries leaves one out of every round (the round robin's rest slot); a division
+// with an even number never rests anyone, and one that has played all its rounds is just finished, not resting.
+export function weekByes(L, w) {
+  const out = [];
+  L.divisions.forEach((dv, d) => {
+    const n = dv.entries.length;
+    if (n % 2 === 0 || w.n > n * (L.legs || 1)) return;
+    const playing = new Set(w.matches.filter(m => m.division === d).flatMap(m => m.teams.map(keyOf)));
+    for (const i of dv.entries) if (!playing.has(keyOf(L.entries[i]))) out.push({ division: d, members: L.entries[i] });
+  });
+  return out;
+}
 
 export function divisionTable(L, d) {
   const dv = L.divisions[d];
@@ -140,12 +158,12 @@ const extraOf = (L, id, p, now) => {
 };
 
 export function gameFor(L, m) {
-  if (!m || m.status === 'pending' || !m.score) return null;
+  if (!m || m.status === 'pending' || !m.score || m.forfeit) return null; // a forfeit was never played: it must not reach the ratings
   return { id: m.gameId || `${L.id}-${m.id}`, mode: L.mode, teams: m.teams, score: m.score, scoring: L.scoring, target: L.target, winBy: L.winBy,
     rallies: m.rallies || 0, startedAt: m.startedAt, endedAt: m.endedAt, logged: !m.live };
 }
 
-function settle(L, now) {
+export function settle(L, now) {
   L.updatedAt = now;
   if (L.kind !== 'league') return;
   const done = allMatches(L).every(m => m.status === 'done');
@@ -162,6 +180,7 @@ export function recordLeagueResult(L, matchId, payload, now = Date.now(), actor 
   if (!found) throw bad('That match is not in this league.', 404);
   const score = checkScore(payload && payload.score), m = found.match;
   checkResultActor(L, found.teams, actor);
+  if (m.forfeit) throw bad('That match was settled by a forfeit. An organizer can undo it.', 409);
   if (m.status === 'done') {
     if (m.score[0] === score[0] && m.score[1] === score[1]) return { league: L, match: m, game: gameFor(L, m), changed: false };
     throw bad('That match was already scored. An organizer can correct it.', 409);
@@ -176,6 +195,7 @@ export function recordLeagueResult(L, matchId, payload, now = Date.now(), actor 
 export function correctLeagueResult(L, matchId, score, now = Date.now()) {
   const found = findMatch(L, matchId);
   if (!found || found.match.status === 'pending') throw bad('That match has not been played.', 409);
+  if (found.match.forfeit) throw bad('That match was a forfeit. Undo the forfeit before entering a score.', 409);
   const s = checkScore(score);
   Object.assign(found.match, { score: s, winner: s[0] > s[1] ? 0 : 1, status: 'done' });
   settle(L, now);
@@ -320,6 +340,7 @@ export function view(L) {
   const out = clone(L);
   if (L.kind === 'league') {
     out.tables = L.divisions.map((dv, d) => ({ label: dv.label, rows: divisionTable(L, d) }));
+    out.weeks.forEach((w, i) => { w.byes = weekByes(L, L.weeks[i]); w.matches.forEach((m, j) => { m.when = slotOf(L.weeks[i], L.weeks[i].matches[j]); }); });
     out.current = (L.weeks.find(w => w.matches.some(m => m.status === 'pending')) || {}).n || L.weeks.length;
     out.history = (L.history || []).slice().reverse(); // newest first; a league made before history existed starts with none
   } else {

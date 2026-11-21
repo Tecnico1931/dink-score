@@ -12,6 +12,11 @@
 //     league-end          {id, season?}             -> organizer: finish a league season now, or close a ladder's season (the order carries over)
 //     league-next-season  {id, season?, move?}      -> organizer: the finished league's next season, the top of each division moving up and the bottom down
 //     league-share / league-share-new / league-share-off  {id}  -> organizer: make, replace or remove the public read-only link (/l/<token>); answers {shareToken}
+//     league-schedule     {id, week, date?, time?, courts?}  -> organizer: a day ('YYYY-MM-DD'), time ('HH:MM') and number of courts for one week (see _leagueweeks.js)
+//     league-reschedule   {id, matchId, date?, time?, court?} -> organizer: one match on another day, time or court; its players are told
+//     league-forfeit      {id, matchId, winner: 0|1|null}     -> organizer: settle a match by forfeit (target to 0, no game in the record), or undo it with null
+//     league-notify       {id, week}                          -> organizer: tell the week's players their match, day and court (or bye); answers {sent, on}
+//                         A new week also tells its players by itself the moment the week before is played. Opt-in push only, see _push.js.
 //     league-delete       {id}                      -> organizer: hide it (its games stay in the record)
 import { fail, requireOrganizer, requirePin, cleanName, nameKey, verifiedSender } from './_db.js';
 import { refreshRatings, ratingsFor } from './_rating_store.js';
@@ -19,9 +24,12 @@ import { ratingMap } from './_seeding.js';
 import { recordGame, correctGame, addToRoster } from './_gamesave.js';
 import { replyTagged } from './_sync.js';
 import { newShareToken } from './_share.js';
+import { notify, vapidFromEnv, leagueWeekMessages, leagueMovedMessages } from './_push.js';
 import * as L from './_league.js';
+import * as W from './_leagueweeks.js';
 
-export const LEAGUE_ACTIONS = ['league-create', 'league-result', 'league-correct', 'league-results-by', 'league-end', 'league-next-season', 'league-share', 'league-share-new', 'league-share-off', 'league-delete'];
+export const LEAGUE_ACTIONS = ['league-create', 'league-result', 'league-correct', 'league-results-by', 'league-end', 'league-next-season', 'league-share', 'league-share-new', 'league-share-off', 'league-delete',
+  'league-schedule', 'league-reschedule', 'league-forfeit', 'league-notify'];
 export const MAX_LEAGUES = 50; // per club, not counting deleted ones
 
 async function readOne(sql, code, id) {
@@ -67,8 +75,14 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
       try { await requirePin(club, body.pin, req, body.ownerToken); organizer = true; } catch (e) { if (e.status === 429) throw e; }
     }
     const actor = { organizer, name: sender && sender !== 'organizer' ? sender : null };
-    const { league, out } = await mutate(sql, code, id, lg => fix(() => (lg.kind === 'ladder' ? L.recordChallenge(lg, body, now, actor) : L.recordLeagueResult(lg, String(body.matchId || ''), body, now, actor))));
+    const { league, out } = await mutate(sql, code, id, lg => fix(() => {
+      if (lg.kind === 'ladder') return L.recordChallenge(lg, body, now, actor);
+      const before = W.currentWeek(lg), r = L.recordLeagueResult(lg, String(body.matchId || ''), body, now, actor);
+      if (r.changed) r.opened = W.openedWeek(lg, before, now); // the week before was just played: this one opens, and its players hear it once
+      return r;
+    }));
     await recordGame(sql, club, code, league, out.game, body, now, body.rallyLog);
+    if (out.opened) await notify(sql, code, leagueWeekMessages(league, out.opened));
     return { body: { league: L.view(league) } };
   }
 
@@ -103,6 +117,29 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
     const { league, out } = await mutate(sql, code, id, lg => fix(() => L.correctLeagueResult(lg, String(body.matchId || ''), body.score, now)));
     await correctGame(sql, club, code, out.game, body, 'league score corrected');
     return { body: { league: L.view(league) } };
+  }
+  if (action === 'league-schedule') {
+    const { league } = await mutate(sql, code, id, lg => fix(() => W.setWeekPlan(lg, body.week, body, now)));
+    return { body: { league: L.view(league) } };
+  }
+  if (action === 'league-reschedule') {
+    const { league, out } = await mutate(sql, code, id, lg => fix(() => W.rescheduleMatch(lg, body.matchId, body, now)));
+    if (out.changed) await notify(sql, code, leagueMovedMessages(league, league.weeks.find(w => w.matches.includes(out.match)) || league.weeks[0], out.match));
+    return { body: { league: L.view(league) } };
+  }
+  if (action === 'league-forfeit') {
+    const { league, out } = await mutate(sql, code, id, lg => fix(() => {
+      const before = W.currentWeek(lg), r = W.forfeitMatch(lg, body.matchId, body.winner === undefined ? null : body.winner, now);
+      if (r.changed) r.opened = W.openedWeek(lg, before, now);
+      return r;
+    }));
+    if (out.opened) await notify(sql, code, leagueWeekMessages(league, out.opened));
+    return { body: { league: L.view(league) } };
+  }
+  if (action === 'league-notify') {
+    const { league, out } = await mutate(sql, code, id, lg => fix(() => ({ week: W.noteWeekSent(lg, body.week, now) })));
+    const sent = await notify(sql, code, leagueWeekMessages(league, out.week));
+    return { body: { league: L.view(league), sent, on: !!vapidFromEnv() } };
   }
   if (action === 'league-results-by') {
     const { league } = await mutate(sql, code, id, lg => fix(() => L.setResultsBy(lg, body.who, now)));

@@ -16,7 +16,7 @@ const preview = { games: [], events: new Map(), leagues: new Map(), lshares: new
 const SHEET_STUB = process.env.SHEET_STUB_CSV || 'Team,Player 1,Player 2,DUPR ID 1,DUPR ID 2,Logo URL\r\nNet Ninjas,Ana Lopez,Ben Ruiz,K4M2P9,R7T3QX,https://example.com/logos/net-ninjas.png\r\nDrop Shots,Cy Park,Di Wu,,,\r\nKitchen Crew,Ed Fox,Flo Kim,,,https://example.com/logos/kitchen.png\r\nLob City,Gus Hart,Hal Moss,,,\r\n';
 const stubFetch = async () => ({ status: 200, headers: { get: k => (k.toLowerCase() === 'content-type' ? 'text/csv; charset=utf-8' : null) }, body: new Response(SHEET_STUB).body });
 // Leagues and ladders in the preview: the real pure rules (api/_league.js), no organizer checks, ratings all equal.
-function previewLeague(L, b, send, now) {
+function previewLeague(L, W, b, send, now) {
   const ORG = { organizer: true, name: null };
   const keep = out => { if (!out || !out.game) return; const g = Object.assign({}, out.game, { winner: out.game.score[0] > out.game.score[1] ? 0 : 1, event: { id: out.league.id, name: out.league.name }, receivedAt: now });
     const i = preview.games.findIndex(x => x.id === g.id); if (i >= 0) preview.games[i] = Object.assign(preview.games[i], g); else preview.games.unshift(g); };
@@ -40,6 +40,10 @@ function previewLeague(L, b, send, now) {
   else if (b.action === 'league-correct') keep(L.correctLeagueResult(lg, String(b.matchId || ''), b.score, now));
   else if (b.action === 'league-results-by') L.setResultsBy(lg, b.who, now);
   else if (b.action === 'league-end') { if (lg.kind === 'ladder') L.closeLadderSeason(lg, b.season || undefined, now); else L.endSeason(lg, now); }
+  else if (b.action === 'league-schedule') W.setWeekPlan(lg, b.week, b, now);
+  else if (b.action === 'league-reschedule') W.rescheduleMatch(lg, b.matchId, b, now);
+  else if (b.action === 'league-forfeit') W.forfeitMatch(lg, b.matchId, b.winner === undefined ? null : b.winner, now);
+  else if (b.action === 'league-notify') { W.noteWeekSent(lg, b.week, now); return send(200, { league: L.view(lg), sent: 0, on: false }); } // no push in the preview
   else return send(400, { error: 'Unknown action.' });
   send(200, { league: L.view(lg) });
 }
@@ -65,7 +69,7 @@ function previewEvents(req, url, res) {
     req.on('end', () => {
       try {
         const b = JSON.parse(data || '{}'), now = Date.now();
-        if (/^league-/.test(String(b.action))) return import('../api/_league.js').then(L => previewLeague(L, b, send, now)).catch(fail);
+        if (/^league-/.test(String(b.action))) return Promise.all([import('../api/_league.js'), import('../api/_leagueweeks.js')]).then(([L, W]) => previewLeague(L, W, b, send, now)).catch(fail);
         const keep = out => { if (!out || !out.game) return; const g = Object.assign({}, out.game, { winner: out.game.score[0] > out.game.score[1] ? 0 : 1, event: { id: out.event.id, name: out.event.name }, receivedAt: now });
           const i = preview.games.findIndex(x => x.id === g.id); if (i >= 0) preview.games[i] = Object.assign(preview.games[i], g); else preview.games.unshift(g); };
         if (b.action === 'create') {

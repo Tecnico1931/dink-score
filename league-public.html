@@ -78,8 +78,12 @@ details summary { cursor: pointer; padding: 6px 0; font-weight: 600; min-height:
     const head = cols.map(c => `<th scope="col"${c.k === 'name' ? ' class="who"' : ''}>${c.h}</th>`).join('');
     return `<div class="tbl"><table><tr>${head}</tr>${rows.map(r => '<tr>' + cols.map(c => c.k === 'name' ? `<td class="who">${r.rank}. ${esc(r.name)}</td>` : `<td class="num">${c.k === 'diff' ? sign(r.diff) : r[c.k]}</td>`).join('') + '</tr>').join('')}</table></div>`;
   }
-  const match = m => { const done = m.status === 'done' && m.score, w = done ? (m.score[0] > m.score[1] ? 0 : 1) : -1;
-    return `<li><span class="t"><span class="${w === 0 ? 'win' : ''}">${names(m.teams[0])}</span> vs <span class="${w === 1 ? 'win' : ''}">${names(m.teams[1])}</span></span>${done ? `<span class="sc num">${m.score[0]}–${m.score[1]}</span>` : '<span class="tag">To play</span>'}</li>`; };
+  // The day, time and court of a match still to play, as the organizer typed them (a calendar date, never moved by the viewer's time zone).
+  const when = m => { const x = m.when || {}, p = /^(\d{4})-(\d\d)-(\d\d)$/.exec(x.date || ''), day = p ? new Date(+p[1], +p[2] - 1, +p[3]).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+    return [day && (x.moved ? 'Moved to ' : '') + day + (x.time ? ' ' + x.time : ''), x.court ? 'Court ' + x.court : ''].filter(Boolean).map(esc).join(' · '); };
+  const match = m => { const done = m.status === 'done' && m.score, w = done ? (m.score[0] > m.score[1] ? 0 : 1) : -1, wh = done ? '' : when(m);
+    return `<li><span class="t"><span class="${w === 0 ? 'win' : ''}">${names(m.teams[0])}</span> vs <span class="${w === 1 ? 'win' : ''}">${names(m.teams[1])}</span>${wh ? `<br><small class="tag">${wh}</small>` : ''}</span>${done ? `<span class="sc num">${m.score[0]}–${m.score[1]}${m.forfeit ? ' <small class="tag">Forfeit</small>' : ''}</span>` : '<span class="tag">To play</span>'}</li>`; };
+  const weekList = w => `<ul class="fx">${w.matches.map(match).join('')}</ul>${w.byes && w.byes.length ? `<p class="pub-note">Bye: ${w.byes.map(b => esc(b.name)).join(', ')}</p>` : ''}`;
 
   function render() {
     const d = data;
@@ -92,8 +96,8 @@ details summary { cursor: pointer; padding: 6px 0; font-weight: 600; min-height:
       if (d.status === 'done' && d.champions) d.champions.forEach((c, i) => { if (c) out.push(`<div class="pub-champ"><span class="ball" aria-hidden="true"></span><div><small>${d.divisions.length > 1 ? esc(d.divisions[i].label) + ' winner' : 'Season winner'}</small><b>${names(c)}</b></div></div>`); });
       d.divisions.forEach(dv => out.push(`<section class="card" aria-labelledby="d-${esc(dv.label)}"><h2 id="d-${esc(dv.label)}">${d.divisions.length > 1 ? esc(dv.label) : 'Standings'}</h2>${table(dv.rows, [{ k: 'name', h: d.mode === 'doubles' ? 'Team' : 'Player' }, { k: 'played', h: 'P' }, { k: 'wins', h: 'W' }, { k: 'losses', h: 'L' }, { k: 'diff', h: '+/−' }])}</section>`));
       const wk = d.status === 'live' && d.weeks.find(w => w.n === d.current);
-      if (wk) out.push(`<section class="card" aria-labelledby="wk-now"><h2 id="wk-now">${esc(wk.title)}</h2><ul class="fx">${wk.matches.map(match).join('')}</ul></section>`);
-      out.push(`<section class="card"><h2>All weeks</h2>${d.weeks.map(w => `<details><summary>${esc(w.title)}</summary><ul class="fx">${w.matches.map(match).join('')}</ul></details>`).join('')}</section>`);
+      if (wk) out.push(`<section class="card" aria-labelledby="wk-now"><h2 id="wk-now">${esc(wk.title)}</h2>${weekList(wk)}</section>`);
+      out.push(`<section class="card"><h2>All weeks</h2>${d.weeks.map(w => `<details><summary>${esc(w.title)}</summary>${weekList(w)}</details>`).join('')}</section>`);
     } else {
       out.push(`<section class="card" aria-labelledby="lad"><h2 id="lad">Ladder</h2>${table(d.rows, [{ k: 'name', h: d.mode === 'doubles' ? 'Team' : 'Player' }, { k: 'played', h: 'P' }, { k: 'wins', h: 'W' }, { k: 'losses', h: 'L' }])}</section>`);
       if (d.results.length) out.push(`<section class="card" aria-labelledby="rec"><h2 id="rec">Recent results</h2><ul class="fx">${d.results.map(r => match({ teams: r.teams, score: r.score, status: 'done' })).join('')}</ul></section>`);
