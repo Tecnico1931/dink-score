@@ -1,18 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { gameView, sessionView, preview, cardModel, pageHTML, deadHTML, safeOrigin } from '../api/_result.js';
 import { gameCard, sessionCard, cardText } from '../api/_card.js';
 import { encode, flow, checkLog } from '../api/_rallylog.js';
 import { newShareToken } from '../api/_share.js';
 import { inflateSync } from 'node:zlib';
+import { section } from './helpers/app.js';
 
-const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dink-score.html'), 'utf8');
-const block = src.match(/\/\*REPLAYCHART-START\*\/([\s\S]*?)\/\*REPLAYCHART-END\*\//);
-assert.ok(block, 'the REPLAYCHART block is missing from dink-score.html');
-const RC = new Function(block[1] + '\nreturn RC;')();
+const RC = new Function(section('REPLAYCHART') + '\nreturn RC;')();
 
 // A real game: team 0 wins 11-3 at side-out scoring, singles-style bookkeeping is enough for the rules.
 const wins = [0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0];

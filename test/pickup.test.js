@@ -1,15 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { cleanSessionCode, expiresAt, SESSION_MS, sessionView } from '../api/_sessions.js';
+import { section } from './helpers/app.js';
 
-const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dink-score.html'), 'utf8');
-const grab = (name, ret) => new Function(src.match(new RegExp(`/\\*${name}-START\\*/([\\s\\S]*?)/\\*${name}-END\\*/`))[1] + `\nreturn ${ret};`)();
+const grab = (name, ret) => new Function(section(name) + `\nreturn ${ret};`)();
 const Pickup = grab('PICKUP', 'Pickup');
 const ShareLink = grab('SHARELINK', 'ShareLink');
-const Heal = (() => { const b = src.match(/\/\*RECOVERY-START\*\/([\s\S]*?)\/\*RECOVERY-END\*\//)[1]; return new Function(b + '\nreturn Heal;')(); })();
+const Heal = grab('RECOVERY', 'Heal');
 
 test('session codes are 8 letters and numbers, cleaned like club codes', () => {
   assert.equal(cleanSessionCode('abcd-2345'), 'ABCD2345');

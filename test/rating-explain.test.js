@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { compute, explain, explainText, START, MIN, PROVISIONAL } from '../api/_rating.js';
+import { page, iife } from './helpers/app.js';
 
-const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const client = new Function(html.match(/const DR = \(\(\) => \{[\s\S]*?\n\}\)\(\);/)[0].replace('const DR =', 'return'))();
+const html = page();
+const client = new Function(iife('DR').replace('const DR =', 'return'))();
 
 const g = (id, score, endedAt, teams, { mode = 'doubles', target = 11 } = {}) => ({
   id, mode, target, score, winner: score[0] > score[1] ? 0 : 1, endedAt, teams

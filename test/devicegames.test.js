@@ -1,13 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
+import { page, section } from './helpers/app.js';
 
-const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dink-score.html'), 'utf8');
-const block = src.match(/\/\*DEVICEGAMES-START\*\/([\s\S]*?)\/\*DEVICEGAMES-END\*\//);
-assert.ok(block, 'the DEVICEGAMES block is missing from dink-score.html');
-const DeviceGames = new Function(block[1] + '\nreturn DeviceGames;')();
+const src = page();
+const DeviceGames = new Function(section('DEVICEGAMES') + '\nreturn DeviceGames;')();
 const games = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
 
 test('save-to-club after a game uploads only that game', () => {

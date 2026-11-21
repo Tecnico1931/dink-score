@@ -3,9 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { page, section } from './helpers/app.js';
 
-const html = fs.readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const tokenBlock = html.split('/*TOKENS-START*/')[1].split('/*TOKENS-END*/')[0];
+const html = page();
+const tokenBlock = section('TOKENS');
 const hexRgb = h => { h = h.replace('#', ''); if (h.length === 3) h = [...h].map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
 const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
@@ -39,7 +40,7 @@ test('danger buttons: label colour passes in every theme', () => {
 });
 
 // The court: white text over each team's gradient, at the lightest end (the worst case) and at the dimmed "idle" half.
-const a11y = html.split('/*A11Y-START*/')[1].split('/*A11Y-END*/')[0];
+const a11y = section('A11Y');
 const halfVars = sel => { const m = new RegExp(sel.replace(/[[\]"]/g, '\\$&') + ' \\{[^}]*?--c1: (#[0-9A-Fa-f]{6}); --c2: (#[0-9A-Fa-f]{6})').exec(a11y); assert.ok(m, 'no court colours for ' + sel); return [hexRgb(m[1]), hexRgb(m[2])]; };
 for (const [name, sel] of [['team 1', '.half'], ['team 2', '.half[data-k="b"]'], ['outdoor team 1', ':root[data-outdoor] .half'], ['outdoor team 2', ':root[data-outdoor] .half[data-k="b"]']]) {
   test(`court contrast: ${name}`, () => {

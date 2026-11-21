@@ -3,18 +3,18 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { page, section } from './helpers/app.js';
 
 // Stored state is untrusted. The Heal block (inline in dink-score.html) checks and migrates it; load just that block.
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = readFileSync(path.join(root, 'dink-score.html'), 'utf8');
-const block = src.match(/\/\*RECOVERY-START\*\/([\s\S]*?)\/\*RECOVERY-END\*\//);
-assert.ok(block, 'the RECOVERY block is missing from dink-score.html');
+const src = page();
+const block = section('RECOVERY');
 const fake = (init = {}) => {
   const m = new Map(Object.entries(init));
   return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), key: i => [...m.keys()][i], get length() { return m.size; }, m };
 };
 const ls = fake();
-const Heal = new Function('localStorage', block[1] + '\nreturn Heal;')(ls);
+const Heal = new Function('localStorage', block + '\nreturn Heal;')(ls);
 
 const game = (id, extra) => Object.assign({ id, teams: [['Ana', 'Bo'], ['Cy', 'Di']], score: [11, 5], endedAt: 1000 }, extra);
 

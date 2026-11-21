@@ -1,11 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { replay, checkLog, parseLog, encode, MAX_LOG } from '../api/_rallylog.js';
+import { section, iife } from './helpers/app.js';
 
 // The client's scoring engine and move helpers, pulled out of dink-score.html so the server's copy is held to the same results.
-const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const { PB, Scoring } = new Function(html.match(/const PB = \(\(\) => \{[\s\S]*?\n\}\)\(\);/)[0] + html.match(/\/\*SCORING-START\*\/([\s\S]*?)\/\*SCORING-END\*\//)[1] + '\nreturn { PB, Scoring };')();
+const { PB, Scoring } = new Function(iife('PB') + section('SCORING') + '\nreturn { PB, Scoring };')();
 
 // A small deterministic random generator, so a failure can be replayed.
 const rng = seed => () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;

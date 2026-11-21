@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { page, section } from './helpers/app.js';
 
-const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const Greeting = new Function(html.match(/\/\*GREETING-START\*\/([\s\S]*?)\/\*GREETING-END\*\//)[1] + '\nreturn Greeting;')();
+const html = page();
+const Greeting = new Function(section('GREETING') + '\nreturn Greeting;')();
 
 test('firstName extracts first word, trims whitespace and strips outer punctuation', () => {
   assert.equal(Greeting.firstName('Alex'), 'Alex');

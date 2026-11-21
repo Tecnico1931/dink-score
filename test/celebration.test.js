@@ -1,11 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
+import { page, section } from './helpers/app.js';
 
-const html = fs.readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const block = html.match(/\/\*CELEBRATION-START\*\/([\s\S]*?)\/\*CELEBRATION-END\*\//);
-assert.ok(block, 'CELEBRATION-START/END block missing from dink-score.html');
-const Celebration = new Function(`${block[1]}\nreturn Celebration;`)();
+const html = page();
+const Celebration = new Function(`${section('CELEBRATION')}\nreturn Celebration;`)();
 
 test('Celebration.normalize defaults to off and unmuted, coercing invalid values safely', () => {
   assert.deepEqual(Celebration.normalize(null), { on: 0, muted: 0 });

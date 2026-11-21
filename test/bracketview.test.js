@@ -1,15 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import { createEvent, recordResult, view } from '../api/_events.js';
+import { section } from './helpers/app.js';
 
 // The drawing code lives inline in dink-score.html (so the app stays one file); load just that block.
-const src = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dink-score.html'), 'utf8');
-const block = src.match(/\/\*BRACKETVIEW-START\*\/([\s\S]*?)\/\*BRACKETVIEW-END\*\//);
-assert.ok(block, 'the BRACKETVIEW block is missing from dink-score.html');
-const BK = new Function(block[1] + '\nreturn BK;')();
+const BK = new Function(section('BRACKETVIEW') + '\nreturn BK;')();
 
 const NOW = Date.UTC(2026, 5, 1, 12);
 const players = n => Array.from({ length: n }, (_, i) => 'P' + (i + 1));
@@ -160,7 +155,7 @@ test('pool standings mark who advances', () => {
 });
 
 test('every line of text in the markup uses a readable size', () => {
-  const css = src.match(/\/\*BRACKET-CSS-START\*\/([\s\S]*?)\/\*BRACKET-CSS-END\*\//)[1];
+  const css = section('BRACKET-CSS');
   const sizes = [...css.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g), ...css.matchAll(/font:\s*[\d ]+?(\d+)px/g)].map(m => +m[1]);
   assert.ok(sizes.length > 10);
   assert.ok(Math.min(...sizes) >= 12, 'smallest bracket text is 12px (table headers); everything else 13px+');

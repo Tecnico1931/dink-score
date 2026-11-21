@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { toCsv } from '../dupr-export.js';
+import { page, section, iife } from './helpers/app.js';
 
-const html = readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
-const DR = new Function(html.match(/const DR = \(\(\) => \{[\s\S]*?\n\}\)\(\);/)[0].replace('const DR =', 'return'))();
-const MyGames = new Function(html.match(/\/\*MYGAMES-START\*\/([\s\S]*?)\/\*MYGAMES-END\*\//)[1] + '\nreturn MyGames;')();
+const html = page();
+const DR = new Function(iife('DR').replace('const DR =', 'return'))();
+const MyGames = new Function(section('MYGAMES') + '\nreturn MyGames;')();
 
 const g = (id, teams, score, endedAt, extra = {}) => ({ id, mode: 'doubles', teams, score, winner: score[0] > score[1] ? 0 : 1, endedAt, ...extra });
 const clubs = [{ code: 'AAAAAA', name: 'Alpha' }, { code: 'BBBBBB', name: 'Beta' }, { code: 'CCCCCC', name: 'Gamma' }];

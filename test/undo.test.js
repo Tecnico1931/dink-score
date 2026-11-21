@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { undoKind, undoConflict, UNDO_DAYS } from '../api/_undo.js';
+import { page } from './helpers/app.js';
 
 const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const NOW = Date.UTC(2026, 10, 21, 12);
@@ -52,7 +53,7 @@ test('a rename undo needs the player to still carry the new name and the old nam
 });
 
 test('wiring: undo and the logged rename/merge are in the handlers and the sheet', () => {
-  const players = read('api/players.js'), html = read('dink-score.html'), db = read('api/_db.js');
+  const players = read('api/players.js'), html = page(), db = read('api/_db.js');
   assert.match(players, /body\.action === 'undo'/);
   assert.match(players, /audit\(sql, code, actor, merge \? 'merge' : 'rename'/);
   assert.match(players, /audit\(sql, code, actor, 'undo'/);

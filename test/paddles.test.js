@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { cleanPaddles, cleanPaddlePhoto, countPaddlePhotos, paddlePhotoRoom, MAX_PADDLES, MAX_PHOTO, MAX_USED, MAX_PHOTO_COUNT } from '../api/_paddles.js';
 import { MAX_PHOTOS } from '../api/_db.js';
+import { module } from './helpers/app.js';
 
 const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const photo = n => 'data:image/jpeg;base64,' + 'A'.repeat(n);
@@ -61,13 +62,11 @@ test('paddles never ride in club, public or sync payloads', () => {
 
 // The client's record per paddle, from the module that dink-score.html carries.
 function clientModule(name, games, doc) {
-  const html = read('dink-score.html');
-  const m = html.match(/\/\*MODULE-START:paddles\*\/([\s\S]*?)\/\*MODULE-END:paddles\*\//);
-  assert.ok(m, 'paddles module block missing');
-  assert.equal(m[1].trim(), read('src/app/paddles.js').trim(), 'run node build.cjs');
+  const mod = module('paddles');
+  assert.equal(mod.trim(), read('src/app/paddles.js').trim(), 'run node build.cjs');
   const store = { get: (k, d) => d, set() {} };
   const club = { code: 'ABC123' };
-  const body = `const store = S, club = C, myName = () => N, myToken = () => 't', sameName = (a, b) => a.toLowerCase() === b.toLowerCase(), esc = s => s, iconSvg = () => '', isMe = () => true, playerCall = async () => ({}), render = () => {}, renderProfile = () => {};\n${m[1]}\npaddleDocs.ABC123 = D;\nreturn { paddleTally, paddlesProfileHTML, paddlePickHTML };`;
+  const body = `const store = S, club = C, myName = () => N, myToken = () => 't', sameName = (a, b) => a.toLowerCase() === b.toLowerCase(), esc = s => s, iconSvg = () => '', isMe = () => true, playerCall = async () => ({}), render = () => {}, renderProfile = () => {};\n${mod}\npaddleDocs.ABC123 = D;\nreturn { paddleTally, paddlesProfileHTML, paddlePickHTML };`;
   return new Function('S', 'C', 'N', 'D', body)(store, club, name, doc);
 }
 
