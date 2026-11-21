@@ -1,7 +1,7 @@
 // Browser smoke test for the built site (public/, run by CI; needs Chrome through Playwright, so not part of `npm test`).
 //   npm i --no-save playwright-core && npx playwright-core install chromium && node build.cjs && node tools/smoke-check.mjs
 // Starts tools/serve.cjs (same CSP headers as Vercel), then plays one whole game on a phone-sized screen: the page loads with
-// no script error or CSP violation, a rally game is scored to 11, saved, and shows up in Leaders and Record, also after a reload.
+// no script error or CSP violation, a rally game is scored to 11, undone and won again, saved, and shows up in Leaders and Record, also after a reload.
 // Env: PW_CHROME=/path/to/chrome (default: Playwright's own Chromium), SMOKE_PORT=4188.
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
@@ -37,6 +37,12 @@ try {
   await page.getByRole('dialog').getByText(/Ana & Ben win|Ana and Ben win|win/).first().waitFor();
   console.log('ok  a rally game scores to 11 and shows the winner');
 
+  await page.getByRole('dialog').locator('[data-act=undo]').click();
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
+  await page.locator('[data-rally="0"]').click();
+  await page.getByRole('dialog').getByText(/win/).first().waitFor();
+  console.log('ok  undo takes back the winning rally, and the game can be won again');
+
   await page.locator('[data-act=finish]').click();
   await page.getByRole('button', { name: 'Leaders', exact: true }).click();
   const leaders = await page.locator('main, body').first().innerText();
@@ -48,6 +54,28 @@ try {
   await page.getByRole('button', { name: 'Record', exact: true }).click();
   assert.ok(/Ana/.test(await page.locator('body').innerText()), 'the game is still there after a reload');
   console.log('ok  the game is in Record after a reload');
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Settings' });
+  await settings.waitFor();
+  await settings.getByRole('button', { name: 'Dark', exact: true }).click();
+  await settings.getByRole('button', { name: 'Done' }).click();
+  await settings.waitFor({ state: 'detached' });
+  console.log('ok  settings open, change the appearance and close');
+
+  // What's new shows once, for a phone that has seen the tour and not this update.
+  const old = await (await browser.newContext({ viewport: { width: 420, height: 900 } })).newPage();
+  old.on('pageerror', e => problems.push('page error: ' + e.message));
+  old.on('console', m => { if (m.type() === 'error' && !expected(m.text())) problems.push('console: ' + m.text()); });
+  await old.addInitScript(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); } catch {} });
+  await old.goto(base);
+  const news = old.getByRole('dialog', { name: "What's new" });
+  await news.waitFor();
+  await news.getByRole('button', { name: 'Got it' }).click();
+  await news.waitFor({ state: 'detached' });
+  await old.reload();
+  assert.equal(await old.getByRole('dialog').count(), 0, "What's new does not come back after Got it");
+  console.log("ok  What's new shows once and stays closed");
 
   assert.deepEqual(problems, [], problems.join('\n'));
   console.log('ok  no script errors or CSP violations in the whole run');

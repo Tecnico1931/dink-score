@@ -34,7 +34,7 @@ jobs:
       - name: Browser smoke test (Chromium via Playwright)
         # runs on public/, which the step above just built
         run: |
-          npm i --no-save playwright-core
+          npm i --no-save playwright-core@1.65.1
           npx playwright-core install --with-deps chromium
           node tools/smoke-check.mjs
       - name: sw.js VERSION bumped when shipped files change
