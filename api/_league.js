@@ -5,7 +5,9 @@
 //   v, id, kind: 'league' | 'ladder', name, season, mode: 'singles' | 'doubles', status: 'live' | 'done',
 //   scoring, target, winBy, resultsBy: 'players' | 'club', createdAt, updatedAt,
 //   entries: [[names]], seeds: [rating, ...],           // one entry per player (singles) or team (doubles), strongest first by Dink Rating when made
-//   // league: divisions: [{ label, entries: [index] }], legs, weeks: [{ n, title, date?, time?, notifiedAt?, matches: [match] }], champions: [[names] per division]
+//   // league: divisions: [{ label, entries: [index] }], legs, move (entries promoted/relegated each way between divisions; 0 = none, absent = 1),
+//   //   tiebreak (stored as 'diff,pf,h2h' string, not a string array, so rewriteNames in _rename.js never mistakes a key for a player name; absent = legacy 'diff,pf'),
+//   //   weeks: [{ n, title, date?, time?, notifiedAt?, matches: [match] }], champions: [[names] per division]
 //   //   week.date 'YYYY-MM-DD' and week.time 'HH:MM' are the day's wall clock as the organizer typed it (no time zone); see _leagueweeks.js
 //   // ladder: jump (how many places up a challenge may reach), decayDays (0/absent = off; idle days per place dropped), since (season start), open: [{ id, c, d, at, expiresAt, state }] (pending challenges, see openChallenge), results: [result], seasons: [{ label, endedAt, order: [[names]] }]
 // }
@@ -23,7 +25,37 @@ export const MAX_ENTRIES = 32;
 export const MIN_PER_DIVISION = 3;
 const clone = x => JSON.parse(JSON.stringify(x));
 const clamp = (v, lo, hi, d) => { const n = Math.trunc(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d; };
+const optClamp = (v, lo, hi, d) => (v === undefined || v === null || v === '' ? d : clamp(v, lo, hi, d));
 const keyOf = names => names.map(n => n.toLowerCase()).sort().join('|');
+
+export const TIEBREAK_KEYS = ['diff', 'pf', 'h2h'];
+export const DEFAULT_TIEBREAK = ['diff', 'pf', 'h2h'];
+const LEGACY_TIEBREAK = ['diff', 'pf'];
+
+function cleanTiebreak(raw) {
+  if (raw === undefined || raw === null) return DEFAULT_TIEBREAK.join(',');
+  const list = typeof raw === 'string' ? raw.split(',').map(s => s.trim()) : Array.isArray(raw) ? raw.map(s => String(s)) : null;
+  if (!list || list.length !== TIEBREAK_KEYS.length || new Set(list).size !== TIEBREAK_KEYS.length || !list.every(k => TIEBREAK_KEYS.includes(k))) {
+    throw bad('Tie-breakers must list head-to-head, point difference and points for, once each.');
+  }
+  return list.join(',');
+}
+
+export function tiebreakOf(L) {
+  if (typeof L.tiebreak === 'string' && L.tiebreak) return L.tiebreak.split(',');
+  if (Array.isArray(L.tiebreak) && L.tiebreak.length) return L.tiebreak.slice();
+  return LEGACY_TIEBREAK.slice();
+}
+
+export function maxMoveFor(divisions) {
+  const k = Array.isArray(divisions) ? divisions.length : 0;
+  if (k <= 1) return 0;
+  const min = Math.min(...divisions.map(d => d.entries.length));
+  // With 2 divisions nobody both rises and falls; with 3+ a middle division sends both ways, so movers never overlap and at least one stays.
+  return k === 2 ? Math.max(1, Math.floor(min / 2)) : Math.max(1, Math.floor((min - 1) / 2));
+}
+
+export const moveOf = L => (L.divisions.length <= 1 ? 0 : optClamp(L.move, 0, maxMoveFor(L.divisions), 1));
 
 function names(input) {
   const seen = new Set(), out = [];
@@ -105,7 +137,10 @@ export function createLeague(input, ratings = {}, now = Date.now(), rand = Math.
   if (!input || typeof input !== 'object') throw bad('League details are missing.');
   const L = base(input, 'league', now, rand);
   const { entries, seeds } = makeEntries(input, L.mode, ratings);
-  Object.assign(L, { legs: Number(input.legs) === 2 ? 2 : 1, entries, seeds, divisions: divide(entries.length, input.divisions), champions: null });
+  const divisions = divide(entries.length, input.divisions);
+  const move = divisions.length > 1 ? optClamp(input.move, 0, maxMoveFor(divisions), 1) : 0;
+  const tiebreak = cleanTiebreak(input.tiebreak);
+  Object.assign(L, { legs: Number(input.legs) === 2 ? 2 : 1, entries, seeds, divisions, move, tiebreak, champions: null });
   return schedule(L);
 }
 
@@ -127,11 +162,54 @@ export function weekByes(L, w) {
   return out;
 }
 
+// Partitions a tied group by `rules` in order (each of 'diff', 'pf', 'h2h'), falling back to alphabetical name.
+// For 'h2h': considers scored matches exclusively among entries in `group`; applies only once every pair in `group` has met,
+// ranking by head-to-head win rate (exact integer cross-multiplication). If 'h2h' splits `group` into smaller sub-groups,
+// each sub-group re-checks 'h2h' (strictly smaller, so guaranteed to terminate) before moving to the remaining rules.
+function bucketBy(list, cmp) {
+  const sorted = list.slice().sort(cmp), out = [];
+  for (const r of sorted) {
+    if (!out.length || cmp(out[out.length - 1][0], r) !== 0) out.push([r]);
+    else out[out.length - 1].push(r);
+  }
+  return out;
+}
+
+function rankGroup(group, rules, matches) {
+  if (group.length <= 1) return group;
+  if (!rules.length) return group.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const [rule, ...rest] = rules;
+  if (rule === 'diff' || rule === 'pf') {
+    return bucketBy(group, (a, b) => b[rule] - a[rule]).flatMap(b => rankGroup(b, rest, matches));
+  }
+  if (rule === 'h2h') {
+    const ids = new Set(group.map(r => r.id)), stat = new Map(group.map(r => [r.id, { w: 0, p: 0 }])), pairs = new Set();
+    for (const m of matches) {
+      if (!m || !m.score || !m.teams) continue;
+      const a = teamId(m.teams[0]), b = teamId(m.teams[1]);
+      if (a === b || !ids.has(a) || !ids.has(b)) continue;
+      pairs.add(a < b ? a + '\0' + b : b + '\0' + a);
+      stat.get(a).p++; stat.get(b).p++;
+      if (m.score[0] > m.score[1]) stat.get(a).w++; else if (m.score[1] > m.score[0]) stat.get(b).w++;
+    }
+    if (pairs.size < (group.length * (group.length - 1)) / 2) return rankGroup(group, rest, matches);
+    const cmp = (x, y) => { const sx = stat.get(x.id), sy = stat.get(y.id); return sy.w * sx.p - sx.w * sy.p; };
+    const buckets = bucketBy(group, cmp);
+    if (buckets.length === 1) return rankGroup(group, rest, matches);
+    return buckets.flatMap(b => rankGroup(b, rules, matches));
+  }
+  return rankGroup(group, rest, matches);
+}
+
 export function divisionTable(L, d) {
   const dv = L.divisions[d];
   const rows = dv.entries.map(i => ({ id: teamId(L.entries[i]), name: L.entries[i].join(' & '), members: L.entries[i] }));
   const byId = new Map(rows.map(r => [r.id, r.members]));
-  return standings(rows, allMatches(L).filter(m => m.division === d && m.score), { by: 'team' }).map(r => ({ ...r, members: byId.get(r.id) }));
+  const played = allMatches(L).filter(m => m.division === d && m.score);
+  const baseRows = standings(rows, played, { by: 'team' }).map(r => ({ ...r, members: byId.get(r.id) }));
+  const rules = tiebreakOf(L);
+  const ordered = bucketBy(baseRows, (a, b) => b.wins - a.wins).flatMap(g => rankGroup(g, rules, played));
+  return ordered.map((r, i) => ({ ...r, rank: i + 1 }));
 }
 
 // Where a match's players may be named: any of the four (or two) players in the match.
@@ -217,13 +295,14 @@ export function nextSeason(prev, input = {}, now = Date.now(), rand = Math.rando
   if (prev.status !== 'done') throw bad('Finish this season first.', 409);
   const k = prev.divisions.length;
   const tables = prev.divisions.map((_, d) => divisionTable(prev, d).map(r => r.members));
-  const maxMove = Math.max(1, Math.floor((Math.min(...tables.map(t => t.length)) - 1) / 2)); // top and bottom movers of one division never overlap
-  const move = k === 1 ? 0 : clamp(input.move, 0, maxMove, 1);
+  const maxMove = maxMoveFor(prev.divisions);
+  const move = k === 1 ? 0 : optClamp(input.move, 0, maxMove, moveOf(prev));
   // The top `move` of each division go up one, the bottom `move` go down one; everyone else stays. Every division keeps its size.
   const next = tables.map(() => []);
   tables.forEach((t, d) => t.forEach((m, i) => next[i < move && d > 0 ? d - 1 : i >= t.length - move && d < k - 1 ? d + 1 : d].push(m)));
   const L = base({ ...prev, season: input.season || nextLabel(prev.season) }, 'league', now, rand);
-  L.legs = prev.legs; L.previous = prev.id;
+  L.legs = prev.legs; L.move = move; L.previous = prev.id;
+  if (input.tiebreak !== undefined) L.tiebreak = cleanTiebreak(input.tiebreak); else if (prev.tiebreak) L.tiebreak = prev.tiebreak;
   L.history = [...(prev.history || []), archive(prev)].slice(-MAX_HISTORY);
   L.entries = next.flat(); L.seeds = L.entries.map(() => null);
   let at = 0;
@@ -413,6 +492,9 @@ export function summary(L, now = Date.now()) {
 export function view(L, now = Date.now()) {
   const out = clone(L);
   if (L.kind === 'league') {
+    out.tiebreak = tiebreakOf(L);
+    out.move = moveOf(L);
+    out.maxMove = maxMoveFor(L.divisions);
     out.tables = L.divisions.map((dv, d) => ({ label: dv.label, rows: divisionTable(L, d) }));
     out.weeks.forEach((w, i) => { w.byes = weekByes(L, L.weeks[i]); w.matches.forEach((m, j) => { m.when = slotOf(L.weeks[i], L.weeks[i].matches[j]); }); });
     out.current = (L.weeks.find(w => w.matches.some(m => m.status === 'pending')) || {}).n || L.weeks.length;

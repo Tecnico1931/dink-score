@@ -2069,8 +2069,12 @@ await step('leagues and ladders: organizers create, results reach the record onc
   // organizers only, and the details are checked
   assert.equal((await lg('league-create', { league: { kind: 'league', name: 'Nope', mode: 'singles', players: six } }, {})).status, 403);
   assert.equal((await lg('league-create', { league: { kind: 'league', name: 'Thin', mode: 'singles', players: six, divisions: 3 } })).status, 400);
-  const league = ok(await lg('league-create', { league: { kind: 'league', name: 'Tuesday league', season: 'Autumn 1', mode: 'singles', players: six, divisions: 2, target: 11 } }), 201).league;
+  assert.equal((await lg('league-create', { league: { kind: 'league', name: 'BadTB', mode: 'singles', players: six, tiebreak: ['nope'] } })).status, 400);
+  const league = ok(await lg('league-create', { league: { kind: 'league', name: 'Tuesday league', season: 'Autumn 1', mode: 'singles', players: six, divisions: 2, target: 11, move: 0, tiebreak: ['h2h', 'diff', 'pf'] } }), 201).league;
   assert.equal(league.tables.length, 2);
+  assert.deepEqual(league.tiebreak, ['h2h', 'diff', 'pf']);
+  assert.equal(league.move, 0);
+  assert.equal(league.maxMove, 1);
   assert.equal(league.weeks.flatMap(w => w.matches).length, 6);
   assert.equal(ok(await call(club, 'GET', { query: '?code=' + lcode })).roster.length, 6, 'players join the roster');
   // a match: scored once, retried safely, never twice in the record
@@ -2095,8 +2099,9 @@ await step('leagues and ladders: organizers create, results reach the record onc
   const fin = ok(await call(events, 'GET', { query: `?code=${lcode}&league=${league.id}` })).league;
   assert.equal(fin.status, 'done');
   assert.equal((await lgames()).length, 6);
-  const next = ok(await lg('league-next-season', { id: league.id }), 201).league;
+  const next = ok(await lg('league-next-season', { id: league.id, move: 1 }), 201).league;
   assert.equal(next.season, 'Autumn 2'); assert.equal(next.status, 'live'); assert.equal(next.previous, league.id);
+  assert.equal(next.move, 1); assert.deepEqual(next.tiebreak, ['h2h', 'diff', 'pf']);
   assert.equal((await lg('league-next-season', { id: league.id })).status, 409, 'only one next season');
   // a ladder: challenge rules, retry key, order, season close
   const ladder = ok(await lg('league-create', { league: { kind: 'ladder', name: 'Ladder', mode: 'singles', players: six, jump: 2 } }), 201).league;
