@@ -103,7 +103,7 @@ function rivalriesHTML(name, mode) {
   if (!rivals.length) return '';
   return `<div class="field" style="margin:0"><span class="lab">Rivalries</span><div class="rivals">${rivals.map((e, i) => {
     const lead = e.w > e.l ? 'leads' : e.w < e.l ? 'trails' : 'tied';
-    return `<button class="rival ${lead}" data-player="${esc(e.name)}"><span class="avatar-mini">${avatarInner(e.name)}</span>
+    return `<button class="rival ${lead}" data-player="${esc(e.name)}"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(e.name) : ''}>${avatarInner(e.name)}</span>
       <span class="rv-text"><b>${i === 0 ? 'Top rival: ' : ''}${esc(e.name)}</b><small>${lead === 'tied' ? `All square at ${e.w}–${e.l}` : `${esc(name.split(' ')[0])} ${lead} ${Math.max(e.w, e.l)}–${Math.min(e.w, e.l)}`}</small></span>
       <span class="rv-score">${e.w}–${e.l}</span></button>`;
   }).join('')}</div></div>`;

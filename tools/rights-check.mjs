@@ -73,9 +73,10 @@ const gn = ok(await C('night-create', { ...ORG, night: { title: 'Tuesday play', 
 ok(await C('night-rsvp', { id: gn.id, status: 'in', playerName: 'Ana', playerToken: tok.Ana }));
 ok(await C('night-rsvp', { id: gn.id, status: 'maybe', playerName: 'Ben', playerToken: tok.Ben }));
 await pg.query(`UPDATE events SET refs = '{"Ana":"1234567","Ben":"7654321"}'::jsonb WHERE club = (SELECT code FROM clubs LIMIT 1)`);
-await pg.query(`UPDATE roster SET avatar = '{"type":"emoji","value":"🔥"}'::jsonb, dupr_rating = 3.5 WHERE name_key = 'ana'`);
+await pg.query(`UPDATE roster SET avatar = '{"type":"emoji","value":"🔥"}'::jsonb, dupr_rating = 3.5, rewards_public = true WHERE name_key = 'ana'`);
+await pg.query(`UPDATE roster SET rewards_public = true WHERE name_key = 'ben'`);
 await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak) SELECT code, k, 'day:2026-01-05', 'earn', 1, 'day', '2026-01-05', 1 FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // the rewards ledger, private to each player
-await pg.query(`INSERT INTO reward_items (club, name_key, item, slot, worn) SELECT code, k, 'frame-court', 'frame', true FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // bought cosmetics, private to each player
+await pg.query(`INSERT INTO reward_items (club, name_key, item, slot, worn) SELECT code, k, 'frame-court', 'frame', true FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // bought cosmetics, private to each player unless opted in
 await pg.query(`INSERT INTO accounts (id, display_name) VALUES ('acct1', 'x')`);
 await pg.query(`INSERT INTO account_identities (account_id, club, kind, name_key, proof) SELECT 'acct1', code, 'player', 'ana', 'p' FROM clubs`);
 // A linked watch with a live game sent to it: club deletion must take both, and no export may carry its hashes.
@@ -95,6 +96,7 @@ await step('player export: only the phone that holds the name gets it, and it ha
   const d = ok(await P('export', { name: 'Ana', playerToken: tok.Ana }));
   assert.equal(d.format, 'dink-score-player-export');
   assert.equal(d.player.name, 'Ana');
+  assert.equal(d.player.rewardsPublic, true, 'their own look visibility setting is included in the player export');
   assert.equal(d.player.duprSelfReported.rating ?? d.player.duprSelfReported, d.player.duprSelfReported.rating ?? 3.5);
   assert.deepEqual(d.games.map(g => g.id).sort(), ['g-one', 'g-two']);
   assert.deepEqual(d.reactions.map(r => `${r.gameId}:${r.reaction}`).sort(), ['g-one:fire', 'g-three:clap']);
@@ -180,7 +182,7 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
-  assert.ok(!/reward_ledger|rewardsLedger|reward_items|rewardsItems|frame-court/.test(s), 'the rewards ledger and bought items are private to the player, not in the club export');
+  assert.ok(!/reward_ledger|rewardsLedger|reward_items|rewardsItems|rewards_public|rewardsPublic|frame-court/.test(s), 'the rewards ledger, bought items and look visibility stay out of the club export');
   assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321|token_hash|revoke_hash|key_hash/.test(s) && !s.includes(watchToken), 'no secrets, tokens or DUPR data');
 });
 await step('club export as CSV: games, with spreadsheet formulas defused', async () => {

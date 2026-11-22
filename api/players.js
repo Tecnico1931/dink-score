@@ -8,8 +8,11 @@
 //   paddles-set {name, playerToken, paddles}         -> replaces your paddle list and the paddle you used in each game
 //   rewards-get|rewards-sync {name, playerToken, tz?} -> your rewards balance and streak from the append-only ledger (rewards-sync first adds what the
 //                                                       games you saved earned; see _economy.js). Only that name's phone; only where the club has rewards on
-//   rewards-catalog|rewards-buy|rewards-wear {name, playerToken, item?, slot?} -> the catalogue (fixed prices, server-side only), buy one item
-//                                                       through the ledger, or choose which owned item is worn. See _economyshop.js.
+//   rewards-catalog|rewards-buy|rewards-wear|rewards-share {name, playerToken, item?, slot?, share?} -> the catalogue (fixed prices, server-side
+//                                                       only), buy one item through the ledger, choose which owned item is worn, or choose whether
+//                                                       other members see your worn look. See _economyshop.js.
+//   rewards-looks {}                                  -> club members (when club.rewards is on): allow-listed worn item ids for players who opted in
+//                                                       to share their look. Never balance, streak, or purchase history.
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
 //   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events, leagues and ladders you are in
@@ -31,7 +34,7 @@ import { undoKind, undoConflict } from './_undo.js';
 import { dropRatings } from './_rating_store.js';
 import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
 import { rewardsFor, loadLedger } from './_economysync.js';
-import { shopView, buyItem, wearItem, wornOf, loadItems } from './_economyshop.js';
+import { shopView, buyItem, wearItem, wornOf, loadItems, clubLooks, shareOf, setShare } from './_economyshop.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -82,11 +85,13 @@ async function applyRename(sql, code, from, into, toName) {
       AND NOT EXISTS (SELECT 1 FROM account_identities x WHERE x.club = ${code} AND x.kind = 'player' AND x.name_key = ${plan.toKey})`);
   } else {
     // The kept player takes whatever the other one had that it lacks: the phone link, picture and DUPR details.
+    const rewardsPublic = into.claim_hash ? !!into.rewards_public : from.claim_hash ? !!from.rewards_public : !!into.rewards_public;
     extra.push(sql`DELETE FROM roster WHERE club = ${code} AND name_key = ${from.name_key}`);
     extra.push(sql`UPDATE roster SET claim_hash = ${into.claim_hash || from.claim_hash || null},
       role = ${into.role || from.role || null},
       avatar = ${JSON.stringify(into.avatar || from.avatar || null)}::jsonb,
       paddles = ${JSON.stringify(into.paddles || from.paddles || null)}::jsonb,
+      rewards_public = ${rewardsPublic},
       dupr_rating = ${into.dupr_rating ?? from.dupr_rating ?? null}, dupr_set_at = ${into.dupr_rating != null ? into.dupr_set_at : from.dupr_set_at ?? null}
       WHERE club = ${code} AND name_key = ${into.name_key}`);
     if ('dupr_id' in from && from.dupr_id) extra.push(sql`UPDATE roster SET dupr_id = ${from.dupr_id}, dupr_linked_at = ${from.dupr_linked_at}, dupr_snapshot = ${JSON.stringify(from.dupr_snapshot ?? null)}::jsonb WHERE club = ${code} AND name_key = ${into.name_key}`);
@@ -155,20 +160,28 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true, avatar });
   }
 
+  if (body.action === 'rewards-looks') {
+    // Allow-listed worn item ids for members who opted in; off means 403 and no reward data at all.
+    if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
+    return send(res, 200, { looks: await clubLooks(sql, code) });
+  }
+
   if (body.action === 'rewards-get' || body.action === 'rewards-sync') {
     // Off means no reward calls at all for that club. The balance is the server's ledger; a phone can only ask for it, never set it.
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
-    return send(res, 200, { ...(await rewardsFor(sql, code, player.name, { tz: body.tz, sync: body.action === 'rewards-sync' })), worn: await wornOf(sql, code, player.name_key) });
+    const [rw, worn, share] = await Promise.all([rewardsFor(sql, code, player.name, { tz: body.tz, sync: body.action === 'rewards-sync' }), wornOf(sql, code, player.name_key), shareOf(sql, code, player.name_key)]);
+    return send(res, 200, { ...rw, worn, share });
   }
 
-  if (body.action === 'rewards-catalog' || body.action === 'rewards-buy' || body.action === 'rewards-wear') {
+  if (body.action === 'rewards-catalog' || body.action === 'rewards-buy' || body.action === 'rewards-wear' || body.action === 'rewards-share') {
     // Fixed prices live in _economyshop.js only; the phone names an item and the server charges the catalogue price. Same gate as the balance.
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
     try {
       if (body.action === 'rewards-catalog') return send(res, 200, await shopView(sql, code, player.name_key));
       if (body.action === 'rewards-buy') return send(res, 200, await buyItem(sql, code, player.name_key, String(body.item || '')));
+      if (body.action === 'rewards-share') return send(res, 200, await setShare(sql, code, player.name_key, body.share));
       return send(res, 200, await wearItem(sql, code, player.name_key, String(body.slot || ''), String(body.item || '')));
     } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
   }
@@ -228,7 +241,7 @@ export default handler(async (req, res) => {
       const ledger = await loadLedger(sql, code, k);
       return send(res, 200, {
         format: 'dink-score-player-export', version: 1, exportedAt: new Date().toISOString(), club: { name: club.name },
-        player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, paddles: row.paddles || null, duprSelfReported: duprFrom(row.dupr_rating),
+        player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, paddles: row.paddles || null, rewardsPublic: !!row.rewards_public, duprSelfReported: duprFrom(row.dupr_rating),
           duprLink: row.dupr_id ? { duprId: row.dupr_id, linkedAt: row.dupr_linked_at, ratings: row.dupr_snapshot || null } : null } : { name: cleanName(body.name) },
         games: mine.map(r => ({ ...r.data, deletedAt: r.deleted_at ? new Date(r.deleted_at).toISOString() : null, ...(r.rally_log ? { rallyLog: r.rally_log } : {}) })),
         reactions: myReactions.map(r => ({ gameId: r.game_id, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),

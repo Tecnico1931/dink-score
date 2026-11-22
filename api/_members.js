@@ -48,7 +48,7 @@ export async function memberAction(sql, club, body, req) {
     const k = targetKey(body.name);
     const [row] = await sql`SELECT name, role, claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
     if (!row || !row.claim_hash || !tokenMatches(row.claim_hash, body.playerToken)) throw fail(403, "This phone isn't linked to that player.");
-    await sql`UPDATE roster SET claim_hash = NULL, role = NULL, dupr_rating = NULL, dupr_set_at = NULL WHERE club = ${code} AND name_key = ${k}`;
+    await sql`UPDATE roster SET claim_hash = NULL, role = NULL, dupr_rating = NULL, dupr_set_at = NULL, rewards_public = false WHERE club = ${code} AND name_key = ${k}`;
     await sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${k}`;
     await audit(sql, code, { by: 'member', name: row.name }, 'leave', row.name, row.role ? { hadRole: row.role } : null);
     return { ok: true };
@@ -94,7 +94,7 @@ export async function memberAction(sql, club, body, req) {
     if (row.role === 'organizer' && actor.by === 'organizer') throw fail(403, 'Only the phone that created the club, or the organizer PIN, can remove an organizer.');
     const block = !!body.block;
     if (!row.claim_hash && !block) throw fail(404, "That name isn't linked to a phone.");
-    await sql`UPDATE roster SET claim_hash = NULL, role = NULL, dupr_rating = NULL, dupr_set_at = NULL, blocked_at = ${block ? new Date().toISOString() : null} WHERE club = ${code} AND name_key = ${k}`;
+    await sql`UPDATE roster SET claim_hash = NULL, role = NULL, dupr_rating = NULL, dupr_set_at = NULL, rewards_public = false, blocked_at = ${block ? new Date().toISOString() : null} WHERE club = ${code} AND name_key = ${k}`;
     await sql`DELETE FROM account_identities WHERE club = ${code} AND kind = 'player' AND name_key = ${k}`;
     await audit(sql, code, actor, 'remove', row.name, { block, hadRole: row.role || 'player' });
     return { ok: true };

@@ -90,12 +90,12 @@ export async function renamePlayer(sql, code, fromRow, toName, intoRow) {
     const next = rewriteNames(boardRow.data, map);
     if (next.changed) board = repair(next.value);
   }
-  return { games, events, leagues, board, map, fromKey, toKey, toName };
+  return { games, events, leagues, board, map, fromKey, toKey, toName, merge: !!intoRow };
 }
 
 // The writes for a computed rename/merge, as one list for sql.transaction.
 export function renameWrites(sql, code, plan, extra = []) {
-  const { games, events, leagues, board, fromKey, toKey, toName } = plan;
+  const { games, events, leagues, board, fromKey, toKey, toName, merge } = plan;
   const writes = [];
   if (games.length) writes.push(sql`UPDATE games g SET data = v.data FROM jsonb_to_recordset(${JSON.stringify(games)}::jsonb) AS v(id text, data jsonb) WHERE g.club = ${code} AND g.id = v.id`);
   if (events.length) writes.push(sql`UPDATE events e SET data = v.data, refs = v.refs FROM jsonb_to_recordset(${JSON.stringify(events)}::jsonb) AS v(id text, data jsonb, refs jsonb) WHERE e.club = ${code} AND e.id = v.id`);
@@ -119,9 +119,10 @@ export function renameWrites(sql, code, plan, extra = []) {
     // The rewards ledger follows the player. A merge keeps every row of both names: a row whose id the kept name already has gets a prefixed id.
     writes.push(sql`UPDATE reward_ledger r SET name_key = ${toKey} WHERE r.club = ${code} AND r.name_key = ${fromKey} AND NOT EXISTS (SELECT 1 FROM reward_ledger t WHERE t.club = r.club AND t.name_key = ${toKey} AND t.id = r.id)`);
     writes.push(sql`UPDATE reward_ledger SET name_key = ${toKey}, id = ${'m:' + fromKey + ':'} || id WHERE club = ${code} AND name_key = ${fromKey}`);
-    // Bought items follow too; an item both names own is kept once, and nothing arrives worn (the kept name's own choice stands).
+    // Bought items follow too. A rename keeps what is worn; a merge keeps one copy of an item both own and brings nothing worn (the kept name's own choice stands).
     writes.push(sql`DELETE FROM reward_items f WHERE f.club = ${code} AND f.name_key = ${fromKey} AND EXISTS (SELECT 1 FROM reward_items t WHERE t.club = f.club AND t.name_key = ${toKey} AND t.item = f.item)`);
-    writes.push(sql`UPDATE reward_items SET name_key = ${toKey}, worn = false WHERE club = ${code} AND name_key = ${fromKey}`);
+    if (merge) writes.push(sql`UPDATE reward_items SET name_key = ${toKey}, worn = false WHERE club = ${code} AND name_key = ${fromKey}`);
+    else writes.push(sql`UPDATE reward_items SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   }
   writes.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key IN (${fromKey}, ${toKey})`); // short-lived: the asker just asks again for the new name
   writes.push(...dropRatings(sql, code)); // stored ratings carry names: rebuilt from the renamed games on the next read

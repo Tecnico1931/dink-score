@@ -125,14 +125,43 @@ for (const [mode, opt] of states) {
     await page.evaluate(() => {
       club = { code: 'ABC123', name: 'Check club', hasPin: true, rewards: true }; me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
       const cat = [['frame-court', 'Court green ring', 6], ['frame-blue', 'Team blue ring', 8], ['frame-ink', 'Ink ring', 8], ['frame-double', 'Double ring', 15], ['paddle-court', 'Court green paddle', 6], ['paddle-blue', 'Team blue paddle', 8], ['paddle-ink', 'Ink paddle', 8], ['paddle-stripe', 'Striped paddle', 15]];
-      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe' }, items: cat.map(([id, name, price]) => ({ id, slot: id.split('-')[0], name, price, owned: ['frame-double', 'paddle-stripe', 'frame-ink'].includes(id) })) };
-      playerCall = async () => shop;
+      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe' }, share: true, items: cat.map(([id, name, price]) => ({ id, slot: id.split('-')[0], name, price, owned: ['frame-double', 'paddle-stripe', 'frame-ink'].includes(id) })) };
+      const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe' }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
+      playerCall = async b => (b && b.action === 'rewards-looks' ? { looks } : shop);
       render();
     });
     await sleep(300);
     await audit(page, `Your Dink card, ring worn (${colorScheme})`, report);
     await page.evaluate(() => Rewards.openStore()); await sleep(400);
     await audit(page, `Shop sheet (${colorScheme})`, report, '.sheet');
+    // Shared club looks on leaderboard rows, game cards and profile header (scoped to the rendered components, plus reflow).
+    await page.evaluate(() => {
+      clubSheet = null; renderClub();
+      const now = Date.now();
+      clubData = Object.assign({}, clubData, { code: club.code, roster: ['Ana', 'Ben', 'Cy', 'Di'], players: ['Ana', 'Ben', 'Cy', 'Di'].map(n => ({ name: n, claimed: true })), games: [{ id: 'rwg1', mode: 'doubles', scoring: 'sideout', target: 11, winBy: 2, teams: [['Ana', 'Ben'], ['Cy', 'Di']], score: [11, 7], winner: 0, startedAt: now - 9e5, endedAt: now - 3e5, rallies: 24, scoredBy: 'ana' }] });
+      Rewards.syncLooks(true);
+      tab = 'leaders'; render();
+    });
+    await sleep(300);
+    if (!(await page.$('.rows .avatar-mini[data-rw-frame="double"]')) || !(await page.$('.rows .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Leaderboard shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on leaderboard', px: 0 }] });
+    else await audit(page, `Leaderboard shared looks (${colorScheme})`, report, '.rows .prow-main');
+    await page.evaluate(() => { clubSheet = { view: 'members', membersData: { members: [], audit: [], requests: [] } }; renderClub(); }); await sleep(250);
+    if (!(await page.$('#sheet3 .mem-who .avatar-mini[data-rw-frame="double"]')) || !(await page.$('#sheet3 .mem-who .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Roster shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on roster', px: 0 }] });
+    else await audit(page, `Roster shared looks (${colorScheme})`, report, '#sheet3 .mem-who .avatar-mini');
+    await page.evaluate(() => { clubSheet = null; renderClub(); tab = 'history'; render(); }); await sleep(250);
+    if (!(await page.$('.game .rw-g-av[data-rw-frame="double"]')) || !(await page.$('.game .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Game card shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on game card', px: 0 }] });
+    else await audit(page, `Game card shared looks (${colorScheme})`, report, '.game .lines');
+    await page.evaluate(() => { profile = { name: 'Ana', mode: 'doubles' }; renderProfile(); }); await sleep(250);
+    if (!(await page.$('#sheet4 .pf-head .av[data-rw-frame="double"]')) || !(await page.$('#sheet4 .pf-head .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Profile shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on profile', px: 0 }] });
+    else await audit(page, `Profile shared looks (${colorScheme})`, report, '#sheet4 .pf-head');
+    if (colorScheme === 'light') {
+      await page.evaluate(() => { profile = null; renderProfile(); tab = 'history'; render(); });
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.game .lines *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Game card shared looks: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+    }
     await ctx.close();
   }
 }
