@@ -1959,6 +1959,7 @@ await step('leagues and ladders: organizers create, results reach the record onc
   assert.equal(ok(await call(events, 'GET', { query: `?code=${lcode}&league=${ladder.id}` })).league.results.length, 1);
   const closed = ok(await lg('league-end', { id: ladder.id })).league;
   assert.equal(closed.season, 'Season 2'); assert.equal(closed.results.length, 0); assert.equal(closed.rows[0].name, top[2]);
+  assert.equal(ladder.decayDays, 0); assert.ok(ladder.rows.every(r => r.dropsAt === null), 'decay is off by default');
   // the list, 304 when nothing changed, export, rename, delete
   const list = await call(events, 'GET', { query: `?code=${lcode}&leagues=1` });
   assert.equal(ok(list).leagues.length, 3);
@@ -1972,6 +1973,12 @@ await step('leagues and ladders: organizers create, results reach the record onc
   ok(await lg('league-delete', { id: ladder.id }));
   assert.equal(ok(await call(events, 'GET', { query: `?code=${lcode}&leagues=1` })).leagues.length, 2);
   assert.equal((await lg('league-delete', { id: ladder.id })).status, 404);
+  // idle decay: set at creation, stored, kept through the read; a fresh ladder shows when the first drop is due
+  const decayed = ok(await lg('league-create', { league: { kind: 'ladder', name: 'Idle ladder', mode: 'singles', players: six, decayDays: 7 } }), 201).league;
+  assert.equal(decayed.decayDays, 7);
+  const dread = ok(await call(events, 'GET', { query: `?code=${lcode}&league=${decayed.id}` })).league;
+  assert.ok(dread.rows[0].dropsAt > Date.now() && dread.rows.at(-1).dropsAt === null);
+  ok(await lg('league-delete', { id: decayed.id }));
 });
 
 await step('league weeks: plan, bye, move, forfeit; a new week tells the opted-in players once, a forfeit is no game', async () => {

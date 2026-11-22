@@ -56,7 +56,7 @@ export function leaguePublicView(L) {
         matches: w.matches.slice(0, 64).map(m => ({ division: int(m.division), teams: [side(m.teams[0]), side(m.teams[1])], score: score(m.score), status: str(m.status, 8), forfeit: m.forfeit === true,
           when: { date: str(m.when && m.when.date, 10) || null, time: str(m.when && m.when.time, 5) || null, moved: !!(m.when && m.when.moved), court: int(m.when && m.when.court) } })) })) });
   } else {
-    Object.assign(out, { jump: int(v.jump),
+    Object.assign(out, { jump: int(v.jump), decayDays: int(v.decayDays),
       rows: v.rows.slice(0, 128).map(r => ({ rank: int(r.rank), name: str(r.name), played: int(r.played), wins: int(r.wins), losses: int(r.losses) })),
       results: v.results.slice(0, 15).map(r => ({ teams: [side(r.teams[0]), side(r.teams[1])], score: score(r.score), winner: int(r.winner) })) });
   }
