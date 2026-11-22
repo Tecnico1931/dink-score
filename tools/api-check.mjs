@@ -1308,6 +1308,35 @@ await step('rewards ledger: server-derived from the games a linked phone saved, 
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await sync('Dee')).status, 403, 'off again: no calls');
 });
+await step('rewards: the creating phone earns for its own claimed name only; a game it saves for others, a forged claim and a replay earn nothing more', async () => {
+  const sync = (name, extra = {}) => cfPost(playersApi, { action: 'rewards-sync', name, playerToken: cfTok[name], tz: 0, ...extra });
+  const stamp = async id => (await pg.query(`SELECT data->>'scoredBy' AS by, data->>'scoredByPlayer' AS pl FROM games WHERE club = $1 AND id = $2`, [cf.code, id])).rows[0];
+  ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
+  const crt = 'Cora'; // the creator's own player name
+  cfTok[crt] = ok(await cfPost(playersApi, { action: 'claim', name: crt, ownerToken: cf.owner })).playerToken;
+  assert.equal(ok(await sync(crt)).dinks, 0);
+  // A game for others from the creating phone (its claim is sent along): organizer, with the creator's own key, but Cora is not in it.
+  ok(await cfPost(games, { games: [cfGame('crt-other', { teams: [['Eve', 'Dee'], ['Cat', 'Bo']], score: [11, 7] })], ownerToken: cf.owner, playerName: crt, playerToken: cfTok[crt] }));
+  assert.deepEqual(await stamp('crt-other'), { by: 'organizer', pl: 'cora' });
+  assert.equal(ok(await sync(crt)).dinks, 0, 'a game the creator saved for other people earns the creator nothing');
+  assert.equal(ok(await sync('Eve')).dinks, 0, 'and nothing for the players in it');
+  // A forged claim: the creator token with a player name and a wrong token carries no player key and earns nobody anything.
+  ok(await cfPost(games, { games: [cfGame('crt-forge', { teams: [['Cora', 'Dee'], ['Cat', 'Bo']], score: [11, 10] })], ownerToken: cf.owner, playerName: crt, playerToken: 'f'.repeat(48) }));
+  assert.deepEqual(await stamp('crt-forge'), { by: 'organizer', pl: null });
+  assert.equal(ok(await sync(crt)).dinks, 0, 'a claim that does not verify earns nothing');
+  // The creator plays and saves from their own phone: they earn, once.
+  ok(await cfPost(games, { games: [cfGame('crt-own', { teams: [['Cora', 'Dee'], ['Cat', 'Bo']], score: [11, 2] })], ownerToken: cf.owner, playerName: crt, playerToken: cfTok[crt] }));
+  let r = ok(await sync(crt)); assert.deepEqual([r.dinks, r.gained, r.streak], [1, 1, 1]);
+  r = ok(await sync(crt)); assert.deepEqual([r.dinks, r.gained], [1, 0]);
+  assert.equal(ok(await sync('Dee')).dinks, 0, 'a teammate of the creator is not paid for it');
+  // An edit that keeps the result keeps the creator key.
+  ok(await cfPost(games, { edit: cfGame('crt-own', { teams: [['Cora', 'Dee'], ['Cat', 'Bo']], score: [11, 2], startedAt: now - 3800000 }), ownerToken: cf.owner }));
+  assert.deepEqual(await stamp('crt-own'), { by: 'organizer', pl: 'cora' });
+  // Games stored before this fix (organizer, no player key) stay unpaid: nothing is rewritten.
+  await pg.query(`UPDATE games SET data = data - 'scoredByPlayer' WHERE club = $1 AND id = 'crt-own'`, [cf.code]);
+  assert.equal(ok(await sync(crt)).dinks, 1, 'an old row neither pays again nor takes anything back');
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+});
 await step('rewards shop: server-side prices, spends through the ledger, never below zero, double buy and replay charge once, wear one per slot, follows a rename or merge, gone on anonymise', async () => {
   const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
   const spends = async name => (await pg.query(`SELECT id, amount FROM reward_ledger WHERE club = $1 AND name_key = $2 AND kind = 'spend' ORDER BY id`, [cf.code, name.toLowerCase()])).rows;

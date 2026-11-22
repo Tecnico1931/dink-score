@@ -19,7 +19,7 @@ export async function rewardsFor(sql, code, name, { tz, sync, now = Date.now() }
   if (!sync) return view(ledger, zone, now);
   const since = now - (LOOKBACK_DAYS + 2) * 864e5;
   const rows = await sql`SELECT data->'teams' AS teams, data->>'receivedAt' AS r FROM games
-    WHERE club = ${code} AND deleted_at IS NULL AND data->>'scoredBy' = ${key} AND (data->>'receivedAt')::bigint >= ${since}
+    WHERE club = ${code} AND deleted_at IS NULL AND (data->>'scoredBy' = ${key} OR data->>'scoredByPlayer' = ${key}) AND (data->>'receivedAt')::bigint >= ${since}
       AND lower(data->>'teams') LIKE ${likeFor(key)} ORDER BY ended_at DESC LIMIT 2000`;
   const mine = rows.filter(g => (g.teams || []).flat().some(n => nameKey(n) === key)).map(g => Number(g.r));
   const fresh = deriveEarnings({ ledger, receivedAt: mine, tz: zone, now }).filter(validEntry);

@@ -45,8 +45,9 @@ export function rewriteRefs(refs, map) {
 export function rewriteGame(g, map) {
   const r = rewriteNames(g.teams, map);
   const to = typeof g.scoredBy === 'string' && map.get(g.scoredBy);
-  if (!r.changed && !to) return null;
-  return Object.assign({}, g, { teams: r.value }, to ? { scoredBy: nameKey(to) } : {});
+  const toPlayer = typeof g.scoredByPlayer === 'string' && map.get(g.scoredByPlayer);
+  if (!r.changed && !to && !toPlayer) return null;
+  return Object.assign({}, g, { teams: r.value }, to ? { scoredBy: nameKey(to) } : {}, toPlayer ? { scoredByPlayer: nameKey(toPlayer) } : {});
 }
 
 const fail = (status, message, extra) => Object.assign(new Error(message), { status, extra });
