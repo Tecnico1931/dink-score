@@ -102,8 +102,12 @@ button { cursor: pointer; }
 .wordmark h1 { font-family: var(--display); font-weight: 800; font-stretch: 85%; font-size: 28px; letter-spacing: -.02em; line-height: 1; margin: 0; white-space: nowrap; }
 .top-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; flex: 1; }
 .top-right .sync { min-width: 0; }
-.set-btn { width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); padding: 0; background: var(--surface); color: var(--ink); display: grid; place-items: center; }
-.set-btn svg { width: 20px; height: 20px; }
+.you-list { display: grid; gap: 8px; margin: 4px 0 14px; }
+.you-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.you-row > span:first-child { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.you-row b { font-size: 16px; font-weight: 700; }
+.you-row small { font-size: 13px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
+.you-row .chev { font-size: 22px; color: var(--muted); }
 .me-btn { position: relative; --r: 26px; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; padding: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 2px var(--surface), 0 4px 12px -4px rgb(0 0 0 / .35); }
 .me-btn svg { width: 22px; height: 22px; }
 .me-btn .av-emoji { font-size: 22px; }
@@ -2412,6 +2416,7 @@ function stashClubCache() {
 }
 function cachedClub(code) { return Heal.clubData(Heal.map(store.get('pb.clubCaches', {}))[code], code); }
 let clubState = 'idle'; // idle | syncing | offline | error
+let youHome = false;   // true while the "You" sheet (avatar) is the home the moved rows' Back buttons return to
 let clubSheet = null;   // the club sheet when open: { view, error, joinCode, joinName, busy, msg }
 let uploading = false;
 if (clubData && (!club || clubData.code !== club.code)) clubData = null;
@@ -2593,10 +2598,10 @@ function syncPillHTML() {
   const note = failed ? `${failed} need${failed === 1 ? 's' : ''} attention` : clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
   return `<button class="sync club-btn ${clubState === 'idle' && !pending && !failed ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' || failed || !club.hasPin ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}${club.hasPin ? '' : '. Not protected: no organizer PIN'}">${esc(note)}</button>`;
 }
-// Round button in the top right: your picture, opening your profile (or asking who you are first).
+// Round button in the top right: your picture, opening the "You" sheet (profile, notifications, display, account, DUPR, watch, data).
 function profileButtonHTML() {
   const name = club ? myName() : null;
-  const label = name ? `Your profile, ${esc(name)}` : club ? 'Choose your name' : 'Join a club to get a profile';
+  const label = name ? `You: ${esc(name)}` : 'You';
   const inner = name ? avatarInner(name) : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.3-3.3 4-5 7-5s5.7 1.7 7 5"/></svg>`;
   return `<button class="me-btn" data-act="me-open" aria-label="${label}">${inner}</button>`;
 }
@@ -3608,10 +3613,27 @@ function setSheet(root, html, key) {
   if (old && sh) { sh.style.animation = 'none'; sh.scrollTop = y; }
   return true;
 }
+// The "You" sheet: person and device things (not club things), opened from the avatar. Every row opens a sheet that already existed.
+function youRow(act, title, hint, extra = '') { return `<button type="button" class="you-row" ${act}><span><b>${title}</b><small>${hint}</small></span>${extra}<span class="chev" aria-hidden="true">›</span></button>`; }
+function youHTML(c) {
+  const name = club ? myName() : null, canNotify = !!(club && name && myToken());
+  const person = !club ? `<p class="note">Join a club to get a profile, alerts and your DUPR.</p><button type="button" class="btn btn-blue block" data-act="club-open">Join or start a club</button>`
+    : name ? youRow('data-act="you-profile"', `My profile: ${esc(name)}`, 'Picture, paddles, ratings and games')
+    : `<p class="note">This phone isn't linked to a player yet.</p><button type="button" class="btn btn-blue block" data-act="whoami-open">Choose my name</button>`;
+  return `<h2 id="club-h" tabindex="-1">You</h2>${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
+    <div class="you-list">${person}
+      ${canNotify ? youRow('data-act="notify-open"', 'Notifications', "Alerts when you're up or a game night is coming") : ''}
+      ${youRow('data-act="settings-open"', 'Display and sound', `Appearance ${esc({ auto: 'matches phone', light: 'light', dark: 'dark' }[display.theme] || 'matches phone')}, sunlight, court scores, celebration`)}
+      ${club ? youRow('data-act="club-watch"', 'Apple Watch', 'Link a watch and score from your wrist') : ''}
+      ${youRow('data-act="acct-open"', 'Account and passkey', acctIn() ? `Signed in as ${esc(acct.account.name)}` : 'Optional: sign in on other phones')}
+      ${youRow('data-act="dupr-open"', 'DUPR', 'Link or enter your rating')}
+      ${club ? youRow('data-act="rights-open"', 'Your data', `Export or anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}`) : ''}</div>
+    <div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>`;
+}
 function renderClub() {
   const root = $('#sheet3');
   if (!root) return;
-  if (!clubSheet) { watchStopScan(); root.innerHTML = ''; root._html = root._key = ''; return; }
+  if (!clubSheet) { watchStopScan(); youHome = false; root.innerHTML = ''; root._html = root._key = ''; return; }
   const c = clubSheet;
   if (c.view !== 'watch-link') watchStopScan();
   const err = (c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '') + restoreOfferHTML(c);
@@ -3620,8 +3642,10 @@ function renderClub() {
     body = avatarSheetHTML(c);
   } else if (c.view === 'paddles' && club && myName()) {
     body = paddleSheetHTML(c);
+  } else if (c.view === 'you') {
+    body = youHTML(c);
   } else if (c.view === 'dupr') {
-    body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+    body = `<h2 id="club-h">Your DUPR</h2>${yourDuprHTML(false)}<div class="btns">${youHome ? '<button class="btn btn-soft" data-act="club-back">Back</button>' : ''}<button class="btn btn-soft" data-act="club-close">Done</button></div>`;
   } else if (c.view === 'whoami' && club) {
     body = whoamiHTML(c);
   } else if (c.view === 'devices' && club && odCanOrg()) {
@@ -3779,13 +3803,11 @@ function renderClub() {
     const deleted = clubData ? (clubData.deleted || []).filter(g => !clubOps().some(o => o.type === 'restore' && o.id === g.id)) : [];
     body = `<h2 id="club-h">${esc(club.name)}</h2>
       ${clubSwitcherHTML()}
-      <div class="me-row">${myName() ? `<span>This phone is <b>${esc(myName())}</b></span>` : `<span>This phone isn't linked to a player yet.</span><button class="link" data-act="whoami-open">Choose my name</button>`}</div>
       ${otCan() ? otEntryHTML() : ''}
       ${clubInfoHTML()}
-      ${yourDuprHTML()}
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
-        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p><p style="margin:6px 0 0"><button type="button" class="link" data-act="club-watch" style="color:var(--blue);font-weight:600;padding:0">Apple Watch: link a watch, score from your wrist</button></p></div>
+        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p></div>
       <button class="btn btn-soft block" data-act="club-games" style="margin-top:10px">Games going on — live scores</button>
       <button class="btn btn-soft block" data-act="club-board" style="margin-top:8px">Open play court board</button>
       <button class="btn btn-soft block" data-gn="open" data-gn-from="club" style="margin-top:8px">Game nights${gnUpcoming().length ? ` (${gnUpcoming().length} upcoming)` : ''}</button>
@@ -3810,9 +3832,6 @@ function renderClub() {
       ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
       ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
       <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
-      ${myName() && myToken() ? '<button class="btn btn-soft block" data-act="notify-open">Notifications: you\'re up alerts</button>' : ''}
-      <button class="btn btn-soft block" data-act="rights-open">Your data: export, anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}</button>
-      <button class="btn btn-soft block" data-act="acct-open">${acctIn() ? `Signed in as ${esc(acct.account.name)}: your account` : 'Sign in or create an account (optional)'}</button>
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button><button class="btn btn-soft block" data-act="links-open">Public result links</button><button class="btn btn-soft block" data-act="info-open">Pinned note and how to pay</button>` : ''}
       ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button><button class="btn btn-soft block" data-act="analytics-open">Attendance and busiest hours</button>` : ''}
       ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
@@ -3997,7 +4016,7 @@ function renderApp() {
   if (!club && tab === 'events') tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
   inboxRefresh();
-  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${bellButtonHTML()}<button class="set-btn" data-act="settings-open" aria-label="Settings">${ICON.settings}</button>${profileButtonHTML()}</div></header>`;
+  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${bellButtonHTML()}${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
@@ -4268,8 +4287,6 @@ let lbScope = store.get('pb.lbScope', 'all');
 
 function rulesView() {
   return `<section><h2>Rules</h2><p class="sub">The essentials, for settling it at the kitchen line.</p></section>
-  <div class="rule" role="group" aria-labelledby="disp-h"><h3 id="disp-h">Display on this phone</h3><p>Choose light, dark or match-phone appearance, or turn on sunlight contrast and large court numbers. Only this phone changes. You can also toggle sunlight display from the sun button while you score.</p>
-    <button class="btn btn-soft" data-act="settings-open" style="margin-top:10px;padding:11px 16px;border-radius:12px;font-size:15px">Appearance &amp; display settings</button></div>
   <div class="rule"><h3>New to Dink Score?</h3><p>Take the quick tour of how to set up games, keep score, log results and read the leaderboard.</p><button class="btn btn-ink replay" data-tour="open" style="padding:11px 16px;border-radius:12px;font-size:15px">Show the tour</button></div>
   <div class="rules">
     <div class="rule"><h3>Calling the score</h3><p>In doubles, say three numbers before each serve.</p>
@@ -9147,13 +9164,8 @@ document.addEventListener('click', e => {
   if (ds.act === 'dupr-save') { saveDupr(false); return; }
   if (ds.act === 'dupr-clear' && duprName) { duprEdit = { name: duprName, value: '', error: '', busy: false }; saveDupr(true); return; }
   if (ds.act === 'dupr-open') { clubSheet = { view: 'dupr' }; renderClub(); return; }
-  if (ds.act === 'me-open') {
-    if (club && myName()) { profile = { name: myName(), mode: ratingMode }; renderProfile(); }
-    else if (club) { clubSheet = { view: 'whoami' }; renderClub(); }
-    else if (API_OK) { clubSheet = { view: 'club' }; renderClub(); }
-    else showToast('Profiles come with clubs on the Dink Score website.', false);
-    return;
-  }
+  if (ds.act === 'me-open') { youHome = true; clubSheet = { view: 'you' }; renderClub(); const hd = $('#club-h'); if (hd) hd.focus(); return; }
+  if (ds.act === 'you-profile') { if (!club || !myName()) return; clubSheet = null; renderClub(); profile = { name: myName(), mode: ratingMode }; renderProfile(); return; }
   // Avatars
   if (ds.act === 'av-open') { if (!myName()) { clubSheet = { view: 'whoami' }; renderClub(); return; } profile = null; renderProfile(); clubSheet = { view: 'avatar', atab: (avatarOf(myName()) || {}).type || 'emoji' }; if (clubSheet.atab === 'initials') clubSheet.atab = 'emoji'; renderClub(); return; }
   if (ds.act === 'paddle-open') { if (!myName()) { clubSheet = { view: 'whoami' }; renderClub(); return; } profile = null; renderProfile(); clubSheet = { view: 'paddles' }; renderClub(); return; }
@@ -9205,7 +9217,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'info-open') { clubSheet = { view: 'info' }; renderClub(); return; }
   if (ds.act === 'audit-open') { clubSheet = { view: 'audit', rows: null }; renderClub(); loadAudit(); return; }
   if (ds.act === 'confirm-setting') { setConfirmation(!club.requireConfirmation); return; }
-  if (ds.act === 'club-back') { clubSheet = { view: 'club' }; renderClub(); return; }
+  if (ds.act === 'club-back') { clubSheet = { view: youHome ? 'you' : 'club' }; renderClub(); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }
   if (ds.fail) { failAct(ds.fail, ds.uid, el); return; }
   if (ds.rename || ds.merge) { clubSheet.nameEdit = { kind: ds.rename ? 'rename' : 'merge', name: ds.rename || ds.merge, mergeInto: ds.into || '' }; clubSheet.error = ''; renderClub(); return; }
@@ -9231,7 +9243,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'rights-club-undo') { rightsClubUndo(); return; }
   if (ds.act === 'code-rotate-open') { clubSheet = { view: 'rotate' }; renderClub(); return; }
   if (ds.act === 'acct-open') { acctOpen(); return; }
-  if (ds.act === 'acct-close') { clubSheet = club ? { view: 'club' } : { view: 'add' }; renderClub(); return; }
+  if (ds.act === 'acct-close') { clubSheet = youHome ? { view: 'you' } : club ? { view: 'club' } : { view: 'add' }; renderClub(); return; }
   if (ds.act === 'acct-in') { acctSignIn(); return; }
   if (ds.act === 'acct-in-add') { acctSignIn(true); return; }
   if (ds.act === 'acct-restore') { acctBring(); return; }
@@ -9251,7 +9263,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'move-print') { window.print(); return; }
   if (ds.act && ds.act.startsWith('pin-')) {
     const a = ds.act;
-    if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && (clubSheet.view === 'setpin' || clubSheet.view === 'rotate' || clubSheet.view === 'rights')) ? { view: 'club' } : null;
+    if (a === 'pin-cancel') clubSheet = clubSheet && clubSheet.back === 'club' || (clubSheet && (clubSheet.view === 'setpin' || clubSheet.view === 'rotate' || clubSheet.view === 'rights' || clubSheet.view === 'notify')) ? { view: youHome && (clubSheet.view === 'rights' || clubSheet.view === 'notify') ? 'you' : 'club' } : null;
     if (a === 'pin-set-open') clubSheet = { view: 'setpin' };
     if (a === 'pin-unlock-open') clubSheet = { view: 'unlock', back: 'club' };
     if (a === 'pin-lock') { odLockThis(); return; }
@@ -9263,7 +9275,7 @@ document.addEventListener('click', e => {
   if (ds.act && ds.act.startsWith('pk-')) { pickupClick(ds); return; }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
-    if (a === 'club-open') { saveAfterJoin = null; pickupSaveAfter = false; clubSheet = { view: 'club' }; }
+    if (a === 'club-open') { saveAfterJoin = null; pickupSaveAfter = false; youHome = false; clubSheet = { view: 'club' }; }
     if (a === 'club-close') { saveAfterJoin = null; pickupSaveAfter = false; clubSheet = null; if (renderPending) safeRender(); }
     if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
     if (a === 'club-upload') { uploadLocalGames(); return; }
