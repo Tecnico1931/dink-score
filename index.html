@@ -3541,6 +3541,8 @@ document.addEventListener('click', e => {
 const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const b64uBytes = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
 const pushCreds = extra => Object.assign({ playerName: myName() || '', playerToken: myToken() || '' }, extra);
+// Push actions are answered by /api/live (live.js dispatches PUSH_ACTIONS), not /api/players.
+const pushCall = body => api('live', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body)) });
 async function pushEndpoint() {
   if (!pushSupported()) return '';
   const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription();
@@ -3549,7 +3551,7 @@ async function pushEndpoint() {
 async function notifyOpen() {
   clubSheet = { view: 'notify', loading: true }; renderClub();
   let next;
-  try { next = { view: 'notify', st: await playerCall(pushCreds({ action: 'push-status', endpoint: await pushEndpoint(), ownerToken: owners[club.code] || '' })) }; }
+  try { next = { view: 'notify', st: await pushCall(pushCreds({ action: 'push-status', endpoint: await pushEndpoint(), ownerToken: owners[club.code] || '' })) }; }
   catch (err) { next = { view: 'notify', error: err.message }; }
   if (clubSheet && clubSheet.view === 'notify') { clubSheet = next; renderClub(); }
 }
@@ -3562,10 +3564,10 @@ async function notifyToggle(on) {
     if (on) {
       if (await Notification.requestPermission() !== 'granted') throw new Error('Notifications are blocked for Dink Score. Allow them in your phone or browser settings, then try again.');
       if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(clubSheet.st.publicKey) });
-      await playerCall(pushCreds({ action: 'push-subscribe', subscription: sub.toJSON(), ownerToken: owners[club.code] || '' }));
+      await pushCall(pushCreds({ action: 'push-subscribe', subscription: sub.toJSON(), ownerToken: owners[club.code] || '' }));
       msg = "Notifications are on for this phone in this club.";
     } else {
-      if (sub) { await playerCall(pushCreds({ action: 'push-unsubscribe', endpoint: sub.endpoint })); await sub.unsubscribe(); }
+      if (sub) { await pushCall(pushCreds({ action: 'push-unsubscribe', endpoint: sub.endpoint })); await sub.unsubscribe(); }
       msg = 'Notifications are off for this phone.';
     }
     if (clubSheet && clubSheet.view === 'notify') clubSheet = { view: 'notify', msg, st: Object.assign({}, clubSheet.st, { subscribed: on }) };
@@ -3579,7 +3581,7 @@ async function notifyCategory(cat, on) {
   const next = PUSH_CATS.map(c => c[0]).filter(k => k === cat ? on : had.includes(k));
   clubSheet.busy = true; clubSheet.error = ''; clubSheet.msg = ''; clubSheet.st = Object.assign({}, clubSheet.st, { categories: next }); renderClub();
   try {
-    await playerCall(pushCreds({ action: 'push-categories', endpoint: await pushEndpoint(), categories: next }));
+    await pushCall(pushCreds({ action: 'push-categories', endpoint: await pushEndpoint(), categories: next }));
     announce(`${PUSH_CATS.find(c => c[0] === cat)[1]} notifications ${on ? 'on' : 'off'}.`);
   } catch (err) { if (clubSheet && clubSheet.view === 'notify') { clubSheet.st = Object.assign({}, clubSheet.st, { categories: had }); clubSheet.error = err.message; } }
   if (clubSheet && clubSheet.view === 'notify') { clubSheet.busy = false; renderClub(); }
