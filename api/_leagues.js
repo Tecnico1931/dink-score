@@ -2,7 +2,7 @@
 //   GET  /api/events?code=ABC123&leagues=1          -> {leagues: [summary]}, newest first
 //   GET  /api/events?code=ABC123&league=l123        -> {league}: standings per division, or the ladder in order
 //   POST /api/events {code, action, ...}:
-//     league-create       {league: {kind: 'league'|'ladder', name, season?, mode, players, teams?, divisions?, legs?, jump?, decayDays?, target, scoring, winBy, resultsBy}, pin|ownerToken}
+//     league-create       {league: {kind: 'league'|'ladder', name, season?, mode, players, teams?, divisions?, legs?, move?, tiebreak?, jump?, decayDays?, target, scoring, winBy, resultsBy}, pin|ownerToken}
 //                         -> organizer. Entries are seeded by the club's own Dink Rating, read here, never sent by the phone.
 //     league-result       {id, matchId, score, startedAt?, endedAt?, rallies?, live?}          -> a league match: its players, an organizer, or any club member if allowed
 //                         {id, key, challenger, defender, score, ...}                          -> a ladder challenge ([challenger score, defender score]); key makes a retry safe

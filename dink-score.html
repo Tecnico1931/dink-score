@@ -997,6 +997,11 @@ button.ev-card { border: 0; text-align: left; width: 100%; color: inherit; font:
 .ev-entry .err, .ev-entry .ev-actions { grid-column: 1 / -1; }
 .lg-plan { display: grid; gap: 10px; margin-top: 8px; }
 .lg-plan .field { margin: 0; }
+.lg-tb { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lg-tb li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 4px 12px; border-radius: 14px; background: var(--surface-2); font-size: 15px; font-weight: 500; }
+.lg-tb-btns { display: flex; gap: 6px; flex: none; }
+.lg-tb-btns button { width: 44px; height: 44px; border-radius: 12px; border: 0; background: var(--surface); color: var(--ink); font-size: 18px; font-weight: 700; padding: 0; }
+.lg-tb-btns button:disabled { opacity: .35; }
 .ev-fs { border: 0; margin: 0; padding: 12px; border-radius: 16px; background: var(--surface-2); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ev-fs legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
 .ev-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-left: 5px solid var(--c); padding-left: 8px; }
@@ -7496,7 +7501,13 @@ const lgCall = body => api('events', { method: 'POST', body: JSON.stringify(Obje
 const lgName = names => names.join(' & ');
 const lgQueued = id => lgScreen && lgScreen.league && clubOps().find(o => o.type === 'league-result' && o.leagueId === lgScreen.league.id && (o.matchId || o.key) === id);
 const lgKey = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => (b % 36).toString(36)).join('');
-const lgNewForm = () => ({ kind: 'league', name: '', season: '', mode: 'doubles', divisions: 1, legs: 1, jump: 3, decayDays: 0, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, resultsAny: false, players: [], error: '', busy: false });
+const LG_TB_LABEL = { diff: 'Point difference', pf: 'Points for', h2h: 'Head-to-head' };
+const LG_TB_SHORT = { diff: '+/−', pf: 'points for', h2h: 'head-to-head' };
+const lgTbCustom = tb => Array.isArray(tb) && tb.join(',') !== 'diff,pf' && tb.join(',') !== 'diff,pf,h2h';
+const lgTbText = tb => (Array.isArray(tb) ? tb : []).map(k => LG_TB_SHORT[k] || k).join(', ');
+const lgMaxMove = (units, divs) => { if (divs <= 1) return 0; if (units < 3 * divs) return 3; const min = Math.floor(units / divs); return divs === 2 ? Math.max(1, Math.floor(min / 2)) : Math.max(1, Math.floor((min - 1) / 2)); };
+const lgMoveNote = n => !n ? 'Everyone stays in the same division next season.' : n === 1 ? 'The top 1 of each division moves up and the bottom 1 moves down.' : `The top ${n} of each division move up and the bottom ${n} move down.`;
+const lgNewForm = () => ({ kind: 'league', name: '', season: '', mode: 'doubles', divisions: 1, legs: 1, move: 1, tiebreak: ['diff', 'pf', 'h2h'], jump: 3, decayDays: 0, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, resultsAny: false, players: [], error: '', busy: false });
 function lgOpen() {
   if (!club) return;
   lgScreen = { view: 'list', list: null, error: '' };
@@ -7566,9 +7577,10 @@ function lgNewHTML(s) {
   const f = s.form, n = f.players.length, ladder = f.kind === 'ladder', singles = f.mode === 'singles';
   const names = [...roster, ...f.players.filter(p => !roster.some(r => sameName(r, p)))];
   const chips = names.map(p => `<button type="button" class="chip-btn" data-lg="pick" data-pl="${esc(p)}" aria-pressed="${f.players.some(x => sameName(x, p))}">${esc(p)}</button>`).join('');
-  const units = singles ? n : Math.floor(n / 2), per = ladder ? 1 : f.divisions;
+  const units = singles ? n : Math.floor(n / 2), per = ladder ? 1 : f.divisions, maxM = lgMaxMove(units, f.divisions), curMove = f.divisions > 1 ? Math.min(f.move, maxM) : 0;
   const hint = !singles && n % 2 ? 'Doubles teams need an even number of players.' : units < 3 * per ? `Pick at least ${3 * per * (singles ? 1 : 2)} players${per > 1 ? ` for ${per} divisions` : ''}.` : units > 32 ? 'At most 32 players or teams.' : '';
   const seg = (k, opts) => evSeg(k, opts, f[k]).replaceAll('data-ev="set"', 'data-lg="set"');
+  const tbList = f.tiebreak.map((k, i) => `<li><span>${i + 1}. ${LG_TB_LABEL[k]}</span><span class="lg-tb-btns"><button type="button" data-lg="tb" data-i="${i}" data-d="-1" aria-label="Move ${LG_TB_LABEL[k]} up" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-lg="tb" data-i="${i}" data-d="1" aria-label="Move ${LG_TB_LABEL[k]} down" ${i === f.tiebreak.length - 1 ? 'disabled' : ''}>↓</button></span></li>`).join('');
   return `<form class="ev-card" data-lg-form="create" novalidate>
     <div class="field"><span class="lab">Kind</span>${seg('kind', [['league', 'League'], ['ladder', 'Ladder']])}<p class="note">${ladder ? 'Players challenge someone a few places above them. Win and you take their place; lose and nothing changes.' : 'Everyone in a division plays everyone, a match or two each week, and the table decides the season. The top of each division moves up next season.'}</p></div>
     <div class="field"><label class="lab" for="lg-name">Name</label><input id="lg-name" class="field-input" data-lg-input="name" maxlength="40" autocomplete="off" placeholder="Tuesday league, Club ladder…" value="${esc(f.name)}"></div>
@@ -7577,7 +7589,9 @@ function lgNewHTML(s) {
     ${ladder ? evStepper('jump', 'Challenge up to this many places above', f.jump, 1, 10).replaceAll('data-ev="step"', 'data-lg="step"')
       + `<div class="field"><span class="lab">Idle players slip down</span>${seg('decayDays', [[0, 'Never'], [7, 'After 7 days'], [14, '14 days'], [30, '30 days']])}<p class="note">${f.decayDays ? `Anyone who has not played a challenge for ${f.decayDays} days drops one place, and one more for each further ${f.decayDays} days, until they play again.` : 'Places only change when someone wins a challenge.'}</p></div>`
       : `<div class="field"><span class="lab">Divisions</span>${seg('divisions', [[1, 'One'], [2, '2'], [3, '3'], [4, '4']])}<p class="note">${f.divisions > 1 ? `Split by Dink Rating into ${f.divisions} divisions, the strongest in Division A.` : 'Everyone plays in one table.'}</p></div>
-      <div class="field"><span class="lab">Games against each opponent</span>${seg('legs', [[1, 'Once'], [2, 'Home and away']])}</div>`}
+      ${f.divisions > 1 ? evStepper('move', 'Promotion and relegation (each way)', curMove, 0, maxM).replaceAll('data-ev="step"', 'data-lg="step"') + `<p class="note">${lgMoveNote(curMove)}</p>` : ''}
+      <div class="field"><span class="lab">Games against each opponent</span>${seg('legs', [[1, 'Once'], [2, 'Home and away']])}</div>
+      <div class="field"><span class="lab" id="lg-tb-l">Tie-breakers (after wins)</span><ol class="lg-tb" aria-labelledby="lg-tb-l">${tbList}</ol><p class="note">After wins, tied entries are sorted in this order, then by name.</p></div>`}
     <div class="seg-row" style="margin:0"><div class="field"><span class="lab">Play to</span>${seg('target', [[11, '11'], [15, '15'], [21, '21']])}</div>
       <div class="field" style="margin:0"><span class="lab">Win by</span>${seg('winBy', [[2, '2'], [1, '1']])}</div></div>
     <div class="field"><span class="lab">Scoring</span>${seg('scoring', [['sideout', 'Side-out'], ['rally', 'Rally']])}</div>
@@ -7634,12 +7648,14 @@ function lgScoreForm(e, teams, kind, label) {
 }
 function lgOrgHTML(s, L) {
   if (!canOrganize()) return '';
-  const done = L.status === 'done', ladder = L.kind === 'ladder';
+  const done = L.status === 'done', ladder = L.kind === 'ladder', multi = !ladder && L.divisions.length > 1;
+  const nextMove = multi ? (s.nextMove === undefined ? (L.move === undefined ? 1 : L.move) : s.nextMove) : 0;
   return `<section class="ev-card" aria-labelledby="lg-org"><h3 id="lg-org">Organizer</h3>
     <div class="field"><label class="imp-check"><input type="checkbox" data-lg-input="resultsBy" ${L.resultsBy === 'club' ? 'checked' : ''}> Let any club member enter results</label></div>
+    ${done && multi ? evStepper('nextMove', 'Move up and down for next season', nextMove, 0, L.maxMove || 1).replaceAll('data-ev="step"', 'data-lg="step"') : ''}
     <div class="ev-actions">${ladder ? `<button class="btn btn-soft ev-small" data-lg="end" ${s.busy ? 'disabled' : ''}>Close this season</button>` : !done ? `<button class="btn btn-soft ev-small" data-lg="end" ${s.busy ? 'disabled' : ''}>Finish the season now</button>` : `<button class="btn btn-ink ev-small" data-lg="next" ${s.busy ? 'disabled' : ''}>Start the next season</button>`}
     <button class="btn btn-soft ev-small" data-lg="${s.armDelete ? 'delete-yes' : 'delete'}">${s.armDelete ? 'Tap again to delete' : 'Delete'}</button></div>
-    <p class="note">${ladder ? 'Closing keeps the order as the next season’s start and clears the results.' : done ? 'The top of each division moves up and the bottom moves down.' : 'Finishing early crowns whoever leads each table.'} Games already played stay in the club record.</p></section>${lgShareHTML(s, L)}`;
+    <p class="note">${ladder ? 'Closing keeps the order as the next season’s start and clears the results.' : done ? (multi ? lgMoveNote(nextMove) : 'Everyone plays another season in the same table.') : 'Finishing early crowns whoever leads each table.'} Games already played stay in the club record.</p></section>${lgShareHTML(s, L)}`;
 }
 const lgShareUrl = t => `${location.origin}/l/${t}`;
 function lgShareHTML(s, L) {
@@ -7679,12 +7695,18 @@ async function lgCopyLink() {
 function lgLeagueHTML(s, L) {
   const org = canOrganize();
   const wk = L.weeks.find(w => w.n === L.current) || L.weeks[0];
-  const tables = L.tables.map(t => `<section class="ev-sec"><h3>${esc(L.divisions.length > 1 ? t.label : 'Standings')}</h3><div class="ev-card" style="padding:8px 12px"><table class="ev-table"><caption class="vh">${esc(t.label)}: wins, losses and point difference</caption>
-    <tr><th class="who" scope="col">${L.mode === 'doubles' ? 'Team' : 'Player'}</th><th scope="col">P</th><th scope="col">W</th><th scope="col">L</th><th scope="col">+/-</th></tr>
-    ${t.rows.map(r => `<tr><td class="who">${r.rank}. ${esc(r.name)}${r.members.some(isMe) ? ' <span class="badge you">You</span>' : ''}</td><td class="num">${r.played}</td><td class="num">${r.wins}</td><td class="num">${r.losses}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td></tr>`).join('')}</table></div></section>`).join('');
-  const champs = L.status === 'done' && L.champions ? `<p class="note"><b>Season winners:</b> ${L.champions.map((c, d) => c ? `${L.divisions.length > 1 ? esc(L.divisions[d].label) + ': ' : ''}${esc(lgName(c))}` : '').filter(Boolean).join(' · ')}</p>` : '';
+  const showPf = Array.isArray(L.tiebreak) && L.tiebreak.indexOf('pf') >= 0 && L.tiebreak.indexOf('pf') < L.tiebreak.indexOf('diff');
+  const multi = L.divisions.length > 1, mv = multi ? (L.move === undefined ? 1 : L.move) : 0;
+  const tables = L.tables.map((t, d) => `<section class="ev-sec"><h3>${esc(multi ? t.label : 'Standings')}</h3><div class="ev-card" style="padding:8px 12px"><table class="ev-table"><caption class="vh">${esc(t.label)}: wins, losses and point difference</caption>
+    <tr><th class="who" scope="col">${L.mode === 'doubles' ? 'Team' : 'Player'}</th><th scope="col">P</th><th scope="col">W</th><th scope="col">L</th><th scope="col">+/-</th>${showPf ? '<th scope="col">PF</th>' : ''}</tr>
+    ${t.rows.map((r, i) => {
+      const zone = mv > 0 ? (d > 0 && i < mv ? ' <span class="badge hot">Up</span>' : d < L.divisions.length - 1 && i >= t.rows.length - mv ? ' <span class="badge prov">Down</span>' : '') : '';
+      return `<tr><td class="who">${r.rank}. ${esc(r.name)}${r.members.some(isMe) ? ' <span class="badge you">You</span>' : ''}${zone}</td><td class="num">${r.played}</td><td class="num">${r.wins}</td><td class="num">${r.losses}</td><td class="num">${r.diff > 0 ? '+' : ''}${r.diff}</td>${showPf ? `<td class="num">${r.pf}</td>` : ''}</tr>`;
+    }).join('')}</table></div></section>`).join('');
+  const champs = L.status === 'done' && L.champions ? `<p class="note"><b>Season winners:</b> ${L.champions.map((c, d) => c ? `${multi ? esc(L.divisions[d].label) + ': ' : ''}${esc(lgName(c))}` : '').filter(Boolean).join(' · ')}</p>` : '';
+  const extras = `${lgTbCustom(L.tiebreak) ? ` · tie-break: ${lgTbText(L.tiebreak)}` : ''}${multi ? ` · ${mv ? `${mv} up / ${mv} down` : 'no promotion'}` : ''}`;
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}
-    <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · ${L.status === 'done' ? 'Season finished' : `Week ${L.current} of ${L.weeks.length}`}</p>${champs}
+    <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · ${L.status === 'done' ? 'Season finished' : `Week ${L.current} of ${L.weeks.length}`}${extras}</p>${champs}
     ${L.status === 'live' && wk ? `<section class="ev-sec" aria-labelledby="lg-now"><h3 id="lg-now">${esc(wk.title)}</h3>${lgWeekHTML(s, L, wk, org)}<ul class="games">${wk.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></section>` : ''}
     ${tables}
     <section class="ev-sec" aria-labelledby="lg-all"><h3 id="lg-all">All weeks</h3>${L.weeks.map(w => `<details class="ev-more"><summary>${esc(w.title)}${w.matches.every(m => m.status === 'done') ? ' · done' : lgDay(w.date) ? ' · ' + esc(lgDay(w.date)) : ''}</summary>${lgWeekHTML(s, L, w, org, w.n === L.current && L.status === 'live')}<ul class="games">${w.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></details>`).join('')}</section>
@@ -7735,7 +7757,7 @@ async function lgRun(body, ok) {
   let data = null;
   try {
     data = await lgCall(body);
-    if (data.league && lgScreen === s) { s.league = data.league; s.id = data.league.id; }
+    if (data.league && lgScreen === s) { s.league = data.league; s.id = data.league.id; s.nextMove = undefined; }
     s.entry = s.plan = s.rs = s.ff = null; s.armDelete = false;
     if (ok) showToast(ok, false);
   } catch (err) {
@@ -7748,8 +7770,10 @@ async function lgRun(body, ok) {
 function lgCreate() {
   const s = lgScreen, f = s.form;
   if (f.busy) return;
+  const units = f.mode === 'singles' ? f.players.length : Math.floor(f.players.length / 2);
   const league = { kind: f.kind, name: f.name, season: f.season, mode: f.mode, players: f.players, target: f.target, scoring: f.scoring, winBy: f.winBy, resultsBy: f.resultsAny ? 'club' : 'players' };
-  if (f.kind === 'ladder') Object.assign(league, { jump: f.jump, decayDays: f.decayDays }); else Object.assign(league, { divisions: f.divisions, legs: f.legs });
+  if (f.kind === 'ladder') Object.assign(league, { jump: f.jump, decayDays: f.decayDays });
+  else Object.assign(league, { divisions: f.divisions, legs: f.legs, move: f.divisions > 1 ? Math.min(f.move, lgMaxMove(units, f.divisions)) : 0, tiebreak: f.tiebreak.slice() });
   f.busy = true; f.error = ''; renderLeagues(true);
   lgCall({ action: 'league-create', league }).then(d => {
     if (lgScreen !== s) return;
@@ -7793,11 +7817,26 @@ function lgAct(a, d) {
     s.view = 'list'; s.league = null; s.entry = s.ch = s.share = s.plan = s.rs = s.ff = null; s.error = ''; s.armDelete = s.arm = false; renderLeagues(true); lgLoadList(); return;
   }
   if (a === 'new') { s.view = 'new'; s.form = lgNewForm(); renderLeagues(true); return; }
-  if (a === 'open-one') { Object.assign(s, { view: 'detail', id: d.id, league: null, loading: true, error: '', entry: null, ch: null, share: null, arm: '', plan: null, rs: null, ff: null }); renderLeagues(true); lgLoad(d.id); return; }
+  if (a === 'open-one') { Object.assign(s, { view: 'detail', id: d.id, league: null, loading: true, error: '', entry: null, ch: null, share: null, arm: '', plan: null, rs: null, ff: null, nextMove: undefined }); renderLeagues(true); lgLoad(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;
+    const units = f.mode === 'singles' ? f.players.length : Math.floor(f.players.length / 2);
     if (a === 'set') { f[d.k] = ['divisions', 'legs', 'target', 'winBy', 'decayDays'].includes(d.k) ? +d.v : d.v; f.error = ''; }
-    if (a === 'step') f.jump = Math.min(10, Math.max(1, f.jump + (+d.d)));
+    if (a === 'step') {
+      if (d.k === 'move') { const maxM = lgMaxMove(units, f.divisions); f.move = Math.min(maxM, Math.max(0, Math.min(f.move, maxM) + (+d.d))); announce(lgMoveNote(f.move)); }
+      else f.jump = Math.min(10, Math.max(1, f.jump + (+d.d)));
+    }
+    if (a === 'tb') {
+      const i = +d.i, dir = +d.d, ni = i + dir;
+      if (ni >= 0 && ni < f.tiebreak.length) {
+        [f.tiebreak[i], f.tiebreak[ni]] = [f.tiebreak[ni], f.tiebreak[i]];
+        announce('Tie-break order: ' + f.tiebreak.map((k, idx) => `${idx + 1}. ${LG_TB_LABEL[k]}`).join(', '));
+        renderLeagues(true);
+        const btn = document.querySelector(`[data-lg="tb"][data-i="${ni}"][data-d="${dir}"]:not(:disabled)`) || document.querySelector(`[data-lg="tb"][data-i="${ni}"]:not(:disabled)`);
+        if (btn) btn.focus({ preventScroll: true });
+        return;
+      }
+    }
     if (a === 'pick') { const i = f.players.findIndex(x => sameName(x, d.pl)); if (i >= 0) f.players.splice(i, 1); else f.players.push(d.pl); }
     if (a === 'pick-all') f.players = roster.slice();
     if (a === 'pick-none') f.players = [];
@@ -7828,7 +7867,13 @@ function lgAct(a, d) {
   else if (a === 'share-hide') { s.share = null; s.arm = ''; renderLeagues(true); }
   else if (a === 'share-copy') lgCopyLink();
   else if (a === 'end') lgRun({ action: 'league-end', id: L.id }, L.kind === 'ladder' ? 'Season closed' : 'Season finished');
-  else if (a === 'next') lgRun({ action: 'league-next-season', id: L.id }, 'Next season started');
+  else if (a === 'step' && d.k === 'nextMove') {
+    const cur = s.nextMove === undefined ? (L.move === undefined ? 1 : L.move) : s.nextMove;
+    s.nextMove = Math.min(L.maxMove || 1, Math.max(0, cur + (+d.d)));
+    announce(lgMoveNote(s.nextMove));
+    renderLeagues(true);
+  }
+  else if (a === 'next') lgRun({ action: 'league-next-season', id: L.id, ...(L.divisions.length > 1 ? { move: s.nextMove === undefined ? (L.move === undefined ? 1 : L.move) : s.nextMove } : {}) }, 'Next season started');
   else if (a === 'delete') { s.armDelete = true; renderLeagues(true); }
   else if (a === 'delete-yes') lgRun({ action: 'league-delete', id: L.id }).then(d2 => { if (d2 && lgScreen === s) { s.view = 'list'; s.league = null; renderLeagues(true); lgLoadList(); } });
 }
