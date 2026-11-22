@@ -9,6 +9,7 @@ app-state
 saved-players
 account-sync
 club-sync
+pickup-sessions
 log-result
 share-image
 identity
