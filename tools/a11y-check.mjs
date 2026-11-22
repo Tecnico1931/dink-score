@@ -115,6 +115,27 @@ for (const [mode, opt] of states) {
     await ctx.close();
   }
 }
+{ // Rewards: the Your Dink card with a worn ring, and the Shop sheet (owned and unowned items), stubbed club and answers, nothing is sent.
+  for (const colorScheme of ['light', 'dark']) {
+    const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+    await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); } catch {} });
+    await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    await page.evaluate(() => {
+      club = { code: 'ABC123', name: 'Check club', hasPin: true, rewards: true }; me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
+      const cat = [['frame-court', 'Court green ring', 6], ['frame-blue', 'Team blue ring', 8], ['frame-ink', 'Ink ring', 8], ['frame-double', 'Double ring', 15], ['paddle-court', 'Court green paddle', 6], ['paddle-blue', 'Team blue paddle', 8], ['paddle-ink', 'Ink paddle', 8], ['paddle-stripe', 'Striped paddle', 15]];
+      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe' }, items: cat.map(([id, name, price]) => ({ id, slot: id.split('-')[0], name, price, owned: ['frame-double', 'paddle-stripe', 'frame-ink'].includes(id) })) };
+      playerCall = async () => shop;
+      render();
+    });
+    await sleep(300);
+    await audit(page, `Your Dink card, ring worn (${colorScheme})`, report);
+    await page.evaluate(() => Rewards.openStore()); await sleep(400);
+    await audit(page, `Shop sheet (${colorScheme})`, report, '.sheet');
+    await ctx.close();
+  }
+}
 { // A watch's QR or a game link opened with no club on this phone (Safari): the one-game link sheet, both ways in, at phone width and zoomed.
   const id = '0123456789abcdef0123456789abcdef';
   for (const [label, hash] of [['watch link, no club', `#watch=${id}.0420`], ['game link, no club', `#game=${id}`]]) {

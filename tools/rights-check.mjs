@@ -75,6 +75,7 @@ ok(await C('night-rsvp', { id: gn.id, status: 'maybe', playerName: 'Ben', player
 await pg.query(`UPDATE events SET refs = '{"Ana":"1234567","Ben":"7654321"}'::jsonb WHERE club = (SELECT code FROM clubs LIMIT 1)`);
 await pg.query(`UPDATE roster SET avatar = '{"type":"emoji","value":"🔥"}'::jsonb, dupr_rating = 3.5 WHERE name_key = 'ana'`);
 await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak) SELECT code, k, 'day:2026-01-05', 'earn', 1, 'day', '2026-01-05', 1 FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // the rewards ledger, private to each player
+await pg.query(`INSERT INTO reward_items (club, name_key, item, slot, worn) SELECT code, k, 'frame-court', 'frame', true FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // bought cosmetics, private to each player
 await pg.query(`INSERT INTO accounts (id, display_name) VALUES ('acct1', 'x')`);
 await pg.query(`INSERT INTO account_identities (account_id, club, kind, name_key, proof) SELECT 'acct1', code, 'player', 'ana', 'p' FROM clubs`);
 // A linked watch with a live game sent to it: club deletion must take both, and no export may carry its hashes.
@@ -102,6 +103,7 @@ await step('player export: only the phone that holds the name gets it, and it ha
   assert.equal(d.gameNights.length, 1);
   assert.equal(d.gameNights[0].rsvp, 'in');
   assert.deepEqual(d.rewardsLedger.map(e => [e.id, e.amount]), [['day:2026-01-05', 1]], 'their own rewards ledger, not anyone else\'s');
+  assert.deepEqual(d.rewardsItems, [{ item: 'frame-court', slot: 'frame', worn: true }], 'their own bought items, not anyone else\'s');
   assert.ok(!/pin_hash|owner_hash|claim_hash|ownerToken/.test(text(d)));
 });
 
@@ -133,6 +135,7 @@ await step('anonymise: own phone replaces the name everywhere; others\' games an
   assert.equal((await pg.query(`SELECT 1 FROM roster WHERE name_key = 'ana'`)).rows.length, 0); // picture, DUPR number and phone link go with it
   assert.equal((await pg.query(`SELECT 1 FROM game_night_rsvps WHERE name_key = 'ana'`)).rows.length, 0); // game night RSVP removed on anonymise
   assert.deepEqual((await pg.query(`SELECT name_key FROM reward_ledger`)).rows.map(r => r.name_key), ['ben']); // their rewards ledger goes, everyone else's stays
+  assert.deepEqual((await pg.query(`SELECT name_key FROM reward_items`)).rows.map(r => r.name_key), ['ben']); // and so do their bought items
   assert.equal((await pg.query(`SELECT 1 FROM account_identities`)).rows.length, 0);
   const shown = ok(await call(club, 'GET', { query: '?code=' + code }));
   assert.ok(!/\bAna\b/.test(text(shown)), 'the club view no longer shows the name');
@@ -177,7 +180,7 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
-  assert.ok(!/reward_ledger|rewardsLedger/.test(s), 'the rewards ledger is private to the player, not in the club export');
+  assert.ok(!/reward_ledger|rewardsLedger|reward_items|rewardsItems|frame-court/.test(s), 'the rewards ledger and bought items are private to the player, not in the club export');
   assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321|token_hash|revoke_hash|key_hash/.test(s) && !s.includes(watchToken), 'no secrets, tokens or DUPR data');
 });
 await step('club export as CSV: games, with spreadsheet formulas defused', async () => {
@@ -256,7 +259,7 @@ await step('delete club: once the window has passed everything is removed, and t
   await pg.query(`UPDATE clubs SET delete_at = now() - interval '1 minute' WHERE name = 'Rights check club'`);
   assert.equal((await W({ action: 'watch-state' }, { authorization: 'Bearer ' + watchToken })).status, 401, 'once the window has passed the watch is refused too');
   assert.equal((await call(club, 'GET', { query: '?code=' + code })).status, 404);
-  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'game_nights', 'game_night_rsvps', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers', 'club_seasons', 'organizer_devices', 'reward_ledger']) {
+  for (const t of ['clubs', 'games', 'game_reactions', 'roster', 'events', 'leagues', 'game_nights', 'game_night_rsvps', 'live_games', 'account_identities', 'club_aliases', 'watch_links', 'watch_offers', 'club_seasons', 'organizer_devices', 'reward_ledger', 'reward_items']) {
     const n = (await pg.query(`SELECT count(*)::int AS n FROM ${t} WHERE ${t === 'clubs' ? 'code' : 'club'} <> '${other.club.code}'`)).rows[0].n;
     assert.equal(n, 0, t + ' still has rows from the deleted club');
   }

@@ -119,7 +119,7 @@ button { cursor: pointer; }
 .you-row b { font-size: 16px; font-weight: 700; }
 .you-row small { font-size: 13px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
 .you-row .chev { font-size: 22px; color: var(--muted); }
-.me-btn { position: relative; --r: 26px; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; padding: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 2px var(--surface), 0 4px 12px -4px rgb(0 0 0 / .35); }
+.me-btn { position: relative; --r: 26px; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; padding: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 2px var(--surface), var(--rw-ring, 0 0 0 0 transparent), 0 4px 12px -4px rgb(0 0 0 / .35); }
 .me-btn svg { width: 22px; height: 22px; }
 .me-btn .av-emoji { font-size: 22px; }
 .me-btn .av-icon { width: 60%; height: 60%; }
@@ -135,6 +135,26 @@ button { cursor: pointer; }
 .rw-line { margin: 0; font-size: 14px; }
 .rw-fine { margin: 0; font-size: 12px; color: rgb(255 255 255 / .92); }
 .rw-hide { align-self: flex-start; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--on-court); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
+.rw-acts { display: flex; flex-wrap: wrap; gap: 0 20px; } .rw-acts .rw-hide { min-width: 44px; }
+/* Worn looks, set on <html> (data-rw-frame, data-rw-skin) while rewards are shown, and on the swatches in the sheet. Colours are the app's own tokens, so both themes follow. */
+[data-rw-frame="court"] { --rw-ring: 0 0 0 5px var(--court); } [data-rw-frame="blue"] { --rw-ring: 0 0 0 5px var(--blue); } [data-rw-frame="ink"] { --rw-ring: 0 0 0 5px var(--ink); }
+[data-rw-frame="double"] { --rw-ring: 0 0 0 4px var(--court), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue); }
+[data-rw-skin="court"] { --rw-pad-bg: var(--court); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--court); }
+[data-rw-skin="blue"] { --rw-pad-bg: var(--blue); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--blue); }
+[data-rw-skin="ink"] { --rw-pad-bg: var(--ink); --rw-pad-fg: var(--bg); --rw-pad-ring: 0 0 0 2px var(--ink); }
+[data-rw-skin="stripe"] { --rw-pad-bg: var(--court); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue); }
+html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
+.rw-bal-line { margin: 0 0 4px; font-size: 14px; } .rw-bal-line b { font-family: var(--display); font-size: 34px; font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; }
+.rw-h { margin: 18px 0 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.rw-pick { border: 0; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; } .rw-pick legend { padding: 0; margin-bottom: 4px; font-size: 13px; font-weight: 600; }
+.rw-opt { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.rw-opt[aria-pressed="true"] { border-color: var(--court); background: var(--surface-2); font-weight: 700; } .rw-opt[aria-pressed="true"]::after { content: "\2713"; }
+.rw-item { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.rw-name { flex: 1; min-width: 0; } .rw-name b { display: block; font-size: 15px; } .rw-name small { display: block; font-size: 13px; color: var(--muted); }
+.rw-item .btn { min-height: 44px; min-width: 64px; }
+.rw-sw { width: 30px; height: 30px; margin: 8px 8px 8px 0; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 12px; box-shadow: 0 0 0 2px var(--surface), var(--rw-ring, 0 0 0 0 transparent); }
+.rw-sw svg { width: 62%; height: 62%; }
+.rw-sw.pad { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 /* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */
@@ -3368,8 +3388,10 @@ function inboxGo(go) {
 const RW_BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
-const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {};
-  return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '' }; };
+const rwId = v => (typeof v === 'string' && /^[a-z]{3,8}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
+const rwLook = id => String(id || '').replace(/^[a-z]+-/, ''); // 'frame-court' -> 'court': the name the stylesheet draws
+const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
+  return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn: { frame: rwId(w.frame), paddle: rwId(w.paddle) } }; };
 const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
 // The streak as it stands on `today`: a run that missed yesterday and today is broken (0). Playing today or yesterday keeps it.
 const rwStreak = (s, today) => (s.last && rwDayNum(today) - rwDayNum(s.last) <= 1 ? s.streak : 0);
@@ -3383,6 +3405,14 @@ const rwCur = () => { const c = club && club.code; if (c !== rwCode) { rwCode = 
 const rwHidden = () => !!store.get('pb.rewardsHide', false);
 const rwClubOn = () => !!(club && club.rewards);
 const rwShown = () => rwClubOn() && !rwHidden();
+// Keep the synced state (and this phone's worn items) in one place. The worn ring and paddle colour are two attributes on <html> that the
+// stylesheet draws, set only while rewards are shown here, so the one-tap hide and a club with rewards off remove them.
+const rwSave = (next, code = club && club.code) => { const all = rwAll(); delete all._legacy; all[code] = next; store.set('pb.rewards', all); rwState = next; rwApplyLook(); };
+function rwApplyLook() {
+  const r = document.documentElement; if (!r) return;
+  const w = rwShown() ? rwCur().worn : {};
+  for (const [slot, attr] of [['frame', 'data-rw-frame'], ['paddle', 'data-rw-skin']]) { const v = rwLook(w[slot]); if (v) r.setAttribute(attr, v); else r.removeAttribute(attr); }
+}
 const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.5 2.5c.4 3-1.3 4.6-2.9 6.4C8 10.7 6.5 12.6 6.5 15.2a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.2-5.2-.2 1.2-.7 2-1.5 2.5.5-3.5-.2-7.3-1.3-10z"/></svg>';
 
 let rwBusy = false, rwAt = 0;
@@ -3397,13 +3427,14 @@ const Rewards = {
       const d = await playerCall({ action: 'rewards-sync', name: myName(), playerToken: myToken(), tz: -new Date().getTimezoneOffset() });
       if (!club || club.code !== code || !d || typeof d.dinks !== 'number') return;
       const next = rwClean(d), changed = JSON.stringify(next) !== JSON.stringify(rwCur());
-      const all = rwAll(); delete all._legacy; all[code] = next; store.set('pb.rewards', all); rwState = next;
+      rwSave(next, code);
       if (d.gained > 0 && !rwHidden()) announce(`${d.gained} ${d.gained === 1 ? 'Dink' : 'Dinks'} added. Day ${next.streak} of your streak.`);
       if (changed && !rwHidden()) render();
     } catch { /* offline or off: keep the last value */ } finally { rwBusy = false; }
   },
   // The small flame on the avatar: the streak when it is 2 or more days.
   flameHTML() {
+    rwApplyLook(); // the header is drawn on every tab and after every change, so the worn ring is always current
     const n = rwShown() ? rwStreak(rwCur(), rwDayKey(Date.now())) : 0;
     return n >= 2 ? `<span class="rw-flame" aria-hidden="true">${rwFlame}<b>${n}</b></span>` : '';
   },
@@ -3413,7 +3444,7 @@ const Rewards = {
     if (!rwShown()) return '';
     const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = rwNext(day);
     const line = !myName() || !myToken() ? 'Pick your name in the club to start earning Dinks.' : done ? `Played today. ${nx.in === 1 ? 'Play tomorrow' : `Play ${nx.in} days in a row`} for +${nx.bonus} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
-    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>Dinks</small></span></div><p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought or cashed out, and it never changes a game or a rating.</p><button type="button" class="rw-hide" data-rw="hide">Hide this</button></section>`;
+    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>Dinks</small></span></div><p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? '<button type="button" class="rw-hide" data-rw="store">Shop</button>' : ''}<button type="button" class="rw-hide" data-rw="hide">Hide this</button></div></section>`;
   },
   // The "You" sheet row: the one switch on this phone (shown only where the club has rewards on).
   youRowHTML() {
@@ -3431,7 +3462,80 @@ document.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.rw;
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
-  if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); render(); if (typeof clubSheet !== 'undefined' && clubSheet) renderClub(); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
+  if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); render(); if (typeof clubSheet !== 'undefined' && clubSheet) renderClub(); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
+});
+/* ---------- rewards shop: fixed-price cosmetics bought with Dinks (L16 slice 3; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
+// The catalogue, every price and what you own are the server's (api/_economyshop.js, players.js rewards-catalog|buy|wear); this phone draws what
+// it is told and asks by item id, never by price. Cosmetic only: a ring around your picture and a colour on your paddle thumbnails, on this
+// phone. Nothing here is random, nothing moves or makes a sound, and it never reads or changes a score, a rating, a rank or a pairing.
+// Opened from the Your Dink card (so the one-tap hide removes it too). Needs a name linked to this phone.
+const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails']];
+const rwSwatch = it => it.slot === 'frame'
+  ? `<span class="rw-sw" data-rw-frame="${esc(rwLook(it.id))}" aria-hidden="true">${esc(initials(myName() || '?'))}</span>`
+  : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${iconSvg('paddle')}</span>`;
+const rwShort = (n, price) => `Not enough Dinks yet: ${n} costs ${price} and you have `;
+
+Object.assign(Rewards, {
+  storeHTML(c) {
+    const s = c.store, done = '<div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>';
+    const head = '<h2 id="club-h" tabindex="-1">Shop</h2>';
+    if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p>${done}`;
+    if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
+    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned);
+    const wear = RW_SLOTS.map(([slot, label]) => {
+      const own = mine.filter(i => i.slot === slot);
+      if (!own.length) return '';
+      const opt = (id, name, sw) => `<button type="button" class="rw-opt" data-rw-wear="${slot}:${esc(id)}" aria-pressed="${s.worn[slot] === id}" ${c.busy ? 'disabled' : ''}>${sw}<span>${esc(name)}</span></button>`;
+      return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
+    }).join('');
+    const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${i.price} Dinks${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${i.price} Dinks" ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+    return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> Dinks</p>
+      <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
+      ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
+      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}
+      <h3 class="rw-h">In the shop</h3>${rows || '<p class="note">You have everything in the shop.</p>'}${done}`;
+  },
+  // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
+  async openStore() {
+    if (!rwShown() || !myName() || !myToken()) return;
+    const c = clubSheet = { view: 'rwstore', store: null, msg: '', error: '', busy: false };
+    renderClub();
+    try { const d = await playerCall({ action: 'rewards-catalog', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.store = d; rwStoreSynced(d); }
+    catch (err) { if (clubSheet !== c) return; c.error = err.message || "The shop couldn't load."; }
+    renderClub();
+  }
+});
+
+// The card, the ring and the paddle colour follow the server's answer.
+function rwStoreSynced(d) { rwSave(rwClean(Object.assign({}, rwCur(), { dinks: d.dinks, worn: d.worn }))); render(); }
+
+async function rwStoreAct(body, say, focus) {
+  const c = clubSheet;
+  if (!c || c.view !== 'rwstore' || !c.store || c.busy) return;
+  c.busy = true; c.error = ''; c.msg = ''; renderClub();
+  try { const d = await playerCall(Object.assign({ name: myName(), playerToken: myToken() }, body)); if (clubSheet !== c) return; c.store = d; c.msg = say(d); rwStoreSynced(d); announce(c.msg); }
+  catch (err) { if (clubSheet !== c) return; c.error = err.message; announce(err.message); }
+  c.busy = false; renderClub();
+  const f = document.querySelector(focus); if (f) f.focus(); // the sheet is redrawn, so put the focus back where the person was
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear]');
+  if (!t) return;
+  if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
+  const c = clubSheet;
+  if (!c || c.view !== 'rwstore' || !c.store) return;
+  if (t.dataset.rwBuy) {
+    const it = c.store.items.find(i => i.id === t.dataset.rwBuy);
+    if (!it || it.owned) return;
+    // The server decides; this only saves a trip when the balance obviously doesn't reach.
+    if (c.store.dinks < it.price) { c.error = rwShort(it.name, it.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
+    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => `${it.name} is yours for ${it.price} Dinks. Choose it under What you wear.`, '#club-h');
+    return;
+  }
+  const [slot, id] = t.dataset.rwWear.split(':');
+  const it = c.store.items.find(i => i.id === id);
+  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : 'Paddle thumbnails back to plain.'), `[data-rw-wear="${slot}:${id}"]`);
 });
 /* ---------- opt-in "you're up" notifications (api/_push.js) ---------- */
 const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -3760,6 +3864,8 @@ function renderClub() {
     body = avatarSheetHTML(c);
   } else if (c.view === 'paddles' && club && myName()) {
     body = paddleSheetHTML(c);
+  } else if (c.view === 'rwstore' && club && myName()) {
+    body = Rewards.storeHTML(c);
   } else if (c.view === 'you') {
     body = youHTML(c);
   } else if (c.view === 'dupr') {

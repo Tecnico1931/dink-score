@@ -33,8 +33,12 @@ test('the streak shown is 0 once yesterday and today were both missed, and count
 });
 
 test('a stored state that was edited or damaged is cleaned, never trusted', () => {
-  assert.deepEqual(rwClean(null), { streak: 0, best: 0, dinks: 0, last: '' });
-  assert.deepEqual(rwClean({ streak: -4, best: 'x', dinks: NaN, last: 'yesterday' }), { streak: 0, best: 0, dinks: 0, last: '' });
+  const none = { frame: '', paddle: '' };
+  assert.deepEqual(rwClean(null), { streak: 0, best: 0, dinks: 0, last: '', worn: none });
+  assert.deepEqual(rwClean({ streak: -4, best: 'x', dinks: NaN, last: 'yesterday' }), { streak: 0, best: 0, dinks: 0, last: '', worn: none });
+  // A worn item is a plain item id or nothing: markup, a path or a wrong type never gets through to the page's attributes.
+  assert.deepEqual(rwClean({ worn: { frame: 'frame-court', paddle: '"><img src=x onerror=1>' } }).worn, { frame: 'frame-court', paddle: '' });
+  assert.deepEqual(rwClean({ worn: 'frame-court' }).worn, none);
   assert.equal(rwClean({ dinks: 1e12 }).dinks, 1e6);
 });
 
@@ -54,7 +58,7 @@ test('with the club switch off, or the device switch on, nothing is drawn and no
   const off = make({ rewards: false }, false), none = make(null, false), hidden = make({ rewards: true }, true), on = make({ rewards: true }, false);
   for (const x of [off, none]) { assert.equal(x.s.dinks, 0); assert.equal(x.Rewards.cardHTML() + x.Rewards.flameHTML() + x.Rewards.youRowHTML(), ''); }
   assert.equal(hidden.Rewards.cardHTML(), ''); assert.match(hidden.Rewards.youRowHTML(), /Show my daily streak/);
-  assert.match(on.Rewards.cardHTML(), /Your Dink[\s\S]*can't be bought or cashed out/);
+  assert.match(on.Rewards.cardHTML(), /Your Dink[\s\S]*can't be bought with real money or cashed out/);
   assert.match(on.Rewards.youRowHTML(), /Hide my daily streak/);
 });
 
