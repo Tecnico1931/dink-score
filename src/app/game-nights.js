@@ -1,5 +1,7 @@
 /* ---------- game nights (api/_gamenights.js via api/club.js) ---------- */
 const GN_GRACE_MS = 4 * 60 * 60 * 1000;
+// The organizer's "Schedule a game night" row: a white lifted row with a coral calendar tile and a chevron (same button, same data-gn="new").
+const GN_PLAN_ROW = '<button type="button" class="gn-plan" data-gn="new"><span class="np-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="np-txt"><b>Schedule a game night</b><small>Pick a time and see who\'s in</small></span><span class="np-chev" aria-hidden="true">›</span></button>';
 const gnCanOrg = () => !!club && (isCreator() || (club.hasPin && hasOrganizer()));
 const gnUpcoming = () => ((clubData && clubData.nights) || []).filter(n => n && n.status === 'open' && n.startsAt >= Date.now() - GN_GRACE_MS);
 
@@ -129,7 +131,7 @@ function gnTabHTML() {
   const unlock = !org && club.hasPin ? '<button type="button" class="link" data-act="pin-unlock-open">Organizer? Unlock this phone to schedule a game night</button>' : '';
   return `<section aria-labelledby="gn-tab-h" class="ev-sec">
     <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length > 3 ? `<button type="button" class="link" data-gn="open">See all (${list.length})</button>` : ''}</div>
-    ${org ? '<button type="button" class="btn btn-ink block" data-gn="new">Schedule a game night</button>' : ''}
+    ${org ? GN_PLAN_ROW : ''}
     ${cards || '<p class="note">No game nights scheduled yet.</p>'}${unlock}
   </section>`;
 }
@@ -398,7 +400,7 @@ function gnSheetHTML(c) {
   const upcoming = all.filter(n => n.startsAt >= now - GN_GRACE_MS);
   const past = all.filter(n => n.startsAt < now - GN_GRACE_MS).reverse();
   const orgPrompt = org
-    ? '<button type="button" class="btn btn-ink block" data-gn="new">Schedule a game night</button>'
+    ? GN_PLAN_ROW
     : club.hasPin
       ? '<div class="org-card"><p>Scheduling game nights and sending reminders needs the organizer PIN.</p><button type="button" class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div>'
       : '';

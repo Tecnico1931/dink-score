@@ -31,6 +31,21 @@ for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]
     for (const [fg, bg, min, what] of pairs(t)) assert.ok(ratio(fg, bg) >= min, `${name}: ${what} is ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`);
   });
 }
+// The green hero card and New game tile (white on --court, dimmed to .92 for secondary text) and the lime Log a result tile (ink at .82), over the worst end of each gradient.
+for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]) {
+  test(`hero card, New game and Log a result tiles: contrast ${name}`, () => {
+    for (const k of ['court', 'court-2']) {
+      assert.ok(ratio(WHITE, t[k]) >= 4.5, `${name}: white on --${k} ${ratio(WHITE, t[k]).toFixed(2)}`);
+      assert.ok(ratio(over(WHITE, t[k], .92), t[k]) >= 4.5, `${name}: .92 white on --${k} ${ratio(over(WHITE, t[k], .92), t[k]).toFixed(2)}`);
+      assert.ok(ratio(over(WHITE, over([0, 0, 0], t[k], .22), .92), over([0, 0, 0], t[k], .22)) >= 4.5, `${name}: club pill on --${k}`);
+    }
+    for (const k of ['ball-hi', 'ball', 'ball-lo']) assert.ok(ratio(over(t['ball-ink'], t[k], .82), t[k]) >= 4.5, `${name}: ink at .82 on --${k}`);
+  });
+}
+test('the court tokens exist in every theme and the page glow is gone before muted text', () => {
+  for (const k of ['court', 'court-2', 'ball-hi', 'ball-lo', 'on-court']) assert.ok(light[k], `--${k} in light`);
+  assert.match(html, /body \{ background: radial-gradient\(90% 190px at 50% -40px/, 'a short glow: it fades out by about 130 px');
+});
 test('danger buttons: label colour passes in every theme', () => {
   // .btn-danger paints text #fff on --danger; dark mode lightens --danger, so its label flips to the dark background colour.
   for (const [name, t] of [['light', light], ['outdoor', outdoor]]) assert.ok(ratio(WHITE, t.danger) >= 4.5, `${name}: white on danger ${ratio(WHITE, t.danger).toFixed(2)}`);

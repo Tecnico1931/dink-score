@@ -179,7 +179,7 @@ It must never read as a corporate fitness app (gradients everywhere, stock athle
 The palette is cool slate neutrals with two court colors and one electric ball yellow.
 
 ### Primary
-- **Court Blue** (court-blue): team one's color. It appears on the team-one court panel (a gradient from #4361FF to #1A2BA6 on the scoring screen), the "Log a result" tile, link text, the focus ring, and logged tags.
+- **Court Blue** (court-blue): team one's color. It appears on the team-one court panel (a gradient from #4361FF to #1A2BA6 on the scoring screen), link text, the focus ring, and logged tags.
 - **Court Green** (court-green): team two's color. It appears on the team-two court panel (a gradient from #17B988 to #07634A), the played-day bars in the week strip, and the synced dot.
 
 ### Secondary
@@ -222,7 +222,7 @@ The palette is cool slate neutrals with two court colors and one electric ball y
 
 ## Layout
 
-The layout is a single phone column, with a maximum width of 560px centered on larger screens. Side gutters are max(16px, safe-area inset). The vertical rhythm between sections is 22px. Inside cards the spacing runs 6, 10, 14 and 18px. The home screen opens with a hero card (time-of-day greeting, club name, the week's game total and a 7-day bar strip, with a small court-and-ball drawing in neutral tokens), then a two-column tile grid with a 10px gap. The "New game" tile (ink) sits next to "Log a result" (blue) and opens game setup as a bottom sheet. Tiles have a minimum height of 132px, and wide tiles span both columns.
+The layout is a single phone column, with a maximum width of 560px centered on larger screens. Side gutters are max(16px, safe-area inset). The vertical rhythm between sections is 22px. Inside cards the spacing runs 6, 10, 14 and 18px. The home screen opens with a hero card (time-of-day greeting, club name, the week's game total and a 7-day bar strip, on a deep green court gradient (`--court` to `--court-2`, #0E7A55 to #0A5E42 in light, #0F6B4B to #0A4A34 in dark) with faint court lines and the 3D lime pickleball `icons/pickleball.svg` in the corner), then a two-column tile grid with a 10px gap. The "New game" tile (the same court green) sits next to "Log a result" (ball lime, ink text) and opens game setup as a bottom sheet. A short court-green and lime floodlight glow fades in at the top of every page. Tiles have a minimum height of 132px, and wide tiles span both columns.
 
 A floating tab bar with five tabs (Events appears only in a club) sits fixed at the bottom. It's at most 420px wide and inset 12px above the safe area. The page reserves about 112px plus the safe area at the bottom so content clears it. The page scrolls inside `<body>`, not the window.
 
