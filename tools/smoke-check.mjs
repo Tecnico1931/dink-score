@@ -133,7 +133,7 @@ try {
   await fresh.getByText('Preview Club').first().waitFor();
   console.log('ok  joining a club with its code lands in the club, with the saved players to pick from');
 
-  await fresh.locator('[data-ev="open-list"]').first().click();
+  await fresh.locator('#tabs [data-tab="events"]').click();
   await fresh.locator(`#events [data-ev="open"][data-id="${made.event.id}"]`).click();
   await fresh.locator('#events').getByText('Semifinals').first().waitFor();
   console.log('ok  the event opens in the app with its bracket');
