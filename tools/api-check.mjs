@@ -1398,6 +1398,65 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await post('Hal', { action: 'rewards-catalog' })).status, 403, 'off again: no calls');
 });
+await step('rewards club looks: off means 403, opt-in default false hides it, sharing exposes only allow-listed worn ids to members, rename/merge/leave/anonymise keep it safe', async () => {
+  const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
+  const looks = () => cfPost(playersApi, { action: 'rewards-looks' }); // any club member (no playerToken needed)
+  const grant = (name, n) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, $2, 'test:looks', 'earn', $3, 'test') ON CONFLICT DO NOTHING`, [cf.code, name.toLowerCase(), n]);
+  const join = async name => { cfTok[name] = ok(await cfPost(playersApi, { action: 'claim', name, ownerToken: cf.owner })).playerToken; };
+  await join('Leo'); await join('Mia');
+  // Rewards off for the club: nothing fetched or leaked.
+  assert.equal((await looks()).status, 403, 'off: rewards-looks refused');
+  assert.equal((await post('Leo', { action: 'rewards-share', share: true })).status, 403, 'off: rewards-share refused');
+  ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
+  await grant('Leo', 30); await grant('Mia', 30);
+  ok(await post('Leo', { action: 'rewards-buy', item: 'frame-court' }));
+  ok(await post('Leo', { action: 'rewards-buy', item: 'frame-blue' }));
+  ok(await post('Leo', { action: 'rewards-buy', item: 'paddle-stripe' }));
+  ok(await post('Leo', { action: 'rewards-wear', slot: 'frame', item: 'frame-court' }));
+  ok(await post('Leo', { action: 'rewards-wear', slot: 'paddle', item: 'paddle-stripe' }));
+  // Default share is false (hidden): nothing leaks to other club members.
+  assert.equal(ok(await post('Leo', { action: 'rewards-catalog' })).share, false);
+  assert.deepEqual(ok(await looks()), { looks: {} }, 'default hidden: nothing leaks');
+  // Bad auth or bad share type refused.
+  assert.equal((await post('Leo', { action: 'rewards-share', share: 'yes' })).status, 400);
+  assert.equal((await post('Leo', { action: 'rewards-share', share: true, playerToken: cfTok.Mia })).status, 403);
+  // Turn sharing on: another member sees ONLY the worn allow-listed item ids (never balance, streak, or unworn items like frame-blue).
+  const shared = ok(await post('Leo', { action: 'rewards-share', share: true }));
+  assert.equal(shared.share, true);
+  assert.equal(ok(await post('Leo', { action: 'rewards-get' })).share, true);
+  const pub = ok(await looks());
+  assert.deepEqual(pub, { looks: { leo: { frame: 'frame-court', paddle: 'paddle-stripe' } } });
+  const pubStr = JSON.stringify(pub);
+  assert.ok(!/dinks|streak|frame-blue|price|ledger|entries|items/.test(pubStr), 'no balance, streak, or purchase history leaks');
+  assert.ok(!/frame-court|paddle-stripe|rewards_public/.test(JSON.stringify(await cfGet())), 'GET /api/club stays free of economy data');
+  // Unwearing removes that slot; hiding removes the player completely.
+  ok(await post('Leo', { action: 'rewards-wear', slot: 'paddle', item: '' }));
+  assert.deepEqual(ok(await looks()), { looks: { leo: { frame: 'frame-court' } } });
+  ok(await post('Leo', { action: 'rewards-share', share: false }));
+  assert.deepEqual(ok(await looks()), { looks: {} }, 'hidden again: nothing leaks');
+  // Rename preserves both worn ring and rewards_public.
+  ok(await post('Leo', { action: 'rewards-share', share: true }));
+  ok(await cfPost(playersApi, { action: 'rename', name: 'Leo', newName: 'Leon', ownerToken: cf.owner }));
+  assert.deepEqual(ok(await looks()), { looks: { leon: { frame: 'frame-court' } } }, 'rename keeps worn item and share choice');
+  // Merge into an unclaimed row carries rewards_public from the claimed player; into's own worn choice stands.
+  ok(await post('Mia', { action: 'rewards-buy', item: 'frame-ink' }));
+  ok(await post('Mia', { action: 'rewards-wear', slot: 'frame', item: 'frame-ink' }));
+  ok(await cfPost(playersApi, { action: 'release', name: 'Mia', ownerToken: cf.owner }));
+  ok(await cfPost(playersApi, { action: 'merge', name: 'Leon', into: 'Mia', ownerToken: cf.owner }));
+  assert.deepEqual(ok(await looks()), { looks: { mia: { frame: 'frame-ink' } } }, 'merge carries share choice from claimed player and keeps target worn look');
+  // Leave clears rewards_public so the look stops showing.
+  ok(await cfPost(playersApi, { action: 'leave', name: 'Mia', playerToken: cfTok.Leo }));
+  assert.deepEqual(ok(await looks()), { looks: {} }, 'leaving clears look visibility');
+  // Re-claim, share, then anonymise: gone completely.
+  const miaTok2 = ok(await cfPost(playersApi, { action: 'claim', name: 'Mia', ownerToken: cf.owner })).playerToken;
+  ok(await cfPost(playersApi, { action: 'rewards-share', name: 'Mia', playerToken: miaTok2, share: true }));
+  assert.deepEqual(ok(await looks()), { looks: { mia: { frame: 'frame-ink' } } });
+  ok(await cfPost(playersApi, { action: 'anonymise', name: 'Mia', ownerToken: cf.owner }));
+  assert.deepEqual(ok(await looks()), { looks: {} }, 'anonymised player no longer shows');
+  // Turning club rewards off stops everything immediately.
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+  assert.equal((await looks()).status, 403, 'off again: nothing leaks');
+});
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';
   assert.equal((await cfPost(club, { action: 'set-pay-link', link })).status, 403);

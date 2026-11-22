@@ -9,6 +9,19 @@ const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `$
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
 const rwId = v => (typeof v === 'string' && /^[a-z]{3,8}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
 const rwLook = id => String(id || '').replace(/^[a-z]+-/, ''); // 'frame-court' -> 'court': the name the stylesheet draws
+const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').toLowerCase();
+const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
+const rwCleanLooks = raw => {
+  const out = Object.create(null);
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    const key = rwKey(k);
+    if (!key || !v || typeof v !== 'object') continue;
+    const frame = rwSlotId('frame', v.frame), paddle = rwSlotId('paddle', v.paddle);
+    if (frame || paddle) out[key] = { frame, paddle };
+  }
+  return out;
+};
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
   return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn: { frame: rwId(w.frame), paddle: rwId(w.paddle) } }; };
 const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
@@ -34,7 +47,21 @@ function rwApplyLook() {
 }
 const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.5 2.5c.4 3-1.3 4.6-2.9 6.4C8 10.7 6.5 12.6 6.5 15.2a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.2-5.2-.2 1.2-.7 2-1.5 2.5.5-3.5-.2-7.3-1.3-10z"/></svg>';
 
-let rwBusy = false, rwAt = 0;
+let rwBusy = false, rwAt = 0, rwLooksBusy = false, rwLooksAt = 0, rwLooksCode = null;
+const rwLooksByClub = Object.create(null);
+const rwClubLooks = () => (club && club.code && rwLooksByClub[club.code]) || null;
+const rwSetOwnLook = (name, worn, share) => {
+  const code = club && club.code, key = rwKey(name);
+  if (!code || !key) return;
+  const map = rwLooksByClub[code] || (rwLooksByClub[code] = Object.create(null));
+  const frame = share ? rwSlotId('frame', worn && worn.frame) : '', paddle = share ? rwSlotId('paddle', worn && worn.paddle) : '';
+  if (frame || paddle) map[key] = { frame, paddle }; else delete map[key];
+};
+const rwRedrawClub = () => {
+  render();
+  if (typeof renderProfile === 'function') renderProfile();
+  if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view === 'members' && typeof renderClub === 'function') renderClub();
+};
 const Rewards = {
   // Ask the server for the balance (it first adds what the games this name saved have earned). After a game reaches the server, and when the
   // club is opened (at most every 5 minutes). Needs the club switch on and a name linked to this phone; offline, the last value stays.
@@ -50,6 +77,44 @@ const Rewards = {
       if (d.gained > 0 && !rwHidden()) announce(`${d.gained} ${d.gained === 1 ? 'Dink' : 'Dinks'} added. Day ${next.streak} of your streak.`);
       if (changed && !rwHidden()) render();
     } catch { /* offline or off: keep the last value */ } finally { rwBusy = false; }
+  },
+  // Fetch the club's opt-in worn looks (allow-listed item ids only; never balance, streak or history). Skipped when rewards are off or hidden.
+  async syncLooks(force) {
+    const code = club && club.code;
+    if (!rwShown() || !code || rwLooksBusy || (!force && rwLooksCode === code && Date.now() - rwLooksAt < 3e4)) return;
+    rwLooksBusy = true; rwLooksAt = Date.now(); rwLooksCode = code;
+    try {
+      const d = await playerCall({ action: 'rewards-looks' });
+      if (!club || club.code !== code || !d || !d.looks) return;
+      const next = rwCleanLooks(d.looks), prev = rwLooksByClub[code] || {};
+      if (JSON.stringify(next) !== JSON.stringify(prev)) { rwLooksByClub[code] = next; if (rwShown()) rwRedrawClub(); }
+    } catch { /* offline or off: keep the last value */ } finally { rwLooksBusy = false; }
+  },
+  // One member's shared worn look ({frame, paddle} with prefix stripped), or null when rewards are off, hidden, or unshared.
+  lookOf(name) {
+    if (!rwShown() || !name) return null;
+    const map = rwClubLooks(), hit = map && map[rwKey(name)];
+    if (!hit) return null;
+    const frame = rwLook(hit.frame), paddle = rwLook(hit.paddle);
+    return frame || paddle ? { frame, paddle } : null;
+  },
+  frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
+  paddleBadgeHTML(name) {
+    const l = Rewards.lookOf(name);
+    return l && l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
+  },
+  // Team names on a game card: plain text unless a player in this team shares a worn look, in which case their ring / paddle colour renders inline.
+  teamHTML(players) {
+    const list = Array.isArray(players) ? players : [];
+    const fallback = () => (typeof teamLabel === 'function' ? esc(teamLabel(list)) : list.map(esc).join(' &amp; '));
+    if (!rwShown() || !list.some(n => Rewards.lookOf(n))) return fallback();
+    return list.map(n => {
+      const l = Rewards.lookOf(n);
+      if (!l) return esc(n);
+      const av = l.frame && typeof avatarInner === 'function' ? `<span class="rw-g-av" data-rw-frame="${esc(l.frame)}" aria-hidden="true">${avatarInner(n)}</span>` : '';
+      const pd = l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad sm" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
+      return `<span class="rw-g-p">${av}${esc(n)}${pd}</span>`;
+    }).join(' &amp; ');
   },
   // The small flame on the avatar: the streak when it is 2 or more days.
   flameHTML() {
@@ -81,5 +146,5 @@ document.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.rw;
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
-  if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); render(); if (typeof clubSheet !== 'undefined' && clubSheet) renderClub(); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
+  if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
 });

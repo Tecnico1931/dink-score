@@ -136,14 +136,31 @@ button { cursor: pointer; }
 .rw-fine { margin: 0; font-size: 12px; color: rgb(255 255 255 / .92); }
 .rw-hide { align-self: flex-start; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--on-court); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
 .rw-acts { display: flex; flex-wrap: wrap; gap: 0 20px; } .rw-acts .rw-hide { min-width: 44px; }
-/* Worn looks, set on <html> (data-rw-frame, data-rw-skin) while rewards are shown, and on the swatches in the sheet. Colours are the app's own tokens, so both themes follow. */
-[data-rw-frame="court"] { --rw-ring: 0 0 0 5px var(--court); } [data-rw-frame="blue"] { --rw-ring: 0 0 0 5px var(--blue); } [data-rw-frame="ink"] { --rw-ring: 0 0 0 5px var(--ink); }
-[data-rw-frame="double"] { --rw-ring: 0 0 0 4px var(--court), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue); }
-[data-rw-skin="court"] { --rw-pad-bg: var(--court); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--court); }
+/* Worn looks, set on <html> (data-rw-frame, data-rw-skin) while rewards are shown, on swatches, and on opted-in club members' avatars. Colours use the app's own tokens so both themes pass contrast. */
+[data-rw-frame="court"] { --rw-ring: 0 0 0 5px var(--green); --rw-ring-sm: 0 0 0 4px var(--green); --rw-c: var(--green); } [data-rw-frame="blue"] { --rw-ring: 0 0 0 5px var(--blue); --rw-ring-sm: 0 0 0 4px var(--blue); --rw-c: var(--blue); } [data-rw-frame="ink"] { --rw-ring: 0 0 0 5px var(--ink); --rw-ring-sm: 0 0 0 4px var(--ink); --rw-c: var(--ink); }
+[data-rw-frame="double"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--blue); --rw-c: var(--green); }
+[data-rw-skin="court"] { --rw-pad-bg: var(--green); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--green); }
 [data-rw-skin="blue"] { --rw-pad-bg: var(--blue); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--blue); }
 [data-rw-skin="ink"] { --rw-pad-bg: var(--ink); --rw-pad-fg: var(--bg); --rw-pad-ring: 0 0 0 2px var(--ink); }
-[data-rw-skin="stripe"] { --rw-pad-bg: var(--court); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue); }
+[data-rw-skin="stripe"] { --rw-pad-bg: var(--green); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue); }
 html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
+.avatar[data-rw-frame], .av[data-rw-frame] { box-shadow: 0 0 0 2px var(--surface), var(--rw-ring); }
+.step .avatar[data-rw-frame] { margin: 4px 0 9px; }
+.step.s1 .avatar[data-rw-frame] { box-shadow: 0 0 0 3px var(--ball), 0 0 0 5px var(--surface), 0 0 0 8px var(--rw-c); }
+.step.s1 .avatar[data-rw-frame="double"] { box-shadow: 0 0 0 3px var(--ball), 0 0 0 5px var(--surface), 0 0 0 7px var(--green), 0 0 0 9px var(--blue); }
+.avatar-mini[data-rw-frame] { box-shadow: 0 0 0 2px var(--surface), var(--rw-ring-sm); }
+.rw-pad { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; vertical-align: -4px; margin-left: 5px; flex: none; background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
+.rw-pad svg { width: 64%; height: 64%; }
+.rw-pad.sm { width: 18px; height: 18px; vertical-align: -3px; }
+.rw-g-p { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; }
+.rw-g-av { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--bg); display: inline-grid; place-items: center; font-weight: 700; font-size: 12px; flex: none; margin: 3px 2px 3px 2px; box-shadow: 0 0 0 1.5px var(--surface), var(--rw-ring-sm); overflow: hidden; }
+.rw-g-av .av-emoji { font-size: 14px; } .rw-g-av .av-icon { width: 64%; height: 64%; }
+.rw-share { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; margin: 12px 0 4px; padding: 10px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.rw-share[aria-pressed="true"] { border-color: var(--green); background: var(--surface-2); }
+.rw-share > span:first-child { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rw-share b { font-size: 15px; font-weight: 700; } .rw-share small { font-size: 13px; color: var(--muted); line-height: 1.3; }
+.rw-pill { flex: none; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--ink); }
+.rw-share[aria-pressed="true"] .rw-pill { background: var(--green); color: var(--on-court); }
 .rw-bal-line { margin: 0 0 4px; font-size: 14px; } .rw-bal-line b { font-family: var(--display); font-size: 34px; font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; }
 .rw-h { margin: 18px 0 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .rw-pick { border: 0; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; } .rw-pick legend { padding: 0; margin-bottom: 4px; font-size: 13px; font-weight: 600; }
@@ -2643,7 +2660,7 @@ async function refreshClub() {
     loadPhotos();
     evSummaryRefresh();
     announceUnlocks();
-    if (typeof Rewards !== 'undefined') Rewards.sync();
+    if (typeof Rewards !== 'undefined') { Rewards.sync(); Rewards.syncLooks(); }
     if (!myName() && !whoamiSkipped() && !askedWhoami && !clubSheet && !logForm && !profile && tourStep === null && !(live && live.open)) { askedWhoami = true; clubSheet = { view: 'whoami' }; renderClub(); }
   } catch (err) {
     clubState = err.offline ? 'offline' : 'error';
@@ -3395,6 +3412,19 @@ const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `$
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
 const rwId = v => (typeof v === 'string' && /^[a-z]{3,8}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
 const rwLook = id => String(id || '').replace(/^[a-z]+-/, ''); // 'frame-court' -> 'court': the name the stylesheet draws
+const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').toLowerCase();
+const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
+const rwCleanLooks = raw => {
+  const out = Object.create(null);
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) {
+    const key = rwKey(k);
+    if (!key || !v || typeof v !== 'object') continue;
+    const frame = rwSlotId('frame', v.frame), paddle = rwSlotId('paddle', v.paddle);
+    if (frame || paddle) out[key] = { frame, paddle };
+  }
+  return out;
+};
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
   return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn: { frame: rwId(w.frame), paddle: rwId(w.paddle) } }; };
 const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
@@ -3420,7 +3450,21 @@ function rwApplyLook() {
 }
 const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.5 2.5c.4 3-1.3 4.6-2.9 6.4C8 10.7 6.5 12.6 6.5 15.2a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.2-5.2-.2 1.2-.7 2-1.5 2.5.5-3.5-.2-7.3-1.3-10z"/></svg>';
 
-let rwBusy = false, rwAt = 0;
+let rwBusy = false, rwAt = 0, rwLooksBusy = false, rwLooksAt = 0, rwLooksCode = null;
+const rwLooksByClub = Object.create(null);
+const rwClubLooks = () => (club && club.code && rwLooksByClub[club.code]) || null;
+const rwSetOwnLook = (name, worn, share) => {
+  const code = club && club.code, key = rwKey(name);
+  if (!code || !key) return;
+  const map = rwLooksByClub[code] || (rwLooksByClub[code] = Object.create(null));
+  const frame = share ? rwSlotId('frame', worn && worn.frame) : '', paddle = share ? rwSlotId('paddle', worn && worn.paddle) : '';
+  if (frame || paddle) map[key] = { frame, paddle }; else delete map[key];
+};
+const rwRedrawClub = () => {
+  render();
+  if (typeof renderProfile === 'function') renderProfile();
+  if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view === 'members' && typeof renderClub === 'function') renderClub();
+};
 const Rewards = {
   // Ask the server for the balance (it first adds what the games this name saved have earned). After a game reaches the server, and when the
   // club is opened (at most every 5 minutes). Needs the club switch on and a name linked to this phone; offline, the last value stays.
@@ -3436,6 +3480,44 @@ const Rewards = {
       if (d.gained > 0 && !rwHidden()) announce(`${d.gained} ${d.gained === 1 ? 'Dink' : 'Dinks'} added. Day ${next.streak} of your streak.`);
       if (changed && !rwHidden()) render();
     } catch { /* offline or off: keep the last value */ } finally { rwBusy = false; }
+  },
+  // Fetch the club's opt-in worn looks (allow-listed item ids only; never balance, streak or history). Skipped when rewards are off or hidden.
+  async syncLooks(force) {
+    const code = club && club.code;
+    if (!rwShown() || !code || rwLooksBusy || (!force && rwLooksCode === code && Date.now() - rwLooksAt < 3e4)) return;
+    rwLooksBusy = true; rwLooksAt = Date.now(); rwLooksCode = code;
+    try {
+      const d = await playerCall({ action: 'rewards-looks' });
+      if (!club || club.code !== code || !d || !d.looks) return;
+      const next = rwCleanLooks(d.looks), prev = rwLooksByClub[code] || {};
+      if (JSON.stringify(next) !== JSON.stringify(prev)) { rwLooksByClub[code] = next; if (rwShown()) rwRedrawClub(); }
+    } catch { /* offline or off: keep the last value */ } finally { rwLooksBusy = false; }
+  },
+  // One member's shared worn look ({frame, paddle} with prefix stripped), or null when rewards are off, hidden, or unshared.
+  lookOf(name) {
+    if (!rwShown() || !name) return null;
+    const map = rwClubLooks(), hit = map && map[rwKey(name)];
+    if (!hit) return null;
+    const frame = rwLook(hit.frame), paddle = rwLook(hit.paddle);
+    return frame || paddle ? { frame, paddle } : null;
+  },
+  frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
+  paddleBadgeHTML(name) {
+    const l = Rewards.lookOf(name);
+    return l && l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
+  },
+  // Team names on a game card: plain text unless a player in this team shares a worn look, in which case their ring / paddle colour renders inline.
+  teamHTML(players) {
+    const list = Array.isArray(players) ? players : [];
+    const fallback = () => (typeof teamLabel === 'function' ? esc(teamLabel(list)) : list.map(esc).join(' &amp; '));
+    if (!rwShown() || !list.some(n => Rewards.lookOf(n))) return fallback();
+    return list.map(n => {
+      const l = Rewards.lookOf(n);
+      if (!l) return esc(n);
+      const av = l.frame && typeof avatarInner === 'function' ? `<span class="rw-g-av" data-rw-frame="${esc(l.frame)}" aria-hidden="true">${avatarInner(n)}</span>` : '';
+      const pd = l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad sm" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
+      return `<span class="rw-g-p">${av}${esc(n)}${pd}</span>`;
+    }).join(' &amp; ');
   },
   // The small flame on the avatar: the streak when it is 2 or more days.
   flameHTML() {
@@ -3467,7 +3549,7 @@ document.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.rw;
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
-  if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); render(); if (typeof clubSheet !== 'undefined' && clubSheet) renderClub(); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
+  if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
 });
 /* ---------- rewards shop: fixed-price cosmetics bought with Dinks (L16 slice 3; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
 // The catalogue, every price and what you own are the server's (api/_economyshop.js, players.js rewards-catalog|buy|wear); this phone draws what
@@ -3494,10 +3576,11 @@ Object.assign(Rewards, {
       return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
     }).join('');
     const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${i.price} Dinks${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${i.price} Dinks" ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+    const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring and paddle colour — never your Dinks, streak or history.' : 'Off by default: only you see your ring and paddle colour on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> Dinks</p>
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}
+      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}
       <h3 class="rw-h">In the shop</h3>${rows || '<p class="note">You have everything in the shop.</p>'}${done}`;
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
@@ -3511,8 +3594,8 @@ Object.assign(Rewards, {
   }
 });
 
-// The card, the ring and the paddle colour follow the server's answer.
-function rwStoreSynced(d) { rwSave(rwClean(Object.assign({}, rwCur(), { dinks: d.dinks, worn: d.worn }))); render(); }
+// The card, the ring, the paddle colour and the club looks map follow the server's answer.
+function rwStoreSynced(d) { rwSave(rwClean(Object.assign({}, rwCur(), { dinks: d.dinks, worn: d.worn }))); if (typeof rwSetOwnLook === 'function') rwSetOwnLook(myName(), d.worn, !!d.share); rwRedrawClub(); }
 
 async function rwStoreAct(body, say, focus) {
   const c = clubSheet;
@@ -3525,11 +3608,16 @@ async function rwStoreAct(body, say, focus) {
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear], [data-rw-share]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store) return;
+  if (t.dataset.rwShare !== undefined) {
+    const share = t.dataset.rwShare === '1';
+    rwStoreAct({ action: 'rewards-share', share }, d => (d.share ? 'Your worn look is now shown to the club.' : 'Your worn look is now hidden from the club.'), '[data-rw-share]');
+    return;
+  }
   if (t.dataset.rwBuy) {
     const it = c.store.items.find(i => i.id === t.dataset.rwBuy);
     if (!it || it.owned) return;
@@ -4436,7 +4524,7 @@ function dupesHTML() {
 function gameItem(g) {
   const d = new Date(g.endedAt);
   const date = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const line = t => `<div class="line ${g.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(teamLabel(g.teams[t]))}</span><span class="pts">${Number(g.score[t])}</span></div>`;
+  const line = t => `<div class="line ${g.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${typeof Rewards !== 'undefined' ? Rewards.teamHTML(g.teams[t]) : esc(teamLabel(g.teams[t]))}</span><span class="pts">${Number(g.score[t])}</span></div>`;
   const armed = armedDelete === g.id;
   const dupe = isDupe(g.id), canConfirm = canConfirmGame(g);
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
@@ -4504,10 +4592,10 @@ function leadersView() {
   const avatarColor = ['var(--ink)', 'var(--blue)', 'var(--green)'];
   const scopeKey = season ? 'season' : 'all';
   const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<div class="step s${i + 1}" style="--c:${avatarColor[i]}">
-      <button type="button" class="step-main" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar">${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}</span><span class="pl-rating">${r2(p.rating)}</span></button>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}
+      <button type="button" class="step-main" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(p.name) : ''}>${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}</span><span class="pl-rating">${r2(p.rating)}</span></button>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}
       <button type="button" class="block" data-player="${esc(p.name)}" tabindex="-1" aria-hidden="true">${i + 1}</button></div>`; }).join('')}</section>`;
-  const list = `<section class="rows">${rows.map((p, i) => `<div class="prow"><button type="button" class="prow-main" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini">${avatarInner(p.name)}</span>
-      <span class="pinfo"><span class="pname">${esc(p.name)}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (DR.isProvisional(p) ? '<span class="badge prov">Provisional</span>' : '')}${streakBadgeHTML(season ? p.streak : ((progressOf(p.name) || {}).streak || 0), season ? ' this season' : '')}</span>
+  const list = `<section class="rows">${rows.map((p, i) => `<div class="prow"><button type="button" class="prow-main" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(p.name) : ''}>${avatarInner(p.name)}</span>
+      <span class="pinfo"><span class="pname">${esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (DR.isProvisional(p) ? '<span class="badge prov">Provisional</span>' : '')}${streakBadgeHTML(season ? p.streak : ((progressOf(p.name) || {}).streak || 0), season ? ' this season' : '')}</span>
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span></button>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}</span></div>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
@@ -5829,7 +5917,7 @@ function rivalriesHTML(name, mode) {
   if (!rivals.length) return '';
   return `<div class="field" style="margin:0"><span class="lab">Rivalries</span><div class="rivals">${rivals.map((e, i) => {
     const lead = e.w > e.l ? 'leads' : e.w < e.l ? 'trails' : 'tied';
-    return `<button class="rival ${lead}" data-player="${esc(e.name)}"><span class="avatar-mini">${avatarInner(e.name)}</span>
+    return `<button class="rival ${lead}" data-player="${esc(e.name)}"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(e.name) : ''}>${avatarInner(e.name)}</span>
       <span class="rv-text"><b>${i === 0 ? 'Top rival: ' : ''}${esc(e.name)}</b><small>${lead === 'tied' ? `All square at ${e.w}–${e.l}` : `${esc(name.split(' ')[0])} ${lead} ${Math.max(e.w, e.l)}–${Math.min(e.w, e.l)}`}</small></span>
       <span class="rv-score">${e.w}–${e.l}</span></button>`;
   }).join('')}</div></div>`;
@@ -6384,8 +6472,8 @@ function membersHTML(c) {
   const blocked = Object.fromEntries(md.members.filter(m => m.blocked).map(m => [m.name.toLowerCase(), true]));
   const list = rows.map(({ p, n, last }) => {
     const when = last ? new Date(last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-    return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini">${avatarInner(p.name)}</span>
-      <span class="mem-text"><span class="mem-name">${esc(p.name)}${youTag(p.name)}${streakBadgeHTML((progressOf(p.name) || {}).streak || 0)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${p.role === 'organizer' ? ' <span class="badge on">Organizer</span>' : ''}${blocked[p.name.toLowerCase()] ? ' <span class="badge prov">Blocked</span>' : ''}${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
+    return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(p.name) : ''}>${avatarInner(p.name)}</span>
+      <span class="mem-text"><span class="mem-name">${esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${youTag(p.name)}${streakBadgeHTML((progressOf(p.name) || {}).streak || 0)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${p.role === 'organizer' ? ' <span class="badge on">Organizer</span>' : ''}${blocked[p.name.toLowerCase()] ? ' <span class="badge prov">Blocked</span>' : ''}${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
       <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'}</span></span></button>
       <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}<button class="link" data-anon="${esc(p.name)}">Anonymise</button></span></li>`;
   }).join('');
@@ -7231,7 +7319,7 @@ function recapViewHTML(name, year, rated) {
     const fp = r.favouritePartner;
     const rv = r.biggestRival;
     const fpHTML = fp
-      ? `<button type="button" class="rival recap-hl" data-player="${esc(fp.name)}"><span class="avatar-mini">${avatarInner(fp.name)}</span>
+      ? `<button type="button" class="rival recap-hl" data-player="${esc(fp.name)}"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(fp.name) : ''}>${avatarInner(fp.name)}</span>
           <span class="rv-text"><b>${esc(fp.name)}</b><small>Favourite partner · ${fp.games} game${fp.games === 1 ? '' : 's'} together (${fp.winRate}%)</small></span>
           <span class="rv-score">${fp.wins}–${fp.losses}</span></button>`
       : `<div class="recap-empty-row"><b>Favourite partner</b><small>${r.singlesGames && !r.doublesGames ? `Singles only in ${r.year} — no doubles partner yet.` : `No named doubles partner in ${r.year}.`}</small></div>`;
@@ -7240,7 +7328,7 @@ function recapViewHTML(name, year, rated) {
       const lead = rv.wins > rv.losses ? 'leads' : rv.wins < rv.losses ? 'trails' : 'tied';
       const first = r.name.split(' ')[0];
       const h2h = lead === 'tied' ? `All square at ${rv.wins}–${rv.losses}` : `${first} ${lead} ${Math.max(rv.wins, rv.losses)}–${Math.min(rv.wins, rv.losses)}`;
-      rvHTML = `<button type="button" class="rival recap-hl ${lead}" data-player="${esc(rv.name)}"><span class="avatar-mini">${avatarInner(rv.name)}</span>
+      rvHTML = `<button type="button" class="rival recap-hl ${lead}" data-player="${esc(rv.name)}"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(rv.name) : ''}>${avatarInner(rv.name)}</span>
         <span class="rv-text"><b>${esc(rv.name)}</b><small>Biggest rival · ${esc(h2h)} (${rv.games} game${rv.games === 1 ? '' : 's'})</small></span>
         <span class="rv-score">${rv.wins}–${rv.losses}</span></button>`;
     } else {
@@ -7266,7 +7354,7 @@ function recapViewHTML(name, year, rated) {
       <h2 id="pf-h" tabindex="-1">${r.year} in review</h2>
       <button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button>
     </div>
-    <div class="recap-sub"><span class="avatar-mini">${avatarInner(r.name)}</span><span><b>${esc(r.name)}${youTag(r.name)}</b><small>${esc(recapFormatLabel(r))}</small></span></div>
+    <div class="recap-sub"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(r.name) : ''}>${avatarInner(r.name)}</span><span><b>${esc(r.name)}${youTag(r.name)}</b><small>${esc(recapFormatLabel(r))}</small></span></div>
     ${yearNav}
     ${content}
   </div></div>`;
@@ -7412,7 +7500,7 @@ function renderProfile() {
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
   }
   const changed = setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
-    <div class="pf-head"><span class="av">${avatarInner(pr.name)}</span><h2 id="pf-h" tabindex="-1">${esc(pr.name)}${youTag(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    <div class="pf-head"><span class="av"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(pr.name) : ''}>${avatarInner(pr.name)}</span><h2 id="pf-h" tabindex="-1">${esc(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(pr.name) : ''}${youTag(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${selfDuprHTML(pr.name)}

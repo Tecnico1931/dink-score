@@ -1,11 +1,12 @@
-// Rewards, slice 3: the Shop. Fixed-price cosmetics bought with Dinks (play money; rules in DESIGN.md "Rewards", guard in
-// test/economyguard.test.js). An item only changes how a picture or a paddle thumbnail looks on the owner's own phone: it never reads or
-// changes a score, a rating, a rank, a pairing or any rule, and nothing here is random (no box, no drop, no odds).
+// Rewards, slice 3+4: the Shop and opt-in club looks. Fixed-price cosmetics bought with Dinks (play money; rules in DESIGN.md "Rewards",
+// guard in test/economyguard.test.js). An item only changes how a picture or a paddle thumbnail looks: it never reads or changes a score, a
+// rating, a rank, a pairing or any rule, and nothing here is random (no box, no drop, no odds). By default a worn look shows only on the
+// player's own phone; a player can opt in (roster.rewards_public) to show only their worn item ids to other members of the club.
 //
 // The catalogue below is the ONLY place a price lives. A request names an item id; the server looks the price up here and ignores any
 // price, name or slot the phone sends, so a device can neither change a price nor invent an item. The spend goes through the ledger
 // (_economy.js spendEntry, id `buy:<item>`, so a replay or a second device never charges twice and the balance never goes below zero);
-// ownership is one row per item in reward_items (name key only, like the ledger). Called from players.js as rewards-shop|buy|wear.
+// ownership is one row per item in reward_items (name key only, like the ledger). Called from players.js as rewards-catalog|buy|wear|share|looks.
 import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry } from './_economy.js';
 
@@ -46,10 +47,43 @@ export async function loadItems(sql, code, key) {
 export const wornFrom = items => Object.fromEntries(SLOTS.map(s => [s, (items.find(i => i.slot === s && i.worn) || {}).id || '']));
 export const wornOf = async (sql, code, key) => wornFrom(await loadItems(sql, code, key));
 
-// The shop as the phone shows it: the catalogue with the owned flag, the balance and what is worn. Prices come from the catalogue only.
+// Allow-listed worn item ids per player, for other members of a club whose rewards switch is on.
+// Pure: accepts rows { name_key, slot, item }, copies ONLY known catalogue item ids in their matching slot, never balance, streak or history.
+export function clubLooksFrom(rows) {
+  const out = Object.create(null);
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (!r || typeof r.name_key !== 'string' || !r.name_key) continue;
+    const it = itemById(r.item);
+    if (!it || it.slot !== r.slot || !SLOTS.includes(it.slot)) continue;
+    if (!out[r.name_key]) out[r.name_key] = {};
+    out[r.name_key][it.slot] = it.id;
+  }
+  return Object.fromEntries(Object.entries(out));
+}
+
+export async function clubLooks(sql, code) {
+  const rows = await sql`SELECT ri.name_key, ri.slot, ri.item
+    FROM reward_items ri
+    JOIN roster r ON r.club = ri.club AND r.name_key = ri.name_key
+    WHERE ri.club = ${code} AND ri.worn = true AND r.rewards_public = true AND r.blocked_at IS NULL`;
+  return clubLooksFrom(rows);
+}
+
+export async function shareOf(sql, code, key) {
+  const [row] = await sql`SELECT rewards_public FROM roster WHERE club = ${code} AND name_key = ${key}`;
+  return !!(row && row.rewards_public);
+}
+
+export async function setShare(sql, code, key, on) {
+  if (typeof on !== 'boolean') throw Object.assign(new Error('Say whether to show your look to the club.'), { status: 400 });
+  await sql`UPDATE roster SET rewards_public = ${on} WHERE club = ${code} AND name_key = ${key}`;
+  return shopView(sql, code, key);
+}
+
+// The shop as the phone shows it: the catalogue with the owned flag, the balance, what is worn and whether the club sees it. Prices come from the catalogue only.
 export async function shopView(sql, code, key) {
-  const [items, ledger] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key)]);
-  return { dinks: ledgerBalance(ledger), worn: wornFrom(items), items: CATALOGUE.map(i => ({ ...i, owned: items.some(o => o.id === i.id) })) };
+  const [items, ledger, share] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key)]);
+  return { dinks: ledgerBalance(ledger), worn: wornFrom(items), share, items: CATALOGUE.map(i => ({ ...i, owned: items.some(o => o.id === i.id) })) };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.

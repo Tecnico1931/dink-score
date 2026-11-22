@@ -122,7 +122,7 @@ function recapViewHTML(name, year, rated) {
     const fp = r.favouritePartner;
     const rv = r.biggestRival;
     const fpHTML = fp
-      ? `<button type="button" class="rival recap-hl" data-player="${esc(fp.name)}"><span class="avatar-mini">${avatarInner(fp.name)}</span>
+      ? `<button type="button" class="rival recap-hl" data-player="${esc(fp.name)}"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(fp.name) : ''}>${avatarInner(fp.name)}</span>
           <span class="rv-text"><b>${esc(fp.name)}</b><small>Favourite partner · ${fp.games} game${fp.games === 1 ? '' : 's'} together (${fp.winRate}%)</small></span>
           <span class="rv-score">${fp.wins}–${fp.losses}</span></button>`
       : `<div class="recap-empty-row"><b>Favourite partner</b><small>${r.singlesGames && !r.doublesGames ? `Singles only in ${r.year} — no doubles partner yet.` : `No named doubles partner in ${r.year}.`}</small></div>`;
@@ -131,7 +131,7 @@ function recapViewHTML(name, year, rated) {
       const lead = rv.wins > rv.losses ? 'leads' : rv.wins < rv.losses ? 'trails' : 'tied';
       const first = r.name.split(' ')[0];
       const h2h = lead === 'tied' ? `All square at ${rv.wins}–${rv.losses}` : `${first} ${lead} ${Math.max(rv.wins, rv.losses)}–${Math.min(rv.wins, rv.losses)}`;
-      rvHTML = `<button type="button" class="rival recap-hl ${lead}" data-player="${esc(rv.name)}"><span class="avatar-mini">${avatarInner(rv.name)}</span>
+      rvHTML = `<button type="button" class="rival recap-hl ${lead}" data-player="${esc(rv.name)}"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(rv.name) : ''}>${avatarInner(rv.name)}</span>
         <span class="rv-text"><b>${esc(rv.name)}</b><small>Biggest rival · ${esc(h2h)} (${rv.games} game${rv.games === 1 ? '' : 's'})</small></span>
         <span class="rv-score">${rv.wins}–${rv.losses}</span></button>`;
     } else {
@@ -157,7 +157,7 @@ function recapViewHTML(name, year, rated) {
       <h2 id="pf-h" tabindex="-1">${r.year} in review</h2>
       <button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button>
     </div>
-    <div class="recap-sub"><span class="avatar-mini">${avatarInner(r.name)}</span><span><b>${esc(r.name)}${youTag(r.name)}</b><small>${esc(recapFormatLabel(r))}</small></span></div>
+    <div class="recap-sub"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(r.name) : ''}>${avatarInner(r.name)}</span><span><b>${esc(r.name)}${youTag(r.name)}</b><small>${esc(recapFormatLabel(r))}</small></span></div>
     ${yearNav}
     ${content}
   </div></div>`;

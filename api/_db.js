@@ -75,6 +75,7 @@ export function ensureSchema() {
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS prestige jsonb`; // unused legacy: {count, xpAt}
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS dupr_rating numeric(4,3)`; // self-reported, display only (see _dupr.js)
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS dupr_set_at timestamptz`;
+      await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS rewards_public boolean NOT NULL DEFAULT false`; // true: other club members see this player's worn ring and paddle colour when the club has rewards on (opt-in)
       await q`CREATE TABLE IF NOT EXISTS purchases (
         id bigserial PRIMARY KEY,
         club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,

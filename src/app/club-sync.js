@@ -213,7 +213,7 @@ async function refreshClub() {
     loadPhotos();
     evSummaryRefresh();
     announceUnlocks();
-    if (typeof Rewards !== 'undefined') Rewards.sync();
+    if (typeof Rewards !== 'undefined') { Rewards.sync(); Rewards.syncLooks(); }
     if (!myName() && !whoamiSkipped() && !askedWhoami && !clubSheet && !logForm && !profile && tourStep === null && !(live && live.open)) { askedWhoami = true; clubSheet = { view: 'whoami' }; renderClub(); }
   } catch (err) {
     clubState = err.offline ? 'offline' : 'error';
