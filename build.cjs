@@ -37,8 +37,9 @@ let body = fs.readFileSync(src, 'utf8');
 
 // The app's own script is split into src/app/<name>.js (X9), listed in order in src/app/manifest (one name per line, # comments).
 // A module with a MODULE-START:<name>/MODULE-END:<name> block in the source page is pasted there, byte for byte, so dink-score.html stays
-// one self-contained file the tests can load: edit the module file, not the block. A module without a block is not in the page;
-// it is emitted, in manifest order, at the /*@APP*/ line of the main script, in index.html only.
+// one self-contained file the tests can load: edit the module file, not the block. Those marker lines are stripped when building index.html,
+// so a pure move leaves the shipped page and its CSP hash unchanged. A module without a block is not in the page; it is emitted, in manifest
+// order, at the /*@APP*/ line of the main script, in index.html only.
 let app = '';
 {
   const dir = path.join(__dirname, 'src', 'app');
@@ -57,7 +58,7 @@ let app = '';
   }
   if (next !== body) { body = next; fs.writeFileSync(src, body); console.log('Updated module blocks in', path.basename(src), 'from src/app/'); }
   if (body.split('/*@APP*/\n').length !== 2) throw new Error('The main script of ' + path.basename(src) + ' needs exactly one /*@APP*/ line');
-  app = body.replace('/*@APP*/\n', () => loose);
+  app = body.replace('/*@APP*/\n', () => loose).replace(/^\/\*MODULE-(?:START|END):[^*\n]+\*\/\n/gm, '');
 }
 
 const head = `<!doctype html>
