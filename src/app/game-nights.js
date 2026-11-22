@@ -95,7 +95,7 @@ function gnCapBadgeHTML(n) {
   return `<span class="badge ${full ? 'gn-full' : 'prov'}">${full ? `Full · ${n.counts.in}/${n.cap}` : `${n.counts.in}/${n.cap} spots`}</span>`;
 }
 
-// Home screen card (or compact tile when none are scheduled yet), shown only in a club.
+// Home screen card for the next game night; nothing when none is scheduled (scheduling lives in the club sheet).
 function gnHomeHTML() {
   if (!club || !API_OK) return '';
   const list = gnUpcoming();
@@ -110,11 +110,6 @@ function gnHomeHTML() {
     ${gnRsvpBarHTML(n, false)}
     <p class="note gn-preview">${esc(preview)}</p>
   </section>`;
-}
-
-function gnTileHTML() {
-  if (!club || !API_OK || gnUpcoming().length) return '';
-  return `<button class="tile wide" data-gn="open" style="min-height:0"><span class="t-k">Game nights</span><span class="t-name">${gnCanOrg() ? 'Schedule a game night' : 'Game nights'}</span><span class="t-foot">See who's In, Maybe or Out</span></button>`;
 }
 
 async function gnOpen(from) {

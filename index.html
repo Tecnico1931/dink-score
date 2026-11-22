@@ -684,6 +684,10 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .me-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
 .me-row b { color: var(--ink); }
 /* Challenges, achievements, trophies, rivalries, seasons */
+.ch-tile ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ch-tile li.done .ch-bar i { background: var(--up); }
+.ch-tile li { display: flex; flex-direction: column; gap: 6px; }
+.ch-tile li b { font-size: 13px; font-weight: 600; line-height: 1.25; }
 .challenges { display: flex; flex-direction: column; gap: 10px; }
 .challenges ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .challenges li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
@@ -3787,15 +3791,10 @@ function homeTiles(games) {
   }
   tiles.push(`<button class="tile newg" data-act="new-open"><span class="plus"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span><span class="t-name">New game</span><span class="t-k">Score one live</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
-  if (club) {
-    const liveEv = evSummary.find(e => e.status === 'live');
-    tiles.push(`<button class="tile wide" data-ev="open-list" style="min-height:0"><span class="t-k">Events</span>${liveEv ? `<span class="t-name">${esc(liveEv.name)}</span><span class="t-foot">Live · ${esc(evProgress(liveEv))}</span>` : `<span class="t-name">Tournaments and rotating doubles</span><span class="t-foot">Round robins, brackets and several courts at once</span>`}</button>`);
-    const gnTile = gnTileHTML();
-    if (gnTile) tiles.push(gnTile);
-  }
   const top = leaderStats(games, setup.mode)[0];
-  tiles.push(`<button class="tile" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
-    ${top ? `<span class="t-name">${esc(top.name)}</span><span class="t-big">${r2(top.rating)}</span>` : `<span class="t-name">No ratings yet</span><span class="t-foot">Save a game with named players</span>`}</button>`);
+  const chTile = challengesTile();
+  const stats = `<section class="tiles"><button class="tile${chTile ? '' : ' wide'}" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
+    ${top ? `<span class="t-name">${esc(top.name)}</span><span class="t-big">${r2(top.rating)}</span>` : `<span class="t-name">No ratings yet</span><span class="t-foot">Save a game with named players</span>`}</button>${chTile}</section>`;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * DAY));
   const counts = days.map(d => games.filter(g => g.endedAt >= d.getTime() && g.endedAt < d.getTime() + DAY).length);
@@ -3806,7 +3805,7 @@ function homeTiles(games) {
   const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div>${HERO_ART}</div>
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
-  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${challengesCard()}${monthCard(games)}`;
+  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
@@ -5259,20 +5258,17 @@ const PLACE = ['Champion', 'Runner-up', 'Third place'];
 const MEDAL = ['🥇', '🥈', '🥉'];
 const daysLeft = end => Math.max(0, Math.ceil((end - Date.now()) / DAY));
 
-// Weekly challenges card on the home screen.
-function challengesCard() {
+// Weekly challenges, half-width tile beside Top player on the home screen.
+function challengesTile() {
   const info = progressInfo();
   if (!club || !info || !myName()) return '';
   const mine = (progressOf(myName()) || {}).week || [];
   const items = info.week.challenges.map(c => {
     const st = mine.find(x => x.id === c.id) || { progress: 0, done: false };
-    return `<li class="${st.done ? 'done' : ''}"><span class="ch-check" aria-hidden="true">${st.done ? '✓' : ''}</span>
-      <span class="ch-text"><b>${esc(c.name)}</b><span class="ch-bar"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></span>
-      </li>`;
+    return `<li class="${st.done ? 'done' : ''}"><b>${st.done ? '✓ ' : ''}${esc(c.name)}</b><span class="ch-bar" aria-hidden="true"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></li>`;
   }).join('');
   const d = daysLeft(info.week.end);
-  return `<section class="card challenges"><div class="sec-head"><h3>This week's challenges</h3><span class="note">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></div>
-    <ul>${items}</ul><p class="note">Games sent from any club player's phone count, scored live or logged.</p></section>`;
+  return `<section class="tile ch-tile" aria-label="This week's challenges"><span class="t-k">This week's challenges</span><ul>${items}</ul><span class="t-foot">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></section>`;
 }
 
 // Tell the player when something new unlocks (checked after each refresh from the server).
@@ -6190,7 +6186,7 @@ function gnCapBadgeHTML(n) {
   return `<span class="badge ${full ? 'gn-full' : 'prov'}">${full ? `Full · ${n.counts.in}/${n.cap}` : `${n.counts.in}/${n.cap} spots`}</span>`;
 }
 
-// Home screen card (or compact tile when none are scheduled yet), shown only in a club.
+// Home screen card for the next game night; nothing when none is scheduled (scheduling lives in the club sheet).
 function gnHomeHTML() {
   if (!club || !API_OK) return '';
   const list = gnUpcoming();
@@ -6205,11 +6201,6 @@ function gnHomeHTML() {
     ${gnRsvpBarHTML(n, false)}
     <p class="note gn-preview">${esc(preview)}</p>
   </section>`;
-}
-
-function gnTileHTML() {
-  if (!club || !API_OK || gnUpcoming().length) return '';
-  return `<button class="tile wide" data-gn="open" style="min-height:0"><span class="t-k">Game nights</span><span class="t-name">${gnCanOrg() ? 'Schedule a game night' : 'Game nights'}</span><span class="t-foot">See who's In, Maybe or Out</span></button>`;
 }
 
 async function gnOpen(from) {

@@ -11,20 +11,17 @@ const PLACE = ['Champion', 'Runner-up', 'Third place'];
 const MEDAL = ['🥇', '🥈', '🥉'];
 const daysLeft = end => Math.max(0, Math.ceil((end - Date.now()) / DAY));
 
-// Weekly challenges card on the home screen.
-function challengesCard() {
+// Weekly challenges, half-width tile beside Top player on the home screen.
+function challengesTile() {
   const info = progressInfo();
   if (!club || !info || !myName()) return '';
   const mine = (progressOf(myName()) || {}).week || [];
   const items = info.week.challenges.map(c => {
     const st = mine.find(x => x.id === c.id) || { progress: 0, done: false };
-    return `<li class="${st.done ? 'done' : ''}"><span class="ch-check" aria-hidden="true">${st.done ? '✓' : ''}</span>
-      <span class="ch-text"><b>${esc(c.name)}</b><span class="ch-bar"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></span>
-      </li>`;
+    return `<li class="${st.done ? 'done' : ''}"><b>${st.done ? '✓ ' : ''}${esc(c.name)}</b><span class="ch-bar" aria-hidden="true"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></li>`;
   }).join('');
   const d = daysLeft(info.week.end);
-  return `<section class="card challenges"><div class="sec-head"><h3>This week's challenges</h3><span class="note">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></div>
-    <ul>${items}</ul><p class="note">Games sent from any club player's phone count, scored live or logged.</p></section>`;
+  return `<section class="tile ch-tile" aria-label="This week's challenges"><span class="t-k">This week's challenges</span><ul>${items}</ul><span class="t-foot">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></section>`;
 }
 
 // Tell the player when something new unlocks (checked after each refresh from the server).
