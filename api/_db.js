@@ -274,6 +274,7 @@ export function ensureSchema() {
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_by text`; // 'organizer' or the confirming player's name key
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_at timestamptz`;
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS dup_ok boolean NOT NULL DEFAULT false`; // an organizer said "these are two different games"
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rewards boolean NOT NULL DEFAULT false`; // true: the club shows the daily play streak and free points (off until an organizer turns it on)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS require_confirmation boolean NOT NULL DEFAULT false`; // true: unconfirmed games don't count toward ratings and achievements
       await q`CREATE TABLE IF NOT EXISTS game_audit (
         id bigserial PRIMARY KEY,
@@ -549,12 +550,12 @@ export async function requireClub(code, req) {
   // code still inside its overlap. `code` on the returned row is always the permanent key: use it for every query.
   const [[{ n: recent }], found] = await Promise.all([
     sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${ip} AND at > now() - interval '15 minutes'`,
-    sql`SELECT code, name, pin_hash, owner_hash, public_code, require_confirmation, public_results, pay_link, pinned_note, delete_at FROM clubs WHERE coalesce(public_code, code) = ${code}`
+    sql`SELECT code, name, pin_hash, owner_hash, public_code, require_confirmation, rewards, public_results, pay_link, pinned_note, delete_at FROM clubs WHERE coalesce(public_code, code) = ${code}`
   ]);
   if (recent >= MAX_FAILS) { await miss(); throw fail(429, 'Too many wrong club codes. Wait 15 minutes and try again.'); }
   let rows = found;
   if (!rows.length) {
-    rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, c.require_confirmation, c.public_results, c.pay_link, c.pinned_note, c.delete_at, a.expires_at AS old_code_until
+    rows = await sql`SELECT c.code, c.name, c.pin_hash, c.owner_hash, c.public_code, c.require_confirmation, c.rewards, c.public_results, c.pay_link, c.pinned_note, c.delete_at, a.expires_at AS old_code_until
       FROM club_aliases a JOIN clubs c ON c.code = a.club WHERE a.code = ${code} AND a.expires_at > now()`;
   }
   // A club whose undo window has run out is gone: remove it now, and answer as for any unknown code.
@@ -572,7 +573,7 @@ export async function requireClub(code, req) {
 }
 // openClaim: an older club with no creator on record and no PIN yet, where any member may set the first PIN.
 // `code` is the one people use now; oldCodeUntil (ms) is set when the request came in on a retired code that is about to stop working.
-export const publicClub = c => ({ code: c.public_code || c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash, requireConfirmation: !!c.require_confirmation, publicResults: !!c.public_results,
+export const publicClub = c => ({ code: c.public_code || c.code, name: c.name, hasPin: !!c.pin_hash, openClaim: !c.pin_hash && !c.owner_hash, requireConfirmation: !!c.require_confirmation, rewards: !!c.rewards, publicResults: !!c.public_results,
   ...(c.pay_link ? { payLink: c.pay_link } : {}), ...(c.pinned_note ? { note: c.pinned_note } : {}),
   ...(c.old_code_until ? { oldCodeUntil: new Date(c.old_code_until).getTime() } : {}),
   ...(c.delete_at ? { deleteAt: new Date(c.delete_at).getTime() } : {}) }); // deleteAt: the club is scheduled for deletion at that time

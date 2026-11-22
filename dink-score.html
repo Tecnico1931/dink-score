@@ -97,6 +97,18 @@ button { cursor: pointer; }
 .me-btn svg { width: 22px; height: 22px; }
 .me-btn .av-emoji { font-size: 22px; }
 .me-btn .av-icon { width: 60%; height: 60%; }
+.me-btn .rw-flame { position: absolute; right: -6px; bottom: -6px; min-width: 22px; height: 22px; padding: 0 5px 0 3px; display: inline-flex; align-items: center; gap: 1px; border-radius: 999px; background: var(--court-2); color: var(--ball); box-shadow: 0 0 0 2px var(--surface); font-size: 12px; line-height: 1; }
+.me-btn .rw-flame svg { width: 12px; height: 12px; }
+.card.rw-card { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); box-shadow: var(--lift); }
+.rw-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rw-day, .rw-bal { display: inline-flex; align-items: center; gap: 10px; }
+.rw-day svg { width: 32px; height: 32px; color: var(--ball); }
+.rw-day b, .rw-bal b { display: block; font-size: 32px; line-height: 1; }
+.rw-day small, .rw-bal small { display: block; font-size: 12px; color: rgb(255 255 255 / .92); }
+.rw-bal { text-align: right; }
+.rw-line { margin: 0; font-size: 14px; }
+.rw-fine { margin: 0; font-size: 12px; color: rgb(255 255 255 / .92); }
+.rw-hide { align-self: flex-start; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--on-court); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 /* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */
@@ -2309,6 +2321,7 @@ function youHTML(c) {
     : `<p class="note">This phone isn't linked to a player yet.</p><button type="button" class="btn btn-blue block" data-act="whoami-open">Choose my name</button>`;
   return `<h2 id="club-h" tabindex="-1">You</h2>${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
     <div class="you-list">${person}
+      ${Rewards.youRowHTML()}
       ${canNotify ? youRow('data-act="notify-open"', 'Notifications', "Alerts when you're up or a game night is coming") : ''}
       ${youRow('data-act="settings-open"', 'Display and sound', `Appearance ${esc({ auto: 'matches phone', light: 'light', dark: 'dark' }[display.theme] || 'matches phone')}, sunlight, court scores, celebration`)}
       ${club ? youRow('data-act="club-watch"', 'Apple Watch', 'Link a watch and score from your wrist') : ''}
@@ -2749,7 +2762,7 @@ function homeTiles(games) {
   const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div></div>${BALL_IMG('hero-ball', 124)}
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
-  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
+  return `${hero}${Rewards.cardHTML()}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
@@ -4937,6 +4950,7 @@ function otItems(s) {
     { id: 'events', title: 'Events and leagues', go: 'data-act="ot-events"', hint: ev ? `${plural(ev, 'event is', 'events are')} live` : 'Tournaments, round robins and leagues' },
     { id: 'pin', title: s.hasPin ? 'Organizer PIN' : 'Set an organizer PIN', go: 'data-act="pin-set-open"', hint: s.hasPin ? 'Change it, or lock this phone from the club screen' : 'Without one, anyone with the club code can delete games' },
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
+    { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
     { id: 'analytics', title: 'Attendance and busiest hours', go: 'data-act="analytics-open"', hint: 'Totals only, no player is listed' },
@@ -4960,7 +4974,7 @@ function otState(c) {
     liveEvents: evSummary.filter(e => e.status === 'live').length,
     players: clubPlayers().length,
     undoable: md ? (md.audit || []).filter(a => a.undoable && !a.undone).length : known ? otReq.undoable : 0,
-    requireConfirmation: !!club.requireConfirmation,
+    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards,
     hasPin: !!club.hasPin
   };
 }

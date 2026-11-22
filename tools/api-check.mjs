@@ -1247,6 +1247,16 @@ await step('setting: only an organizer can require confirmation; unconfirmed gam
   assert.ok(!cleared.games.find(x => x.id === 'conf-4').hold);
   ok(await cfPost(club, { action: 'set-confirmation', required: false, ownerToken: cf.owner }));
 });
+await step('rewards: off by default, organizer only, boolean only, shown in the club payload', async () => {
+  assert.equal((await cfGet()).club.rewards, false, 'a new club has rewards off');
+  assert.equal((await cfPost(club, { action: 'set-rewards', on: true })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-rewards', on: true, pin: '000000' })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-rewards', on: 'yes', ownerToken: cf.owner })).status, 400);
+  ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
+  assert.equal((await cfGet()).club.rewards, true);
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+  assert.equal((await cfGet()).club.rewards, false);
+});
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';
   assert.equal((await cfPost(club, { action: 'set-pay-link', link })).status, 403);

@@ -95,6 +95,14 @@ export default handler(async (req, res) => {
       if (!!club.require_confirmation !== body.required) await audit(sql, club.code, '', 'setting', await organizerActor(club, body.ownerToken), { requireConfirmation: !!club.require_confirmation }, { requireConfirmation: body.required });
       return send(res, 200, { ok: true, requireConfirmation: body.required });
     }
+    if (body.action === 'set-rewards') { // organizer only; off for every club until switched on, and for a quick game room
+      const club = await requireClub(cleanCode(body.code), req);
+      await requireOrganizer(club, body.pin, req, body.ownerToken);
+      if (typeof body.on !== 'boolean') throw fail(400, 'Say whether rewards are on.');
+      await sql`UPDATE clubs SET rewards = ${body.on} WHERE code = ${club.code} AND NOT quick`;
+      if (!!club.rewards !== body.on) await audit(sql, club.code, '', 'setting', await organizerActor(club, body.ownerToken), { rewards: !!club.rewards }, { rewards: body.on });
+      return send(res, 200, { ok: true, rewards: body.on });
+    }
     if (body.action === 'set-pay-link' || body.action === 'set-note') {
       const club = await requireClub(cleanCode(body.code), req);
       await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -193,7 +201,7 @@ export default handler(async (req, res) => {
         if (!fresh) throw fail(500, 'Could not create a club code.');
         // Retire the old code first, then switch: a failure in between leaves the club on its old code.
         const until = await sql`INSERT INTO club_aliases (code, club, expires_at) VALUES (${current}, ${code}, now() + ${grace + ' minutes'}::interval) ON CONFLICT (code) DO UPDATE SET expires_at = EXCLUDED.expires_at RETURNING expires_at`;
-        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code, require_confirmation, public_results, pay_link, pinned_note, delete_at`;
+        const rows = await sql`UPDATE clubs SET public_code = ${fresh} WHERE code = ${code} AND coalesce(public_code, code) = ${current} RETURNING code, name, pin_hash, owner_hash, public_code, require_confirmation, rewards, public_results, pay_link, pinned_note, delete_at`;
         if (!rows.length) throw fail(409, 'The club code was just changed by someone else. Reload and check the new code.');
         return send(res, 200, { ok: true, club: publicClub(rows[0]), oldCode: current, oldCodeUntil: new Date(until[0].expires_at).getTime() });
       }

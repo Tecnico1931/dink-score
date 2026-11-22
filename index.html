@@ -123,6 +123,18 @@ button { cursor: pointer; }
 .me-btn svg { width: 22px; height: 22px; }
 .me-btn .av-emoji { font-size: 22px; }
 .me-btn .av-icon { width: 60%; height: 60%; }
+.me-btn .rw-flame { position: absolute; right: -6px; bottom: -6px; min-width: 22px; height: 22px; padding: 0 5px 0 3px; display: inline-flex; align-items: center; gap: 1px; border-radius: 999px; background: var(--court-2); color: var(--ball); box-shadow: 0 0 0 2px var(--surface); font-size: 12px; line-height: 1; }
+.me-btn .rw-flame svg { width: 12px; height: 12px; }
+.card.rw-card { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); box-shadow: var(--lift); }
+.rw-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rw-day, .rw-bal { display: inline-flex; align-items: center; gap: 10px; }
+.rw-day svg { width: 32px; height: 32px; color: var(--ball); }
+.rw-day b, .rw-bal b { display: block; font-size: 32px; line-height: 1; }
+.rw-day small, .rw-bal small { display: block; font-size: 12px; color: rgb(255 255 255 / .92); }
+.rw-bal { text-align: right; }
+.rw-line { margin: 0; font-size: 14px; }
+.rw-fine { margin: 0; font-size: 12px; color: rgb(255 255 255 / .92); }
+.rw-hide { align-self: flex-start; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--on-court); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 /* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */
@@ -2374,6 +2386,7 @@ async function uploadLocalOnly() {
   }
 }
 async function saveGame(rec) {
+  if (typeof Rewards !== 'undefined') Rewards.played(rec); // a play day for the streak, only where the club has rewards on
   if (pickup) { pickupSave(rec); return; } // while this phone is in a pickup session, results go to the session only (never a club or the saved players)
   if (club) { queueOp({ type: 'game', game: Object.assign({}, rec, senderGuess(rec)) }); addToRoster([...rec.teams[0], ...rec.teams[1]]); return; }
   localGames = [rec, ...localGames.filter(g => g.id !== rec.id)].slice(0, 1000);
@@ -2591,7 +2604,7 @@ async function refreshClub() {
     if (data.notModified) { calmPolls++; clubState = 'idle'; updateSyncPill(); return; } // the server says nothing changed since the last answer: nothing to redo
     calmPolls = 0;
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.publicResults = !!data.club.publicResults; club.payLink = data.club.payLink || ''; club.note = data.club.note || ''; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.rewards = !!data.club.rewards; club.publicResults = !!data.club.publicResults; club.payLink = data.club.payLink || ''; club.note = data.club.note || ''; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
     clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], nights: data.nights || [], progress: data.progress || null, ratings: data.ratings || null, dupes: data.dupes || [], at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
@@ -2630,9 +2643,9 @@ function syncPillHTML() {
 // Round button in the top right: your picture, opening the "You" sheet (profile, notifications, display, account, DUPR, watch, data).
 function profileButtonHTML() {
   const name = club ? myName() : null;
-  const label = name ? `You: ${esc(name)}` : 'You';
+  const label = (name ? `You: ${esc(name)}` : 'You') + (typeof Rewards !== 'undefined' ? Rewards.label() : '');
   const inner = name ? avatarInner(name) : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.3-3.3 4-5 7-5s5.7 1.7 7 5"/></svg>`;
-  return `<button class="me-btn" data-act="me-open" aria-label="${label}">${inner}</button>`;
+  return `<button class="me-btn" data-act="me-open" aria-label="${label}">${inner}${typeof Rewards !== 'undefined' ? Rewards.flameHTML() : ''}</button>`;
 }
 function updateSyncPill() { const el = document.querySelector('header.top .sync'); if (el) el.outerHTML = syncPillHTML(); }
 /*SHARELINK-START*/
@@ -3345,6 +3358,76 @@ function inboxGo(go) {
   else if (go.startsWith('event:')) { tab = 'events'; store.set('pb.tab', tab); render(); evOpenList(); evShow(go.slice(6)); }
   else render();
 }
+/* ---------- rewards: a daily play streak and free Dinks (L16 slice 1; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
+// Play money only: no purchase path, nothing is sold, nothing converts to anything. Off until an organizer switches it on for the club
+// (clubs.rewards via club.js set-rewards); each player can hide it all on their own phone. The balance and streak live on this phone
+// (localStorage, never sent anywhere). It never reads or changes a score, a rating, a rank or a pairing.
+const RW_BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
+const RW_DAY_PAY = 1; // Dinks for the first game of each new day
+const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
+const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {};
+  return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '' }; };
+const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
+// The streak as it stands on `today`: a run that missed yesterday and today is broken (0). Playing today or yesterday keeps it.
+const rwStreak = (s, today) => (s.last && rwDayNum(today) - rwDayNum(s.last) <= 1 ? s.streak : 0);
+// The next bonus ahead of `day`: { day, bonus, in } (days to go).
+const rwNext = day => { let d = day + 1; while (!rwBonusFor(d)) d++; return { day: d, bonus: rwBonusFor(d), in: d - day }; };
+// A game was played on day `key`: the first game of a day moves the streak on (a gap of more than a day starts it again at 1) and pays.
+function rwPlay(state, key) {
+  const s = rwClean(state);
+  if (s.last && rwDayNum(key) <= rwDayNum(s.last)) return { state: s, fresh: false, gained: 0, bonus: 0, day: rwStreak(s, key) }; // same day, or a clock set back: nothing
+  const day = s.last && rwDayNum(key) - rwDayNum(s.last) === 1 ? s.streak + 1 : 1;
+  const bonus = rwBonusFor(day);
+  return { state: { streak: day, best: Math.max(s.best, day), dinks: s.dinks + RW_DAY_PAY + bonus, last: key }, fresh: true, gained: RW_DAY_PAY + bonus, bonus, day };
+}
+
+let rwState = rwClean(store.get('pb.rewards', {}));
+const rwHidden = () => !!store.get('pb.rewardsHide', false);
+const rwClubOn = () => !!(club && club.rewards);
+const rwShown = () => rwClubOn() && !rwHidden();
+const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.5 2.5c.4 3-1.3 4.6-2.9 6.4C8 10.7 6.5 12.6 6.5 15.2a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.2-5.2-.2 1.2-.7 2-1.5 2.5.5-3.5-.2-7.3-1.3-10z"/></svg>';
+
+const Rewards = {
+  // The first saved game of a day on this phone, while the club has rewards on.
+  played(rec) {
+    if (!rwClubOn()) return;
+    const r = rwPlay(rwState, rwDayKey(Date.now()));
+    if (!r.fresh) return;
+    rwState = r.state; store.set('pb.rewards', rwState);
+    if (!rwHidden()) announce(`Day ${r.day} of your streak. ${r.gained} ${r.gained === 1 ? 'Dink' : 'Dinks'} added${r.bonus ? `, including a ${r.bonus} Dink bonus for reaching day ${r.day}` : ''}.`);
+  },
+  // The small flame on the avatar: the streak when it is 2 or more days.
+  flameHTML() {
+    const n = rwShown() ? rwStreak(rwState, rwDayKey(Date.now())) : 0;
+    return n >= 2 ? `<span class="rw-flame" aria-hidden="true">${rwFlame}<b>${n}</b></span>` : '';
+  },
+  label() { const n = rwShown() ? rwStreak(rwState, rwDayKey(Date.now())) : 0; return n >= 2 ? `. ${n} day play streak` : ''; },
+  // "Your Dink" card on the Play tab.
+  cardHTML() {
+    if (!rwShown()) return '';
+    const today = rwDayKey(Date.now()), day = rwStreak(rwState, today), done = rwState.last === today, nx = rwNext(day);
+    const line = done ? `Played today. ${nx.in === 1 ? 'Play tomorrow' : `Play ${nx.in} days in a row`} for +${nx.bonus} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
+    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${rwState.dinks}</b><small>Dinks</small></span></div><p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought or cashed out, and it never changes a game or a rating.</p><button type="button" class="rw-hide" data-rw="hide">Hide this</button></section>`;
+  },
+  // The "You" sheet row: the one switch on this phone (shown only where the club has rewards on).
+  youRowHTML() {
+    if (!rwClubOn()) return '';
+    return `<button type="button" class="you-row" data-rw="${rwHidden() ? 'show' : 'hide'}"><span><b>${rwHidden() ? 'Show my daily streak' : 'Hide my daily streak'}</b><small>${rwHidden() ? 'Your Dink card and flame come back' : 'Hides the streak, the flame and Dinks on this phone'}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+  }
+};
+
+async function rwSetClub(on) {
+  try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-rewards', on }, adminCreds())) }); await refreshClub(); renderClub(); render(); announce(on ? 'Rewards are on for this club.' : 'Rewards are off for this club.'); }
+  catch (err) { showToast(err.message, false); }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-rw]');
+  if (!b) return;
+  const a = b.dataset.rw;
+  if (a === 'club') { rwSetClub(!rwClubOn()); return; }
+  if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); render(); if (typeof clubSheet !== 'undefined' && clubSheet) renderClub(); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
+});
 /* ---------- opt-in "you're up" notifications (api/_push.js) ---------- */
 const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const b64uBytes = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
@@ -3651,6 +3734,7 @@ function youHTML(c) {
     : `<p class="note">This phone isn't linked to a player yet.</p><button type="button" class="btn btn-blue block" data-act="whoami-open">Choose my name</button>`;
   return `<h2 id="club-h" tabindex="-1">You</h2>${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
     <div class="you-list">${person}
+      ${Rewards.youRowHTML()}
       ${canNotify ? youRow('data-act="notify-open"', 'Notifications', "Alerts when you're up or a game night is coming") : ''}
       ${youRow('data-act="settings-open"', 'Display and sound', `Appearance ${esc({ auto: 'matches phone', light: 'light', dark: 'dark' }[display.theme] || 'matches phone')}, sunlight, court scores, celebration`)}
       ${club ? youRow('data-act="club-watch"', 'Apple Watch', 'Link a watch and score from your wrist') : ''}
@@ -4091,7 +4175,7 @@ function homeTiles(games) {
   const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div></div>${BALL_IMG('hero-ball', 124)}
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
-  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
+  return `${hero}${Rewards.cardHTML()}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
@@ -6279,6 +6363,7 @@ function otItems(s) {
     { id: 'events', title: 'Events and leagues', go: 'data-act="ot-events"', hint: ev ? `${plural(ev, 'event is', 'events are')} live` : 'Tournaments, round robins and leagues' },
     { id: 'pin', title: s.hasPin ? 'Organizer PIN' : 'Set an organizer PIN', go: 'data-act="pin-set-open"', hint: s.hasPin ? 'Change it, or lock this phone from the club screen' : 'Without one, anyone with the club code can delete games' },
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
+    { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
     { id: 'analytics', title: 'Attendance and busiest hours', go: 'data-act="analytics-open"', hint: 'Totals only, no player is listed' },
@@ -6302,7 +6387,7 @@ function otState(c) {
     liveEvents: evSummary.filter(e => e.status === 'live').length,
     players: clubPlayers().length,
     undoable: md ? (md.audit || []).filter(a => a.undoable && !a.undone).length : known ? otReq.undoable : 0,
-    requireConfirmation: !!club.requireConfirmation,
+    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards,
     hasPin: !!club.hasPin
   };
 }

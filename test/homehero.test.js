@@ -14,7 +14,7 @@ test('the hero card greets by time of day, even with no linked name, and shows t
   assert.match(homeTiles, /club \? esc\(club\.name\) : 'Just this phone'/);
   assert.match(homeTiles, /game\$\{total === 1 \? '' : 's'\} this week/);
   assert.match(homeTiles, /<div class="week" role="img" aria-label="Games per day/);
-  assert.ok(homeTiles.indexOf('${hero}<section class="tiles">') > 0, 'the hero card sits above the tiles');
+  assert.ok(/\$\{hero\}(\$\{Rewards\.cardHTML\(\)\})?<section class="tiles">/.test(homeTiles), 'the hero card sits above the tiles');
   assert.ok(!/class="tile wide"[^`]*This week/.test(homeTiles), 'the old weekly tile is gone');
 });
 

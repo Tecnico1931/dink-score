@@ -7,11 +7,12 @@ import path from 'node:path';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 
-test('Dinks and the shop are gone: no shop or Dinks API files, routes or app copy', () => {
+// Dinks are back only as the free daily-streak currency of src/app/economy.js (L16 slice 1, rules in DESIGN.md "Rewards"); that module is the one place the page may name them.
+test('the shop is gone and Dinks live only in the rewards module: no shop or Dinks API files, routes or other app copy', () => {
   for (const f of ['api/shop.js', 'api/_dinks.js']) assert.ok(!fs.existsSync(path.join(root, f)), f);
   assert.ok(!/api\/shop|dinks/i.test(read('vercel.json').replace(/dinkscore/gi, '')));
   for (const f of ['dink-score.html', 'index.html']) {
-    const t = read(f).replace(/dinkscore/gi, '');
+    const t = read(f).replace(read('src/app/economy.js'), '').replace(/dinkscore/gi, '');
     assert.ok(!/\bDinks?\b(?! Rating| Score)/.test(t.replace(/Dink Rating|Dink Score/g, '')), f + ' mentions Dinks');
     assert.ok(!/data-tab="shop"|api\('shop'|spin-wheel|equippedFor/.test(t), f + ' still has shop code');
   }
