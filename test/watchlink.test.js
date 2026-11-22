@@ -128,6 +128,11 @@ test('the page keeps the address-fragment handler; with no club it offers one ga
   assert.match(page, /watch: watchIds\(\)/, 'the phone names its linked watches when it publishes');
 });
 
+test('the phone tells the wearer where the watch button is, and the watch keeps it on the first screen', () => {
+  assert.match(read('src/app/watch-link.js'), /green button, <b>Enter a game code<\/b>/);
+  const v = read('watch/DinkWatch/Views/LinkView.swift');
+  assert.ok(v.indexOf('Enter a game code') < v.indexOf('Text(p.confirm4)'), 'the button comes before the numbers');
+});
 test('a game link is #game= and 32 hex, and a typed game code is 6 base32 characters', () => {
   assert.equal(gameFragment(`#game=${PAIR}`), PAIR);
   assert.equal(gameFragment(`#game=${PAIR.toUpperCase()}`), PAIR);

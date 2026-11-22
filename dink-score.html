@@ -5517,7 +5517,7 @@ function watchOfferHTML(c) {
   if (o) { try { qr = ShareLink.qrSvg(qrcode, location.origin + '/#game=' + o.id); } catch {} }
   return `<h2 id="club-h">Link a watch to this game</h2>
   ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
-  ${o ? `<p>On the watch, open Dink Score and choose <b>Enter a game code</b>. Type the code and the 4 numbers. The watch scores this game only.</p>
+  ${o ? `<p>On the watch, open Dink Score. Under the square code is a green button, <b>Enter a game code</b>: tap it, then type the code and the 4 numbers. The watch scores this game only.</p>
   <div class="code-card share-card"><span class="lab">Game code</span><span class="code" aria-label="${esc(o.short.split('').join(' '))}">${esc(spaced)}</span>
     <span class="lab">Numbers to type</span><span class="code" aria-label="${esc(o.confirm4.split('').join(' '))}">${esc(o.confirm4)}</span>
     <p class="note">Good for one watch and ${Number(o.expiresInMinutes) || 10} minutes. It stops working when this game ends.</p></div>
