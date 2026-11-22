@@ -24,7 +24,7 @@ import { ratingMap } from './_seeding.js';
 import { recordGame, correctGame, addToRoster } from './_gamesave.js';
 import { replyTagged } from './_sync.js';
 import { newShareToken } from './_share.js';
-import { notify, vapidFromEnv, leagueWeekMessages, leagueMovedMessages } from './_push.js';
+import { notify, vapidFromEnv, leagueWeekMessages, leagueMovedMessages, leagueResultMessages } from './_push.js';
 import * as L from './_league.js';
 import * as W from './_leagueweeks.js';
 
@@ -82,6 +82,7 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
       return r;
     }));
     await recordGame(sql, club, code, league, out.game, body, now, body.rallyLog);
+    if (out.changed && out.match && out.match.teams) await notify(sql, code, leagueResultMessages(league, out.match, actor.name)); // the match's players: result is in, no score
     if (out.opened) await notify(sql, code, leagueWeekMessages(league, out.opened));
     return { body: { league: L.view(league) } };
   }

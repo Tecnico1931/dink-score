@@ -239,7 +239,8 @@ async function gnFormSave() {
     const payload = Object.assign({
       code: club.code, action,
       ...(clubSheet.editing ? { id: d.id } : {}),
-      night: { title, startsAt, location: String(d.location || '').trim(), note: String(d.note || '').trim(), cap }
+      night: { title, startsAt, location: String(d.location || '').trim(), note: String(d.note || '').trim(), cap },
+      ...(clubSheet.editing ? {} : { tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })() })
     }, adminCreds());
     const res = await api('club', { method: 'POST', body: JSON.stringify(payload) });
     const saved = res.night;

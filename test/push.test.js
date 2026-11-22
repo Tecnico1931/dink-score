@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createECDH, createDecipheriv, createPublicKey, verify, hkdfSync, randomBytes } from 'node:crypto';
-import { vapidFromEnv, validEndpoint, cleanSubscription, encrypt, vapidHeader, sendWebPush, setSender, notify, roundMessages, courtFreeMessages } from '../api/_push.js';
+import { vapidFromEnv, validEndpoint, cleanSubscription, encrypt, vapidHeader, sendWebPush, setSender, notify, roundMessages, courtFreeMessages, cleanCategories, leagueResultMessages, leagueWeekMessages } from '../api/_push.js';
+import { nightInviteMessages } from '../api/_gamenights.js';
 import * as C from '../api/_court.js';
 
 const b64u = b => Buffer.from(b).toString('base64url');
@@ -79,7 +80,7 @@ test('roundMessages: each player in a match hears their own court, with a name a
   const round = { n: 2, matches: [{ court: 1, teams: [['Ana', 'Ben'], ['Cy', 'Di']] }, { court: 2, teams: [['Eve', 'Flo'], ['Gus', 'Hal']] }], byes: ['Ivy'] };
   const m = roundMessages(event, round);
   assert.equal(m.size, 8); assert.ok(!m.has('Ivy'));
-  assert.deepEqual(m.get('Eve'), { title: 'Friday mixer: round 2', body: "Eve, you're up on court 2.", tag: 'round-e1' });
+  assert.deepEqual(m.get('Eve'), { title: 'Friday mixer: round 2', body: "Eve, you're up on court 2.", tag: 'round-e1', category: 'events' });
   assert.match(m.get('Ana').body, /court 1\./);
 });
 
@@ -119,6 +120,43 @@ test('notify: sends with the mocked sender, drops dead subscriptions on 404/410,
     assert.ok(sql.log.every(l => l.v.includes('CLUBKEY') || !/push_subs/.test(l.text) || true));
     assert.ok(/s\.club = \?/.test(sql.log[0].text) && /claim_hash IS NOT NULL/.test(sql.log[0].text) && /blocked_at IS NULL/.test(sql.log[0].text)); // members of this club only
   } finally { setSender(null); }
+});
+
+test('notify: a device only gets the categories it has on; null means all, no category is never filtered, the category never leaves the server', async () => {
+  const v = vapidKeys(), row = (n, cats) => ({ ...subRow(n, 1), categories: cats });
+  const sql = fakeSql([row('Ana', null), row('Ben', ['league']), row('Cy', []), row('Di', ['nights', 'events'])]), sent = [];
+  setSender(async (sub, message) => { sent.push({ to: sub.endpoint.split('/').pop(), message }); return 201; });
+  const to = async cat => { sent.length = 0; await notify(sql, 'K', new Map(['Ana', 'Ben', 'Cy', 'Di'].map(n => [n, { title: 'T', body: n, tag: 't', ...(cat ? { category: cat } : {}) }])), v); return sent.map(s => s.to).sort(); };
+  try {
+    assert.deepEqual(await to('nights'), ['Ana1', 'Di1']);
+    assert.deepEqual(await to('league'), ['Ana1', 'Ben1']);
+    assert.deepEqual(await to('events'), ['Ana1', 'Di1']);
+    assert.deepEqual(await to('confirm'), ['Ana1']);
+    assert.deepEqual(await to(null), ['Ana1', 'Ben1', 'Cy1', 'Di1']);
+    assert.ok(sent.every(s => !('category' in s.message)), 'category is not part of the payload');
+  } finally { setSender(null); }
+});
+
+test('cleanCategories: only known categories, in a fixed order; anything else is refused', () => {
+  assert.deepEqual(cleanCategories(['league', 'nights', 'bogus', 'league']), ['nights', 'league']);
+  assert.deepEqual(cleanCategories([]), []);
+  for (const bad of [undefined, null, 'nights', { 0: 'nights' }]) assert.throws(() => cleanCategories(bad), e => e.status === 400);
+});
+
+test('every message builder names its category; league result and night invite carry no score, club or code', () => {
+  const league = { id: 'l1', name: 'Tue ladder' }, m = { id: 'm1', teams: [['Ana', 'Ben'], ['Cy', 'Di']], score: [11, 4] };
+  const r = leagueResultMessages(league, m, 'Ana');
+  assert.deepEqual([...r.keys()].sort(), ['Ben', 'Cy', 'Di'], 'the one who entered it is not told');
+  for (const x of r.values()) { assert.equal(x.category, 'league'); assert.ok(!/11|4\b|won|beat/.test(x.body)); }
+  assert.equal(leagueResultMessages(league, m, null).size, 4);
+  const night = { id: 'gn-1', title: 'Thursday social', startsAt: Date.UTC(2030, 5, 6, 18), location: 'Court 3', cap: 8 };
+  const inv = nightInviteMessages(night, [{ name: 'Ana', name_key: 'ana' }, { name: 'Ben', name_key: 'ben' }], { tz: 'UTC', now: Date.UTC(2030, 5, 1) });
+  assert.equal(inv.size, 2);
+  for (const x of inv.values()) { assert.equal(x.category, 'nights'); assert.equal(x.title, 'New game night: Thursday social'); assert.match(x.body, /^(Ana|Ben), are you in for Thu, Jun 6 at 6:00 PM \(Court 3\)\?$/); }
+  const ev = { id: 'e1', name: 'Mixer' }, round = { n: 1, matches: [{ court: 1, teams: [['Ana'], ['Ben']] }] };
+  assert.ok([...roundMessages(ev, round).values()].every(x => x.category === 'events'));
+  const wk = { title: 'Week 1', matches: [{ id: 'm1', teams: [['Ana'], ['Ben']], status: 'pending' }] };
+  assert.ok([...leagueWeekMessages({ id: 'l1', name: 'L', weeks: [wk], entries: [], divisions: [] }, wk).values()].every(x => x.category === 'league'));
 });
 
 test('notify: does nothing, and never calls the sender, when VAPID is not set or nobody is named', async () => {
