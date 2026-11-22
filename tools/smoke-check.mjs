@@ -133,10 +133,13 @@ try {
   await fresh.getByText('Preview Club').first().waitFor();
   console.log('ok  joining a club with its code lands in the club, with the saved players to pick from');
 
-  await fresh.locator('#tabs [data-tab="events"]').click();
-  await fresh.locator(`#events [data-ev="open"][data-id="${made.event.id}"]`).click();
+  await fresh.locator('#tabs [data-tab="events"]').click(); // the Events tab is a page: the event is a card with Bracket and TV buttons
+  await fresh.locator(`#app [data-ev="tab-open"][data-id="${made.event.id}"]`).click();
   await fresh.locator('#events').getByText('Semifinals').first().waitFor();
   console.log('ok  the event opens in the app with its bracket');
+  await fresh.locator('#events .ev-back').click();
+  await fresh.locator('#app [data-ev="tab-tv"]').waitFor({ state: 'detached' }); // not an organizer here: no TV button
+  console.log('ok  closing the event returns to the Events tab');
 
   const pub = await (await browser.newContext({ viewport: { width: 420, height: 900 } })).newPage();
   pub.on('pageerror', e => problems.push('page error: ' + e.message));

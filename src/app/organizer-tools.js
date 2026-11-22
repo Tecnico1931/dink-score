@@ -106,7 +106,6 @@ function otHandle(ds) {
   if (ds.act === 'ot-open') { clubSheet = { view: 'orgtools' }; renderClub(); loadMembers(); return true; }
   if (ds.act === 'ot-events' || ds.act === 'ot-record') {
     tab = ds.act === 'ot-events' ? 'events' : 'history'; store.set('pb.tab', tab); clubSheet = null; render(); renderClub(); try { document.body.scrollTo(0, 0); } catch {}
-    if (tab === 'events') evOpenList();
     return true;
   }
   if (ds.otConfirm) { confirmGame(ds.otConfirm).then(() => renderClub()); return true; }
