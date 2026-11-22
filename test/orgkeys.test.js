@@ -8,6 +8,7 @@ import { newDeviceKey, parseDeviceKey, secretMatches, keyPart, MAX_DEVICES } fro
 const page = fs.readFileSync(new URL('../dink-score.html', import.meta.url), 'utf8');
 const mod = fs.readFileSync(new URL('../src/app/organizer-devices.js', import.meta.url), 'utf8');
 const sync = fs.readFileSync(new URL('../src/app/club-sync.js', import.meta.url), 'utf8');
+const pickup = fs.readFileSync(new URL('../src/app/pickup-sessions.js', import.meta.url), 'utf8');
 
 test('a phone key is 80 random hex characters: a 16-character id and a 256-bit secret, and only a hash of the secret is kept', () => {
   const seen = new Set();
@@ -88,7 +89,7 @@ test('the page wires the screen: a button for organizers, unlock and PIN change 
   assert.match(page, /data-od="open"/);
   assert.match(page, /ds\.od\) \{ if \(ds\.od === 'open'\) odOpen\(\)/);
   assert.match(page, /c\.view === 'devices' && club && odCanOrg\(\)/);
-  assert.match(page, /action: 'verify-pin', pin, device: true/);
+  assert.match(pickup, /action: 'verify-pin', pin, device: true/);
   assert.match(page, /action: 'set-pin'[^\n]*device: true/);
   assert.match(page, /if \(a === 'pin-lock'\) \{ odLockThis\(\); return; \}/);
   assert.match(sync, /pin: \/\^\\d\{4,8\}\$\/\.test\(pins\[c\.code\] \|\| ''\)/, 'only a raw PIN is packed for another phone');
