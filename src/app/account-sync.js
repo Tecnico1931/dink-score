@@ -37,7 +37,6 @@ async function uploadLocalOnly() {
   }
 }
 async function saveGame(rec) {
-  if (typeof Rewards !== 'undefined') Rewards.played(rec); // a play day for the streak, only where the club has rewards on
   if (pickup) { pickupSave(rec); return; } // while this phone is in a pickup session, results go to the session only (never a club or the saved players)
   if (club) { queueOp({ type: 'game', game: Object.assign({}, rec, senderGuess(rec)) }); addToRoster([...rec.teams[0], ...rec.teams[1]]); return; }
   localGames = [rec, ...localGames.filter(g => g.id !== rec.id)].slice(0, 1000);

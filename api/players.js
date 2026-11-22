@@ -6,6 +6,8 @@
 //   paddles-get {name, playerToken}                  -> your saved paddles: {paddles: {list: [{id, name, photo?}], used: {gameId: paddleId}}}. Only that
 //                                                       name's phone; never in the club payload or anyone else's view (see _paddles.js)
 //   paddles-set {name, playerToken, paddles}         -> replaces your paddle list and the paddle you used in each game
+//   rewards-get|rewards-sync {name, playerToken, tz?} -> your rewards balance and streak from the append-only ledger (rewards-sync first adds what the
+//                                                       games you saved earned; see _economy.js). Only that name's phone; only where the club has rewards on
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
 //   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events, leagues and ladders you are in
@@ -26,6 +28,7 @@ import { APPROVAL_ACTIONS, approvalAction } from './_approvals.js';
 import { undoKind, undoConflict } from './_undo.js';
 import { dropRatings } from './_rating_store.js';
 import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
+import { rewardsFor, loadLedger } from './_economysync.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -149,6 +152,13 @@ export default handler(async (req, res) => {
     return send(res, 200, { ok: true, avatar });
   }
 
+  if (body.action === 'rewards-get' || body.action === 'rewards-sync') {
+    // Off means no reward calls at all for that club. The balance is the server's ledger; a phone can only ask for it, never set it.
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
+    return send(res, 200, await rewardsFor(sql, code, player.name, { tz: body.tz, sync: body.action === 'rewards-sync' }));
+  }
+
   if (body.action === 'paddles-get' || body.action === 'paddles-set') {
     // Your paddles are yours alone: only the phone linked to this name reads or writes them, an organizer cannot.
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
@@ -201,6 +211,7 @@ export default handler(async (req, res) => {
     ]);
     const mine = games.filter(r => ((r.data && r.data.teams) || []).flat().some(n => nameKey(n) === k));
     if (body.action === 'export') {
+      const ledger = await loadLedger(sql, code, k);
       return send(res, 200, {
         format: 'dink-score-player-export', version: 1, exportedAt: new Date().toISOString(), club: { name: club.name },
         player: row ? { name: row.name, linkedToPhone: true, avatar: row.avatar || null, paddles: row.paddles || null, duprSelfReported: duprFrom(row.dupr_rating),
@@ -209,6 +220,7 @@ export default handler(async (req, res) => {
         reactions: myReactions.map(r => ({ gameId: r.game_id, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
         events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status })),
         leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status })),
+        rewardsLedger: ledger.map(e => ({ id: e.id, kind: e.kind, amount: e.amount, reason: e.reason, day: e.day, streak: e.streak, at: new Date(e.at).toISOString() })),
         gameNights: nightRsvps.map(r => ({ id: r.id, title: r.title, startsAt: Number(r.starts_at), location: r.location || '', nightStatus: r.night_status, rsvp: r.status, updatedAt: new Date(r.updated_at).toISOString() }))
       });
     }
@@ -263,6 +275,7 @@ export default handler(async (req, res) => {
       ops.push(sql`UPDATE game_nights SET updated_at = now() WHERE club = ${code} AND id IN (SELECT jsonb_array_elements_text(${JSON.stringify(nightIds)}::jsonb))`);
     }
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
+    ops.push(sql`DELETE FROM reward_ledger WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM push_subs WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`UPDATE organizer_devices SET name_key = NULL WHERE club = ${code} AND name_key = ${k}`); // the unlocked phone stays unlocked, just unnamed
     ops.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key = ${k}`);

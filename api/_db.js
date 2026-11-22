@@ -274,6 +274,20 @@ export function ensureSchema() {
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_by text`; // 'organizer' or the confirming player's name key
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS confirmed_at timestamptz`;
       await q`ALTER TABLE games ADD COLUMN IF NOT EXISTS dup_ok boolean NOT NULL DEFAULT false`; // an organizer said "these are two different games"
+      // Rewards ledger (_economy.js, _economysync.js): one append-only row per earn or spend, per player per club. name_key only (no display name), so
+      // a rename/merge moves the rows (_rename.js), anonymise deletes them (players.js) and the club's deletion cascades. Private to the player's phone.
+      await q`CREATE TABLE IF NOT EXISTS reward_ledger (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        name_key text NOT NULL,
+        id text NOT NULL,
+        kind text NOT NULL CHECK (kind IN ('earn', 'spend')),
+        amount int NOT NULL CHECK ((kind = 'earn' AND amount > 0) OR (kind = 'spend' AND amount < 0)),
+        reason text NOT NULL,
+        day text,
+        streak int,
+        at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, name_key, id)
+      )`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rewards boolean NOT NULL DEFAULT false`; // true: the club shows the daily play streak and free points (off until an organizer turns it on)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS require_confirmation boolean NOT NULL DEFAULT false`; // true: unconfirmed games don't count toward ratings and achievements
       await q`CREATE TABLE IF NOT EXISTS game_audit (

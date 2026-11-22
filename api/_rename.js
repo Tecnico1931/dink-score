@@ -114,6 +114,11 @@ export function renameWrites(sql, code, plan, extra = []) {
   writes.push(sql`UPDATE organizer_devices SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`); // the player an unlocked organizer phone is linked to
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
+  if (fromKey !== toKey) {
+    // The rewards ledger follows the player. A merge keeps every row of both names: a row whose id the kept name already has gets a prefixed id.
+    writes.push(sql`UPDATE reward_ledger r SET name_key = ${toKey} WHERE r.club = ${code} AND r.name_key = ${fromKey} AND NOT EXISTS (SELECT 1 FROM reward_ledger t WHERE t.club = r.club AND t.name_key = ${toKey} AND t.id = r.id)`);
+    writes.push(sql`UPDATE reward_ledger SET name_key = ${toKey}, id = ${'m:' + fromKey + ':'} || id WHERE club = ${code} AND name_key = ${fromKey}`);
+  }
   writes.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key IN (${fromKey}, ${toKey})`); // short-lived: the asker just asks again for the new name
   writes.push(...dropRatings(sql, code)); // stored ratings carry names: rebuilt from the renamed games on the next read
   return writes.concat(extra);

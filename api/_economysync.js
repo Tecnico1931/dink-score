@@ -1,0 +1,34 @@
+// Rewards sync (slice 2): reads a player's saved-game times, appends their new earn rows to reward_ledger, returns the balance. Not a
+// route (files starting with "_"); players.js calls it for the rewards-sync and rewards-get actions. It reads only a game's players,
+// who sent it and when the server got it, never a score or a rating.
+import { nameKey } from './_names.js';
+import { likeFor } from './_privacy.js';
+import { deriveEarnings, summary, validEntry, cleanTz, LOOKBACK_DAYS, RECENT } from './_economy.js';
+
+export async function loadLedger(sql, code, key) {
+  return (await sql`SELECT id, kind, amount, reason, day, streak, at FROM reward_ledger WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, id ASC`)
+    .map(r => ({ id: r.id, kind: r.kind, amount: Number(r.amount), reason: r.reason, day: r.day, streak: r.streak == null ? null : Number(r.streak), at: r.at }));
+}
+
+const view = (ledger, tz, now, gained = 0) => ({ ...summary(ledger, tz, now), gained, entries: ledger.slice(-RECENT).reverse().map(({ id, kind, amount, reason, day, streak }) => ({ id, kind, amount, reason, day, streak })) });
+
+// sync: true appends what the saved games earn since the last paid day; false only reads.
+export async function rewardsFor(sql, code, name, { tz, sync, now = Date.now() }) {
+  const key = nameKey(name), zone = cleanTz(tz);
+  let ledger = await loadLedger(sql, code, key);
+  if (!sync) return view(ledger, zone, now);
+  const since = now - (LOOKBACK_DAYS + 2) * 864e5;
+  const rows = await sql`SELECT data->'teams' AS teams, data->>'receivedAt' AS r FROM games
+    WHERE club = ${code} AND deleted_at IS NULL AND data->>'scoredBy' = ${key} AND (data->>'receivedAt')::bigint >= ${since}
+      AND lower(data->>'teams') LIKE ${likeFor(key)} ORDER BY ended_at DESC LIMIT 2000`;
+  const mine = rows.filter(g => (g.teams || []).flat().some(n => nameKey(n) === key)).map(g => Number(g.r));
+  const fresh = deriveEarnings({ ledger, receivedAt: mine, tz: zone, now }).filter(validEntry);
+  let gained = 0;
+  for (const e of fresh) {
+    const ins = await sql`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak)
+      VALUES (${code}, ${key}, ${e.id}, ${e.kind}, ${e.amount}, ${e.reason}, ${e.day}, ${e.streak}) ON CONFLICT DO NOTHING RETURNING id`;
+    if (ins.length) gained += e.amount;
+  }
+  if (fresh.length) ledger = await loadLedger(sql, code, key);
+  return view(ledger, zone, now, gained);
+}

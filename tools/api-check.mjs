@@ -1257,6 +1257,57 @@ await step('rewards: off by default, organizer only, boolean only, shown in the 
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await cfGet()).club.rewards, false);
 });
+await step('rewards ledger: server-derived from the games a linked phone saved, append-only, idempotent, off means no calls, follows a rename, gone on anonymise', async () => {
+  const sync = (name, extra = {}) => cfPost(playersApi, { action: 'rewards-sync', name, playerToken: cfTok[name], tz: 0, ...extra });
+  const days = async (id, back) => { await pg.query(`UPDATE games SET data = jsonb_set(data, '{receivedAt}', to_jsonb($1::bigint)) WHERE club = $2 AND id = $3`, [Date.now() - back * 864e5, cf.code, id]); };
+  const rows = async name => (await pg.query(`SELECT id, kind, amount, streak FROM reward_ledger WHERE club = $1 AND name_key = $2 ORDER BY day`, [cf.code, name.toLowerCase()])).rows;
+  assert.equal((await sync('Ann')).status, 403, 'rewards off for the club: no reward calls');
+  ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
+  for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) assert.equal((await sync('Ann', bad)).status, 403);
+  // Ann saved conf-1 from her own phone today: 1 Dink, day 1. Saying more in the request changes nothing, and a replay adds nothing.
+  let r = ok(await sync('Ann', { dinks: 999, streak: 50, amount: 500, gained: 99 }));
+  assert.deepEqual([r.dinks, r.streak, r.gained], [1, 1, 1]);
+  r = ok(await sync('Ann')); assert.deepEqual([r.dinks, r.gained, r.entries.length], [1, 0, 1]);
+  assert.deepEqual(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Ann', playerToken: cfTok.Ann })).dinks, 1);
+  // A game the organizer's phone saved for Eve is not Eve's own, and Eve saved none: nothing earned.
+  ok(await cfPost(games, { games: [cfGame('conf-eve', { teams: [['Eve', 'Dee'], ['Cat', 'Bo']] })], ownerToken: cf.owner }));
+  assert.equal(ok(await sync('Eve')).dinks, 0);
+  // Bo saves a game on each of 3 days (the server's own arrival time, moved here by hand): a 3-day streak = 1 + 1 + (1 + 2).
+  for (const [id, back] of [['bo-1', 2], ['bo-2', 1], ['bo-3', 0]]) { ok(await cfPost(games, { games: [cfGame(id, { score: [11, back + 1] })], playerName: 'Bo', playerToken: cfTok.Bo })); await days(id, back); }
+  r = ok(await sync('Bo')); assert.deepEqual([r.dinks, r.streak, r.best, r.gained], [5, 3, 3, 5]);
+  assert.deepEqual((await rows('Bo')).map(x => [x.kind, x.amount, x.streak]), [['earn', 1, 1], ['earn', 1, 2], ['earn', 3, 3]]);
+  // A game that arrives "in the past" (clock set back, or a backdated log) lands before the last paid day and adds nothing; older than 14 days too.
+  ok(await cfPost(games, { games: [cfGame('bo-4', { logged: true, score: [11, 8], endedAt: now - 40 * 864e5, startedAt: now - 40 * 864e5 }), cfGame('bo-5', { score: [11, 9] })], playerName: 'Bo', playerToken: cfTok.Bo }));
+  await days('bo-4', 40); await days('bo-5', 5);
+  r = ok(await sync('Bo')); assert.deepEqual([r.dinks, r.gained], [5, 0]);
+  // Append-only: a deleted game does not take earned Dinks back, and the table refuses a bad row.
+  ok(await call(games, 'DELETE', { query: `?code=${cf.code}&id=bo-3`, headers: { 'x-club-owner': cf.owner } }));
+  assert.equal(ok(await sync('Bo')).dinks, 5);
+  await assert.rejects(() => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'bo', 'bad-1', 'earn', -3, 'x')`, [cf.code]));
+  // Nothing of it reaches the club payload or another player's view.
+  assert.ok(!/reward_ledger|day:20|rewardsLedger/.test(JSON.stringify(await cfGet())));
+  // New players for the destructive parts, so later steps keep their cast. Each saves a game from their own phone today and syncs.
+  const fresh = async (name, score) => {
+    cfTok[name] = ok(await cfPost(playersApi, { action: 'claim', name, ownerToken: cf.owner })).playerToken;
+    ok(await cfPost(games, { games: [cfGame('rw-' + name.toLowerCase(), { teams: [[name, 'Dee'], ['Cat', 'Eve']], score })], playerName: name, playerToken: cfTok[name] }));
+    assert.equal(ok(await sync(name)).dinks, 1);
+  };
+  await fresh('Rex', [11, 3]); await fresh('Fay', [11, 4]); await fresh('Gus', [11, 5]);
+  // A rename moves the ledger to the new name (the phone keeps its link); a merge keeps every row of both, even where the day id matched.
+  ok(await cfPost(playersApi, { action: 'rename', name: 'Rex', newName: 'Remy', ownerToken: cf.owner }));
+  assert.equal((await rows('Rex')).length, 0); assert.equal((await rows('Remy')).length, 1);
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Remy', playerToken: cfTok.Rex })).dinks, 1);
+  ok(await cfPost(playersApi, { action: 'release', name: 'Fay', ownerToken: cf.owner })); // a merge keeps one phone link, so the kept player is freed first
+  ok(await cfPost(playersApi, { action: 'merge', name: 'Remy', into: 'Fay', ownerToken: cf.owner }));
+  assert.equal((await rows('Remy')).length, 0);
+  assert.deepEqual([(await rows('Fay')).length, (await rows('Fay')).reduce((n, x) => n + x.amount, 0)], [2, 2]);
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Fay', playerToken: cfTok.Rex })).dinks, 2);
+  // Anonymise removes the player's ledger.
+  ok(await cfPost(playersApi, { action: 'anonymise', name: 'Gus', ownerToken: cf.owner }));
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'gus'`, [cf.code])).rows[0].n, 0);
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+  assert.equal((await sync('Dee')).status, 403, 'off again: no calls');
+});
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';
   assert.equal((await cfPost(club, { action: 'set-pay-link', link })).status, 403);
