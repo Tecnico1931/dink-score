@@ -90,13 +90,17 @@ try {
   await ctx.setOffline(false); offline = false;
   console.log('ok  offline reload: the service worker serves the app and the saved game is still there');
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'You', exact: true }).click(); // the avatar opens the You sheet; display settings are one row in it
+  const you = page.getByRole('dialog', { name: 'You', exact: true });
+  await you.getByRole('button', { name: /Display and sound/ }).click();
   const settings = page.getByRole('dialog', { name: 'Settings' });
   await settings.waitFor();
   await settings.getByRole('button', { name: 'Dark', exact: true }).click();
   await settings.getByRole('button', { name: 'Done' }).click();
   await settings.waitFor({ state: 'detached' });
-  console.log('ok  settings open, change the appearance and close');
+  await you.getByRole('button', { name: 'Done', exact: true }).click();
+  await you.waitFor({ state: 'detached' });
+  console.log('ok  You sheet > display settings: change the appearance and close');
 
   // What's new shows once, for a phone that has seen the tour and not this update.
   const old = await (await browser.newContext({ viewport: { width: 420, height: 900 } })).newPage();

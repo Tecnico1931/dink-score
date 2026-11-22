@@ -52,6 +52,7 @@ function stashClubCache() {
 }
 function cachedClub(code) { return Heal.clubData(Heal.map(store.get('pb.clubCaches', {}))[code], code); }
 let clubState = 'idle'; // idle | syncing | offline | error
+let youHome = false;   // true while the "You" sheet (avatar) is the home the moved rows' Back buttons return to
 let clubSheet = null;   // the club sheet when open: { view, error, joinCode, joinName, busy, msg }
 let uploading = false;
 if (clubData && (!club || clubData.code !== club.code)) clubData = null;
@@ -233,10 +234,10 @@ function syncPillHTML() {
   const note = failed ? `${failed} need${failed === 1 ? 's' : ''} attention` : clubState === 'offline' ? (pending ? `Offline, ${pending} to sync` : 'Offline') : clubState === 'error' ? 'Sync problem' : pending ? 'Syncing' : club.name;
   return `<button class="sync club-btn ${clubState === 'idle' && !pending && !failed ? 'on' : ''} ${clubState === 'offline' || clubState === 'error' || failed || !club.hasPin ? 'warn' : ''}" data-act="club-open" aria-label="Club: ${esc(club.name)}. ${esc(note)}${club.hasPin ? '' : '. Not protected: no organizer PIN'}">${esc(note)}</button>`;
 }
-// Round button in the top right: your picture, opening your profile (or asking who you are first).
+// Round button in the top right: your picture, opening the "You" sheet (profile, notifications, display, account, DUPR, watch, data).
 function profileButtonHTML() {
   const name = club ? myName() : null;
-  const label = name ? `Your profile, ${esc(name)}` : club ? 'Choose your name' : 'Join a club to get a profile';
+  const label = name ? `You: ${esc(name)}` : 'You';
   const inner = name ? avatarInner(name) : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 19.5c1.3-3.3 4-5 7-5s5.7 1.7 7 5"/></svg>`;
   return `<button class="me-btn" data-act="me-open" aria-label="${label}">${inner}</button>`;
 }
