@@ -2149,6 +2149,7 @@ async function recoverClub(clubCode, raw) {
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
   afterJoin();
 }
+/*MODULE-START:passkey-account*/
 // Optional account (see api/account.js): a passkey keeps your clubs and history across phones. Nothing else depends on it.
 let acct = null; // the last answer from /api/account: { account, identities } once loaded
 const passkeysOk = () => !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
@@ -2307,6 +2308,7 @@ function accountHTML(c) {
     <form class="club-form" data-form="acct-join"><label class="lab" for="acct-code">Have a code from another address?</label>
       <div class="add-player"><input id="acct-code" placeholder="Code" autocomplete="off" autocapitalize="characters" maxlength="12"><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Add passkey here</button></div></form>${back}`;
 }
+/*MODULE-END:passkey-account*/
 async function pinSet(oldPin, pin, again) {
   pin = String(pin || '').trim();
   if (!/^\d{6,8}$/.test(pin)) { clubSheet.error = 'Organizer PINs are 6 to 8 digits.'; renderClub(); return; }
@@ -4466,6 +4468,7 @@ async function refreshClubGames() {
 }
 setInterval(() => { if (clubSheet && clubSheet.view === 'games' && club && !document.hidden) refreshClubGames(); }, 4000);
 /*MODULE-END:avatars*/
+/*MODULE-START:court-board*/
 /* ---------- open play court board ---------- */
 // Courts, a waiting queue and who plays next, kept on the server (api/_courtboard.js) so every phone and the club display show the
 // same board. The server decides who may do what; this only hides buttons that would be refused.
@@ -4556,6 +4559,7 @@ async function refreshBoard() {
   try { const d = await api('live?code=' + club.code + '&board=1'); if (clubSheet === c) { c.board = d.board; renderClub(); } } catch (e) { if (clubSheet === c && c.board === undefined) { c.board = null; c.error = (e && e.message) || ''; renderClub(); } }
 }
 setInterval(() => { if (clubSheet && clubSheet.view === 'board' && club && !document.hidden) refreshBoard(); }, 4000);
+/*MODULE-END:court-board*/
 async function joinLiveGame(secret) {
   const c = clubSheet; if (!c || !c.joinId || !club) return;
   const sec = String(secret || '').trim();
@@ -5940,6 +5944,7 @@ function renderProfile() {
     ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`, profile.name + '|' + profile.mode);
   if (changed) wireChart();
 }
+/*MODULE-START:rating-explain*/
 /* ---------- rating change explanation sheet ---------- */
 let ratingExplain = null; // { name, mode, scope, from }
 function explainGamesFor(scope) {
@@ -6000,6 +6005,7 @@ function renderRatingExplain() {
   }
   setSheet(root, `<div class="sheet-bg explain"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="exp-h"><span class="grip"></span>${inner}</div></div>`, name + '|' + mode + '|' + scope);
 }
+/*MODULE-END:rating-explain*/
 
 /*MODULE-START:announce-banner*/
 /* ---------- club announcement banner on the Play home screen (the organizer's pinned note, api/_clubinfo.js) ---------- */
@@ -6256,6 +6262,7 @@ async function paddleRemove(id) {
 }
 /*MODULE-END:paddles*/
 
+/*MODULE-START:settings-sheet*/
 let settingsOpen = false;
 let settingsOpener = null;
 function openSettings() {
@@ -6303,6 +6310,7 @@ function renderSettings() {
     <p class="note">Saved on this device only. Nothing is sent to the club.</p>
     <div class="btns"><button type="button" class="btn btn-soft" data-act="settings-close">Done</button></div></div></div>`, 'settings');
 }
+/*MODULE-END:settings-sheet*/
 
 /*MODULE-START:season-end*/
 /* ---------- end the club season early (L21: api/_seasons.js via api/club.js) ---------- */
