@@ -1,14 +1,13 @@
 // Saving finished matches of events, leagues and ladders into the club's games. Not a route (files starting with "_").
 import { checkLog } from './_rallylog.js';
-import { cleanGame, cleanName, fail, nameKey, reserveGames, releaseGames, verifiedSender } from './_db.js';
+import { cleanGame, cleanName, fail, nameKey, reserveGames, releaseGames, stampSender } from './_db.js';
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 
 // Puts a finished match into the club's games. Safe to repeat: the game id is the same every time, so it is stored once.
 export async function recordGame(sql, club, code, event, game, body, now, rallyLog) {
   const g = Object.assign(cleanGame(game), { event: { id: event.id, name: event.name } });
   g.receivedAt = now;
-  const sender = await verifiedSender(sql, club, code, body);
-  if (sender) g.scoredBy = sender;
+  const sender = await stampSender(sql, club, code, body, [g]);
   const windowStart = await reserveGames(code, 1);
   let inserted = 0;
   try {

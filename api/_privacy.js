@@ -22,7 +22,7 @@ export function renameDeep(value, key, label) {
   const walk = v => {
     if (hit(v)) return label;
     if (Array.isArray(v)) return v.map(walk);
-    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [hit(k) ? label : k, k === 'scoredBy' && hit(x) ? nameKey(label) : walk(x)]));
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [hit(k) ? label : k, (k === 'scoredBy' || k === 'scoredByPlayer') && hit(x) ? nameKey(label) : walk(x)]));
     return v;
   };
   return walk(value);

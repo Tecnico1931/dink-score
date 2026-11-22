@@ -14,7 +14,7 @@
 // POST   /api/games {code, react: id, reaction, playerName, playerToken} -> toggles a member's reaction on a finished game
 // GET    /api/games?code=ABC123&audit=1[&id=g123]  -> organizer only: the history of changes to games (who, what, when, before and after), newest first
 import { checkLog } from './_rallylog.js';
-import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, requireOrganizer, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, coOrganizer, verifiedSender, clientIp } from './_db.js';
+import { db, handler, send, readBody, fail, cleanCode, requireClub, cleanGame, requireOrganizer, cleanName, nameKey, reserveGames, releaseGames, requirePin, pinFrom, ownerFrom, tokenMatches, coOrganizer, verifiedSender, stampSender, clientIp } from './_db.js';
 import { audit, organizerActor, senderActor, snapshot } from './_audit.js';
 import { confirmBlocker } from './_confirm.js';
 import { refreshRatings, historyOf } from './_rating_store.js';
@@ -135,7 +135,7 @@ export default handler(async (req, res) => {
     const sameResult = JSON.stringify(o.teams) === JSON.stringify(g.teams) && JSON.stringify(o.score) === JSON.stringify(g.score) && !!o.logged === !!g.logged;
     const organizerProved = (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken ?? ownerFrom(req))) || !!club.pin_hash;
     const sender = o.scoredBy;
-    if (sender && (sameResult || organizerProved)) g.scoredBy = sender;
+    if (sender && (sameResult || organizerProved)) { g.scoredBy = sender; if (o.scoredByPlayer) g.scoredByPlayer = o.scoredByPlayer; }
     // The rally log only stays while it still replays to the corrected game; a changed score, format or target clears it.
     const log = old.rally_log ? checkLog(g, old.rally_log) : null;
     // A confirmation vouches for one result. A changed result needs a new one, unless an organizer made the change
@@ -167,12 +167,10 @@ export default handler(async (req, res) => {
   // - receivedAt: when the server got the game. Weeks and seasons count by this, so backdating doesn't help.
   // - scoredBy: who sent it. Achievements, challenges and seasons count only games sent from the phone linked to one of
   //   any club player (the game can be for other people), or from the club creator's phone.
-  const sender = await verifiedSender(sql, club, code, body);
+  // - scoredByPlayer: only on the creating phone's games, its own verified name key, see stampSender.
+  const sender = await stampSender(sql, club, code, body, games);
   const now = Date.now();
-  for (const g of games) {
-    g.receivedAt = now;
-    if (sender) g.scoredBy = sender;
-  }
+  for (const g of games) g.receivedAt = now;
   // Flood protection on every request, bulk uploads included (see reserveGames in _db.js).
   const windowStart = await reserveGames(code, games.length);
   const names = new Map();

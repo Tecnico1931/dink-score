@@ -718,10 +718,28 @@ export const pinFrom = req => (req.headers || {})['x-club-pin'];
 // creator's phone), or null. Never trusted from the game data itself.
 export async function verifiedSender(sql, club, code, body) {
   if (club.owner_hash && tokenMatches(club.owner_hash, body.ownerToken)) return 'organizer';
+  return verifiedPlayer(sql, code, body);
+}
+
+// The name key whose own phone token checks out, or null. The creating phone can have one too: it is still 'organizer' for
+// confirmation and achievements, and this is the extra fact that lets its own games earn Dinks for its own name.
+export async function verifiedPlayer(sql, code, body) {
   if (!body.playerName || !body.playerToken) return null;
   const k = nameKey(body.playerName);
   const [row] = await sql`SELECT claim_hash FROM roster WHERE club = ${code} AND name_key = ${k}`;
   return row && row.claim_hash && tokenMatches(row.claim_hash, body.playerToken) ? k : null;
+}
+
+// Stamps the server-side sender facts on games about to be stored: `scoredBy` (a name key, or 'organizer') and, for the creating
+// phone only, `scoredByPlayer` (its verified own name key). Returns the sender.
+export async function stampSender(sql, club, code, body, games) {
+  const sender = await verifiedSender(sql, club, code, body);
+  const player = sender === 'organizer' ? await verifiedPlayer(sql, code, body) : null;
+  for (const g of games) {
+    if (sender) g.scoredBy = sender;
+    if (player) g.scoredByPlayer = player;
+  }
+  return sender;
 }
 
 // Reserves room for `count` new games in one atomic update: at most 1,200 per club per 10-minute window

@@ -96,6 +96,6 @@ test('the ledger code never reads a score, rating, rank or pairing, and has no p
   }
   const sql = fs.readFileSync(new URL('../api/_economysync.js', import.meta.url), 'utf8');
   assert.match(sql, /data->'teams' AS teams, data->>'receivedAt' AS r/, 'only the players, the sender and the arrival time of a game are read');
-  assert.match(sql, /data->>'scoredBy' = \$\{key\}/, "only games this name's own verified phone saved");
+  assert.match(sql, /data->>'scoredBy' = \$\{key\} OR data->>'scoredByPlayer' = \$\{key\}/, "only games this name's own verified phone saved");
   assert.ok(!/\bUPDATE reward_ledger|DELETE FROM reward_ledger/.test(sql), 'the sync only ever appends');
 });
