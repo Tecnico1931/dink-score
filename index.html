@@ -110,6 +110,10 @@ button { cursor: pointer; }
 .me-btn .av-icon { width: 60%; height: 60%; }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
+/* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */
+@media (max-width: 399px) { .wordmark h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
+.top { flex-wrap: nowrap; }
+.top-right .sync.club-btn { flex: 0 1 auto; min-width: 44px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sync { font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sync::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .sync.on::before { background: var(--up); }
@@ -3751,7 +3755,7 @@ function renderApp() {
   const y = document.body.scrollTop;
   if (!club && tab === 'events') tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
-  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${API_OK ? '<button class="dupr-btn" data-act="dupr-open" aria-label="Your DUPR">DUPR</button>' : ''}<button class="set-btn" data-act="settings-open" aria-label="Settings">${ICON.settings}</button>${profileButtonHTML()}</div></header>`;
+  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}<button class="set-btn" data-act="settings-open" aria-label="Settings">${ICON.settings}</button>${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
