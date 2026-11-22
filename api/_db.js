@@ -288,6 +288,17 @@ export function ensureSchema() {
         at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (club, name_key, id)
       )`;
+      // Rewards shop (_economyshop.js): the cosmetics a player bought, one row per item, name_key only (rename/merge moves them, anonymise deletes
+      // them, the club's deletion cascades). `worn`: at most one worn item per slot, set only through the wear action.
+      await q`CREATE TABLE IF NOT EXISTS reward_items (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        name_key text NOT NULL,
+        item text NOT NULL,
+        slot text NOT NULL,
+        worn boolean NOT NULL DEFAULT false,
+        at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (club, name_key, item)
+      )`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rewards boolean NOT NULL DEFAULT false`; // true: the club shows the daily play streak and free points (off until an organizer turns it on)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS require_confirmation boolean NOT NULL DEFAULT false`; // true: unconfirmed games don't count toward ratings and achievements
       await q`CREATE TABLE IF NOT EXISTS game_audit (

@@ -93,7 +93,7 @@ button { cursor: pointer; }
 .you-row b { font-size: 16px; font-weight: 700; }
 .you-row small { font-size: 13px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
 .you-row .chev { font-size: 22px; color: var(--muted); }
-.me-btn { position: relative; --r: 26px; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; padding: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 2px var(--surface), 0 4px 12px -4px rgb(0 0 0 / .35); }
+.me-btn { position: relative; --r: 26px; width: 40px; height: 40px; flex: none; border-radius: 50%; border: 0; padding: 0; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 14px; box-shadow: 0 0 0 2px var(--surface), var(--rw-ring, 0 0 0 0 transparent), 0 4px 12px -4px rgb(0 0 0 / .35); }
 .me-btn svg { width: 22px; height: 22px; }
 .me-btn .av-emoji { font-size: 22px; }
 .me-btn .av-icon { width: 60%; height: 60%; }
@@ -109,6 +109,26 @@ button { cursor: pointer; }
 .rw-line { margin: 0; font-size: 14px; }
 .rw-fine { margin: 0; font-size: 12px; color: rgb(255 255 255 / .92); }
 .rw-hide { align-self: flex-start; min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--on-court); font: inherit; font-size: 14px; text-decoration: underline; cursor: pointer; }
+.rw-acts { display: flex; flex-wrap: wrap; gap: 0 20px; } .rw-acts .rw-hide { min-width: 44px; }
+/* Worn looks, set on <html> (data-rw-frame, data-rw-skin) while rewards are shown, and on the swatches in the sheet. Colours are the app's own tokens, so both themes follow. */
+[data-rw-frame="court"] { --rw-ring: 0 0 0 5px var(--court); } [data-rw-frame="blue"] { --rw-ring: 0 0 0 5px var(--blue); } [data-rw-frame="ink"] { --rw-ring: 0 0 0 5px var(--ink); }
+[data-rw-frame="double"] { --rw-ring: 0 0 0 4px var(--court), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue); }
+[data-rw-skin="court"] { --rw-pad-bg: var(--court); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--court); }
+[data-rw-skin="blue"] { --rw-pad-bg: var(--blue); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--blue); }
+[data-rw-skin="ink"] { --rw-pad-bg: var(--ink); --rw-pad-fg: var(--bg); --rw-pad-ring: 0 0 0 2px var(--ink); }
+[data-rw-skin="stripe"] { --rw-pad-bg: var(--court); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue); }
+html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
+.rw-bal-line { margin: 0 0 4px; font-size: 14px; } .rw-bal-line b { font-family: var(--display); font-size: 34px; font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; }
+.rw-h { margin: 18px 0 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.rw-pick { border: 0; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; } .rw-pick legend { padding: 0; margin-bottom: 4px; font-size: 13px; font-weight: 600; }
+.rw-opt { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
+.rw-opt[aria-pressed="true"] { border-color: var(--court); background: var(--surface-2); font-weight: 700; } .rw-opt[aria-pressed="true"]::after { content: "\2713"; }
+.rw-item { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.rw-name { flex: 1; min-width: 0; } .rw-name b { display: block; font-size: 15px; } .rw-name small { display: block; font-size: 13px; color: var(--muted); }
+.rw-item .btn { min-height: 44px; min-width: 64px; }
+.rw-sw { width: 30px; height: 30px; margin: 8px 8px 8px 0; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 12px; box-shadow: 0 0 0 2px var(--surface), var(--rw-ring, 0 0 0 0 transparent); }
+.rw-sw svg { width: 62%; height: 62%; }
+.rw-sw.pad { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 /* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */
@@ -2342,6 +2362,8 @@ function renderClub() {
     body = avatarSheetHTML(c);
   } else if (c.view === 'paddles' && club && myName()) {
     body = paddleSheetHTML(c);
+  } else if (c.view === 'rwstore' && club && myName()) {
+    body = Rewards.storeHTML(c);
   } else if (c.view === 'you') {
     body = youHTML(c);
   } else if (c.view === 'dupr') {

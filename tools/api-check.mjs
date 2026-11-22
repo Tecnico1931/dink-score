@@ -1308,6 +1308,65 @@ await step('rewards ledger: server-derived from the games a linked phone saved, 
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await sync('Dee')).status, 403, 'off again: no calls');
 });
+await step('rewards shop: server-side prices, spends through the ledger, never below zero, double buy and replay charge once, wear one per slot, follows a rename or merge, gone on anonymise', async () => {
+  const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
+  const spends = async name => (await pg.query(`SELECT id, amount FROM reward_ledger WHERE club = $1 AND name_key = $2 AND kind = 'spend' ORDER BY id`, [cf.code, name.toLowerCase()])).rows;
+  const owned = async name => (await pg.query(`SELECT item, worn FROM reward_items WHERE club = $1 AND name_key = $2 ORDER BY item`, [cf.code, name.toLowerCase()])).rows;
+  const grant = (name, n) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, $2, 'test:grant', 'earn', $3, 'test')`, [cf.code, name.toLowerCase(), n]);
+  const join = async name => { cfTok[name] = ok(await cfPost(playersApi, { action: 'claim', name, ownerToken: cf.owner })).playerToken; };
+  await join('Hal');
+  assert.equal((await post('Hal', { action: 'rewards-catalog' })).status, 403, 'rewards off for the club: no shop calls');
+  ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
+  for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
+  let s = ok(await post('Hal', { action: 'rewards-catalog' }));
+  assert.equal(s.items.length, 8); assert.ok(s.items.every(i => !i.owned && i.price > 0)); assert.deepEqual(s.worn, { frame: '', paddle: '' });
+  // No Dinks yet: refused with a clear message, nothing charged, nothing owned.
+  let r = await post('Hal', { action: 'rewards-buy', item: 'frame-court' });
+  assert.equal(r.status, 409); assert.match(r.json.error, /Not enough Dinks yet: Court green ring costs 6 and you have 0/);
+  assert.equal((await spends('Hal')).length + (await owned('Hal')).length, 0);
+  await grant('Hal', 20);
+  // The phone's own price, amount or name is ignored: the catalogue price is charged (6), the unknown item is refused.
+  r = ok(await post('Hal', { action: 'rewards-buy', item: 'frame-court', price: 0, amount: -1, dinks: 999, name2: 'Free' }));
+  assert.deepEqual([r.bought, r.dinks], [true, 14]);
+  assert.deepEqual(await spends('Hal'), [{ id: 'buy:frame-court', amount: -6 }]);
+  for (const item of ['frame-gold', '', '__proto__', 'frame-court ']) assert.equal((await post('Hal', { action: 'rewards-buy', item })).status, item === 'frame-court ' ? 400 : 400);
+  // A double buy and a replay (a second device, a retry) charge nothing more.
+  for (let i = 0; i < 2; i++) { r = ok(await post('Hal', { action: 'rewards-buy', item: 'frame-court' })); assert.deepEqual([r.bought, r.dinks], [false, 14]); }
+  assert.equal((await spends('Hal')).length, 1);
+  // Two buys at once that together cost more than the balance (8 + 8 > 14): exactly one goes through, the balance never goes below zero.
+  const both = await Promise.all(['paddle-blue', 'paddle-ink'].map(item => post('Hal', { action: 'rewards-buy', item })));
+  assert.deepEqual(both.map(x => x.status).sort(), [200, 409]);
+  assert.equal(ok(await post('Hal', { action: 'rewards-catalog' })).dinks, 6);
+  assert.equal((await owned('Hal')).length, 2);
+  // Wearing: only what you own, in its own slot, one per slot, or none.
+  assert.equal((await post('Hal', { action: 'rewards-wear', slot: 'frame', item: 'frame-blue' })).status, 403, 'not owned');
+  assert.equal((await post('Hal', { action: 'rewards-wear', slot: 'paddle', item: 'frame-court' })).status, 400, 'wrong slot');
+  assert.equal((await post('Hal', { action: 'rewards-wear', slot: 'hat', item: 'frame-court' })).status, 400);
+  s = ok(await post('Hal', { action: 'rewards-wear', slot: 'frame', item: 'frame-court' })); assert.equal(s.worn.frame, 'frame-court');
+  assert.equal(ok(await post('Hal', { action: 'rewards-get' })).worn.frame, 'frame-court', 'the sync answer carries what is worn');
+  s = ok(await post('Hal', { action: 'rewards-wear', slot: 'frame', item: '' })); assert.equal(s.worn.frame, '');
+  ok(await post('Hal', { action: 'rewards-wear', slot: 'frame', item: 'frame-court' }));
+  // Nothing of it reaches the club payload or anyone else's view.
+  assert.ok(!/frame-court|reward_items|paddle-blue/.test(JSON.stringify(await cfGet())));
+  // A rename moves the items; a merge keeps one copy of an item both own and brings nothing worn.
+  const halPaddle = (await owned('Hal')).find(x => x.item.startsWith('paddle-')).item; // whichever of the two raced buys won
+  ok(await cfPost(playersApi, { action: 'rename', name: 'Hal', newName: 'Hank', ownerToken: cf.owner }));
+  assert.deepEqual([(await owned('Hal')).length, (await owned('Hank')).length], [0, 2]);
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-catalog', name: 'Hank', playerToken: cfTok.Hal })).items.filter(i => i.owned).length, 2);
+  await join('Ivy'); await grant('Ivy', 20);
+  ok(await post('Ivy', { action: 'rewards-buy', item: 'frame-court' })); ok(await post('Ivy', { action: 'rewards-buy', item: 'frame-ink' }));
+  ok(await post('Ivy', { action: 'rewards-wear', slot: 'frame', item: 'frame-ink' }));
+  ok(await cfPost(playersApi, { action: 'release', name: 'Ivy', ownerToken: cf.owner }));
+  ok(await cfPost(playersApi, { action: 'merge', name: 'Hank', into: 'Ivy', ownerToken: cf.owner }));
+  assert.deepEqual((await owned('Ivy')).map(x => [x.item, x.worn]), [['frame-court', false], ['frame-ink', true], [halPaddle, false]]);
+  assert.equal((await owned('Hank')).length, 0);
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-catalog', name: 'Ivy', playerToken: cfTok.Hal })).dinks, 12, 'the merged balance: both ledgers (20 - 14 each), every spend kept');
+  // Anonymise removes the player's items with the ledger.
+  ok(await cfPost(playersApi, { action: 'anonymise', name: 'Ivy', ownerToken: cf.owner }));
+  assert.equal((await owned('Ivy')).length + (await spends('Ivy')).length, 0);
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+  assert.equal((await post('Hal', { action: 'rewards-catalog' })).status, 403, 'off again: no calls');
+});
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';
   assert.equal((await cfPost(club, { action: 'set-pay-link', link })).status, 403);
