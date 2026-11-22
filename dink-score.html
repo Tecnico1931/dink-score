@@ -3365,6 +3365,7 @@ function editGame(g) {
 }
 
 /*MODULE-END:log-result*/
+/*MODULE-START:replay*/
 /* ---------- replay a game that was scored live ---------- */
 // The saved game carries only who won each rally (see Scoring); every state is rebuilt here with PB.rally, so the replay
 // can't disagree with the rules the game was scored by. Club games say `replay: true` and fetch the log when opened.
@@ -3540,6 +3541,7 @@ function replaySeek(e) {
   replayGo(Math.round((v - 8) / (320 - 16) * replay.wins.length));
   return true;
 }
+/*MODULE-END:replay*/
 
 /*MODULE-START:share-image*/
 /* ---------- share a result or year-in-review as an image ---------- */
