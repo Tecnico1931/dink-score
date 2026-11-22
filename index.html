@@ -7065,8 +7065,25 @@ async function setConfirmation(required) {
   try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-confirmation', required }, adminCreds())) }); await refreshClub(); renderClub(); }
   catch (err) { showToast(err.message, false); }
 }
-const AUDIT_WORDS = { create: 'Recorded', edit: 'Edited', delete: 'Deleted', restore: 'Restored', confirm: 'Confirmed', 'keep-both': 'Kept as two games', setting: 'Setting changed' };
+/*AUDIT-PURE-START*/
+const AUDIT_WORDS = { create: 'Recorded', edit: 'Edited', delete: 'Deleted', restore: 'Restored', confirm: 'Confirmed', 'keep-both': 'Kept as two games', setting: 'Setting changed', share: 'Public link', unshare: 'Public link' };
+const AUDIT_SETTINGS = { requireConfirmation: 'Count only confirmed games', rewards: 'Rewards', publicResults: 'Public result links' };
 const auditWho = a => (a === 'creator' ? 'the club creator' : a === 'organizer-pin' ? 'an organizer (PIN)' : a === 'member' ? 'a club member' : /^player:/.test(a) ? a.slice(7) : 'someone with the club code');
+// A history row is not always a game: a setting row carries {key: bool} and a link row nothing. Never throws on a shape it does not know.
+const auditGame = g => (g && Array.isArray(g.teams) && g.teams.length > 1 && Array.isArray(g.score) ? `${teamLabel(g.teams[0])} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${teamLabel(g.teams[1])}` : '');
+function auditSetting(r) {
+  const s = r.after && typeof r.after === 'object' ? r.after : {};
+  const k = Object.keys(s).find(x => AUDIT_SETTINGS[x]);
+  return k ? `${AUDIT_SETTINGS[k]} turned ${s[k] ? 'on' : 'off'}` : 'A club setting was changed';
+}
+function auditLine(r) {
+  r = r && typeof r === 'object' ? r : {};
+  const word = AUDIT_WORDS[r.action] || 'Changed';
+  const what = r.action === 'setting' ? auditSetting(r) : auditGame(r.after || r.before);
+  const was = r.action === 'edit' ? auditGame(r.before) : '';
+  return { word, what, was, who: auditWho(typeof r.actor === 'string' ? r.actor : ''), note: typeof r.note === 'string' ? r.note : '' };
+}
+/*AUDIT-PURE-END*/
 async function loadAudit() {
   const c = clubSheet;
   try {
@@ -7075,9 +7092,9 @@ async function loadAudit() {
   } catch (err) { if (clubSheet === c) { c.error = err.message; c.rows = []; renderClub(); } }
 }
 function auditHTML(c) {
-  const res = g => g ? `${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}` : '';
+  const row = r => { const l = auditLine(r); const t = isNaN(new Date(r && r.at)) ? '' : new Date(r.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); return `<li style="display:block"><b>${esc(l.word)}</b> ${esc(l.what)}${l.was ? ` <span class="note">(was ${esc(l.was)})</span>` : ''}<br><span class="note">${esc(t)} by ${esc(l.who)}${l.note ? ', ' + esc(l.note) : ''}</span></li>`; };
   const rows = !c.rows ? skel(3) : !c.rows.length ? '<p>Nothing recorded yet. Changes to games from now on show up here.</p>'
-    : `<ul class="deleted">${c.rows.map(r => `<li style="display:block"><b>${esc(AUDIT_WORDS[r.action] || r.action)}</b> ${esc(res(r.after || r.before))}${r.before && r.after && r.action === 'edit' ? ` <span class="note">(was ${esc(res(r.before))})</span>` : ''}<br><span class="note">${esc(new Date(r.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))} by ${esc(auditWho(r.actor))}${r.note ? ', ' + esc(r.note) : ''}</span></li>`).join('')}</ul>`;
+    : `<ul class="deleted">${c.rows.map(row).join('')}</ul>`;
   return `<h2 id="club-h">Game history</h2><p class="note">Newest first: who recorded, edited, deleted or confirmed each game. Only organizers see this.</p>${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}${rows}<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 async function adminAction(body, okMsg) {
