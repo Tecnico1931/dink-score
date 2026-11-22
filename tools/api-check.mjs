@@ -1256,6 +1256,8 @@ await step('rewards: off by default, organizer only, boolean only, shown in the 
   assert.equal((await cfGet()).club.rewards, true);
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await cfGet()).club.rewards, false);
+  const log = ok(await cfAudit()).audit.filter(r => r.action === 'setting' && r.after && 'rewards' in r.after);
+  assert.ok(log.length >= 2 && log[0].after.rewards === false && log[0].before.rewards === true && !log[0].before.teams, 'a rewards switch is in the history read as a setting row with no teams');
 });
 await step('rewards ledger: server-derived from the games a linked phone saved, append-only, idempotent, off means no calls, follows a rename, gone on anonymise', async () => {
   const sync = (name, extra = {}) => cfPost(playersApi, { action: 'rewards-sync', name, playerToken: cfTok[name], tz: 0, ...extra });
