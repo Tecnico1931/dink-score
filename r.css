@@ -11,6 +11,13 @@
   --green: #0B8562;     /* team 2 court */
   --ball: #DDF247;      /* serve, highlights */
   --ball-ink: #1B2104;
+  --ball-hi: #E7FA5C;   /* the lime tile's gradient ends */
+  --ball-lo: #CFE43A;
+  --court: #0E7A55;     /* hero card and New game tile: a court seen from above */
+  --court-2: #0A5E42;
+  --court-line: rgb(255 255 255 / .55);
+  --on-court: #FFFFFF;
+  --lift: 0 1px 0 rgb(255 255 255 / .6) inset, 0 14px 30px -18px rgb(30 25 10 / .35);
   --up: #0A7656;
   --down: #C2372B;
   --danger: #C2372B;
@@ -27,6 +34,7 @@
     --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
     --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
     --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
+    --court: #0F6B4B; --court-2: #0A4A34; --lift: 0 1px 0 rgb(255 255 255 / .05) inset, 0 18px 36px -18px rgb(0 0 0 / .8);
     --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
     color-scheme: dark;
   }
@@ -35,6 +43,7 @@
   --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
   --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
   --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
+  --court: #0F6B4B; --court-2: #0A4A34; --lift: 0 1px 0 rgb(255 255 255 / .05) inset, 0 18px 36px -18px rgb(0 0 0 / .8);
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
   color-scheme: dark;
 }
@@ -42,6 +51,7 @@
 :root[data-outdoor] {
   --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #E8E8E8; --ink: #000000; --muted: #2B2B2B; --line: #5A5A5A;
   --blue: #0A28B8; --green: #00593F; --up: #00593F; --down: #A80000; --danger: #A80000; --focus: #0A28B8; --blue-text: #0A28B8;
+  --court: #00593F; --court-2: #00593F; --court-line: rgb(255 255 255 / .9); --lift: none;
   --shadow: none;
   color-scheme: light;
 }

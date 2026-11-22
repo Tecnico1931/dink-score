@@ -18,6 +18,13 @@
   --green: #0B8562;     /* team 2 court */
   --ball: #DDF247;      /* serve, highlights */
   --ball-ink: #1B2104;
+  --ball-hi: #E7FA5C;   /* the lime tile's gradient ends */
+  --ball-lo: #CFE43A;
+  --court: #0E7A55;     /* hero card and New game tile: a court seen from above */
+  --court-2: #0A5E42;
+  --court-line: rgb(255 255 255 / .55);
+  --on-court: #FFFFFF;
+  --lift: 0 1px 0 rgb(255 255 255 / .6) inset, 0 14px 30px -18px rgb(30 25 10 / .35);
   --up: #0A7656;
   --down: #C2372B;
   --danger: #C2372B;
@@ -34,6 +41,7 @@
     --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
     --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
     --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
+    --court: #0F6B4B; --court-2: #0A4A34; --lift: 0 1px 0 rgb(255 255 255 / .05) inset, 0 18px 36px -18px rgb(0 0 0 / .8);
     --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
     color-scheme: dark;
   }
@@ -42,6 +50,7 @@
   --bg: #0A0F17; --surface: #131B26; --surface-2: #1B2532; --ink: #EEF2F7; --muted: #8E9BAD; --line: #243142;
   --blue: #3D5BFF; --green: #0B8562; --ball: #DDF247; --ball-ink: #1B2104;
   --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
+  --court: #0F6B4B; --court-2: #0A4A34; --lift: 0 1px 0 rgb(255 255 255 / .05) inset, 0 18px 36px -18px rgb(0 0 0 / .8);
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
   color-scheme: dark;
 }
@@ -49,14 +58,16 @@
 :root[data-outdoor] {
   --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #E8E8E8; --ink: #000000; --muted: #2B2B2B; --line: #5A5A5A;
   --blue: #0A28B8; --green: #00593F; --up: #00593F; --down: #A80000; --danger: #A80000; --focus: #0A28B8; --blue-text: #0A28B8;
+  --court: #00593F; --court-2: #00593F; --court-line: rgb(255 255 255 / .9); --lift: none;
   --shadow: none;
   color-scheme: light;
 }
 /*TOKENS-END*/
 html { height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); }
 body { height: 100%; height: 100dvh; margin: 0; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
-body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 15; pointer-events: none; }
-body { background: var(--bg); color: var(--ink); font-family: var(--ui); font-size: 16px; line-height: 1.45; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: inherit; z-index: 15; pointer-events: none; }
+/* A soft floodlight at the top of every page: court green from the left, ball lime from the right. It is gone by 130 px, before any muted text. */
+body { background: radial-gradient(90% 190px at 50% -40px, color-mix(in srgb, var(--court) 22%, transparent), transparent 70%), radial-gradient(55% 150px at 100% -30px, color-mix(in srgb, var(--ball) 14%, transparent), transparent 70%), var(--bg); background-attachment: fixed; color: var(--ink); font-family: var(--ui); font-size: 16px; line-height: 1.45; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -92,6 +103,7 @@ button { cursor: pointer; }
 @media (max-width: 399px) { .wordmark h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
 .top { flex-wrap: nowrap; }
 .top-right .sync.club-btn { flex: 0 1 auto; min-width: 44px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set-btn, .bell-btn, .sync { box-shadow: var(--shadow); }
 .sync { font-size: 12px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .sync::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .sync.on::before { background: var(--up); }
@@ -100,11 +112,11 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .sub { font-size: 14px; color: var(--muted); margin: 4px 0 0; }
 .sec-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 
-.card { background: var(--surface); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }
+.card { background: var(--surface); border-radius: 22px; padding: 18px; box-shadow: var(--lift); }
 
 /* Home tiles */
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.tile { background: var(--surface); border: 0; border-radius: 22px; padding: 16px; box-shadow: var(--shadow); text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 132px; }
+.tile { background: var(--surface); border: 0; border-radius: 22px; padding: 16px; box-shadow: var(--lift); text-align: left; display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 132px; }
 .tile .t-k { font-size: 13px; color: var(--muted); font-weight: 500; }
 .tile .t-big { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 40px; line-height: .95; letter-spacing: -.02em; }
 .tile .t-name { font-weight: 600; font-size: 16px; overflow-wrap: anywhere; line-height: 1.2; }
@@ -116,9 +128,9 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .tile.live .t-big { font-size: 54px; grid-column: 1; }
 .tile.live .t-name { grid-column: 1; font-weight: 500; opacity: .8; font-size: 14px; }
 .tile.live .go { grid-column: 2; grid-row: 1 / span 3; background: var(--ball); color: var(--ball-ink); border-radius: 999px; padding: 12px 18px; font-weight: 700; }
-.tile.log { background: var(--blue); color: #fff; }
-.tile.log .t-k { color: #fff; }
-.tile.log .plus { width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / .18); display: grid; place-items: center; font-size: 22px; line-height: 1; }
+.tile.log { background: linear-gradient(135deg, var(--ball-hi), var(--ball) 60%, var(--ball-lo)); color: var(--ball-ink); box-shadow: 0 14px 30px -14px rgb(180 200 20 / .7), 0 1px 0 rgb(255 255 255 / .5) inset; }
+.tile.log .t-k { color: rgb(27 33 4 / .82); }
+.tile.log .plus { width: 34px; height: 34px; border-radius: 50%; background: var(--ball-ink); color: var(--ball); display: grid; place-items: center; font-size: 22px; line-height: 1; }
 .tile.log .t-name { margin-top: auto; font-size: 17px; }
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 58px; margin-top: 4px; }
 .week div { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
@@ -126,18 +138,29 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .week i.has { background: var(--green); }
 .week i.today { outline: 2px solid var(--ball); outline-offset: 1px; }
 .week span { font-size: 12px; color: var(--muted); }
-.hero { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+/* Hero: a little court seen from above (faint lines), a pickleball in the corner, the week as bars. The art is icons/pickleball.svg, drawn for this app. */
+.hero { position: relative; overflow: hidden; isolation: isolate; display: flex; flex-direction: column; gap: 10px; padding: 22px 20px 20px; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); box-shadow: var(--lift); }
+.hero::before { content: ""; position: absolute; inset: 12px; z-index: -1; border: 2px solid var(--court-line); border-radius: 6px; opacity: .35;
+  background: linear-gradient(var(--court-line), var(--court-line)) 50% 0 / 2px 34% no-repeat, linear-gradient(var(--court-line), var(--court-line)) 50% 100% / 2px 34% no-repeat,
+    linear-gradient(90deg, transparent calc(34% - 1px), var(--court-line) calc(34% - 1px) calc(34% + 1px), transparent calc(34% + 1px) calc(66% - 1px), var(--court-line) calc(66% - 1px) calc(66% + 1px), transparent calc(66% + 1px)); }
+.hero-ball { position: absolute; z-index: -1; right: -22px; top: -22px; width: 124px; height: 124px; transform: rotate(-8deg); pointer-events: none; filter: drop-shadow(0 12px 20px rgb(0 0 0 / .35)) drop-shadow(0 0 24px rgb(221 242 71 / .3)); }
 .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.hero-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.hero .play-greeting { font-size: 22px; }
-.hero-club { margin: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
-.hero-art { width: 88px; height: auto; flex: none; }
+.hero-txt { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-right: 88px; }
+.hero .play-greeting { font-size: 22px; color: var(--on-court); }
+.hero-club { margin: 0; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--on-court); background: rgb(0 0 0 / .22); padding: 6px 12px 6px 10px; border-radius: 999px; overflow-wrap: anywhere; }
+.hero-club::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ball); box-shadow: 0 0 0 4px rgb(221 242 71 / .25); }
 .hero-total { display: flex; align-items: baseline; gap: 8px; }
-.hero-total .n { font-size: 34px; line-height: 1; }
-.hero .week { margin-top: 0; }
-.tile.newg { background: var(--ink); color: var(--bg); }
-.tile.newg .t-k { color: inherit; }
-.tile.newg .plus { width: 34px; height: 34px; border-radius: 50%; background: rgb(128 128 128 / .3); display: grid; place-items: center; }
+.hero-total .n { font-size: 44px; line-height: 1; }
+.hero .t-k { color: rgb(255 255 255 / .92); }
+.hero .week { margin-top: 8px; height: 62px; }
+.hero .week i { background: rgb(255 255 255 / .18); }
+.hero .week i.has { background: rgb(255 255 255 / .9); }
+.hero .week i.today { outline: 0; background: var(--ball); box-shadow: 0 0 0 3px rgb(221 242 71 / .3); }
+.hero .week span { color: rgb(255 255 255 / .92); }
+.tile.newg { background: linear-gradient(160deg, var(--court), var(--court-2)); color: var(--on-court); box-shadow: 0 14px 30px -16px color-mix(in srgb, var(--court) 90%, transparent); }
+.tile.newg .t-k { color: rgb(255 255 255 / .92); }
+.tile.newg .plus { width: 34px; height: 34px; border-radius: 50%; background: rgb(255 255 255 / .16); display: grid; place-items: center; }
+.tile.newg .plus img { width: 22px; height: 22px; display: block; }
 .tile.newg .t-name { margin-top: auto; font-size: 17px; }
 .sh-end { display: flex; align-items: center; gap: 8px; }
 .sheet.newgame .setup-opts, .sheet.newgame .teams, .sheet.newgame .roster { margin-top: 0; }
@@ -1084,6 +1107,12 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 #club-display.dsp-has-board .dsp-inner { justify-content: flex-start; }
 /* Game nights (L11): calm daylight cards, 44px RSVP targets, squeezed counts, outdoor contrast. */
 .gn-home { display: flex; flex-direction: column; gap: 10px; }
+.gn-plan { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 12px 16px; border: 0; border-radius: 22px; background: var(--surface); color: var(--ink); box-shadow: var(--lift); text-align: left; }
+.gn-plan .np-ico { flex: none; width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; color: #fff; background: linear-gradient(160deg, #F2543F, #E03A2C); }
+.gn-plan .np-txt { display: flex; flex-direction: column; min-width: 0; }
+.gn-plan .np-txt b { font-weight: 600; font-size: 17px; letter-spacing: -.01em; }
+.gn-plan .np-txt small { font-size: 14px; color: var(--muted); }
+.gn-plan .np-chev { margin-left: auto; font-size: 26px; line-height: 1; color: var(--muted); }
 .gn-stack { display: flex; flex-direction: column; gap: 12px; }
 .gn-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .gn-card.is-off { opacity: .82; }
@@ -2695,8 +2724,8 @@ function seg(attr, options, value, cls = '') {
     `<button type="button" ${attr}="${v}" aria-pressed="${String(v) === String(value)}">${l}</button>`).join('')}</div>`;
 }
 
-// Own artwork for the hero card: a court seen from above and a ball, in neutral tokens only (blue and green mean the two teams, yellow means live).
-const HERO_ART = `<svg class="hero-art" viewBox="0 0 104 64" aria-hidden="true" focusable="false"><rect x="3" y="6" width="66" height="52" rx="7" fill="var(--surface-2)" stroke="var(--line)" stroke-width="2"/><path d="M24 6v52M48 6v52M3 32h21M48 32h21" stroke="var(--line)" stroke-width="2" fill="none"/><path d="M36 2v60" stroke="var(--ink)" stroke-width="3" stroke-linecap="round"/><circle cx="80" cy="26" r="16" fill="var(--surface)" stroke="var(--ink)" stroke-width="3"/><g fill="var(--ink)"><circle cx="74" cy="20" r="2.3"/><circle cx="83" cy="18" r="2.3"/><circle cx="79" cy="27" r="2.3"/><circle cx="70" cy="30" r="2.3"/><circle cx="88" cy="28" r="2.3"/><circle cx="80" cy="35" r="2.3"/></g></svg>`;
+// The 3D pickleball (icons/pickleball.svg, drawn for this app, precached by the service worker). Decorative: alt="" keeps it out of the accessibility tree.
+const BALL_IMG = (cls, px) => `<img${cls ? ` class="${cls}"` : ''} src="icons/pickleball.svg" alt="" width="${px}" height="${px}" decoding="async" draggable="false">`;
 function homeTiles(games) {
   const tiles = [];
   if (live && live.state.winner === null) {
@@ -2704,7 +2733,7 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
-  tiles.push(`<button class="tile newg" data-act="new-open"><span class="plus"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg></span><span class="t-name">New game</span><span class="t-k">Score one live</span></button>`);
+  tiles.push(`<button class="tile newg" data-act="new-open"><span class="plus">${BALL_IMG('', 22)}</span><span class="t-name">New game</span><span class="t-k">Score one live</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
   const top = leaderStats(games, setup.mode)[0];
   const chTile = challengesTile();
@@ -2717,7 +2746,7 @@ function homeTiles(games) {
   const total = counts.reduce((a, b) => a + b, 0);
   const greet = Greeting.text(linkedPlayerName()) || Greeting.bucket();
   const perDay = days.map((d, i) => `${d.toLocaleDateString(undefined, { weekday: 'long' })} ${counts[i]}`).join(', ');
-  const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div>${HERO_ART}</div>
+  const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div></div>${BALL_IMG('hero-ball', 124)}
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
   return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
@@ -5005,6 +5034,8 @@ function otHandle(ds) {
 /*MODULE-START:game-nights*/
 /* ---------- game nights (api/_gamenights.js via api/club.js) ---------- */
 const GN_GRACE_MS = 4 * 60 * 60 * 1000;
+// The organizer's "Schedule a game night" row: a white lifted row with a coral calendar tile and a chevron (same button, same data-gn="new").
+const GN_PLAN_ROW = '<button type="button" class="gn-plan" data-gn="new"><span class="np-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="np-txt"><b>Schedule a game night</b><small>Pick a time and see who\'s in</small></span><span class="np-chev" aria-hidden="true">›</span></button>';
 const gnCanOrg = () => !!club && (isCreator() || (club.hasPin && hasOrganizer()));
 const gnUpcoming = () => ((clubData && clubData.nights) || []).filter(n => n && n.status === 'open' && n.startsAt >= Date.now() - GN_GRACE_MS);
 
@@ -5134,7 +5165,7 @@ function gnTabHTML() {
   const unlock = !org && club.hasPin ? '<button type="button" class="link" data-act="pin-unlock-open">Organizer? Unlock this phone to schedule a game night</button>' : '';
   return `<section aria-labelledby="gn-tab-h" class="ev-sec">
     <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length > 3 ? `<button type="button" class="link" data-gn="open">See all (${list.length})</button>` : ''}</div>
-    ${org ? '<button type="button" class="btn btn-ink block" data-gn="new">Schedule a game night</button>' : ''}
+    ${org ? GN_PLAN_ROW : ''}
     ${cards || '<p class="note">No game nights scheduled yet.</p>'}${unlock}
   </section>`;
 }
@@ -5403,7 +5434,7 @@ function gnSheetHTML(c) {
   const upcoming = all.filter(n => n.startsAt >= now - GN_GRACE_MS);
   const past = all.filter(n => n.startsAt < now - GN_GRACE_MS).reverse();
   const orgPrompt = org
-    ? '<button type="button" class="btn btn-ink block" data-gn="new">Schedule a game night</button>'
+    ? GN_PLAN_ROW
     : club.hasPin
       ? '<div class="org-card"><p>Scheduling game nights and sending reminders needs the organizer PIN.</p><button type="button" class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div>'
       : '';

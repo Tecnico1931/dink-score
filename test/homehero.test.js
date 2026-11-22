@@ -18,10 +18,16 @@ test('the hero card greets by time of day, even with no linked name, and shows t
   assert.ok(!/class="tile wide"[^`]*This week/.test(homeTiles), 'the old weekly tile is gone');
 });
 
-test('the hero artwork is original and uses neutral tokens only (blue and green are the teams, yellow is live)', () => {
-  const art = between('const HERO_ART', 'function homeTiles(');
-  assert.match(art, /aria-hidden="true"/);
-  assert.ok(!/var\(--(blue|green|ball)\b|#[0-9a-f]{3,6}/i.test(art), 'no team colours, ball yellow or hard-coded colours in the artwork');
+test('the pickleball is one vendored, precached, decorative file used by the hero card and the New game tile', () => {
+  const art = between('const BALL_IMG', 'function homeTiles(');
+  assert.match(art, /src="icons\/pickleball\.svg" alt=""/, 'decorative: empty alt');
+  const svg = fs.readFileSync(new URL('../icons/pickleball.svg', import.meta.url), 'utf8');
+  assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.ok(!/<script|href=|<image|<foreignObject|on\w+=/i.test(svg), 'no script or external reference in the artwork');
+  assert.match(fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), /SHELL = \[[^\]]*'icons\/pickleball\.svg'/, 'precached so the hero works offline');
+  const homeTiles = between('function homeTiles(', '// "This month"');
+  assert.match(homeTiles, /\$\{BALL_IMG\('hero-ball', 124\)\}/);
+  assert.match(homeTiles, /class="plus">\$\{BALL_IMG\('', 22\)\}<\/span><span class="t-name">New game/);
 });
 
 test('New game is a tile next to Log a result and opens a bottom sheet instead of an inline card', () => {
