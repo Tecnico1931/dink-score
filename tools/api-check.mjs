@@ -1978,8 +1978,8 @@ await step('league weeks: plan, bye, move, forfeit; a new week tells the opted-i
   const { createECDH } = await import('node:crypto'), { setSender } = await import('../api/_push.js');
   const e = createECDH('prime256v1'); e.generateKeys();
   Object.assign(process.env, { VAPID_PUBLIC_KEY: e.getPublicKey().toString('base64url'), VAPID_PRIVATE_KEY: Buffer.concat([Buffer.alloc(32), e.getPrivateKey()]).subarray(-32).toString('base64url'), VAPID_SUBJECT: 'mailto:test@example.invalid' });
-  const sent = [];
-  setSender(async (sub, message) => { sent.push({ to: sub.endpoint.split('/').pop(), ...message }); return 201; });
+  const sent = [], results = []; // 'result in' pushes (a played match) are counted apart from the week and move pushes
+  setSender(async (sub, message) => { (/: result in$/.test(message.title) ? results : sent).push({ to: sub.endpoint.split('/').pop(), ...message }); return 201; });
   try {
     const lc = ok(await call(club, 'POST', { body: { name: 'League weeks club' } }), 201), lcode = lc.club.code, lown = { ownerToken: lc.ownerToken };
     const lg = (action, extra = {}, creds = lown) => call(events, 'POST', { body: { code: lcode, action, ...extra, ...creds } });
@@ -2008,6 +2008,8 @@ await step('league weeks: plan, bye, move, forfeit; a new week tells the opted-i
     const res = (id, m, score = [11, 5]) => lg('league-result', { id, matchId: m.id, score, endedAt: Date.now() });
     const [a, b] = L0.weeks[0].matches;
     ok(await res(L0.id, a)); assert.equal(sent.length, 0, 'half the week is not a new week');
+    assert.ok(results.every(s => ['ann', 'bo'].includes(s.to) && /^(Ann|Bo|Cat|Dev|Eli), the result of your match is in\./.test(s.body) && !/11|5/.test(s.body)), JSON.stringify(results));
+    const nr = results.length; ok(await res(L0.id, a)); assert.equal(results.length, nr, 'a retried result is not announced twice');
     const w2 = ok(await res(L0.id, b)).league; assert.equal(w2.current, 2);
     assert.deepEqual(sent.map(s => s.to).sort(), ['ann', 'bo']); assert.ok(sent.every(s => s.title === 'Weeks league: week 2'));
     ok(await res(L0.id, b)); assert.equal(sent.length, 2, 'a retry tells nobody again');

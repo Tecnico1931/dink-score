@@ -931,6 +931,10 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .imp-warn { color: var(--muted); }
 .imp-sum { margin: 0; font-size: 15px; display: flex; flex-direction: column; gap: 4px; }
 .imp-check { display: flex; gap: 8px; align-items: center; font-size: 15px; }
+.push-cats { border: 0; margin: 4px 0 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.push-cat { display: flex; gap: 12px; align-items: flex-start; min-height: 44px; padding: 6px 0; font-size: 15px; }
+.push-cat input { width: 22px; height: 22px; flex: none; margin: 2px 0 0; }
+.push-cat span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .imp-cols { margin: 0 0 4px; padding-left: 18px; }
 .imp-roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .imp-roster li { display: flex; align-items: center; gap: 10px; }
@@ -3342,6 +3346,18 @@ async function notifyToggle(on) {
   } catch (err) { if (clubSheet) { clubSheet.busy = false; clubSheet.error = err.message; } }
   if (clubSheet) renderClub();
 }
+const PUSH_CATS = [['nights', 'Game nights', 'A new game night, and reminders from an organizer.'], ['confirm', 'Games to confirm', 'A game that is waiting for you to confirm. Coming soon.'], ['events', 'Events and courts', 'Your court when a round opens, and when a court is free and you are next.'], ['league', 'League', 'Your match day and court, a moved match, and when a result is in.']];
+async function notifyCategory(cat, on) {
+  if (!clubSheet || clubSheet.view !== 'notify' || !clubSheet.st || clubSheet.busy) return;
+  const had = clubSheet.st.categories || PUSH_CATS.map(c => c[0]);
+  const next = PUSH_CATS.map(c => c[0]).filter(k => k === cat ? on : had.includes(k));
+  clubSheet.busy = true; clubSheet.error = ''; clubSheet.msg = ''; clubSheet.st = Object.assign({}, clubSheet.st, { categories: next }); renderClub();
+  try {
+    await playerCall(pushCreds({ action: 'push-categories', endpoint: await pushEndpoint(), categories: next }));
+    announce(`${PUSH_CATS.find(c => c[0] === cat)[1]} notifications ${on ? 'on' : 'off'}.`);
+  } catch (err) { if (clubSheet && clubSheet.view === 'notify') { clubSheet.st = Object.assign({}, clubSheet.st, { categories: had }); clubSheet.error = err.message; } }
+  if (clubSheet && clubSheet.view === 'notify') { clubSheet.busy = false; renderClub(); }
+}
 const rightsClubExport = fmt => rightsRun(async () => {
   const res = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
     body: JSON.stringify(Object.assign({ code: club.code, action: 'export', format: fmt }, adminCreds())) }).catch(() => { throw new Error("Can't reach the server. Check your connection."); });
@@ -3731,7 +3747,7 @@ function renderClub() {
     const st = c.st || {}, needsHome = isIOS && !isStandalone;
     body = `<h2 id="club-h">Notifications</h2>
       ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}${err}
-      <p>Get a message on this phone when a round opens for your court, when a court is free and you're next, or when an organizer sends a game night reminder. It goes only to you, from ${esc(club.name)}, and never includes the club code.</p>
+      <p>Get a message on this phone about this club: a new game night or a reminder, your court when a round opens or frees up, and your league matches. It goes only to you, from ${esc(club.name)}, and never includes the club code or a score. Organizer requests reach organizers either way.</p>
       ${c.loading ? '<p class="note" role="status">Checking…</p>'
         : needsHome ? `<div class="org-card"><div class="org-head"><span class="lab">Add Dink Score to your Home Screen first</span></div><p>iPhone and iPad only deliver notifications to an app on the Home Screen. In Safari tap <b>Share</b>, then <b>Add to Home Screen</b>, open Dink Score from the new icon, and come back here. Until then notifications can't be turned on.</p></div>`
         : c.error && !c.st ? ''
@@ -3739,6 +3755,7 @@ function renderClub() {
         : !pushSupported() ? `<p class="note">This browser can't receive notifications. Try Chrome or Firefox, or the Home Screen app on iPhone.</p>`
         : `<div class="org-card"><div class="org-head"><span class="lab">This phone</span><span class="badge ${st.subscribed ? 'on' : 'off'}">${st.subscribed ? 'On' : 'Off'}</span></div>
             <div class="org-btns">${st.subscribed ? `<button class="btn btn-soft" data-act="notify-off" ${c.busy ? 'disabled' : ''}>Turn off</button>` : `<button class="btn btn-ink" data-act="notify-on" ${c.busy ? 'disabled' : ''}>Turn on</button>`}</div>
+            ${st.subscribed ? `<fieldset class="push-cats" ${c.busy ? 'disabled' : ''}><legend class="lab">Send me</legend>${PUSH_CATS.map(([k, label, hint]) => `<label class="push-cat"><input type="checkbox" data-push-cat="${k}" ${(st.categories || PUSH_CATS.map(x => x[0])).includes(k) ? 'checked' : ''}><span><b>${label}</b><span class="note">${hint}</span></span></label>`).join('')}</fieldset>` : ''}
             <p class="note">Delivery isn't guaranteed: it depends on your phone's settings and signal. Keep the score on the screen as usual. Turn it off here any time, or in your phone's notification settings.</p></div>`}
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Back</button></div>`;
   } else if (c.view === 'rotate') {
@@ -6550,7 +6567,8 @@ async function gnFormSave() {
     const payload = Object.assign({
       code: club.code, action,
       ...(clubSheet.editing ? { id: d.id } : {}),
-      night: { title, startsAt, location: String(d.location || '').trim(), note: String(d.note || '').trim(), cap }
+      night: { title, startsAt, location: String(d.location || '').trim(), note: String(d.note || '').trim(), cap },
+      ...(clubSheet.editing ? {} : { tz: (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; } })() })
     }, adminCreds());
     const res = await api('club', { method: 'POST', body: JSON.stringify(payload) });
     const saved = res.night;
@@ -9383,6 +9401,7 @@ document.addEventListener('click', e => {
 });
 let fcTimer;
 document.addEventListener('change', e => {
+  if (e.target.dataset && e.target.dataset.pushCat) { notifyCategory(e.target.dataset.pushCat, e.target.checked); return; }
   if (e.target.id === 'pd-file' && clubSheet && clubSheet.view === 'paddles') {
     const file = e.target.files && e.target.files[0];
     clubSheet.draft.name = (document.getElementById('pd-name') || {}).value || clubSheet.draft.name;

@@ -14,7 +14,7 @@ try { ({ PGlite } = await import('@electric-sql/pglite')); } catch { console.err
 const neon = await import('@neondatabase/serverless');
 
 const pg = new PGlite();
-const TEXT_OIDS = [16, 20, 21, 23, 25, 700, 701, 1043, 1082, 1114, 1184, 1700, 114, 3802];
+const TEXT_OIDS = [16, 20, 21, 23, 25, 700, 701, 1043, 1082, 1114, 1184, 1700, 114, 3802, 1009];
 const parsers = Object.fromEntries(TEXT_OIDS.map(o => [o, v => v]));
 async function run(q) {
   const r = await pg.query(q.query, q.params || [], { rowMode: 'array', parsers });
@@ -202,6 +202,44 @@ await step('game night reminder: organizer only, respects opt-in and audience, n
   }
   assert.equal((await call(club, 'POST', { body: { code, action: 'night-remind', id: gn.id, ...ORG } })).status, 429, 'per-night cooldown enforced');
   assert.equal(take().length, 0);
+});
+
+await step('categories: default all on, per device, own device only; invites and league results follow them, with no score or club in the text', async () => {
+  const A1 = device('a1').endpoint, ALL = ['nights', 'confirm', 'events', 'league'];
+  assert.deepEqual(ok(await L('push-status', { ...me('Ana'), endpoint: A1 })).categories, ALL, 'a device from before categories existed hears everything');
+  assert.equal(ok(await L('push-status', { ...me('Ana'), endpoint: device('nope').endpoint })).categories, null);
+  assert.equal((await L('push-categories', { ...me('Ana'), endpoint: A1, categories: 'nights' })).status, 400);
+  assert.equal((await L('push-categories', { ...me('Ana'), endpoint: device('nope').endpoint, categories: ['nights'] })).status, 404, 'not subscribed');
+  assert.equal((await L('push-categories', { ...me('Cy'), endpoint: A1, categories: [] })).status, 404, "another member's phone is not yours to change");
+  assert.equal((await L('push-categories', { playerName: 'Ana', endpoint: A1, categories: [] })).status, 403, 'needs the player token');
+  assert.deepEqual(ok(await L('push-status', { ...me('Ana'), endpoint: A1 })).categories, ALL, 'refused calls changed nothing');
+  assert.deepEqual(ok(await L('push-categories', { ...me('Ana'), endpoint: A1, categories: ['events', 'bogus', 'events'] })).categories, ['events']);
+  assert.deepEqual(ok(await L('push-status', { ...me('Ana'), endpoint: A1 })).categories, ['events']);
+  assert.deepEqual(ok(await L('push-status', { ...me('Ana'), endpoint: device('a2').endpoint })).categories, ALL, 'another device of the same player is unchanged');
+  ok(await L('push-categories', { ...me('Ben'), endpoint: B1.endpoint, categories: ['league'] }));
+  ok(await L('push-subscribe', { ...me('Ana'), subscription: device('a1') })); // subscribing again keeps the choice
+  assert.deepEqual(ok(await L('push-status', { ...me('Ana'), endpoint: A1 })).categories, ['events']);
+  // a new game night: everyone with nights on hears it once; Ana (events only) and Ben (league only) do not
+  take();
+  ok(await call(club, 'POST', { body: { code, action: 'night-create', ...ORG, tz: 'UTC', night: { title: 'Friday doubles', startsAt: Date.now() + 3 * 864e5, location: 'Courts 3-4' } } }), 201);
+  const inv = take(), got = inv.map(s => s.endpoint).sort();
+  assert.deepEqual(got, [device('a2').endpoint, device('a3').endpoint, device('a4').endpoint, C1.endpoint].sort());
+  for (const s of inv) {
+    assert.equal(s.message.title, 'New game night: Friday doubles');
+    assert.match(s.message.body, /^(Ana|Cy), are you in for /);
+    assert.ok(!text(s.message).includes(code) && !text(s.message).includes('Push check club') && !('category' in s.message));
+  }
+  // a league result: the match's players hear that it is in (never the score), minus devices with league off
+  const lg = ok(await call(events, 'POST', { body: { code, action: 'league-create', ...ORG, league: { kind: 'league', name: 'Tuesday league', mode: 'singles', players: ['Ana', 'Ben', 'Cy', 'Di'], target: 11 } } }), 201).league;
+  take();
+  const m = lg.weeks[0].matches[0], who = m.teams.flat(), devs = { Ana: [device('a2').endpoint, device('a3').endpoint, device('a4').endpoint], Ben: [B1.endpoint], Cy: [C1.endpoint], Di: [] };
+  ok(await call(events, 'POST', { body: { code, action: 'league-result', id: lg.id, matchId: m.id, score: [11, 7], endedAt: Date.now(), ...ORG } }));
+  const res = take();
+  assert.deepEqual(res.map(s => s.endpoint).sort(), who.flatMap(n => devs[n]).sort(), 'only the two players, and not the device with league off');
+  for (const s of res) { assert.equal(s.message.title, 'Tuesday league: result in'); assert.ok(!/11|7|won|beat/.test(s.message.body) && !text(s.message).includes(code)); }
+  ok(await call(events, 'POST', { body: { code, action: 'league-result', id: lg.id, matchId: m.id, score: [11, 7], endedAt: Date.now(), ...ORG } }));
+  assert.equal(take().length, 0, 'a retried result tells nobody twice');
+  ok(await L('push-categories', { ...me('Ana'), endpoint: A1, categories: ALL })); // back to all for the steps below
 });
 
 await step('a rename keeps the notifications with the player; anonymising removes them', async () => {

@@ -340,6 +340,7 @@ export function ensureSchema() {
         PRIMARY KEY (club, endpoint)
       )`;
       await q`CREATE INDEX IF NOT EXISTS push_subs_club_name ON push_subs (club, name_key)`;
+      await q`ALTER TABLE push_subs ADD COLUMN IF NOT EXISTS categories text[]`; // null = every category (what a device had before categories existed); see PUSH_CATEGORIES in _push.js
       await q`ALTER TABLE push_subs ADD COLUMN IF NOT EXISTS organizer boolean NOT NULL DEFAULT false`; // a device subscribed with the creating phone's owner token, so organizer pushes (_approvals.js) reach it
       await q`CREATE TABLE IF NOT EXISTS pickup_games (
         session text NOT NULL REFERENCES pickup_sessions(code) ON DELETE CASCADE,

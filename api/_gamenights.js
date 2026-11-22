@@ -131,8 +131,15 @@ export function nightReminderMessages(night, members, rsvpRows, { audience = 'al
       : st === 'maybe'
         ? `${who}, still maybe for ${when}${loc}? Tap to update.`
         : `${who}, are you in for ${when}${loc}?`;
-    out.set(name, { title, body: short(body, 160), tag });
+    out.set(name, { title, body: short(body, 160), tag, category: 'nights' });
   }
+  return out;
+}
+
+// A new game night: every claimed member is asked once, in the reminder's words (day, time, place; no names, no club). Tag shared with the reminders, so they replace it.
+export function nightInviteMessages(night, members, { tz = 'UTC', now = Date.now() } = {}) {
+  const out = nightReminderMessages(night, members, [], { audience: 'all', tz, now });
+  for (const m of out.values()) m.title = short('New game night: ' + (night.title || 'Game night'), 60);
   return out;
 }
 
@@ -206,7 +213,15 @@ export async function nightAction(sql, club, body, req, { now = Date.now() } = {
     const id = 'gn-' + randomBytes(6).toString('hex');
     await sql`INSERT INTO game_nights (club, id, title, starts_at, location, note, cap)
       VALUES (${code}, ${id}, ${input.title}, ${input.startsAt}, ${input.location}, ${input.note}, ${input.cap})`;
-    return { status: 201, body: { ok: true, night: await loadOneNight(sql, code, id) } };
+    const night = await loadOneNight(sql, code, id);
+    const vapid = vapidFromEnv();
+    if (vapid) { // an invite never fails the scheduling: notify() swallows push errors, and so does a failed member lookup
+      try {
+        const members = await sql`SELECT name, name_key FROM roster WHERE club = ${code} AND claim_hash IS NOT NULL AND blocked_at IS NULL`;
+        await notify(sql, code, nightInviteMessages(night, members, { tz: cleanZone(body.tz), now }), vapid);
+      } catch { /* the night is saved; nobody is told */ }
+    }
+    return { status: 201, body: { ok: true, night } };
   }
 
   const id = String(body.id || '').trim();
