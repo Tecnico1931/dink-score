@@ -14,7 +14,7 @@ watch/
 
 | Screen | When | What |
 |---|---|---|
-| Link | not linked | *Enter a game code* (below the QR) and the QR code as large as the screen allows (a square under the clock, whole-pixel modules on white), then, one scroll or Digital Crown turn below it, the 4 numbers the phone asks for and 6 characters to type if the camera is no use. A new code every ~4.5 minutes. |
+| Link | not linked | the QR code as large as fits above a green *Enter a game code* button (both on the first screen, no scrolling; the QR is a square under the clock, whole-pixel modules on white), then, one scroll or Digital Crown turn below, the 4 numbers the phone asks for and 6 characters to type if the camera is no use. A new code every ~4.5 minutes. |
 | Game code | *Enter a game code* | the 6 characters and 4 numbers the scoring phone shows; links the watch to that one game |
 | Idle | linked, no game sent | club name (or *Linked to one game*), *Link another phone* (or *Enter a game code*), *Unlink* |
 | Score | a game is attached | the call (serving side first, as the phone says it) with undo beside it, then one full-width button per team that fills the rest of the screen (team 1 in court blue on top, team 2 in court green below, matching the phone; the receiving side dims): team name (17 pt, up to two lines), a ball-yellow dot on the serving team, and the score in 68 pt type (shrinks for 3 digits) |
