@@ -112,6 +112,28 @@ function gnHomeHTML() {
   </section>`;
 }
 
+// The Events tab: upcoming game nights with In / Maybe / Out, and the organizer's button to schedule one.
+function gnTabHTML() {
+  if (!club || !API_OK) return '';
+  const list = gnUpcoming(), org = gnCanOrg();
+  const cards = list.slice(0, 3).map(n => {
+    const w = gnWhenParts(n.startsAt), inNames = (n.rsvps && n.rsvps.in) || [];
+    const preview = inNames.length ? `In: ${inNames.slice(0, 6).join(', ')}${inNames.length > 6 ? ` +${inNames.length - 6} more` : ''}` : 'Be the first to say you\'re in.';
+    return `<article class="card gn-home" aria-label="${esc(n.title)}">
+      <div class="gn-head"><div><h3 class="gn-title">${esc(n.title)}</h3><div class="gn-when">${w.rel ? `<span class="gn-rel">${esc(w.rel)}</span> · ` : ''}${esc(w.label)}</div></div>${gnCapBadgeHTML(n)}</div>
+      ${n.location ? `<div class="gn-loc">${esc(n.location)}</div>` : ''}
+      ${gnRsvpBarHTML(n, false)}
+      <p class="note gn-preview">${esc(preview)}</p>
+    </article>`;
+  }).join('');
+  const unlock = !org && club.hasPin ? '<button type="button" class="link" data-act="pin-unlock-open">Organizer? Unlock this phone to schedule a game night</button>' : '';
+  return `<section aria-labelledby="gn-tab-h" class="ev-sec">
+    <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length > 3 ? `<button type="button" class="link" data-gn="open">See all (${list.length})</button>` : ''}</div>
+    ${org ? '<button type="button" class="btn btn-ink block" data-gn="new">Schedule a game night</button>' : ''}
+    ${cards || '<p class="note">No game nights scheduled yet.</p>'}${unlock}
+  </section>`;
+}
+
 async function gnOpen(from) {
   if (!club) return;
   clubSheet = { view: 'nights', from: from || null, nights: clubData && clubData.nights ? clubData.nights.slice() : null, pushEnabled: null, loading: true, error: '', msg: '' };

@@ -3745,10 +3745,41 @@ const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" heigh
 // Set body overflow only when it actually changes (WebKit can reset scroll position on reassignment).
 function lockBody(on) { if (shareSheet || newGameOpen) on = true; const v = on ? 'hidden' : ''; if (document.body.style.overflow !== v) document.body.style.overflow = v; }
 
-// The Events tab opens the events screen on tap; this is the page behind it, shown when the screen is closed or the tab is restored.
+// The Events tab is a page: game nights, the standings of what is live, then the events and leagues with a Standings and a TV button each.
+// An event or league opens as a screen over it (evTab.at = 0 refreshes the page when that screen closes).
 function eventsTabView() {
-  const liveEv = evSummary.find(e => e.status === 'live');
-  return `<section><div class="sec-head"><h2>Events</h2></div><button class="tile wide" data-ev="open-list" style="min-height:0;margin-top:10px"><span class="t-k">Events</span>${liveEv ? `<span class="t-name">${esc(liveEv.name)}</span><span class="t-foot">Live · ${esc(evProgress(liveEv))}</span>` : `<span class="t-name">Tournaments and rotating doubles</span><span class="t-foot">Round robins, brackets and several courts at once</span>`}</button></section>`;
+  if (!club) return '';
+  if (evTab.code !== club.code) Object.assign(evTab, { code: club.code, at: 0, leagues: null, evd: null, lgd: null, tokens: {}, arm: '', err: '' });
+  if (!evTab.busy && Date.now() - evTab.at > 30000) setTimeout(evTabLoad, 0);
+  const org = canOrganize(), loading = !evTab.at;
+  const section = (id, title, more, make, body) => `<section class="ev-sec" aria-labelledby="${id}"><div class="sec-head"><h2 id="${id}">${title}</h2>${more}</div>${make}${body}</section>`;
+  const evs = loading ? null : evSummary.slice(0, 5), lgs = evTab.leagues && evTab.leagues.slice(0, 5);
+  const evBody = evs === null ? skel(2, true) : evs.length ? evs.map(e => evTabCard(e, 'event', org)).join('') : '<p class="note">No events yet. An organizer can run a round robin or a bracket.</p>';
+  const lgBody = lgs == null ? (loading ? skel(1, true) : '') : lgs.length ? lgs.map(e => evTabCard(e, 'league', org)).join('') : '<p class="note">No leagues or ladders yet.</p>';
+  const allBtn = (act, label) => `<button type="button" class="link" ${act}>${label}</button>`;
+  return `${gnTabHTML()}${evTabStandingsHTML()}
+    ${evTab.err ? `<p class="err" role="alert">${esc(evTab.err)}</p>` : ''}
+    ${section('evt-h', 'Events', allBtn('data-ev="open-list"', 'All events'), org ? '<button type="button" class="btn btn-soft block" data-ev="tab-new">New event</button>' : '', evBody)}
+    ${section('lgt-h', 'Leagues and ladders', allBtn('data-lg="open"', 'All leagues'), '', lgBody)}`;
+}
+const evElim = e => e.format === 'single_elim' || e.format === 'double_elim';
+function evTabCard(e, kind, org) {
+  const lg = kind === 'league', id = esc(e.id), key = kind + e.id, armed = evTab.arm === key;
+  const what = lg ? (e.kind === 'ladder' ? 'Ladder' : 'Table') : evElim(e) ? 'Bracket' : 'Standings';
+  const attr = lg ? 'data-lg' : 'data-ev';
+  return `<article class="ev-card" aria-label="${esc(e.name)}">${lg ? lgItemBody(e) : evItemBody(e)}
+    <div class="ev-actions"><button type="button" class="btn btn-soft ev-small" ${attr}="tab-open" data-id="${id}" aria-label="${what}: ${esc(e.name)}">${what}</button>${org ? `<button type="button" class="btn ${armed ? 'btn-ink' : 'btn-soft'} ev-small" ${attr}="tab-tv" data-id="${id}" aria-label="${armed ? 'Make a public link and open it' : lg ? 'Open the public page for a big screen' : 'Open the TV view'}: ${esc(e.name)}">${armed ? 'Tap again to share' : 'TV'}</button>` : ''}</div>
+    ${armed ? `<p class="note" role="status">This makes a public link anyone can open: names and scores only, nobody can change anything.</p>` : ''}</article>`;
+}
+// The top of the table of the live round robin or league, the same table the event screen draws (BK.standingsHTML).
+function evTabStandingsHTML() {
+  const blocks = [];
+  const ev = evTab.evd, L = evTab.lgd;
+  if (ev && ev.status === 'live' && ev.standings && ev.standings.length) blocks.push([ev.name, 'event', ev.id, BK.standingsHTML(Object.assign({}, ev, { standings: ev.standings.slice(0, 3) }))]);
+  const rows = L && L.status === 'live' && L.tables && L.tables[0] && L.tables[0].rows;
+  if (rows && rows.length) blocks.push([L.name + (L.divisions.length > 1 ? ', ' + L.tables[0].label : ''), 'league', L.id, BK.standingsHTML({ format: 'roundrobin', partners: L.mode === 'doubles' ? 'fixed' : 'rotating', standings: rows.slice(0, 3) })]);
+  if (!blocks.length) return '';
+  return `<section class="ev-sec" aria-labelledby="evt-st"><div class="sec-head"><h2 id="evt-st">Standings now</h2></div>${blocks.map(([name, kind, id, table]) => `<div class="ev-card" style="padding:8px 12px"><div class="ev-item-head"><b>${esc(name)}</b><button type="button" class="link" ${kind === 'league' ? 'data-lg' : 'data-ev'}="tab-open" data-id="${esc(id)}">Full table</button></div>${table}</div>`).join('')}</section>`;
 }
 
 // The error boundary: if drawing throws, show the recovery screen (and report the error) instead of leaving a blank page.
@@ -6080,7 +6111,6 @@ function otHandle(ds) {
   if (ds.act === 'ot-open') { clubSheet = { view: 'orgtools' }; renderClub(); loadMembers(); return true; }
   if (ds.act === 'ot-events' || ds.act === 'ot-record') {
     tab = ds.act === 'ot-events' ? 'events' : 'history'; store.set('pb.tab', tab); clubSheet = null; render(); renderClub(); try { document.body.scrollTo(0, 0); } catch {}
-    if (tab === 'events') evOpenList();
     return true;
   }
   if (ds.otConfirm) { confirmGame(ds.otConfirm).then(() => renderClub()); return true; }
@@ -6200,6 +6230,28 @@ function gnHomeHTML() {
     ${n.location ? `<div class="gn-loc">${esc(n.location)}</div>` : ''}
     ${gnRsvpBarHTML(n, false)}
     <p class="note gn-preview">${esc(preview)}</p>
+  </section>`;
+}
+
+// The Events tab: upcoming game nights with In / Maybe / Out, and the organizer's button to schedule one.
+function gnTabHTML() {
+  if (!club || !API_OK) return '';
+  const list = gnUpcoming(), org = gnCanOrg();
+  const cards = list.slice(0, 3).map(n => {
+    const w = gnWhenParts(n.startsAt), inNames = (n.rsvps && n.rsvps.in) || [];
+    const preview = inNames.length ? `In: ${inNames.slice(0, 6).join(', ')}${inNames.length > 6 ? ` +${inNames.length - 6} more` : ''}` : 'Be the first to say you\'re in.';
+    return `<article class="card gn-home" aria-label="${esc(n.title)}">
+      <div class="gn-head"><div><h3 class="gn-title">${esc(n.title)}</h3><div class="gn-when">${w.rel ? `<span class="gn-rel">${esc(w.rel)}</span> · ` : ''}${esc(w.label)}</div></div>${gnCapBadgeHTML(n)}</div>
+      ${n.location ? `<div class="gn-loc">${esc(n.location)}</div>` : ''}
+      ${gnRsvpBarHTML(n, false)}
+      <p class="note gn-preview">${esc(preview)}</p>
+    </article>`;
+  }).join('');
+  const unlock = !org && club.hasPin ? '<button type="button" class="link" data-act="pin-unlock-open">Organizer? Unlock this phone to schedule a game night</button>' : '';
+  return `<section aria-labelledby="gn-tab-h" class="ev-sec">
+    <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length > 3 ? `<button type="button" class="link" data-gn="open">See all (${list.length})</button>` : ''}</div>
+    ${org ? '<button type="button" class="btn btn-ink block" data-gn="new">Schedule a game night</button>' : ''}
+    ${cards || '<p class="note">No game nights scheduled yet.</p>'}${unlock}
   </section>`;
 }
 
@@ -7666,6 +7718,45 @@ async function evLoadMore() {
   } catch (err) { if (evScreen === s) s.error = err.message; }
   if (evScreen === s) { s.loadingMore = false; renderEvents(true); }
 }
+// The Events tab page: its data, and the TV shortcut (the same share links as the event and league screens; only organizers can see a token).
+const evTab = { code: '', at: 0, busy: false, leagues: null, evd: null, lgd: null, tokens: {}, arm: '', err: '' };
+async function evTabLoad() {
+  if (!club || !API_OK || evTab.busy) return;
+  const code = club.code, same = () => !!club && club.code === code;
+  evTab.busy = true;
+  try {
+    const [e, l] = await Promise.all([api('events?code=' + code), api('events?leagues=1&code=' + code)]);
+    if (!same()) return;
+    evSummary = e.events; evTab.leagues = l.leagues; evTab.err = '';
+    const ev = evSummary.find(x => x.status === 'live' && !evElim(x)), lg = l.leagues.find(x => x.status === 'live' && x.kind !== 'ladder');
+    const [ed, ld] = await Promise.all([ev ? api(`events?code=${code}&id=${encodeURIComponent(ev.id)}`).catch(() => null) : null, lg ? api(`events?code=${code}&league=${encodeURIComponent(lg.id)}`).catch(() => null) : null]);
+    if (!same()) return;
+    evTab.evd = ed && ed.event; evTab.lgd = ld && ld.league;
+  } catch (err) { evTab.err = err.offline ? 'You are offline. Events show here when you are back online.' : err.message; }
+  finally { evTab.busy = false; evTab.at = Date.now(); }
+  if (tab === 'events' && !evScreen && !lgScreen) safeRender();
+}
+async function evTabTv(kind, id) {
+  if (!canOrganize()) return;
+  const key = kind + id, lg = kind === 'league', fx = () => { const b = document.querySelector(`[data-${lg ? 'lg' : 'ev'}="tab-tv"][data-id="${CSS.escape(id)}"]`); if (b) b.focus({ preventScroll: true }); };
+  if (!evTab.tokens[key] && evTab.arm !== key) { // making the public link is the one side effect, so it takes a second tap
+    evTab.arm = key; safeRender(); fx(); announce('Tap again to make a public link and open it. Anyone with the link can watch; names and scores only.'); return;
+  }
+  evTab.arm = '';
+  const w = window.open('', '_blank'); // opened now, while the tap still counts, so the pop-up blocker lets it through
+  try {
+    let t = evTab.tokens[key];
+    if (!t) { const d = lg ? await lgCall({ action: 'league-share', id }) : await evCall({ action: 'share', id }); t = evTab.tokens[key] = d.shareToken; }
+    const url = lg ? lgShareUrl(t) : evShareUrl(t) + '?tv=1';
+    if (w) { w.location.href = url; announce(lg ? 'Opened the public page.' : 'Opened the TV view.'); } else { showToast('Allow pop-ups to open the TV view.', false); announce('Allow pop-ups to open the TV view.'); }
+  } catch (err) {
+    if (w) w.close();
+    if (err.status === 403) forgetPin();
+    const msg = err.offline ? 'You are offline. Try again when you are back online.' : err.message;
+    showToast(msg, false); announce(msg);
+  }
+  safeRender(); fx();
+}
 async function evSummaryRefresh() {
   if (!club || !API_OK || (tab !== 'play' && !evScreen)) return; // the summary only feeds the tile on Play
   try {
@@ -7730,6 +7821,8 @@ function evSeg(key, options, value) {
 function evStepper(key, label, value, min, max) {
   return `<div class="field"><span class="lab" id="ev-l-${key}">${label}</span><div class="ev-step" role="group" aria-labelledby="ev-l-${key}"><button type="button" data-ev="step" data-k="${key}" data-d="-1" aria-label="Fewer" ${value <= min ? 'disabled' : ''}>−</button><b class="num" aria-live="polite">${value}</b><button type="button" data-ev="step" data-k="${key}" data-d="1" aria-label="More" ${value >= max ? 'disabled' : ''}>+</button></div></div>`;
 }
+const evItemBody = e => `<span class="ev-item-head"><b>${esc(e.name)}</b><span class="badge ${e.status === 'live' ? 'hot' : 'prov'}">${e.status === 'live' ? 'Live' : 'Finished'}</span></span>
+    <span class="note">${esc(EV_FORMAT_NAME[e.format])}${e.partners === 'rotating' ? ', partners rotate' : ', fixed teams'} · ${e.players} players · ${e.courts} court${e.courts === 1 ? '' : 's'}</span><span class="note">${esc(evProgress(e))}</span>`;
 const evProgress = e => e.status === 'done' ? (e.champion ? `Won by ${e.champion.join(' & ')}` : 'Finished')
   : e.stage === 'knockout' ? 'Knockout under way' : `Round ${Math.max(1, e.round)} of ${e.roundsPlanned}`;
 
@@ -7745,8 +7838,7 @@ function evListHTML(s) {
   const hint = club.hasPin ? 'Starting and running events needs the organizer PIN.' : 'Only the phone that created the club can start events. Set an organizer PIN from the club screen to let other organizers help.';
   const make = org ? '<button class="btn btn-ink block" data-ev="new">New event</button>'
     : `<div class="org-card"><p>${esc(hint)}</p>${club.hasPin ? '<button class="btn btn-ink" data-ev="unlock">Unlock this phone</button>' : ''}</div>`;
-  const items = (s.list || []).map(e => `<button class="ev-card ev-item" data-ev="open" data-id="${esc(e.id)}"><span class="ev-item-head"><b>${esc(e.name)}</b><span class="badge ${e.status === 'live' ? 'hot' : 'prov'}">${e.status === 'live' ? 'Live' : 'Finished'}</span></span>
-    <span class="note">${esc(EV_FORMAT_NAME[e.format])}${e.partners === 'rotating' ? ', partners rotate' : ', fixed teams'} · ${e.players} players · ${e.courts} court${e.courts === 1 ? '' : 's'}</span><span class="note">${esc(evProgress(e))}</span></button>`).join('');
+  const items = (s.list || []).map(e => `<button class="ev-card ev-item" data-ev="open" data-id="${esc(e.id)}">${evItemBody(e)}</button>`).join('');
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}${make}
     <button class="btn btn-soft block" data-lg="open">Leagues and ladders</button>
     ${s.list === null ? skel(3, true) : items ? `<div class="ev-sec">${items}</div>${s.more ? `<button class="btn btn-soft block" data-ev="more" ${s.loadingMore ? 'disabled' : ''}>${s.loadingMore ? 'Loading…' : 'Show more events'}</button>` : ''}` : '<div class="empty"><p>No events yet. An organizer can run a round robin with rotating partners, a pool play and knockout, or a single or double elimination bracket.</p></div>'}`;
@@ -8284,7 +8376,15 @@ function evAct(a, d) {
   const s = evScreen;
   if (a === 'open-list') { evOpenList(); return; }
   if (a === 'more') { evLoadMore(); return; }
+  if (a === 'tab-open') { evShow(d.id); evScreen.fromTab = true; return; }
+  if (a === 'tab-tv') { evTabTv('event', d.id); return; }
+  if (a === 'tab-new') { evScreen = { view: 'new', list: null, error: '', form: evNewForm() }; renderEvents(true); return; }
   if (!s) return;
+  if (a === 'back' && s.view === 'detail' && s.fromTab) {
+    evScreen = null; evTab.at = 0; renderEvents(true); safeRender();
+    const t = document.querySelector(`[data-ev="tab-open"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
+    return;
+  }
   if (a === 'back' && s.view !== 'bracket') {
     if (s.view === 'list') { evScreen = null; renderEvents(true); safeRender(); const t = document.querySelector('[data-ev="open-list"]'); if (t) t.focus({ preventScroll: true }); return; }
     if (s.view === 'detail' && s.list === null) { evOpenList(); return; }
@@ -8477,11 +8577,12 @@ function lgHTML() {
 }
 const lgProgress = e => e.kind === 'ladder' ? `${e.results} result${e.results === 1 ? '' : 's'} this season${e.top ? ` · top: ${lgName(e.top)}` : ''}`
   : e.status === 'done' ? `Season finished${e.champions && e.champions[0] ? ` · ${e.champions.map(c => c ? lgName(c) : '').filter(Boolean).join(', ')}` : ''}` : `${e.played} of ${e.matches} matches played`;
+const lgItemBody = e => `<span class="ev-item-head"><b>${esc(e.name)}</b><span class="badge ${e.status === 'live' ? 'hot' : 'prov'}">${e.kind === 'ladder' ? 'Ladder' : e.status === 'live' ? 'Live' : 'Finished'}</span></span>
+    <span class="note">${esc(e.season)} · ${e.kind === 'ladder' ? 'Ladder' : `League, ${e.divisions} division${e.divisions === 1 ? '' : 's'}`} · ${e.entries} ${e.mode === 'doubles' ? 'teams' : 'players'}</span><span class="note">${esc(lgProgress(e))}</span>`;
 function lgListHTML(s) {
   const org = canOrganize();
   const make = org ? '<button class="btn btn-ink block" data-lg="new">New league or ladder</button>' : `<div class="org-card"><p>${esc(club.hasPin ? 'Starting leagues and ladders needs the organizer PIN.' : 'Only the phone that created the club can start leagues and ladders.')}</p></div>`;
-  const items = (s.list || []).map(e => `<button class="ev-card ev-item" data-lg="open-one" data-id="${esc(e.id)}"><span class="ev-item-head"><b>${esc(e.name)}</b><span class="badge ${e.status === 'live' ? 'hot' : 'prov'}">${e.kind === 'ladder' ? 'Ladder' : e.status === 'live' ? 'Live' : 'Finished'}</span></span>
-    <span class="note">${esc(e.season)} · ${e.kind === 'ladder' ? 'Ladder' : `League, ${e.divisions} division${e.divisions === 1 ? '' : 's'}`} · ${e.entries} ${e.mode === 'doubles' ? 'teams' : 'players'}</span><span class="note">${esc(lgProgress(e))}</span></button>`).join('');
+  const items = (s.list || []).map(e => `<button class="ev-card ev-item" data-lg="open-one" data-id="${esc(e.id)}">${lgItemBody(e)}</button>`).join('');
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}${make}
     ${s.list === null ? skel(3) : items ? `<div class="ev-sec">${items}</div>` : '<div class="empty"><p>Nothing yet. A league plays a season of weekly matches in divisions; a ladder lets players challenge the ones above them.</p></div>'}`;
 }
@@ -8693,8 +8794,15 @@ async function lgSaveChallenge() {
 }
 function lgAct(a, d) {
   if (a === 'open') { lgOpen(); return; }
+  if (a === 'tab-open') { lgScreen = { view: 'detail', id: d.id, league: null, loading: true, error: '', list: null, fromTab: true }; renderLeagues(true); lgLoad(d.id); return; }
+  if (a === 'tab-tv') { evTabTv('league', d.id); return; }
   const s = lgScreen;
   if (!s) return;
+  if (a === 'back' && s.view === 'detail' && s.fromTab) {
+    lgScreen = null; evTab.at = 0; renderLeagues(true); safeRender();
+    const t = document.querySelector(`[data-lg="tab-open"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
+    return;
+  }
   if (a === 'back') {
     if (s.view === 'list') { lgClose(); return; }
     s.view = 'list'; s.league = null; s.entry = s.ch = s.share = s.plan = s.rs = s.ff = null; s.error = ''; s.armDelete = s.arm = false; renderLeagues(true); lgLoadList(); return;
@@ -8987,7 +9095,7 @@ document.addEventListener('click', e => {
   if (ds.cl) { if (ds.cl === 'open') clOpen(el); else clAct(ds.cl, ds); return; }
   if (ds.clMode && clubSheet && clubSheet.view === 'clublinks') { if (clubSheet.standing) clStanding(clubSheet.standing.id, ds.clMode); return; }
   if (ds.se) { if (ds.se === 'open') seOpen(el); else if (ds.se === 'cancel') seClose(); return; }
-  if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; rxOpenGame = null; render(); try { document.body.scrollTo(0, 0); } catch {} if (tab === 'events') evOpenList(); return; }
+  if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; rxOpenGame = null; render(); try { document.body.scrollTo(0, 0); } catch {} return; }
   if (ds.tabGo) { tab = ds.tabGo; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} return; }
   for (const k of ['mode', 'scoring', 'target', 'winBy']) {
     const v = el.getAttribute('data-set-' + k);

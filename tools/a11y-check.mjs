@@ -86,6 +86,35 @@ for (const [mode, opt] of states) {
   await page.setViewport({ width: 390, height: 780, isMobile: true, hasTouch: true });
   await page.goto(base + 'b.html', { waitUntil: 'networkidle0' }); await sleep(300); await audit(page, 'public bracket page (shell)', report); await ctx.close();
 }
+{ // The Events tab as an organizer: game nights, standings now, the event and league cards with Standings and TV (stubbed club and data, nothing is sent).
+  for (const colorScheme of ['light', 'dark']) {
+    const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+    await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-21"'); } catch {} });
+    await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    await page.evaluate(() => {
+      const now = Date.now(), H = 36e5, rows = [['Ana', 3, 0, 12], ['Ben', 2, 1, 4], ['Cy', 1, 2, -6]].map(([name, wins, losses, diff], i) => ({ rank: i + 1, name, played: wins + losses, wins, losses, diff, members: [name] }));
+      club = { code: 'ABC123', name: 'Check club', hasPin: true }; owners[club.code] = 'a'.repeat(48);
+      clubData = Object.assign({}, clubData, { code: club.code, nights: [{ id: 'n1', title: 'Friday open play', startsAt: now + 26 * H, location: 'West Park', cap: 12, status: 'open', counts: { in: 2, maybe: 1, out: 0 }, rsvps: { in: ['Ana', 'Ben'], maybe: ['Cy'], out: [] } }] });
+      evSummary = [{ id: 'e1', name: 'Saturday round robin', format: 'roundrobin', partners: 'rotating', players: 8, courts: 2, status: 'live', stage: 'rounds', round: 2, rounds: 7 }, { id: 'e2', name: 'Club cup', format: 'single_elim', partners: 'fixed', players: 8, courts: 1, status: 'live', stage: 'knockout' }];
+      Object.assign(evTab, { code: club.code, at: Date.now(), tokens: {}, arm: '', err: '', leagues: [{ id: 'l1', name: 'Tuesday league', season: 'Autumn', kind: 'league', divisions: 1, mode: 'doubles', entries: 4, status: 'live', week: 2, weeks: 3, results: 2 }],
+        evd: { id: 'e1', name: 'Saturday round robin', format: 'roundrobin', partners: 'rotating', status: 'live', standings: rows }, lgd: { id: 'l1', name: 'Tuesday league', status: 'live', mode: 'doubles', divisions: [{ label: 'Division A' }], tables: [{ label: 'Division A', rows }] } });
+      tab = 'events'; render();
+    });
+    await sleep(300);
+    if (!(await page.$('[data-ev="tab-tv"]')) || !(await page.$('[data-lg="tab-tv"]')) || !(await page.$('[data-gn="new"]'))) report.push({ label: `events tab (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'the Schedule a game night or TV button is missing', px: 0 }] });
+    await audit(page, `events tab (${colorScheme})`, report);
+    await page.evaluate(() => { evTab.arm = 'evente1'; render(); }); await sleep(200);
+    await audit(page, `events tab, TV armed (${colorScheme})`, report);
+    for (const w of colorScheme === 'light' ? [320, 195] : []) {
+      await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(250);
+      const over = await page.evaluate(() => [...document.querySelectorAll('#app *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('.tabs,svg'); }).map(e => e.tagName.toLowerCase() + '.' + e.className).slice(0, 5));
+      if (over.length) report.push({ label: `events tab: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+    }
+    await ctx.close();
+  }
+}
 { // A watch's QR or a game link opened with no club on this phone (Safari): the one-game link sheet, both ways in, at phone width and zoomed.
   const id = '0123456789abcdef0123456789abcdef';
   for (const [label, hash] of [['watch link, no club', `#watch=${id}.0420`], ['game link, no club', `#game=${id}`]]) {
