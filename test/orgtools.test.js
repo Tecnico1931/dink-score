@@ -39,7 +39,7 @@ test('every tappable row points at a handler that already exists', () => {
     if (!row.go) continue;
     const act = row.go.match(/data-act="([^"]+)"/);
     if (act) assert.ok(html.includes(`ds.act === '${act[1]}'`) || html.includes(`a === '${act[1]}'`) || act[1] === 'ot-events', act[1]);
-    else assert.match(row.go, /^data-gn="open"/);
+    else assert.match(row.go, /^data-gn="open"|^data-rw="club"/); // data-rw: handled by the click listener of src/app/economy.js
   }
 });
 

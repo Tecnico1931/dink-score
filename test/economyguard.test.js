@@ -47,8 +47,10 @@ test('scoring, rating and club-code paths never touch the economy', () => {
   }
 });
 
-test('rewards are off by default per club: the documented rule', () => {
-  // chisle: doc-level until the switch exists; when it does, assert its default here (club created without it => off).
+test('rewards are off by default per club: the rule and the switch', () => {
+  assert.match(read('api/_db.js'), /ADD COLUMN IF NOT EXISTS rewards boolean NOT NULL DEFAULT false/, 'a club has the switch off until an organizer sets it');
+  assert.match(read('api/_db.js'), /rewards: !!c\.rewards/);
+  assert.match(read('src/app/economy.js'), /const rwShown = \(\) => rwClubOn\(\) && !rwHidden\(\)/, 'nothing draws unless the club switch is on and the device switch is not');
   const sec = read('DESIGN.md').match(/### Rewards\n([\s\S]*?)\n## /);
   assert.ok(sec, 'DESIGN.md has a Rewards section');
   const rules = sec[1];
