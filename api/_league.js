@@ -7,7 +7,7 @@
 //   entries: [[names]], seeds: [rating, ...],           // one entry per player (singles) or team (doubles), strongest first by Dink Rating when made
 //   // league: divisions: [{ label, entries: [index] }], legs, weeks: [{ n, title, date?, time?, notifiedAt?, matches: [match] }], champions: [[names] per division]
 //   //   week.date 'YYYY-MM-DD' and week.time 'HH:MM' are the day's wall clock as the organizer typed it (no time zone); see _leagueweeks.js
-//   // ladder: jump (how many places up a challenge may reach), results: [result], seasons: [{ label, endedAt, order: [[names]] }]
+//   // ladder: jump (how many places up a challenge may reach), decayDays (0/absent = off; idle days per place dropped), since (season start), results: [result], seasons: [{ label, endedAt, order: [[names]] }]
 // }
 // match  = { id, division, teams: [[a, b], [c, d]], score: null | [x, y], status: 'pending' | 'done', winner, startedAt, endedAt, rallies, live, gameId,
 //            court?, date?, time? (this match moved off the week's day), forfeit? (settled by default: target to 0, never a game in the club record) }
@@ -246,31 +246,54 @@ export function createLadder(input, ratings = {}, now = Date.now(), rand = Math.
   if (!input || typeof input !== 'object') throw bad('Ladder details are missing.');
   const L = base(input, 'ladder', now, rand);
   const { entries, seeds } = makeEntries(input, L.mode, ratings);
-  Object.assign(L, { entries, seeds, jump: clamp(input.jump, 1, 10, 3), results: [], seasons: [] });
+  Object.assign(L, { entries, seeds, jump: clamp(input.jump, 1, 10, 3), decayDays: clamp(input.decayDays, 0, MAX_DECAY_DAYS, 0), since: now, results: [], seasons: [] });
   return L;
 }
 
 // Everyone's place, best first, as entry indexes: the starting order (strongest first) with every challenge replayed. A challenger who wins
 // takes the defender's place and everyone between moves down one; a defender who wins changes nothing.
-export function ladderOrder(L) {
-  const order = L.entries.map((_, i) => i);
+// Inactivity decay (optional, `decayDays` > 0): an entry that has not played a challenge (either side) for that many days drops one place,
+// and one more for every further stretch of that length, until it plays again. Replayed from the results' times and the clock, so nothing
+// is stored and a corrected score re-sorts everything. Never below last; an entry moved up because the one above fell starts a fresh
+// stretch. `since` is when the season began (older ladders fall back to createdAt, and have decayDays undefined = off).
+export const MAX_DECAY_DAYS = 365;
+const DAY = 86400000;
+function replay(L, now) {
+  const order = L.entries.map((_, i) => i), step = (L.decayDays | 0) * DAY;
+  const last = L.entries.map(() => L.since || L.createdAt || 0);
+  const decayTo = t => {
+    for (let guard = 0; guard < 10000; guard++) {
+      let pick = -1, due = Infinity;
+      order.forEach((i, p) => { const d = last[i] + step; if (p < order.length - 1 && d <= t && d < due) { due = d; pick = i; } });
+      if (pick < 0) return;
+      const p = order.indexOf(pick), up = order[p + 1];
+      order[p] = up; order[p + 1] = pick; last[pick] = due; last[up] = Math.max(last[up], due);
+    }
+  };
   for (const r of L.results) {
-    if (r.winner !== 0) continue;
-    const from = order.indexOf(r.c), to = order.indexOf(r.d);
-    if (from > to) { order.splice(from, 1); order.splice(to, 0, r.c); }
+    if (step) decayTo(r.at);
+    if (r.winner === 0) {
+      const from = order.indexOf(r.c), to = order.indexOf(r.d);
+      if (from > to) { order.splice(from, 1); order.splice(to, 0, r.c); }
+    }
+    last[r.c] = last[r.d] = r.at;
   }
-  return order;
+  if (step && now != null) decayTo(now);
+  return { order, last, step };
 }
 
-export function ladderRows(L) {
-  const order = ladderOrder(L), stat = L.entries.map(() => ({ played: 0, wins: 0 }));
+export const ladderOrder = (L, now = null) => replay(L, now).order;
+
+export function ladderRows(L, now = null) {
+  const { order, last, step } = replay(L, now), stat = L.entries.map(() => ({ played: 0, wins: 0 }));
   for (const r of L.results) { stat[r.c].played++; stat[r.d].played++; stat[r.winner === 0 ? r.c : r.d].wins++; }
-  return order.map((i, p) => ({ rank: p + 1, index: i, members: L.entries[i], name: L.entries[i].join(' & '), played: stat[i].played, wins: stat[i].wins, losses: stat[i].played - stat[i].wins }));
+  return order.map((i, p) => ({ rank: p + 1, index: i, members: L.entries[i], name: L.entries[i].join(' & '), played: stat[i].played, wins: stat[i].wins, losses: stat[i].played - stat[i].wins,
+    dropsAt: step && p < order.length - 1 ? last[i] + step : null })); // when the next idle drop is due (null: decay off, or already last)
 }
 
 // Who the entry at `index` may challenge: up to `jump` places above, never themselves.
-export function challengeable(L, index) {
-  const order = ladderOrder(L), at = order.indexOf(index);
+export function challengeable(L, index, now = null) {
+  const order = ladderOrder(L, now), at = order.indexOf(index);
   return order.slice(Math.max(0, at - L.jump), Math.max(0, at));
 }
 
@@ -297,11 +320,12 @@ export function recordChallenge(L, payload, now = Date.now(), actor = null) {
     if (old.c === c && old.d === d && old.score[0] === score[0] && old.score[1] === score[1]) return { league: L, match: old, game: gameFor(L, old), changed: false };
     throw bad('That result key was already used for a different result.', 409);
   }
-  const order = ladderOrder(L), pc = order.indexOf(c), pd = order.indexOf(d);
+  const order = ladderOrder(L, now), pc = order.indexOf(c), pd = order.indexOf(d);
   if (pd > pc) throw bad('You can only challenge someone above you on the ladder.', 409);
   if (pc - pd > L.jump) throw bad(`You can challenge up to ${L.jump} place${L.jump === 1 ? '' : 's'} above you.`, 409);
   if (L.results.length >= 2000) throw bad('This ladder has reached its limit of results. Close the season to start fresh.', 409);
   const r = { id, teams: [L.entries[c], L.entries[d]], c, d, score, winner: score[0] > score[1] ? 0 : 1, ...extraOf(L, id, payload, now), at: now };
+  if (L.results.length && r.at < L.results[L.results.length - 1].at) r.at = L.results[L.results.length - 1].at; // the replay needs results in time order
   L.results.push(r);
   L.updatedAt = now;
   return { league: L, match: r, game: gameFor(L, r), changed: true };
@@ -311,10 +335,10 @@ export function recordChallenge(L, payload, now = Date.now(), actor = null) {
 export function closeLadderSeason(L, label, now = Date.now()) {
   if (L.kind !== 'ladder') throw bad('Only a ladder has a season to close.', 409);
   if (L.seasons.length >= 50) throw bad('This ladder has 50 closed seasons already.', 409);
-  const order = ladderOrder(L);
+  const order = ladderOrder(L, now);
   L.seasons.push({ label: L.season, endedAt: now, order: order.map(i => L.entries[i]) });
   L.entries = order.map(i => L.entries[i]); L.seeds = L.entries.map(() => null);
-  L.results = []; L.season = label || nextLabel(L.season); L.updatedAt = now;
+  L.results = []; L.since = now; L.season = label || nextLabel(L.season); L.updatedAt = now;
   return L;
 }
 
@@ -323,20 +347,20 @@ export function setResultsBy(L, who, now = Date.now()) {
   L.resultsBy = who; L.updatedAt = now;
 }
 
-export function summary(L) {
+export function summary(L, now = Date.now()) {
   const out = { id: L.id, kind: L.kind, name: L.name, season: L.season, mode: L.mode, status: L.status, entries: L.entries.length, createdAt: L.createdAt, updatedAt: L.updatedAt };
   if (L.kind === 'league') {
     const all = allMatches(L);
     Object.assign(out, { divisions: L.divisions.length, played: all.filter(m => m.status === 'done').length, matches: all.length, champions: L.champions || null });
   } else {
-    const rows = ladderRows(L);
+    const rows = ladderRows(L, now);
     Object.assign(out, { top: rows[0] ? rows[0].members : null, results: L.results.length });
   }
   return out;
 }
 
 // The league as the app shows it: standings per division, or the ladder in order with who each entry may challenge.
-export function view(L) {
+export function view(L, now = Date.now()) {
   const out = clone(L);
   if (L.kind === 'league') {
     out.tables = L.divisions.map((dv, d) => ({ label: dv.label, rows: divisionTable(L, d) }));
@@ -344,8 +368,8 @@ export function view(L) {
     out.current = (L.weeks.find(w => w.matches.some(m => m.status === 'pending')) || {}).n || L.weeks.length;
     out.history = (L.history || []).slice().reverse(); // newest first; a league made before history existed starts with none
   } else {
-    out.rows = ladderRows(L);
-    out.rows.forEach(r => { r.canChallenge = challengeable(L, r.index).map(i => L.entries[i]); });
+    out.rows = ladderRows(L, now);
+    out.rows.forEach(r => { r.canChallenge = challengeable(L, r.index, now).map(i => L.entries[i]); });
     out.results = out.results.slice(-30).reverse();
   }
   return out;

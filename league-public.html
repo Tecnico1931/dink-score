@@ -92,7 +92,7 @@ details summary { cursor: pointer; padding: 6px 0; font-weight: 600; min-height:
     document.title = d.name + ' · Dink Score';
     $('#pub-name').textContent = d.name;
     const rule = `${d.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${d.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${d.target}`;
-    $('#pub-meta').textContent = [d.season, rule, d.kind === 'ladder' ? `challenge up to ${d.jump} above` : d.status === 'done' ? 'Season finished' : `Week ${d.current} of ${d.weeks.length}`].join(' · ');
+    $('#pub-meta').textContent = [d.season, rule, d.kind === 'ladder' ? `challenge up to ${d.jump} above${d.decayDays ? `, idle ${d.decayDays} days = one place down` : ''}` : d.status === 'done' ? 'Season finished' : `Week ${d.current} of ${d.weeks.length}`].join(' · ');
     const out = [];
     if (d.kind === 'league') {
       if (d.status === 'done' && d.champions) d.champions.forEach((c, i) => { if (c) out.push(`<div class="pub-champ"><span class="ball" aria-hidden="true"></span><div><small>${d.divisions.length > 1 ? esc(d.divisions[i].label) + ' winner' : 'Season winner'}</small><b>${names(c)}</b></div></div>`); });

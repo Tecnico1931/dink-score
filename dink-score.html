@@ -7436,7 +7436,7 @@ const lgCall = body => api('events', { method: 'POST', body: JSON.stringify(Obje
 const lgName = names => names.join(' & ');
 const lgQueued = id => lgScreen && lgScreen.league && clubOps().find(o => o.type === 'league-result' && o.leagueId === lgScreen.league.id && (o.matchId || o.key) === id);
 const lgKey = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => (b % 36).toString(36)).join('');
-const lgNewForm = () => ({ kind: 'league', name: '', season: '', mode: 'doubles', divisions: 1, legs: 1, jump: 3, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, resultsAny: false, players: [], error: '', busy: false });
+const lgNewForm = () => ({ kind: 'league', name: '', season: '', mode: 'doubles', divisions: 1, legs: 1, jump: 3, decayDays: 0, target: +setup.target || 11, scoring: setup.scoring, winBy: +setup.winBy || 2, resultsAny: false, players: [], error: '', busy: false });
 function lgOpen() {
   if (!club) return;
   lgScreen = { view: 'list', list: null, error: '' };
@@ -7515,6 +7515,7 @@ function lgNewHTML(s) {
     <div class="field"><label class="lab" for="lg-season">Season (optional)</label><input id="lg-season" class="field-input" data-lg-input="season" maxlength="40" autocomplete="off" placeholder="Autumn 1" value="${esc(f.season)}"></div>
     <div class="field"><span class="lab">Who plays</span>${seg('mode', [['doubles', 'Doubles teams'], ['singles', 'Singles']])}<p class="note">${singles ? 'Each player is on their own.' : 'Teams are paired strongest with weakest by Dink Rating, so they come out even.'}</p></div>
     ${ladder ? evStepper('jump', 'Challenge up to this many places above', f.jump, 1, 10).replaceAll('data-ev="step"', 'data-lg="step"')
+      + `<div class="field"><span class="lab">Idle players slip down</span>${seg('decayDays', [[0, 'Never'], [7, 'After 7 days'], [14, '14 days'], [30, '30 days']])}<p class="note">${f.decayDays ? `Anyone who has not played a challenge for ${f.decayDays} days drops one place, and one more for each further ${f.decayDays} days, until they play again.` : 'Places only change when someone wins a challenge.'}</p></div>`
       : `<div class="field"><span class="lab">Divisions</span>${seg('divisions', [[1, 'One'], [2, '2'], [3, '3'], [4, '4']])}<p class="note">${f.divisions > 1 ? `Split by Dink Rating into ${f.divisions} divisions, the strongest in Division A.` : 'Everyone plays in one table.'}</p></div>
       <div class="field"><span class="lab">Games against each opponent</span>${seg('legs', [[1, 'Once'], [2, 'Home and away']])}</div>`}
     <div class="seg-row" style="margin:0"><div class="field"><span class="lab">Play to</span>${seg('target', [[11, '11'], [15, '15'], [21, '21']])}</div>
@@ -7655,7 +7656,7 @@ function lgLadderHTML(s, L) {
   const pending = waiting.length ? `<section class="ev-sec" aria-labelledby="lg-wait"><h3 id="lg-wait">Waiting to send</h3><ul class="note">${waiting.map(o => `<li>${esc(lgName(o.challenger))} challenged ${esc(lgName(o.defender))}: ${o.score[0]}–${o.score[1]}</li>`).join('')}</ul></section>` : '';
   const past = L.seasons.length ? `<section class="ev-sec"><h3>Past seasons</h3>${L.seasons.slice().reverse().map(p => `<details class="ev-more"><summary>${esc(p.label)}</summary><ol class="note">${p.order.map(o => `<li>${esc(lgName(o))}</li>`).join('')}</ol></details>`).join('')}</section>` : '';
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}
-    <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · challenge up to ${L.jump} above</p>
+    <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · challenge up to ${L.jump} above${L.decayDays ? ` · idle ${L.decayDays} days = one place down` : ''}</p>
     <section class="ev-sec" aria-labelledby="lg-lad"><h3 id="lg-lad">Ladder</h3>${rows}</section>${form}${pending}${recent}${past}${lgOrgHTML(s, L)}`;
 }
 
@@ -7680,7 +7681,7 @@ function lgCreate() {
   const s = lgScreen, f = s.form;
   if (f.busy) return;
   const league = { kind: f.kind, name: f.name, season: f.season, mode: f.mode, players: f.players, target: f.target, scoring: f.scoring, winBy: f.winBy, resultsBy: f.resultsAny ? 'club' : 'players' };
-  if (f.kind === 'ladder') league.jump = f.jump; else Object.assign(league, { divisions: f.divisions, legs: f.legs });
+  if (f.kind === 'ladder') Object.assign(league, { jump: f.jump, decayDays: f.decayDays }); else Object.assign(league, { divisions: f.divisions, legs: f.legs });
   f.busy = true; f.error = ''; renderLeagues(true);
   lgCall({ action: 'league-create', league }).then(d => {
     if (lgScreen !== s) return;
@@ -7727,7 +7728,7 @@ function lgAct(a, d) {
   if (a === 'open-one') { Object.assign(s, { view: 'detail', id: d.id, league: null, loading: true, error: '', entry: null, ch: null, share: null, arm: '', plan: null, rs: null, ff: null }); renderLeagues(true); lgLoad(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;
-    if (a === 'set') { f[d.k] = ['divisions', 'legs', 'target', 'winBy'].includes(d.k) ? +d.v : d.v; f.error = ''; }
+    if (a === 'set') { f[d.k] = ['divisions', 'legs', 'target', 'winBy', 'decayDays'].includes(d.k) ? +d.v : d.v; f.error = ''; }
     if (a === 'step') f.jump = Math.min(10, Math.max(1, f.jump + (+d.d)));
     if (a === 'pick') { const i = f.players.findIndex(x => sameName(x, d.pl)); if (i >= 0) f.players.splice(i, 1); else f.players.push(d.pl); }
     if (a === 'pick-all') f.players = roster.slice();
