@@ -9566,6 +9566,7 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'z' && (e.ctrlKey || e.metaKey)) || e.key === 'Backspace') { e.preventDefault(); document.querySelector('[data-act="undo"]').click(); }
 });
 
+/*MODULE-START:dupr-link*/
 /* ---------- DUPR link and send (off unless the server has DUPR keys) ---------- */
 // Everything here stays hidden until GET /api/dupr says {enabled:true}. A player signs in on DUPR's own page (an iframe),
 // the server confirms who they are with DUPR, and only a DUPR id and a rating are kept. Organizers review finished event
@@ -9744,6 +9745,7 @@ document.addEventListener('change', e => {
   if (t.matches && t.matches('[data-dsso-ok]')) { dssoUI.ok = t.checked; renderDsso(); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && dssoUI) { e.stopImmediatePropagation(); dssoClose(); } }, true);
+/*MODULE-END:dupr-link*/
 
 if (live && live.state.winner === null && live.open) keepAwake(true);
 applyDisplay();
