@@ -67,7 +67,7 @@ button { cursor: pointer; }
   max-width: 560px; margin: 0 auto;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: calc(18px + env(safe-area-inset-top, 0px)) calc(112px + env(safe-area-inset-bottom, 0px));
+  padding-block: calc(18px + env(safe-area-inset-top, 0px)) calc(136px + env(safe-area-inset-bottom, 0px));
   display: flex; flex-direction: column; gap: 22px;
 }
 .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -339,11 +339,12 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 
 /* Tab bar */
 .tabs {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; pointer-events: none;
+  position: fixed; left: 0; right: var(--sbw, 0px); bottom: 0; z-index: 20; pointer-events: none;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) - 14px));
 }
+.tabs::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% + 28px); background: linear-gradient(to top, var(--bg) 30%, transparent); pointer-events: none; z-index: -1; }
 .tabs nav {
   pointer-events: auto; max-width: 420px; margin: 0 auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 6px;
   background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
@@ -1111,6 +1112,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 .swap, .me-btn { width: 44px; height: 44px; }
 .stepper .sb button { min-width: 44px; }
 .tabs button { min-height: 48px; font-size: 12px; }
+@media (min-width: 768px) { .tabs nav { max-width: 560px; } }
 .tile.log .t-k, .tile.live .t-k { opacity: 1; }
 .tile.live .t-name { opacity: 1; }
 /* Court contrast: white text on the team colours is 4.5:1 or better along the whole gradient. */
@@ -6559,6 +6561,9 @@ function renderEvents(force) {
   if (!old || root._focusKey !== key) { root._focusKey = key; const b = root.querySelector('.ev-back'); if (b) b.focus({ preventScroll: true }); }
 }
 BK.watchLogos();
+// The scroller (body) keeps a stable gutter, so the fixed tab bar is inset by its width to share the column's center.
+function syncGutter() { document.documentElement.style.setProperty('--sbw', (document.body.offsetWidth - document.body.clientWidth) + 'px'); }
+syncGutter(); window.addEventListener('resize', syncGutter);
 window.addEventListener('resize', () => { if (evScreen && evScreen.view === 'bracket') requestAnimationFrame(() => BK.fitAll($('#events'))); });
 document.addEventListener('focusout', () => { if (evPending) setTimeout(() => { if (evPending && !evTyping()) renderEvents(); }, 50); });
 setInterval(() => { if (evScreen && (evScreen.view === 'detail' || evScreen.view === 'bracket') && !document.hidden && !evScreen.busy && club) evLoad(evScreen.id, true); }, 8000);
