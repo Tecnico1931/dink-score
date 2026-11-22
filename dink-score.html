@@ -597,6 +597,16 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .ot-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ot-t small { font-size: 13px; font-weight: 500; color: var(--muted); }
 .ot-chev { font-size: 22px; line-height: 1; color: var(--muted); flex: none; }
+.bell-btn { position: relative; width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); padding: 0; background: var(--surface); color: var(--ink); display: grid; place-items: center; }
+.bell-btn svg { width: 20px; height: 20px; }
+.bell-n { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--ink); color: var(--bg); box-shadow: 0 0 0 2px var(--bg); font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+.inbox-sec { margin: 14px 0 6px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.inbox-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.inbox-item { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+.inbox-t { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.inbox-t small { font-size: 13px; font-weight: 500; color: var(--muted); overflow-wrap: anywhere; }
+.inbox-new { flex: none; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: var(--bg); }
+.inbox-chev { font-size: 22px; line-height: 1; color: var(--muted); flex: none; }
 .ot-idle { display: flex; align-items: center; padding: 10px 20px; }
 .mem-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .mem-row { background: var(--surface-2); border-radius: 16px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -1213,6 +1223,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 <div id="sheet8"></div>
 <div id="sheet9"></div>
 <div id="sheet10"></div>
+<div id="sheet11"></div>
 <div id="tour"></div>
 
 <script>
@@ -2627,7 +2638,8 @@ function renderApp() {
   const y = document.body.scrollTop;
   if (!club && tab === 'events') tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
-  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}<button class="set-btn" data-act="settings-open" aria-label="Settings">${ICON.settings}</button>${profileButtonHTML()}</div></header>`;
+  inboxRefresh();
+  const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${bellButtonHTML()}<button class="set-btn" data-act="settings-open" aria-label="Settings">${ICON.settings}</button>${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
   renderCourt();
   renderLog();
@@ -2638,6 +2650,8 @@ function renderApp() {
   renderSettings();
   renderTour();
   renderEvents();
+  renderInbox(); // after renderEvents, which un-inerts the page behind when no event screen is open
+  inboxLoadLeagues();
   if (document.body.scrollTop !== y) document.body.scrollTop = y;
 }
 
@@ -6537,7 +6551,7 @@ async function evLoadList() {
   const s = evScreen;
   try {
     const data = await api('events?code=' + club.code);
-    evSummary = data.events;
+    evSummary = data.events; evLoadedFor = club.code;
     if (evScreen === s) { s.list = data.events; s.more = !!data.more; s.error = ''; }
   } catch (err) { if (evScreen === s) { s.list = s.list || []; s.error = err.message; } }
   renderEvents(); if (tab === 'play' || tab === 'events') safeRender();
@@ -6596,8 +6610,8 @@ async function evSummaryRefresh() {
   if (!club || !API_OK || (tab !== 'play' && !evScreen)) return; // the summary only feeds the tile on Play
   try {
     const data = await api('events?code=' + club.code);
-    if (JSON.stringify(data.events.map(e => [e.id, e.status])) !== JSON.stringify(evSummary.map(e => [e.id, e.status]))) { evSummary = data.events; if ((tab === 'play' || tab === 'events') && !evScreen) safeRender(); }
-    else evSummary = data.events;
+    if (JSON.stringify(data.events.map(e => [e.id, e.status])) !== JSON.stringify(evSummary.map(e => [e.id, e.status]))) { evSummary = data.events; evLoadedFor = club.code; if ((tab === 'play' || tab === 'events') && !evScreen) safeRender(); }
+    else { evSummary = data.events; if (evLoadedFor !== club.code) { evLoadedFor = club.code; safeRender(); } }
   } catch {}
 }
 async function evLoad(id, quiet) {
@@ -7714,6 +7728,7 @@ document.addEventListener('click', e => {
   if (!el) {
     if (ratingExplain && e.target.closest && e.target.closest('#sheet8') && e.target.classList.contains('sheet-bg')) { closeRatingExplain(); return; }
     if (settingsOpen && e.target.closest && e.target.closest('#sheet9') && e.target.classList.contains('sheet-bg')) { closeSettings(); return; }
+    if (inboxOpen && e.target.closest && e.target.closest('#sheet11') && e.target.classList.contains('sheet-bg')) { closeInbox(); return; }
     if (shareSheet && e.target.closest && e.target.closest('#sheet5') && e.target.classList.contains('sheet-bg')) { closeShare(); return; }
     if (profile && e.target.closest && e.target.closest('#sheet4') && e.target.classList.contains('sheet-bg')) { profile = null; renderProfile(); return; }
     if (logForm && e.target.classList && e.target.classList.contains('sheet-bg') && e.target.classList.contains('top')) { logForm = null; render(); }
@@ -7930,6 +7945,7 @@ document.addEventListener('click', e => {
   if (ds.cl) { if (ds.cl === 'open') clOpen(el); else clAct(ds.cl, ds); return; }
   if (ds.clMode && clubSheet && clubSheet.view === 'clublinks') { if (clubSheet.standing) clStanding(clubSheet.standing.id, ds.clMode); return; }
   if (ds.se) { if (ds.se === 'open') seOpen(el); else if (ds.se === 'cancel') seClose(); return; }
+  if (ds.inboxGo !== undefined) { inboxGo(ds.inboxGo); return; }
   if (ds.tab) { tab = ds.tab; store.set('pb.tab', tab); armedDelete = null; rxOpenGame = null; render(); try { document.body.scrollTo(0, 0); } catch {} return; }
   if (ds.tabGo) { tab = ds.tabGo; store.set('pb.tab', tab); render(); try { document.body.scrollTo(0, 0); } catch {} return; }
   for (const k of ['mode', 'scoring', 'target', 'winBy']) {
@@ -7992,6 +8008,8 @@ document.addEventListener('click', e => {
   if (act === 'display') { const on = !display.outdoor; setDisplay({ outdoor: on ? 1 : 0, large: on ? 1 : 0 }); renderCourt(); announce(on ? 'Sunlight display on' : 'Sunlight display off'); return; }
   if (act === 'settings-open') { openSettings(); return; }
   if (act === 'settings-close') { closeSettings(); return; }
+  if (act === 'inbox-open') { openInbox(); return; }
+  if (act === 'inbox-close') { closeInbox(); return; }
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
@@ -8127,6 +8145,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape' && ratingExplain) { closeRatingExplain(); return; }
+  if (e.key === 'Escape' && inboxOpen) { closeInbox(); return; }
   if (e.key === 'Escape' && settingsOpen) { closeSettings(); return; }
   if (e.key === 'Escape' && shareSheet) { closeShare(); return; }
   if (e.key === 'Escape' && profile) { profile = null; renderProfile(); return; }
