@@ -94,9 +94,9 @@ test('ago words', () => {
   assert.equal(Inbox.ago(NOW - 2 * 864e5, NOW), '2 d ago');
 });
 
-test('the page wires the bell between the club chip and the settings button, with an accessible name and the inbox sheet', () => {
+test('the page wires the bell between the club chip and the avatar, with an accessible name and the inbox sheet', () => {
   const html = page();
-  assert.match(html, /\$\{syncPillHTML\(\)\}\$\{bellButtonHTML\(\)\}<button class="set-btn"/);
+  assert.match(html, /\$\{syncPillHTML\(\)\}\$\{bellButtonHTML\(\)\}\$\{profileButtonHTML\(\)\}/);
   assert.match(html, /<div id="sheet11"><\/div>/);
   assert.match(html, /aria-label="\$\{Inbox\.label\(n\)\}"/);
   assert.match(html, /\.bell-btn \{[^}]*width: 44px; height: 44px/);
