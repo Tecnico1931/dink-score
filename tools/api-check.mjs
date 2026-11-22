@@ -1978,6 +1978,19 @@ await step('leagues and ladders: organizers create, results reach the record onc
   assert.equal(decayed.decayDays, 7);
   const dread = ok(await call(events, 'GET', { query: `?code=${lcode}&league=${decayed.id}` })).league;
   assert.ok(dread.rows[0].dropsAt > Date.now() && dread.rows.at(-1).dropsAt === null);
+  // open challenges: sent, read back, answered, played (which settles it); a phone with no proof of who it is is refused
+  const dn = dread.rows.map(r => r.name), dkey = 'dc' + Date.now().toString(36);
+  assert.equal((await lg('league-challenge', { id: decayed.id, key: dkey, challenger: [dn[1]], defender: [dn[0]] }, {})).status, 403);
+  const sent = ok(await lg('league-challenge', { id: decayed.id, key: dkey, challenger: [dn[1]], defender: [dn[0]] })).league;
+  assert.equal(sent.open.length, 1); assert.equal(sent.open[0].state, 'open'); assert.ok(sent.open[0].expiresAt > Date.now());
+  assert.equal(ok(await lg('league-challenge', { id: decayed.id, key: dkey, challenger: [dn[1]], defender: [dn[0]] })).league.open.length, 1, 'a retry adds none');
+  assert.equal((await lg('league-answer', { id: decayed.id, challengeId: dkey, answer: 'maybe' })).status, 400);
+  assert.equal(ok(await lg('league-answer', { id: decayed.id, challengeId: dkey, answer: 'accept' })).league.open[0].state, 'accepted');
+  const played = ok(await lg('league-result', { id: decayed.id, key: 'dp' + dkey, challenger: [dn[1]], defender: [dn[0]], score: [11, 5], endedAt: Date.now() })).league;
+  assert.equal(played.open.length, 0, 'playing settles the open challenge');
+  ok(await lg('league-challenge', { id: decayed.id, key: dkey + 'b', challenger: [dn[2]], defender: [dn[1]] }));
+  assert.equal(ok(await lg('league-answer', { id: decayed.id, challengeId: dkey + 'b', answer: 'decline' })).league.open.length, 0);
+  assert.equal((await lg('league-answer', { id: decayed.id, challengeId: dkey + 'b', answer: 'accept' })).status, 404);
   ok(await lg('league-delete', { id: decayed.id }));
 });
 

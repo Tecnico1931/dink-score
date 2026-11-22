@@ -7,7 +7,7 @@
 //   entries: [[names]], seeds: [rating, ...],           // one entry per player (singles) or team (doubles), strongest first by Dink Rating when made
 //   // league: divisions: [{ label, entries: [index] }], legs, weeks: [{ n, title, date?, time?, notifiedAt?, matches: [match] }], champions: [[names] per division]
 //   //   week.date 'YYYY-MM-DD' and week.time 'HH:MM' are the day's wall clock as the organizer typed it (no time zone); see _leagueweeks.js
-//   // ladder: jump (how many places up a challenge may reach), decayDays (0/absent = off; idle days per place dropped), since (season start), results: [result], seasons: [{ label, endedAt, order: [[names]] }]
+//   // ladder: jump (how many places up a challenge may reach), decayDays (0/absent = off; idle days per place dropped), since (season start), open: [{ id, c, d, at, expiresAt, state }] (pending challenges, see openChallenge), results: [result], seasons: [{ label, endedAt, order: [[names]] }]
 // }
 // match  = { id, division, teams: [[a, b], [c, d]], score: null | [x, y], status: 'pending' | 'done', winner, startedAt, endedAt, rallies, live, gameId,
 //            court?, date?, time? (this match moved off the week's day), forfeit? (settled by default: target to 0, never a game in the club record) }
@@ -327,8 +327,58 @@ export function recordChallenge(L, payload, now = Date.now(), actor = null) {
   const r = { id, teams: [L.entries[c], L.entries[d]], c, d, score, winner: score[0] > score[1] ? 0 : 1, ...extraOf(L, id, payload, now), at: now };
   if (L.results.length && r.at < L.results[L.results.length - 1].at) r.at = L.results[L.results.length - 1].at; // the replay needs results in time order
   L.results.push(r);
+  L.open = liveOpen(L, now).filter(o => !(o.c === c && o.d === d)); // the played challenge settles the open one between the same two
   L.updatedAt = now;
   return { league: L, match: r, game: gameFor(L, r), changed: true };
+}
+
+// Open challenges (optional step before a result): L.open = [{ id, c, d, at, expiresAt, state: 'open' | 'accepted' }], entry indexes only (so rename and
+// anonymise need nothing). A challenge waits CHALLENGE_DAYS for the defender, and CHALLENGE_DAYS more once accepted; then it lapses with no effect
+// (nothing is stored when it does: expired rows are filtered out when read and dropped on the next write). Playing the match still goes through
+// recordChallenge, which also settles the open one. A ladder with no `open` array (made before this) simply has none.
+export const CHALLENGE_DAYS = 7;
+const MAX_OPEN = 30;
+const liveOpen = (L, now) => (L.open || []).filter(o => o.expiresAt > now);
+const isIn = (L, i, actor) => !!(actor && actor.name && L.entries[i].some(p => p.toLowerCase() === actor.name));
+
+// payload: { key (fresh id, a retry is safe), challenger, defender }. Who: the challenger's own phone or an organizer (any member if resultsBy is 'club').
+export function openChallenge(L, payload, now = Date.now(), actor = null) {
+  if (L.kind !== 'ladder') throw bad('Only a ladder has challenges.', 409);
+  if (L.status === 'done') throw bad('This ladder is closed.', 409);
+  const id = String((payload && payload.key) || '');
+  if (!/^[A-Za-z0-9_-]{4,24}$/.test(id)) throw bad('A challenge needs a key of 4 to 24 letters or numbers.');
+  const c = entryAt(L, payload.challenger), d = entryAt(L, payload.defender);
+  if (c === d) throw bad('A player cannot challenge themselves.');
+  if (!(actor && actor.organizer) && L.resultsBy !== 'club' && !isIn(L, c, actor)) throw bad('Only the challenger or an organizer can send this challenge.', 403);
+  const open = liveOpen(L, now), same = open.find(o => o.id === id || (o.c === c && o.d === d));
+  if (same) {
+    if (same.c === c && same.d === d) return { league: L, open: same, changed: false };
+    throw bad('That challenge key was already used.', 409);
+  }
+  const order = ladderOrder(L, now), pc = order.indexOf(c), pd = order.indexOf(d);
+  if (pd > pc) throw bad('You can only challenge someone above you on the ladder.', 409);
+  if (pc - pd > L.jump) throw bad(`You can challenge up to ${L.jump} place${L.jump === 1 ? '' : 's'} above you.`, 409);
+  if (open.length >= MAX_OPEN) throw bad('This ladder has too many open challenges. Answer or withdraw some first.', 409);
+  const o = { id, c, d, at: now, expiresAt: now + CHALLENGE_DAYS * DAY, state: 'open' };
+  L.open = [...open, o]; L.updatedAt = now;
+  return { league: L, open: o, changed: true };
+}
+
+// answer: 'accept' | 'decline' (the defender or an organizer) | 'withdraw' (the challenger or an organizer). Decline and withdraw remove it.
+export function answerChallenge(L, id, answer, now = Date.now(), actor = null) {
+  if (L.kind !== 'ladder') throw bad('Only a ladder has challenges.', 409);
+  if (!['accept', 'decline', 'withdraw'].includes(answer)) throw bad('Pick accept, decline or withdraw.');
+  const open = liveOpen(L, now), o = open.find(x => x.id === String(id));
+  if (!o) throw bad('That challenge is no longer open: it was answered, played or ran out.', 404);
+  const who = answer === 'withdraw' ? o.c : o.d;
+  if (!(actor && actor.organizer) && L.resultsBy !== 'club' && !isIn(L, who, actor)) throw bad(answer === 'withdraw' ? 'Only the challenger or an organizer can withdraw it.' : 'Only the challenged player or an organizer can answer it.', 403);
+  if (answer === 'accept') {
+    if (o.state === 'accepted') return { league: L, open: o, changed: false };
+    Object.assign(o, { state: 'accepted', expiresAt: now + CHALLENGE_DAYS * DAY });
+    L.open = open;
+  } else L.open = open.filter(x => x !== o);
+  L.updatedAt = now;
+  return { league: L, open: o, changed: true };
 }
 
 // Closes a ladder's season: keeps the final order, starts the next season from it with a clean list of results.
@@ -338,7 +388,7 @@ export function closeLadderSeason(L, label, now = Date.now()) {
   const order = ladderOrder(L, now);
   L.seasons.push({ label: L.season, endedAt: now, order: order.map(i => L.entries[i]) });
   L.entries = order.map(i => L.entries[i]); L.seeds = L.entries.map(() => null);
-  L.results = []; L.since = now; L.season = label || nextLabel(L.season); L.updatedAt = now;
+  L.results = []; L.open = []; L.since = now; L.season = label || nextLabel(L.season); L.updatedAt = now;
   return L;
 }
 
@@ -371,6 +421,7 @@ export function view(L, now = Date.now()) {
     out.rows = ladderRows(L, now);
     out.rows.forEach(r => { r.canChallenge = challengeable(L, r.index, now).map(i => L.entries[i]); });
     out.results = out.results.slice(-30).reverse();
+    out.open = liveOpen(L, now).map(o => ({ ...o, challenger: L.entries[o.c], defender: L.entries[o.d] })).sort((a, b) => a.at - b.at);
   }
   return out;
 }

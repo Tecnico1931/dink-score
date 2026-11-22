@@ -8988,15 +8988,23 @@ function lgLadderHTML(s, L) {
   const form = L.status === 'live' ? `<section class="ev-card" aria-labelledby="lg-ch"><h3 id="lg-ch">Record a challenge</h3>
     <div class="field"><span class="lab">Challenger</span>${sel('c', L.rows.map(r => r.name))}</div>
     <div class="field"><span class="lab">Challenges (up to ${L.jump} place${L.jump === 1 ? '' : 's'} above)</span>${opts.length ? sel('d', opts) : '<p class="note">Nobody is above them: they are top of the ladder.</p>'}</div>
+    ${opts.length ? `<p class="note">Not played yet? Send the challenge first: they can accept or decline, and it lapses after 7 days.</p><div class="ev-actions"><button type="button" class="btn btn-soft ev-small" style="min-height:44px" data-lg="send-ch">Send challenge</button></div>` : ''}
     ${opts.length ? lgScoreForm({ s: ch.s, error: ch.error }, [crow.members, (L.rows.find(r => r.name === ch.d) || { members: [''] }).members], 'challenge', 'Save result').replace('<button type="button" class="btn btn-soft ev-small" data-lg="cancel">Cancel</button>', '') : ''}</section>` : '';
   const recent = L.results.length ? `<section class="ev-sec" aria-labelledby="lg-rec"><h3 id="lg-rec">Recent results</h3><ul class="games">${L.results.slice(0, 15).map(r => { const w = r.winner, l = 1 - w; return `<li class="game ev-game done"><div class="lines"><div class="line win" style="--c:${TEAM_COLOR[0]}"><span class="tick"></span><span class="who">${esc(lgName(r.teams[w]))}</span><span class="pts">${r.score[w]}</span></div><div class="line" style="--c:${TEAM_COLOR[1]}"><span class="tick"></span><span class="who">${esc(lgName(r.teams[l]))}</span><span class="pts">${r.score[l]}</span></div></div>
     <div class="meta"><span class="tag">${w === 0 ? 'Challenger won' : 'Defender held'}</span></div>${org ? `<div class="ev-actions"><button class="link" data-lg="fix-result" data-k="${esc(r.id)}">Fix score</button></div>` : ''}${s.entry && s.entry.m === r.id ? lgScoreForm(s.entry, [r.teams[0], r.teams[1]], 'entry', 'Save the fix') : ''}</li>`; }).join('')}</ul></section>` : '';
+  const left = o => { const d = Math.max(1, Math.ceil((o.expiresAt - Date.now()) / 864e5)); return `${d} day${d === 1 ? '' : 's'} left`; };
+  const btn = (o, w, label) => `<button type="button" class="btn btn-soft ev-small" style="min-height:44px" data-lg="answer-ch" data-k="${esc(o.id)}" data-w="${w}" aria-label="${label} the challenge from ${esc(lgName(o.challenger))} to ${esc(lgName(o.defender))}">${label}</button>`;
+  const openCh = L.status === 'live' && L.open && L.open.length ? `<section class="ev-sec" aria-labelledby="lg-open"><h3 id="lg-open">Open challenges</h3><ul class="games">${L.open.map(o => {
+    const mineD = org || o.defender.some(isMe), mineC = org || o.challenger.some(isMe);
+    return `<li class="game ev-game"><div class="lines"><div class="line" style="--c:${TEAM_COLOR[0]}"><span class="tick"></span><span class="who">${esc(lgName(o.challenger))} challenged ${esc(lgName(o.defender))}</span></div></div>
+      <div class="meta"><span class="tag">${o.state === 'accepted' ? 'Accepted: play it' : 'Waiting for an answer'}</span><span class="tag">${left(o)}</span></div>
+      <div class="ev-actions">${mineD && o.state === 'open' ? btn(o, 'accept', 'Accept') : ''}${mineD ? btn(o, 'decline', 'Decline') : ''}${mineC ? btn(o, 'withdraw', 'Withdraw') : ''}</div></li>`; }).join('')}</ul></section>` : '';
   const waiting = clubOps().filter(o => o.type === 'league-result' && o.leagueId === L.id);
   const pending = waiting.length ? `<section class="ev-sec" aria-labelledby="lg-wait"><h3 id="lg-wait">Waiting to send</h3><ul class="note">${waiting.map(o => `<li>${esc(lgName(o.challenger))} challenged ${esc(lgName(o.defender))}: ${o.score[0]}–${o.score[1]}</li>`).join('')}</ul></section>` : '';
   const past = L.seasons.length ? `<section class="ev-sec"><h3>Past seasons</h3>${L.seasons.slice().reverse().map(p => `<details class="ev-more"><summary>${esc(p.label)}</summary><ol class="note">${p.order.map(o => `<li>${esc(lgName(o))}</li>`).join('')}</ol></details>`).join('')}</section>` : '';
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}
     <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · challenge up to ${L.jump} above${L.decayDays ? ` · idle ${L.decayDays} days = one place down` : ''}</p>
-    <section class="ev-sec" aria-labelledby="lg-lad"><h3 id="lg-lad">Ladder</h3>${rows}</section>${form}${pending}${recent}${past}${lgOrgHTML(s, L)}`;
+    <section class="ev-sec" aria-labelledby="lg-lad"><h3 id="lg-lad">Ladder</h3>${rows}</section>${openCh}${form}${pending}${recent}${past}${lgOrgHTML(s, L)}`;
 }
 
 async function lgRun(body, ok) {
@@ -9090,6 +9098,8 @@ function lgAct(a, d) {
   else if (a === 'plan') { const w = L.weeks.find(x => x.n === +d.n); s.entry = s.rs = s.ff = null; s.plan = { n: +d.n, date: (w && w.date) || '', time: (w && w.time) || '', courts: '', error: '' }; renderLeagues(true); }
   else if (a === 'resched') { const m = L.weeks.flatMap(w => w.matches).find(x => x.id === d.m); s.entry = s.plan = s.ff = null; s.rs = { m: d.m, date: (m && m.date) || '', time: (m && m.time) || '', court: (m && m.court) || '', error: '' }; renderLeagues(true); }
   else if (a === 'forfeit') { s.entry = s.plan = s.rs = null; s.ff = d.m; renderLeagues(true); }
+  else if (a === 'send-ch') { const ch = s.ch, c = L.rows.find(r => r.name === ch.c), dd = L.rows.find(r => r.name === ch.d); if (c && dd) lgRun({ action: 'league-challenge', id: L.id, key: lgKey(), challenger: c.members, defender: dd.members }, 'Challenge sent'); }
+  else if (a === 'answer-ch') lgRun({ action: 'league-answer', id: L.id, challengeId: d.k, answer: d.w }, { accept: 'Challenge accepted', decline: 'Challenge declined', withdraw: 'Challenge withdrawn' }[d.w]);
   else if (a === 'forfeit-win') lgRun({ action: 'league-forfeit', id: L.id, matchId: s.ff, winner: +d.w }, 'Forfeit recorded');
   else if (a === 'forfeit-undo') lgRun({ action: 'league-forfeit', id: L.id, matchId: d.m, winner: null }, 'Forfeit undone');
   else if (a === 'notify') lgRun({ action: 'league-notify', id: L.id, week: +d.n }).then(r => { if (r) showToast(r.sent ? `Sent to ${r.sent} phone${r.sent === 1 ? '' : 's'}` : r.on ? 'Nobody has notifications on yet' : 'Notifications are not set up on this server yet', false); });

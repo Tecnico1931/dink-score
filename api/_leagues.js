@@ -7,6 +7,8 @@
 //     league-result       {id, matchId, score, startedAt?, endedAt?, rallies?, live?}          -> a league match: its players, an organizer, or any club member if allowed
 //                         {id, key, challenger, defender, score, ...}                          -> a ladder challenge ([challenger score, defender score]); key makes a retry safe
 //                         Either way the result also becomes one game in the club's record (id <leagueId>-<matchId or key>), once.
+//     league-challenge    {id, key, challenger, defender}      -> open a ladder challenge (the challenger or an organizer); it lapses after 7 days unanswered
+//     league-answer       {id, challengeId, answer}            -> 'accept' | 'decline' (the defender or an organizer), 'withdraw' (the challenger or an organizer)
 //     league-correct      {id, matchId, score}      -> organizer: fix a played match or challenge
 //     league-results-by   {id, who}                 -> organizer: who may enter results
 //     league-end          {id, season?}             -> organizer: finish a league season now, or close a ladder's season (the order carries over)
@@ -29,7 +31,7 @@ import * as L from './_league.js';
 import * as W from './_leagueweeks.js';
 
 export const LEAGUE_ACTIONS = ['league-create', 'league-result', 'league-correct', 'league-results-by', 'league-end', 'league-next-season', 'league-share', 'league-share-new', 'league-share-off', 'league-delete',
-  'league-schedule', 'league-reschedule', 'league-forfeit', 'league-notify'];
+  'league-challenge', 'league-answer', 'league-schedule', 'league-reschedule', 'league-forfeit', 'league-notify'];
 export const MAX_LEAGUES = 50; // per club, not counting deleted ones
 
 async function readOne(sql, code, id) {
@@ -67,7 +69,7 @@ const fix = fn => { try { return fn(); } catch (e) { if (e.status) throw fail(e.
 export async function leagueAction(sql, club, body, req, { now = Date.now(), rand = Math.random } = {}) {
   const code = club.code, action = body.action, id = String(body.id || '');
 
-  if (action === 'league-result') {
+  if (action === 'league-result' || action === 'league-challenge' || action === 'league-answer') {
     // Players in the match and organizers by default; any club member when the organizer allowed it.
     const sender = await verifiedSender(sql, club, code, body);
     let organizer = sender === 'organizer';
@@ -75,6 +77,10 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
       try { await requirePin(club, body.pin, req, body.ownerToken); organizer = true; } catch (e) { if (e.status === 429) throw e; }
     }
     const actor = { organizer, name: sender && sender !== 'organizer' ? sender : null };
+    if (action !== 'league-result') { // an open challenge (send, accept, decline, withdraw): the same who-may-act rules, no game
+      const { league } = await mutate(sql, code, id, lg => fix(() => (action === 'league-challenge' ? L.openChallenge(lg, body, now, actor) : L.answerChallenge(lg, body.challengeId, body.answer, now, actor))));
+      return { body: { league: L.view(league) } };
+    }
     const { league, out } = await mutate(sql, code, id, lg => fix(() => {
       if (lg.kind === 'ladder') return L.recordChallenge(lg, body, now, actor);
       const before = W.currentWeek(lg), r = L.recordLeagueResult(lg, String(body.matchId || ''), body, now, actor);
