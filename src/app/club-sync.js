@@ -170,6 +170,7 @@ function flush() {
     else if (sent && evScreen) renderEvents(true);
     if (sent && lgScreen && lgScreen.view === 'detail') lgLoad(lgScreen.id, true);
     if (sent && !clubOps().length) await refreshClub();
+    if (sent && typeof Rewards !== 'undefined') Rewards.sync(true); // a saved game may have earned today's reward; the server works that out
   })();
   return flushing;
 }
@@ -212,6 +213,7 @@ async function refreshClub() {
     loadPhotos();
     evSummaryRefresh();
     announceUnlocks();
+    if (typeof Rewards !== 'undefined') Rewards.sync();
     if (!myName() && !whoamiSkipped() && !askedWhoami && !clubSheet && !logForm && !profile && tourStep === null && !(live && live.open)) { askedWhoami = true; clubSheet = { view: 'whoami' }; renderClub(); }
   } catch (err) {
     clubState = err.offline ? 'offline' : 'error';

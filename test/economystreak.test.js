@@ -1,32 +1,21 @@
-// Rewards slice 1: the daily play streak and Dinks as pure functions, the club switch, and the DESIGN.md rules held by the code.
+// Rewards: the phone's streak display, the club switch and the DESIGN.md rules held by the code. The earning rules themselves are the
+// server's (api/_economy.js); the first tests here pin the phone's copy of them to the server's, the ledger is in economyledger.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { module } from './helpers/app.js';
+import * as E from '../api/_economy.js';
 
 const src = fs.readFileSync(new URL('../src/app/economy.js', import.meta.url), 'utf8');
 const pure = src.slice(0, src.indexOf('let rwState'));
-const { rwPlay, rwStreak, rwNext, rwBonusFor, rwClean, rwDayKey, RW_BONUS } = new Function(pure + '; return { rwPlay, rwStreak, rwNext, rwBonusFor, rwClean, rwDayKey, RW_BONUS };')();
+const { rwStreak, rwNext, rwBonusFor, rwClean, rwDayKey, RW_BONUS } = new Function(pure + '; return { rwStreak, rwNext, rwBonusFor, rwClean, rwDayKey, RW_BONUS };')();
 const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 
-// Plays on each of the given days (YYYY-MM-DD), in order; returns every result.
-const run = days => { let s = {}; return days.map(d => { const r = rwPlay(s, d); s = r.state; return r; }); };
 const d = n => rwDayKey(new Date(2026, 0, n)); // made-up days: January 2026
-
-test('the first game ever starts day 1 and pays 1 Dink; a second game the same day pays nothing', () => {
-  const [a, b] = run([d(5), d(5)]);
-  assert.deepEqual([a.fresh, a.day, a.gained, a.state.dinks, a.state.streak], [true, 1, 1, 1, 1]);
-  assert.deepEqual([b.fresh, b.gained, b.state.dinks], [false, 0, 1]);
-});
-
-test('consecutive days grow the streak and pay the bonuses on days 3, 7, 14 and 30', () => {
-  const r = run(Array.from({ length: 30 }, (_, i) => d(1 + i)));
-  assert.deepEqual(RW_BONUS, [[3, 2], [7, 5], [14, 10], [30, 25]]);
-  for (const day of [3, 7, 14, 30]) assert.equal(r[day - 1].bonus, rwBonusFor(day));
-  assert.deepEqual([3, 7, 14, 30].map(x => r[x - 1].gained), [3, 6, 11, 26]);
-  assert.equal(r[1].gained, 1, 'a plain day pays 1');
-  assert.equal(r[29].state.streak, 30);
-  assert.equal(r[29].state.dinks, 30 + 2 + 5 + 10 + 25);
+test("the phone's bonus table and calendar-day maths are the server's", () => {
+  assert.deepEqual(RW_BONUS, E.BONUS);
+  for (let day = 1; day <= 130; day++) assert.equal(rwBonusFor(day), E.bonusFor(day), 'day ' + day);
+  assert.equal(rwDayKey(new Date(2026, 2, 29)), '2026-03-29');
 });
 
 test('after day 30 the day-30 bonus repeats every 30th day only', () => {
@@ -36,22 +25,11 @@ test('after day 30 the day-30 bonus repeats every 30th day only', () => {
   assert.deepEqual(rwNext(7), { day: 14, bonus: 10, in: 7 });
 });
 
-test('a missed day starts the streak again at 1 but keeps the balance and the best run', () => {
-  const r = run([d(1), d(2), d(3), d(5)]);
-  assert.equal(r[3].day, 1);
-  assert.deepEqual([r[3].state.streak, r[3].state.best, r[3].state.dinks], [1, 3, 1 + 1 + 3 + 1]);
-});
-
 test('the streak shown is 0 once yesterday and today were both missed, and counts through today if not yet played', () => {
-  const s = run([d(1), d(2), d(3)])[2].state;
+  const s = { streak: 3, best: 3, dinks: 6, last: d(3) };
   assert.equal(rwStreak(s, d(3)), 3); assert.equal(rwStreak(s, d(4)), 3, 'played yesterday: still alive today'); assert.equal(rwStreak(s, d(5)), 0);
-});
-
-test('months, years and a clock change never add or drop a day; a clock set back pays nothing', () => {
-  const r = run(['2025-12-31', '2026-01-01', '2026-03-28', '2026-03-29', '2026-03-30']);
-  assert.deepEqual(r.map(x => x.day), [1, 2, 1, 2, 3]);
-  const back = rwPlay(r[4].state, '2026-03-01');
-  assert.deepEqual([back.fresh, back.gained, back.state.dinks], [false, 0, r[4].state.dinks]);
+  assert.equal(rwStreak({ streak: 3, best: 3, dinks: 6, last: '2026-12-31' }, '2027-01-01'), 3, 'a year change is one day');
+  assert.equal(rwStreak({ streak: 2, best: 2, dinks: 3, last: '2026-03-28' }, '2026-03-30'), 0, 'a clock change never adds or drops a day');
 });
 
 test('a stored state that was edited or damaged is cleaned, never trusted', () => {
@@ -71,12 +49,11 @@ test('the club switch is off by default and organizer-only; the schema is additi
 
 test('with the club switch off, or the device switch on, nothing is drawn and nothing is counted', () => {
   const mod = module('economy');
-  const make = (club, hide) => new Function('store', 'club', 'esc', 'announce', 'api', 'document', mod.replace(/^let rwState = .*$/m, 'let rwState = rwClean({});') + `; return { Rewards, get s() { return rwState; } };`)(
-    { get: (k, f) => (k === 'pb.rewardsHide' ? hide : f), set() {} }, club, String, () => {}, null, { addEventListener() {} });
+  const make = (club, hide) => new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', mod + `; return { Rewards, get s() { return rwCur(); } };`)(
+    { get: (k, f) => (k === 'pb.rewardsHide' ? hide : f), set() {} }, club, String, () => {}, { addEventListener() {} }, () => 'Ana', () => 'tok', null, () => {});
   const off = make({ rewards: false }, false), none = make(null, false), hidden = make({ rewards: true }, true), on = make({ rewards: true }, false);
-  for (const x of [off, none]) { x.Rewards.played({}); assert.equal(x.s.dinks, 0); assert.equal(x.Rewards.cardHTML() + x.Rewards.flameHTML() + x.Rewards.youRowHTML(), ''); }
+  for (const x of [off, none]) { assert.equal(x.s.dinks, 0); assert.equal(x.Rewards.cardHTML() + x.Rewards.flameHTML() + x.Rewards.youRowHTML(), ''); }
   assert.equal(hidden.Rewards.cardHTML(), ''); assert.match(hidden.Rewards.youRowHTML(), /Show my daily streak/);
-  on.Rewards.played({}); assert.equal(on.s.dinks, 1);
   assert.match(on.Rewards.cardHTML(), /Your Dink[\s\S]*can't be bought or cashed out/);
   assert.match(on.Rewards.youRowHTML(), /Hide my daily streak/);
 });
@@ -88,4 +65,26 @@ test('calm and play-money rules: no purchase, no randomness, no animation or sou
   const css = html.slice(html.indexOf('.card.rw-card {'), html.indexOf('.me-btn.frame-crown::before'));
   assert.ok(!/animation|transition|@keyframes/.test(css));
   assert.match(css, /\.rw-hide \{[^}]*min-height: 44px/);
+});
+
+test('the phone only asks the server: no call while off, hidden-or-not it shows the synced value, a legacy local balance is replaced', async () => {
+  const mod = module('economy');
+  const run = async (club, { name = 'Ana', stored = {}, reply } = {}) => {
+    const calls = [], kv = { 'pb.rewards': stored };
+    const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', mod + '; return { Rewards, cur: rwCur };')(
+      { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } }, club, String, () => {}, { addEventListener() {} }, () => name, () => 'tok',
+      async b => { calls.push(b); return reply; }, () => {});
+    await x.Rewards.sync(true);
+    return { calls, kv, x };
+  };
+  const reply = { dinks: 7, streak: 3, best: 3, last: '2026-01-03', gained: 2, entries: [] };
+  assert.equal((await run({ rewards: false, code: 'ABC123' }, { reply })).calls.length, 0, 'off: no reward call at all');
+  assert.equal((await run({ rewards: true, code: 'ABC123' }, { reply, name: null })).calls.length, 0, 'no linked name: nothing to ask for');
+  const r = await run({ rewards: true, code: 'ABC123' }, { reply, stored: { streak: 40, best: 40, dinks: 999, last: '2025-01-01' } });
+  assert.equal(r.calls.length, 1); assert.equal(r.calls[0].action, 'rewards-sync'); assert.ok(Number.isInteger(r.calls[0].tz));
+  assert.ok(!('dinks' in r.calls[0]) && !('streak' in r.calls[0]), 'the phone never sends a balance');
+  assert.deepEqual(Object.keys(r.kv['pb.rewards']), ['ABC123'], 'the old flat local balance is gone');
+  assert.equal(r.x.cur().dinks, 7, "the server's number, not the phone's own 999");
+  const off = await run({ rewards: true, code: 'ABC123' }, { reply: undefined, stored: { ABC123: { streak: 2, best: 2, dinks: 5, last: '2026-01-02' } } });
+  assert.equal(off.x.cur().dinks, 5, 'a failed sync (offline) keeps the last synced value');
 });
