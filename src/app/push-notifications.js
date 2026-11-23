@@ -10,11 +10,18 @@ async function pushEndpoint() {
   return sub ? sub.endpoint : '';
 }
 async function notifyOpen() {
-  clubSheet = { view: 'notify', loading: true }; renderClub();
+  const from = inboxOpen ? 'inbox' : null;
+  if (inboxOpen) { inboxOpen = false; inboxNew = new Set(); inboxOpener = null; renderInbox(); }
+  const focusHead = () => { const hd = $('#club-h'); if (hd) { hd.tabIndex = -1; hd.focus({ preventScroll: true }); } };
+  clubSheet = { view: 'notify', loading: true, from }; renderClub(); focusHead();
   let next;
-  try { next = { view: 'notify', st: await pushCall(pushCreds({ action: 'push-status', endpoint: await pushEndpoint(), ownerToken: owners[club.code] || '' })) }; }
-  catch (err) { next = { view: 'notify', error: err.message }; }
-  if (clubSheet && clubSheet.view === 'notify') { clubSheet = next; renderClub(); }
+  try { next = { view: 'notify', from, st: await pushCall(pushCreds({ action: 'push-status', endpoint: await pushEndpoint(), ownerToken: owners[club.code] || '' })) }; }
+  catch (err) { next = { view: 'notify', from, error: err.message }; }
+  if (clubSheet && clubSheet.view === 'notify') {
+    clubSheet = next; renderClub();
+    const root = $('#sheet3');
+    if (!root || typeof document === 'undefined' || !root.contains(document.activeElement)) focusHead();
+  }
 }
 async function notifyToggle(on) {
   clubSheet.busy = true; clubSheet.error = ''; clubSheet.msg = ''; renderClub();
@@ -31,7 +38,7 @@ async function notifyToggle(on) {
       if (sub) { await pushCall(pushCreds({ action: 'push-unsubscribe', endpoint: sub.endpoint })); await sub.unsubscribe(); }
       msg = 'Notifications are off for this phone.';
     }
-    if (clubSheet && clubSheet.view === 'notify') clubSheet = { view: 'notify', msg, st: Object.assign({}, clubSheet.st, { subscribed: on }) };
+    if (clubSheet && clubSheet.view === 'notify') clubSheet = { view: 'notify', from: clubSheet.from || null, msg, st: Object.assign({}, clubSheet.st, { subscribed: on }) };
   } catch (err) { if (clubSheet) { clubSheet.busy = false; clubSheet.error = err.message; } }
   if (clubSheet) renderClub();
 }

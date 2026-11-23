@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { section, page } from './helpers/app.js';
+import { section, page, module as appModule } from './helpers/app.js';
 
 const Inbox = new Function(section('INBOX') + '\nreturn Inbox;')();
 const NOW = 1_000_000_000_000;
@@ -102,4 +102,90 @@ test('the page wires the bell between the club chip and the avatar, with an acce
   assert.match(html, /\.bell-btn \{[^}]*width: 44px; height: 44px/);
   assert.match(html, /announce\(Inbox\.say\(said\)\)/);
   assert.match(html, /e\.key === 'Escape' && inboxOpen/);
+});
+
+test('opening Notification settings from Inbox closes Inbox before opening #sheet3 and moves focus (UX-01)', async () => {
+  const pushSrc = appModule('push-notifications');
+  const events = [];
+  let focused = null;
+  const heading = { tabIndex: 0, focus(opts) { focused = { id: 'club-h', tabIndex: this.tabIndex, opts }; } };
+  const sheet3 = { contains: () => false };
+  const env = {
+    inboxOpen: true,
+    inboxNew: new Set(['ev:1']),
+    inboxOpener: { id: 'bell' },
+    club: { code: 'K7P2QX', name: 'Preview Club' },
+    owners: {},
+    clubSheet: null,
+    navigator: {},
+    window: {},
+    myName: () => 'Ana',
+    myToken: () => 't'.repeat(48),
+    api: async () => ({ enabled: true, subscribed: false, publicKey: '' }),
+    announce: () => {},
+    $: sel => (sel === '#club-h' ? heading : sel === '#sheet3' ? sheet3 : null),
+    renderInbox() { events.push({ fn: 'renderInbox', inboxOpen: env.inboxOpen, newSize: env.inboxNew.size }); },
+    renderClub() { events.push({ fn: 'renderClub', inboxOpen: env.inboxOpen, view: env.clubSheet && env.clubSheet.view, loading: !!(env.clubSheet && env.clubSheet.loading), from: env.clubSheet && env.clubSheet.from }); }
+  };
+  const run = new Function('env', `
+    with (env) {
+      ${pushSrc}
+      return { notifyOpen, notifyToggle };
+    }
+  `)(env);
+
+  await run.notifyOpen();
+
+  assert.equal(env.inboxOpen, false, 'Inbox must be closed after notifyOpen()');
+  assert.equal(env.inboxNew.size, 0, 'inboxNew should be cleared when Inbox closes');
+  assert.equal(env.inboxOpener, null, 'inboxOpener should be cleared when moving to Notification settings');
+  assert.ok(events.length >= 2, 'renderInbox and renderClub must both run');
+  assert.equal(events[0].fn, 'renderInbox', 'renderInbox must run BEFORE renderClub so #sheet11 unmounts first');
+  assert.equal(events[0].inboxOpen, false);
+  assert.equal(events[1].fn, 'renderClub');
+  assert.equal(events[1].inboxOpen, false, 'Inbox must already be closed when #sheet3 opens');
+  assert.equal(events[1].view, 'notify');
+  assert.equal(events[1].from, 'inbox');
+  assert.equal(env.clubSheet.view, 'notify');
+  assert.equal(env.clubSheet.from, 'inbox', 'from=inbox must survive push-status load');
+  assert.equal(focused && focused.id, 'club-h', 'focus must move to the Notifications dialog heading');
+  assert.equal(focused && focused.tabIndex, -1);
+
+  const html = page();
+  assert.match(html, /<h2 id="club-h" tabindex="-1">Notifications<\/h2>/);
+  assert.match(html, /clubSheet\.view === 'notify' && clubSheet\.from === 'inbox'[\s\S]{0,120}openInbox\(\)/);
+});
+
+test('opening Notification settings when Inbox is closed does not touch Inbox and keeps from empty', async () => {
+  const pushSrc = appModule('push-notifications');
+  const events = [];
+  const env = {
+    inboxOpen: false,
+    inboxNew: new Set(),
+    inboxOpener: null,
+    club: { code: 'K7P2QX', name: 'Preview Club' },
+    owners: {},
+    clubSheet: { view: 'you' },
+    navigator: {},
+    window: {},
+    myName: () => 'Ana',
+    myToken: () => 't'.repeat(48),
+    api: async () => ({ enabled: true, subscribed: false, publicKey: '' }),
+    announce: () => {},
+    $: () => null,
+    renderInbox() { events.push('renderInbox'); },
+    renderClub() { events.push(`renderClub:${env.clubSheet && env.clubSheet.view}:${env.clubSheet && env.clubSheet.from}`); }
+  };
+  const run = new Function('env', `
+    with (env) {
+      ${pushSrc}
+      return { notifyOpen };
+    }
+  `)(env);
+
+  await run.notifyOpen();
+
+  assert.ok(!events.includes('renderInbox'), 'renderInbox must not run when Inbox was not open');
+  assert.equal(env.clubSheet.view, 'notify');
+  assert.ok(!env.clubSheet.from, 'from should be falsy when opened outside Inbox');
 });
