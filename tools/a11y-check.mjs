@@ -115,23 +115,33 @@ for (const [mode, opt] of states) {
     await ctx.close();
   }
 }
-{ // Rewards: the Your Dink card with a worn ring, and the Shop sheet (owned and unowned items), stubbed club and answers, nothing is sent.
-  for (const colorScheme of ['light', 'dark']) {
+{ // Rewards: the Your Dink card with a worn ring and pet companion, and the Shop sheet (owned/unowned items, Court pets, weekly shiny toggle, mystery box), stubbed club and answers, nothing is sent.
+  for (const [mode, opt] of [['light', { colorScheme: 'light' }], ['dark', { colorScheme: 'dark' }], ['outdoor', { colorScheme: 'light', outdoor: true }]]) {
+    const colorScheme = mode;
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); } catch {} });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: opt.colorScheme }]);
+    await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.evaluate(() => {
       club = { code: 'ABC123', name: 'Check club', hasPin: true, rewards: true, mysteryBox: true }; me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
-      const cat = [['frame-court', 'Court green ring', 6], ['frame-blue', 'Team blue ring', 8], ['frame-ink', 'Ink ring', 8], ['frame-double', 'Double ring', 15], ['paddle-court', 'Court green paddle', 6], ['paddle-blue', 'Team blue paddle', 8], ['paddle-ink', 'Ink paddle', 8], ['paddle-stripe', 'Striped paddle', 15]];
+      const cat = [['frame-court', 'Court green ring', 6], ['frame-blue', 'Team blue ring', 8], ['frame-ink', 'Ink ring', 8], ['frame-double', 'Double ring', 15], ['paddle-court', 'Court green paddle', 6], ['paddle-blue', 'Team blue paddle', 8], ['paddle-ink', 'Ink paddle', 8], ['paddle-stripe', 'Striped paddle', 15], ['pet-frog', 'Court Frog', 12], ['pet-duck', 'Dink Duck', 14], ['pet-cat', 'Kitchen Cat', 18], ['pet-owl', 'Net Owl', 24]];
       const byId = Object.fromEntries(cat.map(([id, name, price]) => [id, { id, slot: id.split('-')[0], name, price }]));
       const box = { price: 7, duplicateRefund: 4, dailyLimit: 3, openedToday: 1, tiers: [
         { id: 'common', label: 'Common', chance: 55, items: ['frame-court', 'paddle-court'].map(k => byId[k]) },
         { id: 'uncommon', label: 'Uncommon', chance: 30, items: ['frame-blue', 'frame-ink', 'paddle-blue', 'paddle-ink'].map(k => byId[k]) },
         { id: 'rare', label: 'Rare', chance: 15, items: ['frame-double', 'paddle-stripe'].map(k => byId[k]) }
       ] };
-      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe' }, share: true, box, items: cat.map(([id, name, price]) => ({ id, slot: id.split('-')[0], name, price, owned: ['frame-double', 'paddle-stripe', 'frame-ink'].includes(id) })) };
+      const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog' };
+      const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true };
+      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
+        const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck'].includes(id);
+        if (slot !== 'pet') return { id, slot, name, price, owned };
+        const featuredShiny = id === 'pet-frog';
+        if (!owned) return { id, slot, name, price, owned, featuredShiny };
+        return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true }
+          : { id, slot, name, price, owned, featuredShiny, stage: 1, stageLabel: 'Rookie', playDays: 2, nextStageDays: 5, shiny: false };
+      }) };
       const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe' }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
       const pass = {
         season: { id: '2026-Q4', name: 'Fall 2026', start: 0, end: 1 }, games: 6, dinks: 12, worn: shop.worn, share: true, claimable: 2,
@@ -143,11 +153,20 @@ for (const [mode, opt] of states) {
           { tier: 6, games: 15, dinks: 2, payoutDinks: 2, item: { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6, owned: false }, unlocked: false, claimed: false }
         ]
       };
+      rwSave(rwClean({ dinks: 12, streak: 1, best: 7, last: rwDayKey(Date.now()), worn: shop.worn, pet: wornPet }), club.code);
       playerCall = async b => (b && b.action === 'rewards-looks' ? { looks } : b && b.action === 'rewards-pass' ? pass : shop);
       render();
     });
     await sleep(300);
-    await audit(page, `Your Dink card, ring worn (${colorScheme})`, report);
+    await audit(page, `Your Dink card, ring and pet worn (${colorScheme})`, report);
+    if (colorScheme === 'light') {
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.rw-card, .rw-card *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('svg'); }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Your Dink card with pet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
+    }
     await page.evaluate(() => Rewards.openPass()); await sleep(400);
     await audit(page, `Season pass sheet (${colorScheme})`, report, '.sheet');
     if (colorScheme === 'light') {
@@ -165,12 +184,12 @@ for (const [mode, opt] of states) {
         renderClub();
       }
     }); await sleep(200);
-    await audit(page, `Shop sheet with mystery box (${colorScheme})`, report, '.sheet');
+    await audit(page, `Shop sheet with pets and mystery box (${colorScheme})`, report, '.sheet');
     if (colorScheme === 'light') {
       for (const w of [320, 195]) {
         await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
-        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet .rw-box, .sheet .rw-box *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
-        if (over.length) report.push({ label: `Shop mystery box: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet .rw-pets, .sheet .rw-pets *, .sheet .rw-box, .sheet .rw-box *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('svg'); }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Shop pets and mystery box: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
       }
       await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
     }
