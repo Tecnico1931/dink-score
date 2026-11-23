@@ -283,7 +283,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .week i.has { background: var(--green); }
 .week i.today { outline: 2px solid var(--ball); outline-offset: 1px; }
 .week span { font-size: 12px; color: var(--muted); }
-/* Hero: a little court seen from above (faint lines), a pickleball in the corner, the week as bars. The art is icons/pickleball.svg, drawn for this app. */
+/* Hero: a little court seen from above (faint lines), a pickleball in the corner, the week as bars. The art is icons/pickleball.svg (copied from dink-score.vercel.app at the captain's request); every ball in the app uses it. */
 .hero { position: relative; overflow: hidden; isolation: isolate; display: flex; flex-direction: column; gap: 10px; padding: 22px 20px 20px; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); box-shadow: var(--lift); }
 .hero::before { content: ""; position: absolute; inset: 12px; z-index: -1; border: 2px solid var(--court-line); border-radius: 6px; opacity: .35;
   background: linear-gradient(var(--court-line), var(--court-line)) 50% 0 / 2px 34% no-repeat, linear-gradient(var(--court-line), var(--court-line)) 50% 100% / 2px 34% no-repeat,
@@ -358,7 +358,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .serve-pick[aria-pressed="true"] { background: var(--ball); color: var(--ball-ink); }
 .serve-pick[aria-pressed="true"] .ball { opacity: 1; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .25); }
 .swap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2; width: 38px; height: 38px; border-radius: 50%; border: 4px solid var(--surface); background: var(--ink); color: var(--bg); display: grid; place-items: center; font-size: 16px; padding: 0; }
-.ball { width: 12px; height: 12px; border-radius: 50%; flex: none; display: inline-block; background: radial-gradient(circle at 35% 35%, #F4FAB8 0 16%, var(--ball) 17%); }
+.ball { width: 12px; height: 12px; flex: none; display: inline-block; background: url(/icons/pickleball.svg) center / contain no-repeat; }
 
 .roster { margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
 .roster .rhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -605,7 +605,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .badges { margin-left: auto; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex: none; }
 .pill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 5px 10px; background: rgb(255 255 255 / .16); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .pill.serve { background: var(--ball); color: var(--ball-ink); }
-.pill.serve .ball { width: 10px; height: 10px; background: radial-gradient(circle at 35% 35%, #fff 0 18%, #B9CC22 19%); }
+.pill.serve .ball { width: 10px; height: 10px; }
 .pill.gp { background: #fff; color: #0E1726; animation: gp 1.6s ease-in-out infinite; }
 @keyframes gp { 50% { box-shadow: 0 0 0 7px rgb(255 255 255 / .16); } }
 .score-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
@@ -1047,8 +1047,8 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .news .tour-foot .btn { min-height: 44px; }
 .tour-skip { position: absolute; top: 14px; right: 14px; z-index: 2; border: 0; background: rgb(255 255 255 / .14); color: #fff; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
 /* tutorial illustrations, drawn with the app's own pieces */
-.art-mark { width: 96px; height: 96px; border-radius: 28px; background: var(--ball); display: grid; place-items: center; position: relative; box-shadow: 0 20px 40px -10px color-mix(in srgb, var(--ball) 35%, transparent); }
-.art-mark svg { width: 64px; height: 64px; }
+.art-mark { width: 96px; height: 96px; border-radius: 28px; background: var(--ink); display: grid; place-items: center; position: relative; box-shadow: 0 20px 40px -10px color-mix(in srgb, var(--ball) 35%, transparent); }
+.art-mark img { width: 72px; height: 72px; }
 .art-words { position: absolute; bottom: 22px; left: 0; right: 0; display: flex; justify-content: center; gap: 8px; }
 .art-words span { background: rgb(255 255 255 / .12); color: #fff; border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
 .mini-court { width: 150px; height: 178px; display: grid; grid-template-rows: 1fr auto 1fr; gap: 6px; position: relative; }
@@ -2890,7 +2890,7 @@ if (pickup) pickupRefresh();
 window.addEventListener('online', () => { if (club) flush(); });
 
 /* ---------- views ---------- */
-const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="var(--ink)"/><circle cx="17" cy="17" r="10.5" fill="var(--ball)"/><g fill="var(--ball-ink)" opacity=".85"><circle cx="13.2" cy="13.2" r="1.3"/><circle cx="19.2" cy="12.1" r="1.3"/><circle cx="16.6" cy="17" r="1.3"/><circle cx="12.5" cy="19.6" r="1.3"/><circle cx="21.1" cy="18" r="1.3"/><circle cx="17.4" cy="22.3" r="1.3"/></g></svg>`;
+const MARK = `<svg viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="10" fill="var(--ink)"/><image href="/icons/pickleball.svg" x="5" y="5" width="24" height="24"/></svg>`;
 
 // Set body overflow only when it actually changes (WebKit can reset scroll position on reassignment).
 function lockBody(on) { if (shareSheet || newGameOpen) on = true; const v = on ? 'hidden' : ''; if (document.body.style.overflow !== v) document.body.style.overflow = v; }
@@ -2964,7 +2964,7 @@ function seg(attr, options, value, cls = '') {
     `<button type="button" ${attr}="${v}" aria-pressed="${String(v) === String(value)}">${l}</button>`).join('')}</div>`;
 }
 
-// The 3D pickleball (icons/pickleball.svg, drawn for this app, precached by the service worker). Decorative: alt="" keeps it out of the accessibility tree.
+// The pickleball (icons/pickleball.svg, copied from dink-score.vercel.app, precached by the service worker). Decorative: alt="" keeps it out of the accessibility tree.
 const BALL_IMG = (cls, px) => `<img${cls ? ` class="${cls}"` : ''} src="icons/pickleball.svg" alt="" width="${px}" height="${px}" decoding="async" draggable="false">`;
 function homeTiles(games) {
   const tiles = [];
@@ -3996,13 +3996,17 @@ function drawShareGround(ctx, T) {
   ctx.fillStyle = rg; ctx.fillRect(-W / 2, 0, W, H * rx / ry);
   ctx.restore();
 }
+let shareBallImg = null; // set by the draw*Card functions before the header is drawn; null = flat fallback
 function drawShareHeader(ctx, T, line1, line2) {
   const W = SHARE_W, PAD = 60, topY = 109;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(PAD + 27, topY, 27, 0, Math.PI * 2); ctx.clip();
-  ctx.fillStyle = '#c6d93f'; ctx.fillRect(PAD, topY - 27, 54, 54);
-  ctx.fillStyle = T.ball || '#DDF247'; ctx.beginPath(); ctx.arc(PAD + 27 - 9, topY - 9, 27, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
+  if (shareBallImg) ctx.drawImage(shareBallImg, PAD, topY - 27, 54, 54); // the same icons/pickleball.svg as the app, theme-independent
+  else {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(PAD + 27, topY, 27, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#c6d93f'; ctx.fillRect(PAD, topY - 27, 54, 54);
+    ctx.fillStyle = T.ball || '#DDF247'; ctx.beginPath(); ctx.arc(PAD + 27 - 9, topY - 9, 27, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   setFont(ctx, 800, 54, DISPLAY_FONT, 'semi-condensed', -1);
   ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText('Dink Score', PAD + 54 + 24, topY + 2);
@@ -4037,6 +4041,7 @@ function drawShareAvatar(ctx, cx, cy, size, name, avatar, img, fillBg = 'rgba(25
 }
 async function drawShareCard(d, theme, noImages) {
   await shareFonts();
+  shareBallImg = await loadImg('icons/pickleball.svg');
   const T = shareTheme(theme);
   const imgs = noImages ? [] : await Promise.all(d.teams.flatMap(t => t.players.map(p => shareAvatarImage(p.avatar))));
   const W = SHARE_W, H = SHARE_H, PAD = 60;
@@ -4124,6 +4129,7 @@ async function drawShareCard(d, theme, noImages) {
 // Year-in-review 1080x1350 card reusing the same canvas chrome, fonts, avatars and Night/Day palette.
 async function drawRecapCard(d, theme, noImages) {
   await shareFonts();
+  shareBallImg = await loadImg('icons/pickleball.svg');
   const T = shareTheme(theme);
   const avList = [d.avatar, d.favouritePartner && d.favouritePartner.avatar, d.biggestRival && d.biggestRival.avatar];
   const imgs = noImages ? [null, null, null] : await Promise.all(avList.map(a => shareAvatarImage(a)));
@@ -6839,10 +6845,9 @@ let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
 const isStandalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
 const canInstall = !isStandalone && API_OK;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const MARK_BALL = `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="var(--ball-ink)" opacity=".85"><circle cx="22" cy="22" r="4"/><circle cx="38" cy="18" r="4"/><circle cx="31" cy="32" r="4"/><circle cx="19" cy="40" r="4"/><circle cx="44" cy="36" r="4"/><circle cx="33" cy="47" r="4"/></g></svg>`;
 function tourSteps() {
   const steps = [
-    { title: 'Welcome to Dink Score', art: `<div class="art-mark">${MARK_BALL}</div><div class="art-words"><span>Score</span><span>Log</span><span>Rank</span></div>`,
+    { title: 'Welcome to Dink Score', art: `<div class="art-mark">${BALL_IMG('', 72)}</div><div class="art-words"><span>Score</span><span>Log</span><span>Rank</span></div>`,
       body: `<p>Keep score on court, track every result, and see who's on top. Here's a quick tour. It takes about 30 seconds.</p>` },
     { title: 'Set up a game', art: `<div class="mini-setup"><div class="mini-seg"><span>Doubles</span><span>Singles</span></div><div class="mini-team" style="--c:var(--blue)"><i></i><i></i></div><div class="mini-team" style="--c:var(--green)"><i></i><i></i></div><div class="mini-chips"><span class="on">Ana</span><span class="on">Ben</span><span>Cal</span><span>Dee</span></div></div>`,
       body: `<ul><li>On <b>Play</b>, pick doubles or singles, the scoring style, and the target score.</li><li>Type player names, or tap a <b>saved player</b> to drop them into the next open spot. Names are saved for next time.</li><li>Choose who <b>serves first</b>, then tap <b>Start game</b>.</li></ul>` },
@@ -6855,7 +6860,7 @@ function tourSteps() {
   ];
   if (API_OK) steps.push({ title: 'Play alone or with a club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
     body: `<p>You can start scoring right now, no club needed. Games stay on your phone, and after a game you can <b>Share</b> the result or <b>Save to a club</b>. To share one record with your friends, tap <b>Join a club</b> at the top and join with a code: everyone sees the same games, saved players and leaderboard. No accounts needed.</p>` });
-  if (API_OK) steps.push({ title: 'Pick your name', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>Achievements</span><span>Challenges</span></div>`,
+  if (API_OK) steps.push({ title: 'Pick your name', art: `<div class="art-mark" style="background:#fff">${BALL_IMG('', 72)}</div><div class="art-words"><span>Achievements</span><span>Challenges</span></div>`,
     body: `<p>When you join a club, pick your name. Games sent from your phone count toward your <b>achievements</b> and the weekly <b>challenges</b>, and you can set your own picture.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
     body: isIOS

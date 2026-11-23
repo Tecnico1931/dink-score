@@ -140,10 +140,11 @@ test('#club-display uses --dsp-* and --ball tokens and keeps QR white', () => {
   assert.match(block, /\.dsp-qr\s*\{\s*background:\s*#fff;/, 'QR box stays pure white');
 });
 
-test('MARK wordmark uses var(--ball-ink) for ball holes in dark mode', () => {
+test('MARK wordmark shows the shared, theme-independent pickleball art', () => {
   const m = html.match(/const MARK = `([^`]+)`;/);
   assert.ok(m, 'MARK constant found');
-  assert.match(m[1], /<g fill="var\(--ball-ink\)" opacity="\.85">/);
+  assert.match(m[1], /<image href="\/icons\/pickleball\.svg"/);
+  assert.ok(!/var\(--ball/.test(m[1]), 'the ball does not follow the colour theme');
 });
 
 test('public bracket and league pages update theme-color and validate ?palette=', () => {

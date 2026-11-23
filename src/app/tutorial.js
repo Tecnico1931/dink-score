@@ -3,10 +3,9 @@ let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
 const isStandalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
 const canInstall = !isStandalone && API_OK;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const MARK_BALL = `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="var(--ball-ink)" opacity=".85"><circle cx="22" cy="22" r="4"/><circle cx="38" cy="18" r="4"/><circle cx="31" cy="32" r="4"/><circle cx="19" cy="40" r="4"/><circle cx="44" cy="36" r="4"/><circle cx="33" cy="47" r="4"/></g></svg>`;
 function tourSteps() {
   const steps = [
-    { title: 'Welcome to Dink Score', art: `<div class="art-mark">${MARK_BALL}</div><div class="art-words"><span>Score</span><span>Log</span><span>Rank</span></div>`,
+    { title: 'Welcome to Dink Score', art: `<div class="art-mark">${BALL_IMG('', 72)}</div><div class="art-words"><span>Score</span><span>Log</span><span>Rank</span></div>`,
       body: `<p>Keep score on court, track every result, and see who's on top. Here's a quick tour. It takes about 30 seconds.</p>` },
     { title: 'Set up a game', art: `<div class="mini-setup"><div class="mini-seg"><span>Doubles</span><span>Singles</span></div><div class="mini-team" style="--c:var(--blue)"><i></i><i></i></div><div class="mini-team" style="--c:var(--green)"><i></i><i></i></div><div class="mini-chips"><span class="on">Ana</span><span class="on">Ben</span><span>Cal</span><span>Dee</span></div></div>`,
       body: `<ul><li>On <b>Play</b>, pick doubles or singles, the scoring style, and the target score.</li><li>Type player names, or tap a <b>saved player</b> to drop them into the next open spot. Names are saved for next time.</li><li>Choose who <b>serves first</b>, then tap <b>Start game</b>.</li></ul>` },
@@ -19,7 +18,7 @@ function tourSteps() {
   ];
   if (API_OK) steps.push({ title: 'Play alone or with a club', art: `<div class="art-code"><b>K7P2QX</b><div class="phones"><i></i><i></i><i></i></div></div>`,
     body: `<p>You can start scoring right now, no club needed. Games stay on your phone, and after a game you can <b>Share</b> the result or <b>Save to a club</b>. To share one record with your friends, tap <b>Join a club</b> at the top and join with a code: everyone sees the same games, saved players and leaderboard. No accounts needed.</p>` });
-  if (API_OK) steps.push({ title: 'Pick your name', art: `<div class="art-mark" style="background:#fff">${MARK_BALL}</div><div class="art-words"><span>Achievements</span><span>Challenges</span></div>`,
+  if (API_OK) steps.push({ title: 'Pick your name', art: `<div class="art-mark" style="background:#fff">${BALL_IMG('', 72)}</div><div class="art-words"><span>Achievements</span><span>Challenges</span></div>`,
     body: `<p>When you join a club, pick your name. Games sent from your phone count toward your <b>achievements</b> and the weekly <b>challenges</b>, and you can set your own picture.</p>` });
   if (canInstall) steps.push({ title: 'Put it on your home screen', art: `<div class="mini-phone"><i></i><i></i><i></i><i></i><i class="app"></i><i></i><i></i><i></i><i></i></div>`,
     body: isIOS
