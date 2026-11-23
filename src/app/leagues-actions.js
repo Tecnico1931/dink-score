@@ -52,12 +52,14 @@ async function lgSaveChallenge() {
 function lgAct(a, d) {
   if (a === 'open') { lgOpen(); return; }
   if (a === 'tab-open') { lgScreen = { view: 'detail', id: d.id, league: null, loading: true, error: '', list: null, fromTab: true }; renderLeagues(true); lgLoad(d.id); return; }
+  if (a === 'tab-new') { if (!club || !canOrganize()) return; lgScreen = { view: 'new', list: null, error: '', form: lgNewForm(), fromTab: true }; renderLeagues(true); return; }
   if (a === 'tab-tv') { evTabTv('league', d.id); return; }
   const s = lgScreen;
   if (!s) return;
-  if (a === 'back' && s.view === 'detail' && s.fromTab) {
+  if (a === 'back' && s.fromTab && (s.view === 'detail' || s.view === 'new')) {
+    const sel = s.view === 'new' ? '[data-lg="tab-new"]' : `[data-lg="tab-open"][data-id="${CSS.escape(s.id)}"]`;
     lgScreen = null; evTab.at = 0; renderLeagues(true); safeRender();
-    const t = document.querySelector(`[data-lg="tab-open"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
+    const t = document.querySelector(sel) || document.querySelector('[data-lg="open"]'); if (t) t.focus({ preventScroll: true });
     return;
   }
   if (a === 'back') {

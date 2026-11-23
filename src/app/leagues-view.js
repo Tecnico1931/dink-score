@@ -65,7 +65,7 @@ function lgHTML() {
   const body = s.view === 'new' ? lgNewHTML(s) : s.view === 'detail' ? (s.loading || !L ? `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : skel(3)}` : L.kind === 'ladder' ? lgLadderHTML(s, L) : lgLeagueHTML(s, L)) : lgListHTML(s);
   const title = s.view === 'new' ? 'New league or ladder' : s.view === 'detail' ? (L ? L.name : 'League') : 'Leagues and ladders';
   return `<div class="ev-screen" role="dialog" aria-modal="true" aria-labelledby="lg-h"><div class="ev-wrap">
-    <div class="ev-top"><button class="ev-back" data-lg="back" aria-label="${s.view === 'list' ? 'Close leagues and ladders' : 'Back to leagues and ladders'}">${ICON.back}</button><h2 id="lg-h">${esc(title)}</h2></div>${body}</div></div>`;
+    <div class="ev-top"><button class="ev-back" data-lg="back" aria-label="${s.view === 'list' ? 'Close leagues and ladders' : s.fromTab ? 'Back to Events' : 'Back to leagues and ladders'}">${ICON.back}</button><h2 id="lg-h">${esc(title)}</h2></div>${body}</div></div>`;
 }
 const lgProgress = e => e.kind === 'ladder' ? `${e.results} result${e.results === 1 ? '' : 's'} this season${e.top ? ` · top: ${lgName(e.top)}` : ''}`
   : e.status === 'done' ? `Season finished${e.champions && e.champions[0] ? ` · ${e.champions.map(c => c ? lgName(c) : '').filter(Boolean).join(', ')}` : ''}` : `${e.played} of ${e.matches} matches played`;
