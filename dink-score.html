@@ -688,13 +688,25 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .sync.warn::before { background: var(--down); }
 .code-card { background: var(--surface-2); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
 .org-card .code { font-family: var(--display); font-weight: 800; font-size: 32px; letter-spacing: .08em; user-select: all; }
-.code-card .code { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 52px; letter-spacing: .08em; line-height: 1; user-select: all; }
+.code-card .code { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: clamp(28px, 14vw, 52px); letter-spacing: .08em; line-height: 1; user-select: all; }
 .code-card p { font-size: 14px; }
+.club-group { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.club-sec { margin: 4px 0 0; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.club-rows { display: flex; flex-direction: column; gap: 6px; }
+.club-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 46px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.club-row > span:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.club-row b { font-size: 15px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.club-row small { font-size: 13px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
+.club-row .chev { font-size: 22px; line-height: 1; color: var(--muted); flex: none; }
+.club-group .ot-entry { margin-top: 0; }
+.club-tv-link { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; color: var(--blue-text); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.sheet .legal-links { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sheet .legal-links a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; color: var(--blue-text); }
 .share-card { align-items: center; text-align: center; }
 .share-card .invite, .share-card .btn.block { align-self: stretch; }
 .share-qr { background: #fff; border-radius: 16px; padding: 10px; width: min(280px, 100%); box-sizing: border-box; }
 .share-qr svg { display: block; width: 100%; height: auto; }
-.invite { display: flex; gap: 8px; }
+.invite { display: flex; gap: 8px; flex-wrap: wrap; }
 .invite input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
 .pk-banner { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 44px; margin: 12px 0 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
 .ann-banner { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; padding: 4px 4px 4px 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface-2); color: var(--ink); }
@@ -767,7 +779,7 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .mem-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .mem-acts { display: flex; flex-wrap: wrap; gap: 4px 14px; padding-left: 44px; font-size: 13px; }
 .org-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.org-btns .btn { padding: 10px 14px; border-radius: 12px; font-size: 14px; }
+.org-btns .btn { padding: 10px 14px; min-height: 44px; border-radius: 12px; font-size: 14px; }
 .org-btns .btn-soft { background: var(--surface); }
 .badge.on { background: color-mix(in srgb, var(--up) 18%, transparent); color: var(--up); }
 .badge.off { background: var(--surface); color: var(--muted); }
@@ -942,7 +954,7 @@ button.dupr-btn { font-size: 12px; font-weight: 700; color: var(--ink); backgrou
 .club-list li span { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .club-list li small { color: var(--muted); font-size: 12px; }
 .club-list li.cur { box-shadow: inset 0 0 0 2px var(--ink); }
-.club-list .btn { padding: 8px 14px; border-radius: 12px; font-size: 14px; flex: none; }
+.club-list .btn { padding: 8px 14px; min-height: 44px; border-radius: 12px; font-size: 14px; flex: none; }
 @media (max-width: 380px) { .pf-stats { grid-template-columns: repeat(2, 1fr); } }
 
 /* First-visit tutorial */
@@ -1322,6 +1334,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .rx-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 :root[data-outdoor] .rules-jump { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-outdoor] .rules-jump a { border: 2px solid var(--ink); box-shadow: none; }
+:root[data-outdoor] .club-row { border: 2px solid var(--ink); }
 /* Large scores: the numbers fill the court, the names and call grow with them. */
 :root[data-large] .rules-jump a { font-size: 15px; }
 :root[data-large] .rx-btn { font-size: 16px; }
@@ -2445,6 +2458,63 @@ function youHTML(c) {
       ${club ? youRow('data-act="rights-open"', 'Your data', `Export or anonymise${isCreator() || (club.hasPin && !!pins[club.code]) ? ', delete club' : ''}`) : ''}</div>
     <div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
+function clubRow(act, title, hint = '') {
+  return `<button type="button" class="club-row" ${act}><span><b>${title}</b>${hint ? `<small>${hint}</small>` : ''}</span><span class="chev" aria-hidden="true">›</span></button>`;
+}
+function clubHomeHTML(c) {
+  const local = store.get('pb.games', []).length;
+  const deleted = clubData ? (clubData.deleted || []).filter(g => !clubOps().some(o => o.type === 'restore' && o.id === g.id)) : [];
+  const upcoming = gnUpcoming().length;
+  const org = otCan();
+  const orgRows = org ? [
+    odCanOrg() ? clubRow('data-od="open"', 'Who\u2019s an organizer', 'Unlocked phones that can organize this club') : '',
+    isCreator() ? clubRow('data-act="recovery-open"', 'Creator recovery code', 'Restore organizer access if you lose this phone') : '',
+    club.hasPin && !isCreator() && hasOrganizer() ? clubRow('data-act="pin-lock"', 'Lock this phone', 'Require the organizer PIN on this phone again') : ''
+  ].filter(Boolean).join('') : '';
+  return `<h2 id="club-h" tabindex="-1">${esc(club.name)}</h2>
+    ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
+    ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
+    ${club.deleteAt ? `<p class="err" role="status">${esc(club.name)} is scheduled for deletion on ${esc(new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}. An organizer can undo it under Your data.</p>` : ''}
+    ${needsAttentionHTML()}
+    ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button type="button" class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
+    ${clubInfoHTML()}
+    <section class="club-group" aria-labelledby="club-sec-play">
+      <h3 id="club-sec-play" class="club-sec">Play and events</h3>
+      <div class="club-rows">
+        ${clubRow('data-gn="open" data-gn-from="club"', upcoming ? `Game nights (${upcoming} upcoming)` : 'Game nights', upcoming ? 'See who is coming and RSVP' : 'See upcoming nights and RSVP')}
+        ${clubRow('data-act="club-board"', 'Open play court board', 'Who is on court and up next')}
+        ${clubRow('data-act="club-games"', 'Games going on', 'Live scores from other courts')}
+        ${clubRow('data-act="club-mine"', 'My games across clubs', 'Your record and ratings in every club')}
+        ${clubRow('data-cl="open"', 'Linked clubs', 'One leaderboard with a friendly club')}
+        ${clubRow('data-act="pk-open"', 'Pickup session', 'Play with people outside the club')}
+      </div>
+    </section>
+    <section class="club-group" aria-labelledby="club-sec-club">
+      <h3 id="club-sec-club" class="club-sec">This club</h3>
+      <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
+        <p>Share the code or the invite link. Anyone with either can see and add games.</p>
+        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button type="button" class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button type="button" class="btn btn-soft block" data-act="club-share">Show QR code</button><a class="club-tv-link" href="/?display=${esc(club.code)}" target="_blank" rel="noopener">Show the TV display page (big QR code) \u2192</a></div>
+      ${clubSwitcherHTML()}
+      <div class="club-rows">
+        ${clubRow('data-act="move-out-open"', 'Move to a new phone', 'Copy your clubs and access with a one-time code')}
+        ${myName() && myToken() ? clubRow('data-act="member-leave"', c.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`, 'Your games and ratings stay') : ''}
+      </div>
+    </section>
+    <section class="club-group" aria-labelledby="club-sec-org">
+      <h3 id="club-sec-org" class="club-sec">Organizer</h3>
+      ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${org ? ' Set a PIN in Organizer tools to fix that.' : canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p>${!org && canSetFirstPin() ? '<div class="org-btns"><button type="button" class="btn btn-ink" data-act="pin-set-open">Set a PIN</button></div>' : ''}</div>` : ''}
+      ${org && club.hasPin && club.shortPin ? '<p class="err" role="status">This PIN is shorter than 6 digits. Change it in Organizer tools so it is harder to guess.</p>' : ''}
+      ${otCan() ? otEntryHTML() : ''}
+      ${orgRows ? `<div class="club-rows">${orgRows}</div>` : ''}
+      ${!org && club.hasPin ? `<div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge on">On</span></div>
+        <p>Deleting, restoring and running events needs the PIN.</p>
+        <div class="org-btns"><button type="button" class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div></div>` : ''}
+      ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button type="button" class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
+    </section>
+    <p class="note legal-links"><a href="/privacy" target="_blank" rel="noopener">Privacy</a><span aria-hidden="true">·</span><a href="/terms" target="_blank" rel="noopener">Terms</a></p>
+    <div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button>
+      <button type="button" class="btn btn-line-danger" data-act="club-leave">Leave ${esc(club.name)} on this phone</button></div>`;
+}
 function renderClub() {
   const root = $('#sheet3');
   if (!root) return;
@@ -2618,45 +2688,7 @@ function renderClub() {
         ${err}<button type="submit" class="btn btn-ink" ${c.busy ? 'disabled' : ''}>Save PIN</button></form>
       <div class="btns"><button class="btn btn-soft" data-act="pin-cancel">Cancel</button></div>`;
   } else {
-    const local = store.get('pb.games', []).length;
-    const deleted = clubData ? (clubData.deleted || []).filter(g => !clubOps().some(o => o.type === 'restore' && o.id === g.id)) : [];
-    body = `<h2 id="club-h">${esc(club.name)}</h2>
-      ${clubSwitcherHTML()}
-      ${otCan() ? otEntryHTML() : ''}
-      ${clubInfoHTML()}
-      <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
-        <p>Share the code or the invite link. Anyone with either can see and add games.</p>
-        <div class="invite"><input id="invite-link" readonly value="${esc(inviteLink())}" aria-label="Invite link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div><button class="btn btn-soft block" data-act="club-share" style="margin-top:8px">Show QR code</button><p style="margin:10px 0 0"><a href="/?display=${esc(club.code)}" target="_blank" rel="noopener" style="color:var(--blue);font-weight:600;text-decoration:none">Show the TV display page (big QR code) \u2192</a></p></div>
-      <button class="btn btn-soft block" data-act="club-games" style="margin-top:10px">Games going on — live scores</button>
-      <button class="btn btn-soft block" data-act="club-board" style="margin-top:8px">Open play court board</button>
-      <button class="btn btn-soft block" data-gn="open" data-gn-from="club" style="margin-top:8px">Game nights${gnUpcoming().length ? ` (${gnUpcoming().length} upcoming)` : ''}</button>
-      <button class="btn btn-soft block" data-act="club-mine" style="margin-top:8px">My games across clubs</button>
-      <button class="btn btn-soft block" data-cl="open" style="margin-top:8px">Linked clubs: one leaderboard with a friendly club</button>
-      <button class="btn btn-soft block" data-act="pk-open" style="margin-top:8px">Pickup session: play with people outside the club</button>
-      ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
-      ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
-      ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
-      ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p></div>` : ''}
-      ${club.deleteAt ? `<p class="err" role="status">${esc(club.name)} is scheduled for deletion on ${esc(new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}. An organizer can undo it under Your data.</p>` : ''}
-      ${needsAttentionHTML()}
-      <p class="note legal-links"><a href="/privacy" target="_blank" rel="noopener">Privacy</a> · <a href="/terms" target="_blank" rel="noopener">Terms</a></p>
-      <div class="org-card"><div class="org-head"><span class="lab">Organizer PIN</span><span class="badge ${club.hasPin ? 'on' : 'off'}">${club.hasPin ? 'On' : 'Off'}</span></div>
-        ${club.hasPin && club.shortPin ? '<p class="err" role="status">This PIN is shorter than 6 digits. Change it to a longer one so it is harder to guess.</p>' : ''}
-        <p>${!club.hasPin ? (canSetFirstPin() ? 'Anyone with the club code can delete games. Set a PIN so only organizers can.' : `Anyone with the club code can delete games. Only the phone that created ${esc(club.name)} can set a PIN.`) : isCreator() ? 'This phone created the club, so it can always delete and restore games and reset the PIN, even if the PIN is forgotten.' : hasOrganizer() ? 'This phone is unlocked and can delete and restore games.' : 'Deleting and restoring games needs the PIN.'}</p>
-        <div class="org-btns">${!club.hasPin ? (canSetFirstPin() ? '<button class="btn btn-ink" data-act="pin-set-open">Set a PIN</button>' : '')
-          : isCreator() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button>'
-          : hasOrganizer() ? '<button class="btn btn-soft" data-act="pin-set-open">Change PIN</button><button class="btn btn-soft" data-act="pin-lock">Lock this phone</button>'
-          : '<button class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button>'}</div></div>
-      ${odCanOrg() ? '<button class="btn btn-soft block" data-od="open">Who’s an organizer: unlocked phones</button>' : ''}
-      ${isCreator() || (club.hasPin && hasOrganizer()) ? '<button class="btn btn-soft block" data-act="code-rotate-open">Change club code</button>' : ''}
-      ${isCreator() ? '<button class="btn btn-soft block" data-act="recovery-open">Creator recovery code</button>' : ''}
-      <button class="btn btn-soft block" data-act="move-out-open">Move to a new phone</button>
-      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<div class="field" style="margin:0"><span class="lab">Game confirmation</span><p class="note">${club.requireConfirmation ? 'Only confirmed games count toward ratings, the leaderboard and achievements.' : 'Every game counts. Players can still confirm results.'}</p><button class="btn btn-soft block" data-act="confirm-setting">${club.requireConfirmation ? 'Count unconfirmed games again' : 'Count only confirmed games'}</button></div><button class="btn btn-soft block" data-act="audit-open">Game history (who changed what)</button><button class="btn btn-soft block" data-act="links-open">Public result links</button><button class="btn btn-soft block" data-act="info-open">Pinned note and how to pay</button>` : ''}
-      ${isCreator() || (club.hasPin && hasOrganizer()) ? `<button class="btn btn-soft block" data-act="members-open">Members (${clubPlayers().length})</button><button class="btn btn-soft block" data-act="analytics-open">Attendance and busiest hours</button>` : ''}
-      ${myName() && myToken() ? `<button class="btn btn-soft block" data-act="member-leave">${clubSheet.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`}</button>` : ''}
-      ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
-      <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button>
-        <button class="btn btn-line-danger" data-act="club-leave">Leave ${esc(club.name)} on this phone</button></div>`;
+    body = clubHomeHTML(c);
   }
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
     <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
@@ -8146,7 +8178,7 @@ document.addEventListener('click', e => {
   if (ds.act === 'info-open') { clubSheet = { view: 'info' }; renderClub(); return; }
   if (ds.act === 'audit-open') { clubSheet = { view: 'audit', rows: null }; renderClub(); loadAudit(); return; }
   if (ds.act === 'confirm-setting') { setConfirmation(!club.requireConfirmation); return; }
-  if (ds.act === 'club-back') { clubSheet = { view: youHome ? 'you' : 'club' }; renderClub(); return; }
+  if (ds.act === 'club-back') { clubSheet = { view: youHome ? 'you' : 'club' }; renderClub(); const hd = $('#club-h'); if (hd) hd.focus({ preventScroll: true }); return; }
   if (ds.switchClub) { switchClub(ds.switchClub); return; }
   if (ds.fail) { failAct(ds.fail, ds.uid, el); return; }
   if (ds.rename || ds.merge) { clubSheet.nameEdit = { kind: ds.rename ? 'rename' : 'merge', name: ds.rename || ds.merge, mergeInto: ds.into || '' }; clubSheet.error = ''; renderClub(); return; }
@@ -8204,7 +8236,7 @@ document.addEventListener('click', e => {
   if (ds.act && ds.act.startsWith('pk-')) { pickupClick(ds); return; }
   if (ds.act && ds.act.startsWith('club-')) {
     const a = ds.act;
-    if (a === 'club-open') { saveAfterJoin = null; pickupSaveAfter = false; youHome = false; clubSheet = { view: 'club' }; }
+    if (a === 'club-open') { saveAfterJoin = null; pickupSaveAfter = false; youHome = false; clubSheet = { view: 'club' }; renderClub(); const hd = $('#club-h'); if (hd) hd.focus({ preventScroll: true }); return; }
     if (a === 'club-close') { saveAfterJoin = null; pickupSaveAfter = false; clubSheet = null; if (renderPending) safeRender(); }
     if (a === 'club-join-invite') { const code = clubSheet.joinCode; clubSheet = { view: 'club', joinCode: code }; renderClub(); clubJoinByCode(code); return; }
     if (a === 'club-upload') { uploadLocalGames(); return; }
@@ -8212,12 +8244,12 @@ document.addEventListener('click', e => {
     if (a === 'club-leave') {
       if (gameInProgress()) { clubSheet.msg = 'Finish or end the game in progress first.'; renderClub(); return; }
       const others = clubs.filter(x => x.code !== club.code);
-      if (!clubSheet.confirmLeave) { clubSheet.confirmLeave = true; clubSheet.msg = `Tap again to leave. ${club.name}'s games stay in the club. ${others.length ? `This phone switches to ${others[0].name}.` : 'This phone goes back to its own games.'}`; renderClub(); return; }
+      if (!clubSheet.confirmLeave) { clubSheet.confirmLeave = true; clubSheet.msg = `Tap again to leave. ${club.name}'s games stay in the club. ${others.length ? `This phone switches to ${others[0].name}.` : 'This phone goes back to its own games.'}`; announce(clubSheet.msg); renderClub(); return; }
       leaveClub(); clubSheet = null;
     }
     if (a === 'club-copy') {
       const link = inviteLink();
-      const done = () => { clubSheet.copied = true; renderClub(); setTimeout(() => { if (clubSheet) { clubSheet.copied = false; renderClub(); } }, 2000); };
+      const done = () => { clubSheet.copied = true; announce('Invite link copied.'); renderClub(); setTimeout(() => { if (clubSheet) { clubSheet.copied = false; renderClub(); } }, 2000); };
       try { navigator.clipboard.writeText(link).then(done, () => { const i = $('#invite-link'); if (i) i.select(); }); } catch { const i = $('#invite-link'); if (i) i.select(); }
       return;
     }
