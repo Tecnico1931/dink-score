@@ -134,7 +134,7 @@ for (const [mode, opt] of states) {
       ] };
       const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog' };
       const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true };
-      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
+      const shop = { dinks: 12, pace: 1.5, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
         const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck'].includes(id);
         if (slot !== 'pet') return { id, slot, name, price, owned };
         const featuredShiny = id === 'pet-frog';
@@ -154,7 +154,13 @@ for (const [mode, opt] of states) {
         ]
       };
       rwSave(rwClean({ dinks: 12, streak: 1, best: 7, last: rwDayKey(Date.now()), worn: shop.worn, pet: wornPet }), club.code);
-      playerCall = async b => (b && b.action === 'rewards-looks' ? { looks } : b && b.action === 'rewards-pass' ? pass : shop);
+      const activity = { balance: 12, total: 4, entries: [
+        { at: '2026-05-12T10:00:00Z', amount: 4, text: 'Mystery box refund: you already had Ink paddle', balance: 12 },
+        { at: '2026-05-11T10:00:00Z', amount: -15, text: 'Bought Double ring', balance: 8 },
+        { at: '2026-05-10T10:00:00Z', amount: 3, text: 'Earned for a play day, with a streak bonus', balance: 23 },
+        { at: '2026-05-09T10:00:00Z', amount: 1, text: 'Earned for a play day', balance: 20 }] };
+      store.set('pb.rewardsGoal', 'pet-owl');
+      playerCall = async b => (b && b.action === 'rewards-looks' ? { looks } : b && b.action === 'rewards-pass' ? pass : b && b.action === 'rewards-activity' ? activity : shop);
       render();
     });
     await sleep(300);
@@ -177,6 +183,8 @@ for (const [mode, opt] of states) {
       }
       await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
     }
+    await page.evaluate(() => Rewards.openActivity()); await sleep(400);
+    await audit(page, `Dinks activity sheet (${colorScheme})`, report, '.sheet');
     await page.evaluate(() => Rewards.openStore()); await sleep(400);
     await page.evaluate(() => {
       if (clubSheet && clubSheet.store) {

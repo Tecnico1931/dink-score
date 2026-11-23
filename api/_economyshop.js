@@ -8,7 +8,7 @@
 // (_economy.js spendEntry, id `buy:<item>`, so a replay or a second device never charges twice and the balance never goes below zero);
 // ownership is one row per item in reward_items (name key only, like the ledger). Called from players.js as rewards-catalog|buy|wear|share|looks.
 import { loadLedger } from './_economysync.js';
-import { ledgerBalance, spendEntry } from './_economy.js';
+import { ledgerBalance, spendEntry, paceFrom } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
 
 export const SLOTS = ['frame', 'paddle', 'pet'];
@@ -122,7 +122,7 @@ export async function shopView(sql, code, key, now = Date.now()) {
   });
   const wornPetRow = items.find(i => i.slot === 'pet' && i.worn);
   const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now) : null;
-  return { dinks: ledgerBalance(ledger), worn: wornFrom(items), pet, shinyWeek, share, items: viewItems };
+  return { dinks: ledgerBalance(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, items: viewItems };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.
