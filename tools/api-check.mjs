@@ -1261,7 +1261,8 @@ await step('rewards: off by default, organizer only, boolean only, shown in the 
 });
 await step('rewards ledger: server-derived from the games a linked phone saved, append-only, idempotent, off means no calls, follows a rename, gone on anonymise', async () => {
   const sync = (name, extra = {}) => cfPost(playersApi, { action: 'rewards-sync', name, playerToken: cfTok[name], tz: 0, ...extra });
-  const days = async (id, back) => { await pg.query(`UPDATE games SET data = jsonb_set(data, '{receivedAt}', to_jsonb($1::bigint)) WHERE club = $2 AND id = $3`, [Date.now() - back * 864e5, cf.code, id]); };
+  const rwNow = Date.now();
+  const days = async (id, back) => { await pg.query(`UPDATE games SET data = jsonb_set(data, '{receivedAt}', to_jsonb($1::bigint)) WHERE club = $2 AND id = $3`, [rwNow - back * 864e5, cf.code, id]); };
   const rows = async name => (await pg.query(`SELECT id, kind, amount, streak FROM reward_ledger WHERE club = $1 AND name_key = $2 ORDER BY day`, [cf.code, name.toLowerCase()])).rows;
   assert.equal((await sync('Ann')).status, 403, 'rewards off for the club: no reward calls');
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
@@ -2163,19 +2164,55 @@ await step('Dink Rating v2: stored ratings, provisional label, one changelog row
 });
 
 // ---- organizer analytics (L7): totals for organizers only ----
+// Pick a timestamp <= now inside now's Monday-based calendar week in `tz` (avoids crossing into last week on Mondays 00:00-01:00 local).
+const inCurrentWeek = (ms, tz, back = 36e5) => {
+  const f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric' });
+  const wk = x => {
+    const p = {};
+    for (const part of f.formatToParts(x)) p[part.type] = +part.value;
+    return Math.floor((Math.floor(Date.UTC(p.year, p.month - 1, p.day) / 864e5) + 3) / 7);
+  };
+  const cur = wk(ms);
+  for (const dt of [back, 6e4, 0]) if (wk(ms - dt) === cur) return ms - dt;
+  return ms;
+};
 await step('analytics: organizers only, totals only, no player named', async () => {
   const a = ok(await call(club, 'POST', { body: { name: 'Analytics check club' } }), 201);
   const q = `?code=${a.club.code}&analytics=1&tz=Europe/London`;
-  const t = Date.now() - 36e5;
+  const t = inCurrentWeek(Date.now(), 'Europe/London');
   ok(await call(games, 'POST', { body: { code: a.club.code, games: [{ id: 'an-g1', mode: 'singles', teams: [['Ivy'], ['Jon']], score: [11, 4], endedAt: t, startedAt: t - 6e5 }] } }));
   assert.equal((await call(club, 'GET', { query: q })).status, 403, 'a member with only the code');
   assert.equal((await call(club, 'GET', { query: q, headers: { 'x-club-pin': '000000' } })).status, 403, 'wrong PIN');
   const d = ok(await call(club, 'GET', { query: q, headers: { 'x-club-owner': a.ownerToken } }));
   assert.equal(d.games, 1);
-  assert.equal(d.weeks.reduce((n, w) => n + w.players, 0), 2);
+  assert.equal(d.weeks.at(-1).players, 2);
   assert.equal(d.tz, 'Europe/London');
   assert.ok(!/Ivy|Jon/.test(JSON.stringify(d)), 'no player names in the answer');
   assert.equal(ok(await call(club, 'GET', { query: `?code=${a.club.code}&analytics=1&tz=Bad/Zone`, headers: { 'x-club-owner': a.ownerToken } })).tz, 'UTC');
+});
+await step('analytics: Monday 00:02 UTC boundary keeps current-week game in weeks.at(-1) and prior-hour game in weeks.at(-2)', async () => {
+  const a = ok(await call(club, 'POST', { body: { name: 'Analytics Monday boundary club' } }), 201);
+  const q = `?code=${a.club.code}&analytics=1&tz=Europe/London`;
+  const mon0002 = Date.UTC(2026, 10, 23, 0, 2); // Mon 2026-11-23 00:02 UTC (= Europe/London)
+  const realNow = Date.now;
+  Date.now = () => mon0002;
+  try {
+    const tCur = inCurrentWeek(Date.now(), 'Europe/London');
+    assert.ok(tCur <= mon0002 && tCur >= Date.UTC(2026, 10, 23, 0, 0), 'picked inside the Monday week, not in the future');
+    const tPrev = Date.now() - 36e5; // Sun 2026-11-22 23:02 London: previous week
+    ok(await call(games, 'POST', { body: { code: a.club.code, games: [
+      { id: 'an-mon-cur', mode: 'singles', teams: [['Ivy'], ['Jon']], score: [11, 4], endedAt: tCur, startedAt: tCur - 6e5 },
+      { id: 'an-mon-prev', mode: 'singles', teams: [['Kai'], ['Lou']], score: [11, 7], endedAt: tPrev, startedAt: tPrev - 6e5 }
+    ] } }));
+    const d = ok(await call(club, 'GET', { query: q, headers: { 'x-club-owner': a.ownerToken } }));
+    assert.equal(d.games, 2);
+    assert.equal(d.weeks.at(-1).start, '2026-11-23');
+    assert.equal(d.weeks.at(-1).players, 2);
+    assert.equal(d.weeks.at(-2).start, '2026-11-16');
+    assert.equal(d.weeks.at(-2).players, 2);
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 // Event seeding and divisions from Dink Rating (L8): ratings are read on the server, never sent by the phone.
@@ -3203,9 +3240,11 @@ await step('the public league link: organizer makes it, a spectator sees only al
   await step('season end: a second close right away is refused, a later one gets a default name, and past champions stay', async () => {
     const cur = ok(await sget()).progress.season;
     assert.equal((await SE({ ...SORG, seasonId: cur.id })).status, 409, 'a season has to run for a minute first');
-    // Pretend that happened an hour ago: the new season's start and the games received before the close move back together.
-    await pg.query(`UPDATE club_seasons SET starts_at = starts_at - 3600000 WHERE club = $1`, [scode]);
-    await pg.query(`UPDATE games SET data = jsonb_set(data, '{receivedAt}', to_jsonb((data->>'receivedAt')::bigint - 3600000)) WHERE club = $1`, [scode]);
+    // Pretend that happened an hour ago (or as far back as stays inside the current calendar quarter, so this works in the first hour of a quarter too).
+    const avail = cur.start - first.progress.season.start;
+    const shift = Math.min(3600000, avail > 61000 ? avail - 1000 : avail);
+    await pg.query(`UPDATE club_seasons SET starts_at = starts_at - $2::bigint WHERE club = $1`, [scode, shift]);
+    await pg.query(`UPDATE games SET data = jsonb_set(data, '{receivedAt}', to_jsonb((data->>'receivedAt')::bigint - $2::bigint)) WHERE club = $1`, [scode, shift]);
     const now = ok(await sget()).progress.season;
     const r = ok(await SE({ ...SORG, seasonId: now.id }));
     assert.equal(r.season.name, 'Autumn ladder, part 2');
