@@ -267,6 +267,36 @@ for (const [mode, opt] of states) {
     await ctx.close();
   }
 }
+{ // Joined club sheet (plain member and organizer): three groups, headings, targets, contrast and reflow (stubbed club, nothing is sent).
+  for (const [mode, opt] of states) {
+    const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+    await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: opt.colorScheme }]);
+    await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
+    await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    await page.evaluate(() => {
+      club = { code: 'K7P2QX', name: 'Preview Club', hasPin: true };
+      clubs = [{ code: 'K7P2QX', name: 'Preview Club' }];
+      me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
+      delete owners[club.code]; delete pins[club.code];
+      clubData = { code: 'K7P2QX', games: [], deleted: [], roster: ['Ana', 'Ben', 'Cy', 'Di'], nights: [{ id: 'n1', title: 'Friday open play', startsAt: Date.now() + 864e5, status: 'open', counts: { in: 4, maybe: 1, out: 0 } }] };
+      clubSheet = { view: 'club' }; renderClub();
+    });
+    await sleep(300);
+    await audit(page, `${mode}: club sheet (member)`, report, '#sheet3 .sheet');
+    await page.evaluate(() => { owners[club.code] = 'a'.repeat(48); clubSheet = { view: 'club' }; renderClub(); });
+    await sleep(300);
+    await audit(page, `${mode}: club sheet (organizer)`, report, '#sheet3 .sheet');
+    if (mode === 'light') {
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('#sheet3 .sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName.toLowerCase() + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `club sheet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+    }
+    await ctx.close();
+  }
+}
 await browser.close(); srv.kill();
 let bad = 0;
 for (const r of report) {
