@@ -8,9 +8,9 @@ function tourSteps() {
     { title: 'Welcome to Dink Score', art: `<div class="art-mark">${BALL_IMG('', 72)}</div><div class="art-words"><span>Score</span><span>Log</span><span>Rank</span></div>`,
       body: `<p>Keep score on court, track every result, and see who's on top. Here's a quick tour. It takes about 30 seconds.</p>` },
     { title: 'Set up a game', art: `<div class="mini-setup"><div class="mini-seg"><span>Doubles</span><span>Singles</span></div><div class="mini-team" style="--c:var(--blue)"><i></i><i></i></div><div class="mini-team" style="--c:var(--green)"><i></i><i></i></div><div class="mini-chips"><span class="on">Ana</span><span class="on">Ben</span><span>Cal</span><span>Dee</span></div></div>`,
-      body: `<ul><li>On <b>Play</b>, pick doubles or singles, the scoring style, and the target score.</li><li>Type player names, or tap a <b>saved player</b> to drop them into the next open spot. Names are saved for next time.</li><li>Choose who <b>serves first</b>, then tap <b>Start game</b>.</li></ul>` },
+      body: `<ul><li>Tap <b>New game</b> on <b>Play</b>, then tap <b>Edit</b> to change doubles or singles, the scoring style, or the target score.</li><li>Type player names, or tap a <b>saved player</b> to drop them into the next open spot. Names are saved for next time.</li><li>Choose who <b>serves first</b>, then tap <b>Start game</b>.</li></ul>` },
     { title: 'Tap the side that won', art: `<div class="mini-court"><div class="mh a"><span class="srv">Serving</span>4</div><div class="mcall"><span>4</span><span>2</span><span>1</span></div><div class="mh b">2</div><span class="tap"></span></div>`,
-      body: `<ul><li>After each rally, tap the half of the screen for the side that <b>won the rally</b>. The app applies the serving rules for you.</li><li>The white pill is the <b>score call</b> to say out loud. The yellow tag shows who serves, and from which side.</li><li>Mis-tap? Hit <b>Undo</b>. <b>Leave</b> lets you pause the game and come back later.</li></ul>` },
+      body: `<ul><li>After each rally, tap the half of the screen for the side that <b>won the rally</b>. The app applies the serving rules for you.</li><li>The bar in the middle is the <b>score call</b> to say out loud, with the serving score in yellow. The yellow tag shows who serves, and from which side.</li><li>Mis-tap? Hit <b>Undo</b>. <b>Leave</b> lets you pause the game and come back later.</li></ul>` },
     { title: 'Log games from other courts', art: `<div class="mini-log"><span class="badge-live">Your game keeps going</span><div class="row" style="--c:var(--blue)"><i></i><b>11</b></div><div class="row" style="--c:var(--green)"><i></i><b>7</b></div><div class="save">Save result</div></div>`,
       body: `<p>Running more than one court? Tap <b>+ Log</b> while scoring, or <b>Log a result</b> on the home screen. Enter the players and final score. Your live game isn't affected, and logged games count toward the record and ratings.${API_OK ? ' With no club, results stay on this phone.' : ''}</p>` },
     { title: 'Climb the leaderboard', art: `<div class="mini-podium"><div class="p2"><b>3.82</b><small>2nd</small></div><div class="p1"><b>4.10</b><small>1st</small></div><div class="p3"><b>3.64</b><small>3rd</small></div></div>`,
@@ -47,9 +47,19 @@ function closeNews() {
   if (newsFrom && newsFrom.isConnected) { try { newsFrom.focus({ preventScroll: true }); } catch {} }
   newsFrom = null;
 }
+function tourSheetOpen() {
+  return !!(clubSheet || logForm || newGameOpen || inboxOpen || settingsOpen
+    || (typeof profile !== 'undefined' && profile)
+    || (typeof shareSheet !== 'undefined' && shareSheet)
+    || (typeof replay !== 'undefined' && replay)
+    || (typeof ratingExplain !== 'undefined' && ratingExplain)
+    || (typeof dssoUI !== 'undefined' && dssoUI)
+    || (typeof evScreen !== 'undefined' && evScreen)
+    || (typeof lgScreen !== 'undefined' && lgScreen));
+}
 function renderTour() {
   const root = $('#tour');
-  if (tourStep === null && newsOpen && !(live && live.open)) {
+  if (tourStep === null && newsOpen && !(live && live.open) && !tourSheetOpen()) {
     if (root.querySelector('.news')) return;
     newsFrom = document.activeElement;
     root.innerHTML = `<div class="tour-bg"><div class="tour news" role="dialog" aria-modal="true" aria-labelledby="news-h">
