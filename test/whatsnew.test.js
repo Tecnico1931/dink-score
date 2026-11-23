@@ -21,3 +21,14 @@ test("the built page and the a11y check use the same news id", () => {
   assert.ok(read('index.html').includes(`const NEWS = { id: '${news[1]}'`));
   assert.ok(read('tools/a11y-check.mjs').includes(`"${news[1]}"`));
 });
+
+test("what's new push alerts entry only lists shipped push categories", () => {
+  const entries = new Map([...news[0].matchAll(/^\s+\['[^']+', '([^']+)', '(.+)'\],?$/gm)].map(m => [m[1], m[2]]));
+  const alerts = entries.get('Pick your alerts');
+  assert.ok(alerts, 'Pick your alerts entry exists');
+  assert.doesNotMatch(alerts, /games to confirm/i, 'push alerts copy omits unshipped games-to-confirm push');
+  assert.match(alerts, /game nights/i);
+  assert.match(alerts, /events and courts/i);
+  assert.match(alerts, /league/i);
+  assert.match(entries.get('Bell and inbox') || '', /games to confirm/i, 'inbox entry still lists games to confirm');
+});

@@ -30,7 +30,7 @@ function tourSteps() {
 /* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
 const NEWS = { id: '2026-11-22', title: "What's new", items: [
   ['🔔', 'Bell and inbox', 'The bell in the header lists game nights to answer, games to confirm, live events and league results. It is worked out on your phone, so nothing extra is shared.'],
-  ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, games to confirm, events and courts, or league. New game night invites and league results now send one too.'],
+  ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, events and courts, or league. New game night invites and league results now send one too.'],
   ['🙂', 'One You sheet', 'Tap your avatar for your profile, notifications, display and sound, Apple Watch, account and your data in one place. The gear is gone.'],
   ['🎟️', 'Events and game nights', 'The Events tab now holds game nights. Answer In, Maybe or Out, jump to Standings, or open the TV view from any event.'],
   ['🎨', 'A fresh court look', 'Play is shorter and wears a court-green look with a lime pickleball. The header fits small phones and the tab bar fades into the page.'],
