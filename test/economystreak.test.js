@@ -33,11 +33,11 @@ test('the streak shown is 0 once yesterday and today were both missed, and count
 });
 
 test('a stored state that was edited or damaged is cleaned, never trusted', () => {
-  const none = { frame: '', paddle: '' };
+  const none = { frame: '', paddle: '', pet: '' };
   assert.deepEqual(rwClean(null), { streak: 0, best: 0, dinks: 0, last: '', worn: none });
   assert.deepEqual(rwClean({ streak: -4, best: 'x', dinks: NaN, last: 'yesterday' }), { streak: 0, best: 0, dinks: 0, last: '', worn: none });
   // A worn item is a plain item id or nothing: markup, a path or a wrong type never gets through to the page's attributes.
-  assert.deepEqual(rwClean({ worn: { frame: 'frame-court', paddle: '"><img src=x onerror=1>' } }).worn, { frame: 'frame-court', paddle: '' });
+  assert.deepEqual(rwClean({ worn: { frame: 'frame-court', paddle: '"><img src=x onerror=1>', pet: 'pet-frog' } }).worn, { frame: 'frame-court', paddle: '', pet: 'pet-frog' });
   assert.deepEqual(rwClean({ worn: 'frame-court' }).worn, none);
   assert.equal(rwClean({ dinks: 1e12 }).dinks, 1e6);
 });

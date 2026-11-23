@@ -24,7 +24,8 @@ test('odds table sums to 100 percent, covers every cosmetic catalogue item once,
 
   const flat = BOX_TIERS.flatMap(t => t.items);
   assert.equal(new Set(flat).size, flat.length, 'no item listed twice across tiers');
-  assert.deepEqual(flat.slice().sort(), CATALOGUE.map(i => i.id).sort(), 'box covers the exact cosmetic shop catalogue');
+  const boxEligible = CATALOGUE.filter(i => i.slot !== 'pet').map(i => i.id).sort();
+  assert.deepEqual(flat.slice().sort(), boxEligible, 'box covers the exact ring and paddle shop catalogue (pets are fixed-price only)');
 
   const odds = boxOdds();
   assert.equal(odds.price, BOX_PRICE);

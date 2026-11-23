@@ -17,13 +17,20 @@ const rwCleanLooks = raw => {
   for (const [k, v] of Object.entries(raw)) {
     const key = rwKey(k);
     if (!key || !v || typeof v !== 'object') continue;
-    const frame = rwSlotId('frame', v.frame), paddle = rwSlotId('paddle', v.paddle);
-    if (frame || paddle) out[key] = { frame, paddle };
+    const frame = rwSlotId('frame', v.frame), paddle = rwSlotId('paddle', v.paddle), pet = rwSlotId('pet', v.pet);
+    if (!frame && !paddle && !pet) continue;
+    const entry = { frame, paddle };
+    if (pet) {
+      entry.pet = pet;
+      entry.petStage = v.petStage === 2 || v.petStage === 3 ? v.petStage : 1;
+      entry.petShiny = !!v.petShiny;
+    }
+    out[key] = entry;
   }
   return out;
 };
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
-  return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn: { frame: rwId(w.frame), paddle: rwId(w.paddle) } }; };
+  return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn: { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet) } }; };
 const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
 // The streak as it stands on `today`: a run that missed yesterday and today is broken (0). Playing today or yesterday keeps it.
 const rwStreak = (s, today) => (s.last && rwDayNum(today) - rwDayNum(s.last) <= 1 ? s.streak : 0);
@@ -51,12 +58,20 @@ const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentCo
 let rwBusy = false, rwAt = 0, rwLooksBusy = false, rwLooksAt = 0, rwLooksCode = null;
 const rwLooksByClub = Object.create(null);
 const rwClubLooks = () => (club && club.code && rwLooksByClub[club.code]) || null;
-const rwSetOwnLook = (name, worn, share) => {
+const rwSetOwnLook = (name, worn, share, petInfo) => {
   const code = club && club.code, key = rwKey(name);
   if (!code || !key) return;
   const map = rwLooksByClub[code] || (rwLooksByClub[code] = Object.create(null));
-  const frame = share ? rwSlotId('frame', worn && worn.frame) : '', paddle = share ? rwSlotId('paddle', worn && worn.paddle) : '';
-  if (frame || paddle) map[key] = { frame, paddle }; else delete map[key];
+  const frame = share ? rwSlotId('frame', worn && worn.frame) : '', paddle = share ? rwSlotId('paddle', worn && worn.paddle) : '', pet = share ? rwSlotId('pet', worn && worn.pet) : '';
+  if (frame || paddle || pet) {
+    const entry = { frame, paddle };
+    if (pet) {
+      entry.pet = pet;
+      entry.petStage = petInfo && (petInfo.stage === 2 || petInfo.stage === 3) ? petInfo.stage : 1;
+      entry.petShiny = !!(petInfo && petInfo.shiny);
+    }
+    map[key] = entry;
+  } else delete map[key];
 };
 const rwRedrawClub = () => {
   render();
@@ -91,26 +106,28 @@ const Rewards = {
       if (JSON.stringify(next) !== JSON.stringify(prev)) { rwLooksByClub[code] = next; if (rwShown()) rwRedrawClub(); }
     } catch { /* offline or off: keep the last value */ } finally { rwLooksBusy = false; }
   },
-  // One member's shared worn look ({frame, paddle} with prefix stripped), or null when rewards are off, hidden, or unshared.
+  // One member's shared worn look ({frame, paddle, pet?, petStage?, petShiny?} with prefix stripped), or null when rewards are off, hidden, or unshared.
   lookOf(name) {
     if (!rwShown() || !name) return null;
     const map = rwClubLooks(), hit = map && map[rwKey(name)];
     if (!hit) return null;
-    const frame = rwLook(hit.frame), paddle = rwLook(hit.paddle);
-    return frame || paddle ? { frame, paddle } : null;
+    const frame = rwLook(hit.frame), paddle = rwLook(hit.paddle), pet = rwLook(hit.pet);
+    if (!frame && !paddle && !pet) return null;
+    return pet ? { frame, paddle, pet, petStage: hit.petStage === 2 || hit.petStage === 3 ? hit.petStage : 1, petShiny: !!hit.petShiny } : { frame, paddle };
   },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
     const l = Rewards.lookOf(name);
     return l && l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
   },
-  // Team names on a game card: plain text unless a player in this team shares a worn look, in which case their ring / paddle colour renders inline.
+  // Team names on a game card: plain text unless a player in this team shares a worn ring or paddle colour (pets never appear on game cards).
   teamHTML(players) {
     const list = Array.isArray(players) ? players : [];
     const fallback = () => (typeof teamLabel === 'function' ? esc(teamLabel(list)) : list.map(esc).join(' &amp; '));
-    if (!rwShown() || !list.some(n => Rewards.lookOf(n))) return fallback();
+    const cardLook = n => { const l = Rewards.lookOf(n); return l && (l.frame || l.paddle) ? l : null; };
+    if (!rwShown() || !list.some(cardLook)) return fallback();
     return list.map(n => {
-      const l = Rewards.lookOf(n);
+      const l = cardLook(n);
       if (!l) return esc(n);
       const av = l.frame && typeof avatarInner === 'function' ? `<span class="rw-g-av" data-rw-frame="${esc(l.frame)}" aria-hidden="true">${avatarInner(n)}</span>` : '';
       const pd = l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad sm" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';

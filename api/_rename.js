@@ -122,7 +122,7 @@ export function renameWrites(sql, code, plan, extra = []) {
     writes.push(sql`UPDATE reward_ledger SET name_key = ${toKey}, id = ${'m:' + fromKey + ':'} || id WHERE club = ${code} AND name_key = ${fromKey}`);
     // Bought items follow too. A rename keeps what is worn; a merge keeps one copy of an item both own and brings nothing worn (the kept name's own choice stands).
     writes.push(sql`DELETE FROM reward_items f WHERE f.club = ${code} AND f.name_key = ${fromKey} AND EXISTS (SELECT 1 FROM reward_items t WHERE t.club = f.club AND t.name_key = ${toKey} AND t.item = f.item)`);
-    if (merge) writes.push(sql`UPDATE reward_items SET name_key = ${toKey}, worn = false WHERE club = ${code} AND name_key = ${fromKey}`);
+    if (merge) writes.push(sql`UPDATE reward_items SET name_key = ${toKey}, worn = false, shiny = false WHERE club = ${code} AND name_key = ${fromKey}`);
     else writes.push(sql`UPDATE reward_items SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   }
   writes.push(sql`DELETE FROM approval_requests WHERE club = ${code} AND name_key IN (${fromKey}, ${toKey})`); // short-lived: the asker just asks again for the new name

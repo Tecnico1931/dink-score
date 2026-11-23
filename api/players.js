@@ -8,11 +8,11 @@
 //   paddles-set {name, playerToken, paddles}         -> replaces your paddle list and the paddle you used in each game
 //   rewards-get|rewards-sync {name, playerToken, tz?} -> your rewards balance and streak from the append-only ledger (rewards-sync first adds what the
 //                                                       games you saved earned; see _economy.js). Only that name's phone; only where the club has rewards on
-//   rewards-catalog|rewards-buy|rewards-wear|rewards-share {name, playerToken, item?, slot?, share?} -> the catalogue (fixed prices, server-side
-//                                                       only), buy one item through the ledger, choose which owned item is worn, or choose whether
-//                                                       other members see your worn look. See _economyshop.js.
-//   rewards-looks {}                                  -> club members (when club.rewards is on): allow-listed worn item ids for players who opted in
-//                                                       to share their look. Never balance, streak, or purchase history.
+//   rewards-catalog|rewards-buy|rewards-wear|rewards-share {name, playerToken, item?, slot?, shiny?, share?} -> the catalogue (fixed prices, server-side
+//                                                       only), buy one item through the ledger, choose which owned item is worn (plus weekly shiny coat
+//                                                       for a featured pet), or choose whether other members see your worn look. See _economyshop.js and _economypets.js.
+//   rewards-looks {}                                  -> club members (when club.rewards is on): allow-listed worn item ids (plus pet stage and weekly
+//                                                       shiny flag) for players who opted in to share their look. Never balance, streak, or purchase history.
 //   rewards-box-odds {}                               -> club members (when club.rewards and club.mystery_box are on): server odds table for the mystery box.
 //   rewards-box-open {name, playerToken, openId}      -> opens one mystery box on the server (idempotent by openId, daily limit, duplicate refund). See _economybox.js.
 //   rewards-pass|rewards-pass-claim {name, playerToken, tier?, seasonId?} -> free season pass track per club season (derived from games saved
@@ -38,7 +38,7 @@ import { undoKind, undoConflict } from './_undo.js';
 import { dropRatings } from './_rating_store.js';
 import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
 import { rewardsFor, loadLedger } from './_economysync.js';
-import { shopView, buyItem, wearItem, wornOf, loadItems, clubLooks, shareOf, setShare } from './_economyshop.js';
+import { shopView, buyItem, wearItem, wornSummaryOf, loadItems, clubLooks, shareOf, setShare } from './_economyshop.js';
 import { boxOdds, boxStatus, openBox } from './_economybox.js';
 import { passView, claimPassTier } from './_economypass.js';
 
@@ -176,8 +176,12 @@ export default handler(async (req, res) => {
     // Off means no reward calls at all for that club. The balance is the server's ledger; a phone can only ask for it, never set it.
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
-    const [rw, worn, share] = await Promise.all([rewardsFor(sql, code, player.name, { tz: body.tz, sync: body.action === 'rewards-sync' }), wornOf(sql, code, player.name_key), shareOf(sql, code, player.name_key)]);
-    return send(res, 200, { ...rw, worn, share });
+    const [rw, { worn, pet }, share] = await Promise.all([
+      rewardsFor(sql, code, player.name, { tz: body.tz, sync: body.action === 'rewards-sync' }),
+      wornSummaryOf(sql, code, player.name_key),
+      shareOf(sql, code, player.name_key)
+    ]);
+    return send(res, 200, { ...rw, worn, pet, share });
   }
 
   if (body.action === 'rewards-box-odds') {
@@ -200,7 +204,7 @@ export default handler(async (req, res) => {
       const out = body.action === 'rewards-catalog' ? await shopView(sql, code, player.name_key)
         : body.action === 'rewards-buy' ? await buyItem(sql, code, player.name_key, String(body.item || ''))
         : body.action === 'rewards-share' ? await setShare(sql, code, player.name_key, body.share)
-        : await wearItem(sql, code, player.name_key, String(body.slot || ''), String(body.item || ''));
+        : await wearItem(sql, code, player.name_key, String(body.slot || ''), String(body.item || ''), { shiny: body.shiny });
       if (club.mystery_box) out.box = await boxStatus(sql, code, player.name_key);
       return send(res, 200, out);
     } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
@@ -276,7 +280,7 @@ export default handler(async (req, res) => {
         reactions: myReactions.map(r => ({ gameId: r.game_id, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
         events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status })),
         leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status })),
-        rewardsItems: (await loadItems(sql, code, k)).map(i => ({ item: i.id, slot: i.slot, worn: i.worn })),
+        rewardsItems: (await loadItems(sql, code, k)).map(i => ({ item: i.id, slot: i.slot, worn: i.worn, ...(i.slot === 'pet' ? { shiny: i.shiny, adoptedAt: new Date(i.at).toISOString() } : {}) })),
         rewardsLedger: ledger.map(e => ({ id: e.id, kind: e.kind, amount: e.amount, reason: e.reason, day: e.day, streak: e.streak, at: new Date(e.at).toISOString() })),
         gameNights: nightRsvps.map(r => ({ id: r.id, title: r.title, startsAt: Number(r.starts_at), location: r.location || '', nightStatus: r.night_status, rsvp: r.status, updatedAt: new Date(r.updated_at).toISOString() }))
       });

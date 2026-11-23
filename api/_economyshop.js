@@ -9,9 +9,10 @@
 // ownership is one row per item in reward_items (name key only, like the ledger). Called from players.js as rewards-catalog|buy|wear|share|looks.
 import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry } from './_economy.js';
+import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
 
-export const SLOTS = ['frame', 'paddle'];
-// id, slot, name, price in Dinks. About a week of daily play pays for a cheap one; the double ring and the striped paddle take two.
+export const SLOTS = ['frame', 'paddle', 'pet'];
+// id, slot, name, price in Dinks. About a week of daily play pays for a cheap one; the double ring, striped paddle and top pet take two.
 export const CATALOGUE = [
   { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6 },
   { id: 'frame-blue', slot: 'frame', name: 'Team blue ring', price: 8 },
@@ -20,7 +21,8 @@ export const CATALOGUE = [
   { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6 },
   { id: 'paddle-blue', slot: 'paddle', name: 'Team blue paddle', price: 8 },
   { id: 'paddle-ink', slot: 'paddle', name: 'Ink paddle', price: 8 },
-  { id: 'paddle-stripe', slot: 'paddle', name: 'Striped paddle', price: 15 }
+  { id: 'paddle-stripe', slot: 'paddle', name: 'Striped paddle', price: 15 },
+  ...PETS
 ];
 export const itemById = id => CATALOGUE.find(i => i.id === id) || null;
 export const buyId = item => 'buy:' + item.id;
@@ -40,33 +42,58 @@ export function planBuy(ledger, owned, id) {
 }
 
 export async function loadItems(sql, code, key) {
-  return (await sql`SELECT item, slot, worn FROM reward_items WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, item ASC`)
-    .filter(r => itemById(r.item)).map(r => ({ id: r.item, slot: r.slot, worn: !!r.worn }));
+  return (await sql`SELECT item, slot, worn, shiny, at FROM reward_items WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, item ASC`)
+    .filter(r => itemById(r.item)).map(r => ({ id: r.item, slot: r.slot, worn: !!r.worn, shiny: !!r.shiny, at: r.at }));
 }
-// The worn item per slot ({frame, paddle}, '' when none), as the phone draws it.
+// The worn item per slot ({frame, paddle, pet}, '' when none), as the phone draws it.
 export const wornFrom = items => Object.fromEntries(SLOTS.map(s => [s, (items.find(i => i.slot === s && i.worn) || {}).id || '']));
 export const wornOf = async (sql, code, key) => wornFrom(await loadItems(sql, code, key));
 
+// Worn slot ids plus the active pet's derived stage and weekly shiny flag (or null if no pet is worn).
+export async function wornSummaryOf(sql, code, key, now = Date.now()) {
+  const items = await loadItems(sql, code, key);
+  const worn = wornFrom(items);
+  const petRow = items.find(i => i.slot === 'pet' && i.worn);
+  const pet = petRow ? petStateFor(petRow, await loadLedger(sql, code, key), now) : null;
+  return { worn, pet };
+}
+
 // Allow-listed worn item ids per player, for other members of a club whose rewards switch is on.
-// Pure: accepts rows { name_key, slot, item }, copies ONLY known catalogue item ids in their matching slot, never balance, streak or history.
-export function clubLooksFrom(rows) {
+// Pure: accepts rows { name_key, slot, item, shiny?, play_days? }, copies ONLY known catalogue item ids in their matching slot
+// (plus petStage and petShiny for a worn pet), never balance, streak, play-day count or history.
+export function clubLooksFrom(rows, now = Date.now()) {
   const out = Object.create(null);
   for (const r of Array.isArray(rows) ? rows : []) {
     if (!r || typeof r.name_key !== 'string' || !r.name_key) continue;
     const it = itemById(r.item);
     if (!it || it.slot !== r.slot || !SLOTS.includes(it.slot)) continue;
+    if (it.slot === 'pet') {
+      const petLook = cleanPetLook(r, now);
+      if (!petLook) continue;
+      if (!out[r.name_key]) out[r.name_key] = {};
+      Object.assign(out[r.name_key], petLook);
+      continue;
+    }
     if (!out[r.name_key]) out[r.name_key] = {};
     out[r.name_key][it.slot] = it.id;
   }
   return Object.fromEntries(Object.entries(out));
 }
 
-export async function clubLooks(sql, code) {
-  const rows = await sql`SELECT ri.name_key, ri.slot, ri.item
+export async function clubLooks(sql, code, now = Date.now()) {
+  const rows = await sql`SELECT ri.name_key, ri.slot, ri.item, ri.shiny,
+    CASE WHEN ri.slot = 'pet' THEN (
+      SELECT count(DISTINCT rl.day)::int
+      FROM reward_ledger rl
+      WHERE rl.club = ri.club AND rl.name_key = ri.name_key
+        AND rl.kind = 'earn' AND rl.day IS NOT NULL
+        AND rl.day ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        AND rl.day >= to_char(ri.at AT TIME ZONE 'UTC', 'YYYY-MM-DD')
+    ) ELSE NULL END AS play_days
     FROM reward_items ri
     JOIN roster r ON r.club = ri.club AND r.name_key = ri.name_key
     WHERE ri.club = ${code} AND ri.worn = true AND r.rewards_public = true AND r.blocked_at IS NULL`;
-  return clubLooksFrom(rows);
+  return clubLooksFrom(rows, now);
 }
 
 export async function shareOf(sql, code, key) {
@@ -74,22 +101,34 @@ export async function shareOf(sql, code, key) {
   return !!(row && row.rewards_public);
 }
 
-export async function setShare(sql, code, key, on) {
+export async function setShare(sql, code, key, on, now = Date.now()) {
   if (typeof on !== 'boolean') throw Object.assign(new Error('Say whether to show your look to the club.'), { status: 400 });
   await sql`UPDATE roster SET rewards_public = ${on} WHERE club = ${code} AND name_key = ${key}`;
-  return shopView(sql, code, key);
+  return shopView(sql, code, key, now);
 }
 
-// The shop as the phone shows it: the catalogue with the owned flag, the balance, what is worn and whether the club sees it. Prices come from the catalogue only.
-export async function shopView(sql, code, key) {
+// The shop as the phone shows it: the catalogue with the owned flag, the balance, what is worn, pet stage/weekly shiny state, and whether the club sees it. Prices come from the catalogue only.
+export async function shopView(sql, code, key, now = Date.now()) {
   const [items, ledger, share] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key)]);
-  return { dinks: ledgerBalance(ledger), worn: wornFrom(items), share, items: CATALOGUE.map(i => ({ ...i, owned: items.some(o => o.id === i.id) })) };
+  const ownedById = new Map(items.map(i => [i.id, i]));
+  const shinyWeek = shinyWeekFor(now);
+  const viewItems = CATALOGUE.map(i => {
+    const row = ownedById.get(i.id);
+    if (i.slot !== 'pet') return { ...i, owned: !!row };
+    const featuredShiny = shinyWeek.petId === i.id;
+    if (!row) return { ...i, owned: false, featuredShiny };
+    const ps = petStateFor(row, ledger, now);
+    return { ...i, owned: true, featuredShiny, stage: ps.stage, stageLabel: ps.stageLabel, playDays: ps.playDays, nextStageDays: ps.nextStageDays, shiny: ps.shiny };
+  });
+  const wornPetRow = items.find(i => i.slot === 'pet' && i.worn);
+  const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now) : null;
+  return { dinks: ledgerBalance(ledger), worn: wornFrom(items), pet, shinyWeek, share, items: viewItems };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.
-export async function buyItem(sql, code, key, id) {
+export async function buyItem(sql, code, key, id, now = Date.now()) {
   const plan = planBuy(await loadLedger(sql, code, key), (await loadItems(sql, code, key)).map(i => i.id), id);
-  if (plan.already) return { ...(await shopView(sql, code, key)), bought: false };
+  if (plan.already) return { ...(await shopView(sql, code, key, now)), bought: false };
   const { item } = plan;
   await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(hashtext(${code + '/' + key}))`,
@@ -102,22 +141,37 @@ export async function buyItem(sql, code, key, id) {
       WHERE EXISTS (SELECT 1 FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND id = ${buyId(item)})
       ON CONFLICT DO NOTHING`
   ]);
-  const view = await shopView(sql, code, key);
+  const view = await shopView(sql, code, key, now);
   if (!view.items.find(i => i.id === item.id).owned) throw Object.assign(new Error(`Not enough Dinks yet: ${item.name} costs ${item.price} and you have ${view.dinks}.`), { status: 409 });
   return { ...view, bought: true };
 }
 
 // Wear one owned item, or none (id '' with a slot). One worn item per slot.
-export async function wearItem(sql, code, key, slot, id) {
-  if (!SLOTS.includes(slot)) throw Object.assign(new Error('Pick frame or paddle.'), { status: 400 });
+// For slot 'pet', optional boolean `shiny` toggles this week's featured shiny coat (Variant A: refused with 409 outside its featured week).
+export async function wearItem(sql, code, key, slot, id, { shiny, now = Date.now() } = {}) {
+  if (!SLOTS.includes(slot)) throw Object.assign(new Error('Pick frame, paddle or pet.'), { status: 400 });
+  if (shiny !== undefined && typeof shiny !== 'boolean') throw Object.assign(new Error('Say whether to use the weekly shiny coat.'), { status: 400 });
+  if (shiny === true && (slot !== 'pet' || !id)) throw Object.assign(new Error('The weekly shiny coat is only for a worn court pet.'), { status: 400 });
   if (id) {
     const item = itemById(id);
     if (!item || item.slot !== slot) throw Object.assign(new Error('That item isn\'t in the shop.'), { status: 400 });
     if (!(await loadItems(sql, code, key)).some(i => i.id === id)) throw Object.assign(new Error('You don\'t own that yet.'), { status: 403 });
+    if (shiny === true && !isShinyFeatured(id, now)) {
+      const wk = shinyWeekFor(now);
+      throw Object.assign(new Error(`${item.name} isn't this week's featured shiny pet. This week's shiny coat is ${wk.petName}.`), { status: 409 });
+    }
   }
-  await sql.transaction([
-    sql`UPDATE reward_items SET worn = false WHERE club = ${code} AND name_key = ${key} AND slot = ${slot}`,
-    ...(id ? [sql`UPDATE reward_items SET worn = true WHERE club = ${code} AND name_key = ${key} AND item = ${id}`] : [])
-  ]);
-  return shopView(sql, code, key);
+  if (!id) {
+    await sql.transaction([
+      sql`UPDATE reward_items SET worn = false, shiny = false WHERE club = ${code} AND name_key = ${key} AND slot = ${slot}`
+    ]);
+  } else {
+    await sql.transaction([
+      sql`UPDATE reward_items SET worn = false, shiny = false WHERE club = ${code} AND name_key = ${key} AND slot = ${slot} AND item <> ${id}`,
+      shiny === undefined
+        ? sql`UPDATE reward_items SET worn = true WHERE club = ${code} AND name_key = ${key} AND item = ${id}`
+        : sql`UPDATE reward_items SET worn = true, shiny = ${shiny} WHERE club = ${code} AND name_key = ${key} AND item = ${id}`
+    ]);
+  }
+  return shopView(sql, code, key, now);
 }

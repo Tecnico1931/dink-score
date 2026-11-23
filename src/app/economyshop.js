@@ -3,10 +3,12 @@
 // rewards-catalog|buy|wear|share|box-odds|box-open); this phone draws what it is told and never sets a price or draws a random item.
 // Cosmetic only: a ring around your picture and a colour on your paddle thumbnails. Nothing here animates or makes a sound, and it never
 // reads or changes a score, a rating, a rank or a pairing. Opened from the Your Dink card (so the one-tap hide removes it too).
-const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails']];
+const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails'], ['pet', 'Court pet']];
 const rwSwatch = it => it.slot === 'frame'
   ? `<span class="rw-sw" data-rw-frame="${esc(rwLook(it.id))}" aria-hidden="true">${esc(initials(myName() || '?'))}</span>`
-  : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${iconSvg('paddle')}</span>`;
+  : it.slot === 'pet'
+    ? `<span class="rw-sw" aria-hidden="true">${esc(initials(it.name))}</span>`
+    : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${iconSvg('paddle')}</span>`;
 const rwShort = (n, price) => `Not enough Dinks yet: ${n} costs ${price} and you have `;
 let rwBoxSeq = 0;
 // Idempotency key for one box-open request only; the server chooses the item with its own cryptographic random source.
@@ -65,8 +67,8 @@ Object.assign(Rewards, {
   }
 });
 
-// The card, the ring, the paddle colour and the club looks map follow the server's answer.
-function rwStoreSynced(d) { rwSave(rwClean(Object.assign({}, rwCur(), { dinks: d.dinks, worn: d.worn }))); if (typeof rwSetOwnLook === 'function') rwSetOwnLook(myName(), d.worn, !!d.share); rwRedrawClub(); }
+// The card, the ring, the paddle colour, the court pet and the club looks map follow the server's answer.
+function rwStoreSynced(d) { rwSave(rwClean(Object.assign({}, rwCur(), { dinks: d.dinks, worn: d.worn }))); if (typeof rwSetOwnLook === 'function') rwSetOwnLook(myName(), d.worn, !!d.share, d.pet); rwRedrawClub(); }
 
 async function rwStoreAct(body, say, focus) {
   const c = clubSheet;
@@ -131,5 +133,5 @@ document.addEventListener('click', e => {
   }
   const [slot, id] = t.dataset.rwWear.split(':');
   const it = c.store.items.find(i => i.id === id);
-  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : 'Paddle thumbnails back to plain.'), `[data-rw-wear="${slot}:${id}"]`);
+  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : slot === 'paddle' ? 'Paddle thumbnails back to plain.' : 'No court pet worn.'), `[data-rw-wear="${slot}:${id}"]`);
 });

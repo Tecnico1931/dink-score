@@ -80,6 +80,7 @@ await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, rea
 await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak) SELECT code, 'ana', 'boxref:rights0001', 'earn', 4, 'boxref:frame-court', NULL, NULL FROM clubs`);
 await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) SELECT code, k, 'pass:2026-Q1:1', 'earn', 2, 'pass:tier-1' FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // season pass claim in the same ledger, private to each player
 await pg.query(`INSERT INTO reward_items (club, name_key, item, slot, worn) SELECT code, k, 'frame-court', 'frame', true FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // bought cosmetics, private to each player unless opted in
+await pg.query(`INSERT INTO reward_items (club, name_key, item, slot, worn, shiny) SELECT code, k, 'pet-frog', 'pet', true, true FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // bought court pet with weekly shiny toggle, private unless opted in
 await pg.query(`INSERT INTO accounts (id, display_name) VALUES ('acct1', 'x')`);
 await pg.query(`INSERT INTO account_identities (account_id, club, kind, name_key, proof) SELECT 'acct1', code, 'player', 'ana', 'p' FROM clubs`);
 // A linked watch with a live game sent to it: club deletion must take both, and no export may carry its hashes.
@@ -108,7 +109,10 @@ await step('player export: only the phone that holds the name gets it, and it ha
   assert.equal(d.gameNights.length, 1);
   assert.equal(d.gameNights[0].rsvp, 'in');
   assert.deepEqual(d.rewardsLedger.map(e => [e.id, e.amount]).sort(), [['box:rights0001', -7], ['boxref:rights0001', 4], ['day:2026-01-05', 1], ['pass:2026-Q1:1', 2]], 'their own rewards ledger (including box spend/refund and season pass claims), not anyone else\'s');
-  assert.deepEqual(d.rewardsItems, [{ item: 'frame-court', slot: 'frame', worn: true }], 'their own bought items, not anyone else\'s');
+  assert.equal(d.rewardsItems.length, 2, 'their own bought items (ring + court pet), not anyone else\'s');
+  assert.deepEqual(d.rewardsItems.find(i => i.item === 'frame-court'), { item: 'frame-court', slot: 'frame', worn: true });
+  const petExport = d.rewardsItems.find(i => i.item === 'pet-frog');
+  assert.ok(petExport && petExport.slot === 'pet' && petExport.worn === true && petExport.shiny === true && typeof petExport.adoptedAt === 'string' && Number.isFinite(Date.parse(petExport.adoptedAt)), 'pet export includes shiny toggle and adoption time');
   // Mystery box organizer switch defaults to false, is organizer-only, and never leaks player ledger data.
   assert.equal(ok(await call(club, 'GET', { query: '?code=' + code })).club.mysteryBox, false);
   assert.equal((await C('set-mystery-box', { on: true, playerToken: tok.Ana })).status, 403);
@@ -146,7 +150,7 @@ await step('anonymise: own phone replaces the name everywhere; others\' games an
   assert.equal((await pg.query(`SELECT 1 FROM roster WHERE name_key = 'ana'`)).rows.length, 0); // picture, DUPR number and phone link go with it
   assert.equal((await pg.query(`SELECT 1 FROM game_night_rsvps WHERE name_key = 'ana'`)).rows.length, 0); // game night RSVP removed on anonymise
   assert.deepEqual((await pg.query(`SELECT name_key FROM reward_ledger`)).rows.map(r => r.name_key), ['ben', 'ben']); // their rewards ledger (including pass claims) goes, everyone else's stays
-  assert.deepEqual((await pg.query(`SELECT name_key FROM reward_items`)).rows.map(r => r.name_key), ['ben']); // and so do their bought items
+  assert.deepEqual((await pg.query(`SELECT name_key FROM reward_items ORDER BY item`)).rows.map(r => r.name_key), ['ben', 'ben']); // and so do their bought items and pets
   assert.equal((await pg.query(`SELECT 1 FROM account_identities`)).rows.length, 0);
   const shown = ok(await call(club, 'GET', { query: '?code=' + code }));
   assert.ok(!/\bAna\b/.test(text(shown)), 'the club view no longer shows the name');
@@ -191,7 +195,7 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
-  assert.ok(!/reward_ledger|rewardsLedger|reward_items|rewardsItems|rewards_public|rewardsPublic|frame-court|rights0001|boxref|pass:2026-Q1/.test(s), 'the rewards ledger, pass claims, bought items, box opens and look visibility stay out of the club export');
+  assert.ok(!/reward_ledger|rewardsLedger|reward_items|rewardsItems|rewards_public|rewardsPublic|frame-court|pet-frog|petStage|petShiny|rights0001|boxref|pass:2026-Q1/.test(s), 'the rewards ledger, pass claims, bought items, pets, box opens and look visibility stay out of the club export');
   assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321|token_hash|revoke_hash|key_hash/.test(s) && !s.includes(watchToken), 'no secrets, tokens or DUPR data');
 });
 await step('club export as CSV: games, with spreadsheet formulas defused', async () => {
