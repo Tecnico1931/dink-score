@@ -133,6 +133,13 @@ const Rewards = {
     const l = Rewards.lookOf(name);
     return l && l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
   },
+  // The worn pet next to a name on Leaderboard, Roster and Profile only (never game cards): pet id, growth stage and shiny flag from the allow-list, nothing else.
+  petBadgeHTML(name) {
+    const l = Rewards.lookOf(name);
+    if (!l || !l.pet || typeof rwPetBadgeHTML !== 'function') return '';
+    const b = rwPetBadgeHTML(l.pet, { stage: l.petStage, shiny: l.petShiny, decorative: false, size: 20 });
+    return b.replace('class="rw-pet sm"', 'class="rw-pet sm rw-pet-club"');
+  },
   // Team names on a game card: plain text unless a player in this team shares a worn ring or paddle colour (pets never appear on game cards).
   teamHTML(players) {
     const list = Array.isArray(players) ? players : [];

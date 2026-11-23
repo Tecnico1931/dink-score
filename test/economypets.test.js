@@ -289,6 +289,18 @@ test('client looks: opted-in pet id/stage/shiny pass through Rewards.lookOf for 
   const anaCard = x.Rewards.teamHTML(['Ana', 'Ben']);
   assert.match(anaCard, /data-rw-frame="court"/);
   assert.ok(!/frog|owl|pet/i.test(anaCard), 'game cards never include pet data');
+
+  // Avatar-side pet badge (Leaderboard, Roster, Profile): small, named for screen readers, no motion, only the three allow-listed facts.
+  const badge = x.Rewards.petBadgeHTML('Ana');
+  assert.match(badge, /rw-pet sm rw-pet-club/);
+  assert.match(badge, /data-pet="pet-frog"[^>]*data-pet-stage="2"[^>]*data-pet-shiny="true"/);
+  assert.match(badge, /role="img" aria-label="Court Frog, Club, shiny coat"/);
+  assert.match(badge, /width="20" height="20"/);
+  assert.ok(!/animate|transition|<style|href=|http/i.test(badge), 'no motion or remote refs');
+  assert.equal(x.Rewards.petBadgeHTML('Cy'), '', 'unshared player shows no pet');
+  assert.equal(x.Rewards.petBadgeHTML('Bad'), '', 'malformed pet dropped');
+  kv['pb.rewardsHide'] = true;
+  assert.equal(x.Rewards.petBadgeHTML('Ana'), '', 'one-tap hide removes the pet badge');
 });
 
 test('SVG art module: all 4 pets x 3 stages + shiny return valid, safe, tokenised, accessible SVGs with distinct silhouettes', () => {
