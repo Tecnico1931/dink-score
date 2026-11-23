@@ -24,7 +24,7 @@
 //                                                       player (picture, DUPR, phone link). Games stay, so other people's ratings don't change.
 //   release  {pin|ownerToken, name}                  -> organizer: free a claimed name (new phone, or a mistake)
 //   approval-request|approval-status|approval-decide -> a member asks an organizer to approve linking a name instead of using the PIN (see _approvals.js)
-//   rename   {pin|ownerToken, name, newName}         -> organizer: changes a player's name everywhere (games, events, purchases, links)
+//   rename   {pin|ownerToken, name, newName}         -> organizer: changes a player's name everywhere (games, events, rewards, links)
 //   merge    {pin|ownerToken, name, into}            -> organizer: folds the player `name` into `into`; games, links, picture, DUPR follow
 // A claim for a new name that looks like a saved one ("Jose" / "José") answers 409 with a `similar` list of those names
 // until the caller repeats it with confirmNew: true. Rename does the same for its new name.
@@ -331,6 +331,7 @@ export default handler(async (req, res) => {
       ops.push(sql`DELETE FROM game_night_rsvps WHERE club = ${code} AND name_key = ${k}`);
       ops.push(sql`UPDATE game_nights SET updated_at = now() WHERE club = ${code} AND id IN (SELECT jsonb_array_elements_text(${JSON.stringify(nightIds)}::jsonb))`);
     }
+    // Data-rights handling for any legacy rows still in `purchases` until the table is manually dropped.
     ops.push(sql`DELETE FROM purchases WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM reward_ledger WHERE club = ${code} AND name_key = ${k}`);
     ops.push(sql`DELETE FROM reward_items WHERE club = ${code} AND name_key = ${k}`);

@@ -54,7 +54,7 @@ export function ensureSchema() {
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS quick boolean NOT NULL DEFAULT false`; // a throwaway room that holds one live game for a phone with no club (api/club.js room:true)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_start timestamptz NOT NULL DEFAULT now()`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS window_count int NOT NULL DEFAULT 0`;
-      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`;
+      await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS total_count int NOT NULL DEFAULT 0`; // unused legacy lifetime counter (replaced by live games count; kept additive until manual drop)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS pin_hash text`; // organizer PIN, salted scrypt hash
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS owner_hash text`; // hash of the creating phone's token
       // Moving to a new phone (api/transfer.js): encrypted one-time bundles, and a hashed single-use creator recovery code.
@@ -65,8 +65,9 @@ export function ensureSchema() {
       )`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_hash text`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS recovery_expires timestamptz`;
-      // UNUSED LEGACY (Dinks, the shop, levels and prestige were removed): clubs.shop, roster.equipped, roster.prestige and the
-      // purchases table are no longer read or written. Kept, with their data, for a possible later cleanup. roster.claim_hash/avatar/dupr are live.
+      // UNUSED LEGACY (old shop, levels and prestige were removed): clubs.shop, clubs.total_count, roster.equipped and roster.prestige
+      // are no longer read or written. The purchases table (plus purchases_club_name) is never inserted into or read; only rename/anonymise
+      // still update/delete legacy rows for data rights until the table is manually dropped. Kept additive here; roster.claim_hash/paddles/avatar/dupr/rewards_public are live.
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS shop jsonb`;
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS claim_hash text`; // hash of the token on the phone that claimed this name
       await q`ALTER TABLE roster ADD COLUMN IF NOT EXISTS equipped jsonb NOT NULL DEFAULT '{}'::jsonb`;
@@ -771,7 +772,7 @@ export async function reserveGames(code, count) {
 }
 // An organizer's way out of a "too many games just now" pause: starts a fresh 10-minute window.
 export async function resetAllowance(code) {
-  await db()`UPDATE clubs SET window_count = 0, window_start = now(), total_count = 0 WHERE code = ${code}`;
+  await db()`UPDATE clubs SET window_count = 0, window_start = now() WHERE code = ${code}`;
 }
 // Returns unused window allowance, so the counter only ever reflects games actually stored.
 // The window refund only applies if the same 10-minute window is still open; a newer window keeps its own count.

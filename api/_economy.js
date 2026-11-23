@@ -9,7 +9,7 @@
 // The ledger is append-only: a row is `{id, kind: 'earn'|'spend', amount, reason, day, streak}`. `amount` is > 0 for an earn and < 0 for
 // a spend, `id` is unique per player per club (a replay or a second device re-sends the same id and nothing is added twice), and the
 // balance is only ever the sum. Rows are never edited or deleted, except that a rename/merge moves them to the new name and anonymise or
-// deleting the club removes them. Spending is not built yet; spendEntry() is the one place the rule "never below zero" lives.
+// deleting the club removes them. spendEntry() is the one place the rule "never below zero" lives.
 
 export const BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
 export const DAY_PAY = 1;                                   // Dinks for the first game of each new local day
@@ -49,7 +49,7 @@ export function deriveEarnings({ ledger = [], receivedAt = [], tz = 0, now }) {
 
 export const ledgerBalance = ledger => Math.min(MAX_BALANCE, ledger.reduce((n, e) => n + (Number.isFinite(e.amount) ? e.amount : 0), 0));
 
-// A spend row (the shop will use it later). Refuses a spend that would take the balance below zero, and a repeat of an id already used.
+// A spend row (used by the shop). Refuses a spend that would take the balance below zero, and a repeat of an id already used.
 export function spendEntry(ledger, { id, amount, reason }) {
   const n = Math.trunc(Number(amount));
   if (!/^[a-z0-9:_-]{4,64}$/.test(String(id || ''))) throw new Error('A spend needs an id.');
