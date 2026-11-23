@@ -462,6 +462,35 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .awards .aw-v { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 26px; line-height: 1; margin-top: auto; padding-top: 6px; }
 
 /* Rules */
+.rules-jump {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+  margin: -10px -4px 0; padding: 8px 4px;
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.rules-jump ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.rules-jump a {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; min-width: 44px; padding: 0 11px;
+  border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink);
+  font-size: 13px; font-weight: 600; text-decoration: none;
+  box-shadow: var(--shadow);
+}
+.rules-jump a:active { background: var(--surface-2); }
+.rule[id], .rules button, .rules a { scroll-margin-top: calc(118px + env(safe-area-inset-top, 0px)); }
+.rule h3:focus:not(:focus-visible) { outline: none; }
+.rule-goto { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.rule-goto:first-of-type { border-top: 0; padding-top: 0; }
+.rule-goto:last-of-type { padding-bottom: 0; }
+.rule-goto span { color: var(--muted); flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.rule-goto .link { flex: none; min-width: 44px; min-height: 44px; padding: 4px 0; text-align: left; }
+.rule-ext { display: flex; flex-wrap: wrap; gap: 2px 16px; }
+.rule-ext a { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; color: var(--blue-text); font-size: 14px; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 359px), (max-height: 599px) {
+  .rules-jump { position: static; background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .rule[id], .rules button, .rules a { scroll-margin-top: calc(16px + env(safe-area-inset-top, 0px)); }
+}
 .rules { display: flex; flex-direction: column; gap: 10px; }
 .rule { background: var(--surface); border-radius: 20px; padding: 16px 18px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
 .rule p, .rule ul { margin: 0; color: var(--muted); max-width: 62ch; }
@@ -1317,7 +1346,10 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .rx-btn { border: 2px solid var(--ink); background: var(--surface); color: var(--ink); }
 :root[data-outdoor] .rx-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+:root[data-outdoor] .rules-jump { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-outdoor] .rules-jump a { border: 2px solid var(--ink); box-shadow: none; }
 /* Large scores: the numbers fill the court, the names and call grow with them. */
+:root[data-large] .rules-jump a { font-size: 15px; }
 :root[data-large] .rx-btn { font-size: 16px; }
 :root[data-large] .rx-emoji { font-size: 18px; }
 :root[data-large] .rx-n { font-size: 17px; }
@@ -4788,35 +4820,40 @@ function leadersView() {
 let lbScope = store.get('pb.lbScope', 'all');
 
 function rulesView() {
+  const jumps = [
+    ['rules-scoring', 'Scoring'],
+    ['rules-serving', 'Serving'],
+    ['rules-kitchen', 'Kitchen'],
+    ['rules-winning', 'Winning'],
+    ['rules-rating', 'Rating'],
+    ['rules-achievements', 'Achievements'],
+    ['rules-help', 'Help']
+  ];
   return `<section><h2>Rules</h2><p class="sub">The essentials, for settling it at the kitchen line.</p></section>
-  <div class="rule"><h3>New to Dink Score?</h3><p>Take the quick tour of how to set up games, keep score, log results and read the leaderboard.</p><button class="btn btn-ink replay" data-tour="open" style="padding:11px 16px;border-radius:12px;font-size:15px">Show the tour</button></div>
+  <nav class="rules-jump" aria-label="Rules sections"><ul>${jumps.map(([id, label]) => `<li><a href="#${id}">${label}</a></li>`).join('')}</ul></nav>
   <div class="rules">
-    <div class="rule"><h3>Calling the score</h3><p>In doubles, say three numbers before each serve.</p>
+    <div class="rule" id="rules-scoring"><h3>Calling the score</h3><p>In doubles, say three numbers before each serve.</p>
       <div class="call-demo"><div><strong>4</strong><small>Serving team</small></div><div><strong>2</strong><small>Receiving team</small></div><div><strong>1</strong><small>Server</small></div></div>
       <p>Games open at <b>0–0–2</b>, so the first team to serve gets only one server.</p></div>
     <div class="rule"><h3>Side-out scoring</h3><ul><li>Only the serving team scores.</li><li>Win the rally and the server swaps sides with their partner, then serves again.</li><li>Server 1 loses a rally and server 2 takes over. Server 2 loses and it's a side out.</li><li>After a side out, whoever stands on the right serves first.</li></ul></div>
-    <div class="rule"><h3>Where to serve from</h3><p>Even score, serve from the right. Odd score, from the left. That holds for whoever started the game on the right. Dink Score shows the side on the scoring screen.</p></div>
+    <div class="rule" id="rules-serving"><h3>Where to serve from</h3><p>Even score, serve from the right. Odd score, from the left. That holds for whoever started the game on the right. Dink Score shows the side on the scoring screen.</p></div>
     <div class="rule"><h3>The serve</h3><ul><li>Underhand, with contact below the waist and one foot behind the baseline.</li><li>Serve diagonally, deep of the kitchen. Landing on the kitchen line is a fault.</li></ul></div>
     <div class="rule"><h3>Two-bounce rule</h3><p>The return of serve must bounce, and so must the third shot. After that, volleys are open.</p></div>
-    <div class="rule"><h3>The kitchen</h3><p>The non-volley zone runs 7 feet from the net on each side. No volleys while you're in it or touching its line, including momentum carrying you in after the shot. Step in any time to play a ball that has bounced.</p></div>
-    <div class="rule"><h3>How Dink Rating works</h3>
+    <div class="rule" id="rules-kitchen"><h3>The kitchen</h3><p>The non-volley zone runs 7 feet from the net on each side. No volleys while you're in it or touching its line, including momentum carrying you in after the shot. Step in any time to play a ball that has bounced.</p></div>
+    <div class="rule" id="rules-winning"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
+    <div class="rule" id="rules-rating"><h3>How Dink Rating works</h3>
       <p>Dink Rating is this app's own skill rating, built on the same ideas as the big rating systems. It runs from 2.00 to 8.00, and everyone starts at 2.00. Doubles and singles are rated separately.</p>
       <ul><li>Before each game, the app forecasts the score from the players' ratings. A team's rating is the average of its two players.</li>
         <li>After the game, your rating moves by how far you beat or missed that forecast. Losing 9–11 to a much stronger team can raise your rating. Winning 11–9 when you were expected to win 11–4 can lower it.</li>
         <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Until your tenth game your rating is marked Provisional, and it moves faster while reliability is low.</li>
         <li>A blowout counts no more than an 11–3 win: the score share used for your rating is capped at about 79%, so running up the score doesn't help.</li>
         <li>Logged results count the same as games scored live.</li></ul></div>
-    <div class="rule"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
-    <div class="rule" id="rules-dupr"><h3>Set up DUPR</h3>
-      <ol><li><b>Join or start a club.</b> DUPR is linked per club, so you need one first.</li>
-        <li><b>Tell the app who you are.</b> Tap <b>Choose my name</b> and pick your name from the list.</li>
-        <li><b>Open Your DUPR</b> and tap <b>Connect DUPR</b>. You sign in on DUPR's own page, so Dink Score never sees your password.</li>
-        <li><b>Or skip linking</b> and type in a self-reported rating. It is only for show and is not checked by DUPR.</li></ol>
-      <p><b>Organizers:</b> the club's <b>Members</b> list shows who is connected to DUPR, and tapping DUPR on a row opens that player's DUPR box. After an event, review the matches and confirm before anything is sent. A match goes to DUPR only when all its players are connected.</p>
-      <p>If you import players from a Google Sheet, its DUPR ID column is a reference for organizers only. It is not checked with DUPR and does not connect anyone.</p>
-      <button class="btn btn-ink replay" data-act="dupr-open" style="padding:11px 16px;border-radius:12px;font-size:15px">Open Your DUPR</button></div>
-    <div class="rule" id="rules-legal"><h3>Privacy, terms and security</h3><p>What the app stores and who handles it, the rules for using it, and how to report a security problem. These are drafts for review, not legal advice.</p><p><a href="/privacy" target="_blank" rel="noopener">Privacy note</a> · <a href="/terms" target="_blank" rel="noopener">Terms of use</a> · <a href="https://github.com/Tecnico1931/dink-score/security/policy" target="_blank" rel="noopener">Report a security problem</a></p></div>
-    <div class="rule"><h3>Winning and changing ends</h3><p>Games go to 11, win by 2, with 15 or 21 in some events. Change ends when the leading team first reaches 6, or 8 in a game to 15, or 11 in a game to 21.</p></div>
+    <div class="rule" id="rules-achievements"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
+    <div class="rule" id="rules-help"><h3>Settings, DUPR and tour</h3>
+      <div class="rule-goto"><span><b>Display and sound</b> live in <b>You</b> (theme, sunlight, court scores).</span><button type="button" class="link" data-act="settings-open">Open display settings</button></div>
+      <div class="rule-goto" id="rules-dupr"><span><b>DUPR</b> linking and ratings live in <b>You</b>.</span><button type="button" class="link" data-act="dupr-open">Open Your DUPR</button></div>
+      <div class="rule-goto"><span><b>New to Dink Score?</b> Take the quick tour of scoring and the leaderboard.</span><button type="button" class="link" data-tour="open">Show the tour</button></div></div>
+    <div class="rule" id="rules-legal"><h3>Privacy, terms and security</h3><p>What the app stores and who handles it, the rules for using it, and how to report a security problem. These are drafts for review, not legal advice.</p><div class="rule-ext"><a href="/privacy" target="_blank" rel="noopener">Privacy note</a><a href="/terms" target="_blank" rel="noopener">Terms of use</a><a href="https://github.com/Tecnico1931/dink-score/security/policy" target="_blank" rel="noopener">Report a security problem</a></div></div>
   </div>`;
 }
 
@@ -9637,6 +9674,18 @@ document.addEventListener('change', e => {
 document.addEventListener('click', e => {
   const el = e.target.closest('button');
   if (!el) {
+    const jump = e.target.closest && e.target.closest('.rules-jump a[href^="#"]');
+    if (jump) {
+      const target = document.getElementById(jump.getAttribute('href').slice(1));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        const h = target.querySelector('h3') || target;
+        h.setAttribute('tabindex', '-1');
+        h.focus({ preventScroll: true });
+      }
+      return;
+    }
     if (ratingExplain && e.target.closest && e.target.closest('#sheet8') && e.target.classList.contains('sheet-bg')) { closeRatingExplain(); return; }
     if (settingsOpen && e.target.closest && e.target.closest('#sheet9') && e.target.classList.contains('sheet-bg')) { closeSettings(); return; }
     if (inboxOpen && e.target.closest && e.target.closest('#sheet11') && e.target.classList.contains('sheet-bg')) { closeInbox(); return; }
