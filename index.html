@@ -3666,7 +3666,7 @@ function renderInbox() {
     ${news.length ? `<h3 class="inbox-sec">Recent</h3><ul class="inbox-list">${news.map(x => inboxItemHTML(x, inboxNew.has(x.id))).join('')}</ul>` : ''}
     ${inboxNeeds.length || news.length ? '' : '<p class="note">You are all caught up. Game night changes, games to confirm, live events and league results show up here.</p>'}
     <p class="note">Built on this phone from your club's data. Nothing is stored on the server.</p>
-    <div class="btns">${myName() && myToken() ? '<button type="button" class="btn btn-soft" data-act="notify-open">Notification settings</button>' : ''}<button type="button" class="btn btn-soft" data-act="inbox-close">Done</button></div>`;
+    <div class="btns">${myName() ? (myToken() ? '<button type="button" class="btn btn-soft" data-act="notify-open">Notification settings</button>' : '') : '<button type="button" class="btn btn-soft" data-act="inbox-pick-name">Pick your name for push alerts</button>'}<button type="button" class="btn btn-soft" data-act="inbox-close">Done</button></div>`;
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="inbox-h"><span class="grip"></span>${body}</div></div>`, 'inbox');
   inboxHeld = true; inboxBehind(true);
 }
@@ -6666,7 +6666,7 @@ function whoamiHTML(c) {
   if (ask && ask.expiresAt < Date.now()) { setAsk(null); ask = null; }
   if (ask && !askTimer) pollAsk();
   return `<h2 id="club-h">Who are you?</h2>
-    <p>Pick your name so your games count toward your achievements and weekly challenges. Only this phone can use it.</p>
+    <p>Pick your name to RSVP to game nights, get alerts when you're up, and have your games count toward your stats, achievements and weekly challenges. Only this phone can use it.</p>
     ${free.length ? `<div class="field" style="margin:0"><span class="lab">Tap your name</span><div class="chips">${free.map(p => `<button type="button" class="chip-btn" data-claim="${esc(p.name)}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
     ${ask ? `<div class="field" role="status"><span class="lab">Waiting for an organizer</span><p class="note">You asked to be ${esc(ask.name)}. An organizer can approve it from their own phone. This runs out after a few minutes.</p><div class="btns"><button type="button" class="btn btn-soft" data-act="ask-cancel">Cancel the request</button></div></div>` : ''}
     ${taken.length && !ask ? `<div class="field" style="margin:0"><span class="lab">Already linked to a phone. Is one of these you?</span><div class="chips">${taken.map(p => `<button type="button" class="chip-btn" data-ask="${esc(p.name)}" ${c.busy ? 'disabled' : ''}>Ask an organizer: ${esc(p.name)}</button>`).join('')}</div></div>` : ''}
@@ -10642,6 +10642,7 @@ document.addEventListener('click', e => {
   if (act === 'settings-close') { closeSettings(); return; }
   if (act === 'inbox-open') { openInbox(); return; }
   if (act === 'inbox-close') { closeInbox(); return; }
+  if (act === 'inbox-pick-name') { closeInbox(); clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
