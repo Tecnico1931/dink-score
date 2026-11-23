@@ -301,6 +301,7 @@ Rewards (Dinks, shop, levels and the like) are a calm extra, never the point of 
 - **Calm motion.** No flashing and no storm effects (confetti, particle bursts, full-screen takeovers). A reward shows as a quiet card, count-up or check mark, and under `prefers-reduced-motion` it appears with no animation at all.
 - **Sound is off until the player turns it on**, per device.
 - **One tap hides it all.** Every player has a single switch that hides all reward UI on their device, and the app works the same without it.
+- **Transparent, never pushy.** The player can read their own Dinks history in plain words (Dinks activity), and can pick one shop item as a saving goal that shows only what is missing and an estimate from their own recent earnings, kept on the device. No streak pressure, countdowns or nudges.
 - **Rewards never touch the game.** They never change a rating, a score, a rank, a pairing or a result, and they never decide who plays.
 
 ## Do's and Don'ts

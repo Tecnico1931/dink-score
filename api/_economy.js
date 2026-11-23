@@ -70,3 +70,14 @@ export function summary(ledger, tz, now) {
 // A stored or incoming row, checked. Used before an insert so a bad row can never reach the table.
 export const validEntry = e => !!e && typeof e.id === 'string' && /^[A-Za-z0-9:_-]{4,80}$/.test(e.id) && (e.kind === 'earn' ? e.amount > 0 : e.kind === 'spend' && e.amount < 0)
   && Number.isInteger(e.amount) && (e.day === null || DAY.test(e.day));
+
+export const PACE_DAYS = 30;     // how far back "your usual pace" looks (Shop saving goal)
+export const PACE_MIN_DAYS = 3;  // fewer play days than this is too little to call a pace
+// Dinks earned per play day over the last PACE_DAYS: only the rows paid for playing (a play day, with or without its streak bonus), so
+// a box refund or a pass reward never skews it. null until there are PACE_MIN_DAYS play days to go on.
+export function paceFrom(ledger, now) {
+  const floor = dayNum(dayKey(now, 0)) - PACE_DAYS;
+  const days = ledger.filter(e => e.kind === 'earn' && (e.reason === 'day' || e.reason === 'day+streak') && e.day && dayNum(e.day) >= floor);
+  if (days.length < PACE_MIN_DAYS) return null;
+  return Math.round(days.reduce((n, e) => n + e.amount, 0) / days.length * 100) / 100;
+}

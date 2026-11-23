@@ -13,6 +13,8 @@
 //                                                       for a featured pet), or choose whether other members see your worn look. See _economyshop.js and _economypets.js.
 //   rewards-looks {}                                  -> club members (when club.rewards is on): allow-listed worn item ids (plus pet stage and weekly
 //                                                       shiny flag) for players who opted in to share their look. Never balance, streak, or purchase history.
+//   rewards-activity {name, playerToken}              -> your own last 100 ledger rows in plain words with the running balance (read-only; no ids, nothing of
+//                                                       anyone else). Only that name's phone; only where the club has rewards on. See _economyactivity.js.
 //   rewards-box-odds {}                               -> club members (when club.rewards and club.mystery_box are on): server odds table for the mystery box.
 //   rewards-box-open {name, playerToken, openId}      -> opens one mystery box on the server (idempotent by openId, daily limit, duplicate refund). See _economybox.js.
 //   rewards-pass|rewards-pass-claim {name, playerToken, tier?, seasonId?} -> free season pass track per club season (derived from games saved
@@ -41,6 +43,7 @@ import { rewardsFor, loadLedger } from './_economysync.js';
 import { shopView, buyItem, wearItem, wornSummaryOf, loadItems, clubLooks, shareOf, setShare } from './_economyshop.js';
 import { boxOdds, boxStatus, openBox } from './_economybox.js';
 import { passView, claimPassTier } from './_economypass.js';
+import { activityFrom } from './_economyactivity.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -184,6 +187,12 @@ export default handler(async (req, res) => {
     return send(res, 200, { ...rw, worn, pet, share });
   }
 
+  if (body.action === 'rewards-activity') {
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
+    return send(res, 200, activityFrom(await loadLedger(sql, code, player.name_key)));
+  }
+
   if (body.action === 'rewards-box-odds') {
     if (!club.rewards || !club.mystery_box) throw fail(403, 'Mystery box is off for this club.');
     return send(res, 200, boxOdds());
@@ -282,6 +291,7 @@ export default handler(async (req, res) => {
         leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status })),
         rewardsItems: (await loadItems(sql, code, k)).map(i => ({ item: i.id, slot: i.slot, worn: i.worn, ...(i.slot === 'pet' ? { shiny: i.shiny, adoptedAt: new Date(i.at).toISOString() } : {}) })),
         rewardsLedger: ledger.map(e => ({ id: e.id, kind: e.kind, amount: e.amount, reason: e.reason, day: e.day, streak: e.streak, at: new Date(e.at).toISOString() })),
+        rewardsActivity: activityFrom(ledger, Infinity).entries,
         gameNights: nightRsvps.map(r => ({ id: r.id, title: r.title, startsAt: Number(r.starts_at), location: r.location || '', nightStatus: r.night_status, rsvp: r.status, updatedAt: new Date(r.updated_at).toISOString() }))
       });
     }

@@ -1359,7 +1359,7 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   await join('Hal');
   assert.equal((await post('Hal', { action: 'rewards-catalog' })).status, 403, 'rewards off for the club: no shop calls');
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
-  for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
+  for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear', 'rewards-activity']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
   let s = ok(await post('Hal', { action: 'rewards-catalog' }));
   assert.equal(s.items.length, 12); assert.ok(s.items.every(i => !i.owned && i.price > 0)); assert.deepEqual(s.worn, { frame: '', paddle: '', pet: '' });
   // No Dinks yet: refused with a clear message, nothing charged, nothing owned.
@@ -1379,6 +1379,12 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   const both = await Promise.all(['paddle-blue', 'paddle-ink'].map(item => post('Hal', { action: 'rewards-buy', item })));
   assert.deepEqual(both.map(x => x.status).sort(), [200, 409]);
   assert.equal(ok(await post('Hal', { action: 'rewards-catalog' })).dinks, 6);
+  // Dinks activity: only the caller's own rows, in plain words, newest first with the running balance, never an id.
+  const act = ok(await post('Hal', { action: 'rewards-activity' }));
+  assert.equal(act.balance, 6); assert.equal(act.entries[0].balance, 6);
+  assert.ok(act.entries.some(e => /^Bought /.test(e.text) && e.amount < 0), 'the buy shows as a spend in words');
+  assert.ok(act.entries.every(e => !('id' in e) && !('reason' in e)) && !/buy:|shop:|day:20/.test(JSON.stringify(act)), 'no raw ids or reasons');
+  assert.equal(ok(await post('Hal', { action: 'rewards-catalog' })).pace, null, 'too few play days for a pace yet');
   assert.equal((await owned('Hal')).length, 2);
   // Wearing: only what you own, in its own slot, one per slot, or none.
   assert.equal((await post('Hal', { action: 'rewards-wear', slot: 'frame', item: 'frame-blue' })).status, 403, 'not owned');

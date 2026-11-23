@@ -9,6 +9,20 @@ const rwSwatch = it => it.slot === 'frame'
   : it.slot === 'pet'
     ? (typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 36 }) : `<span class="rw-sw" aria-hidden="true">${esc(initials(it.name))}</span>`)
     : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${iconSvg('paddle')}</span>`;
+// Saving goal: one unowned item the player picks. Kept on this phone only (never sent anywhere) and cleared once it is owned.
+const rwGoalSet = id => store.set('pb.rewardsGoal', id || '');
+function rwGoalItem(s) {
+  const id = String(store.get('pb.rewardsGoal', '') || ''), it = id && s.items.find(i => i.id === id);
+  if (id && (!it || it.owned)) rwGoalSet('');
+  return it && !it.owned ? it : null;
+}
+function rwGoalHTML(c, s) {
+  const open = s.items.filter(i => !i.owned);
+  if (!open.length) return '';
+  const g = rwGoalItem(s), need = g ? Math.max(0, g.price - s.dinks) : 0, days = need && s.pace ? Math.max(1, Math.ceil(need / s.pace)) : 0;
+  const line = !g ? '' : !need ? `You have enough Dinks for ${g.name} now.` : `${need} more ${need === 1 ? 'Dink' : 'Dinks'}${days ? `, about ${days} play ${days === 1 ? 'day' : 'days'} at your usual pace` : ''}.`;
+  return `<h3 class="rw-h">Saving goal</h3><label class="rw-goal"><span>Saving for</span><select data-rw-goal ${c.busy ? 'disabled' : ''}><option value="">No goal</option>${open.map(i => `<option value="${esc(i.id)}"${g && g.id === i.id ? ' selected' : ''}>${esc(i.name)} (${i.price} Dinks)</option>`).join('')}</select></label>${line ? `<p class="rw-goal-line">${esc(line)}</p>` : ''}<p class="rw-box-fine">Your goal stays on this phone.</p>`;
+}
 const rwShort = (n, price) => `Not enough Dinks yet: ${n} costs ${price} and you have `;
 let rwBoxSeq = 0;
 // Idempotency key for one box-open request only; the server chooses the item with its own cryptographic random source.
@@ -57,8 +71,28 @@ Object.assign(Rewards, {
     return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> Dinks</p>
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${petsSec}${box}
+      ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${petsSec}${box}
       <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${done}`;
+  },
+  // "Dinks activity": your own recent ledger rows in plain words (the server's words), newest first, with the balance after each.
+  activityHTML(c) {
+    const a = c.activity, done = '<div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>';
+    const head = '<h2 id="club-h" tabindex="-1">Dinks activity</h2>';
+    if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p>${done}`;
+    if (!a) return `${head}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="activity">Try again</button>` : skel(3)}${done}`;
+    const day = at => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const rows = a.entries.map(e => `<li class="rw-act"><span class="rw-name"><b>${esc(e.text)}</b><small>${esc(day(e.at))} · balance ${e.balance}</small></span><span class="rw-amt num">${e.amount > 0 ? '+' : '−'}${Math.abs(e.amount)}</span></li>`).join('');
+    return `${head}<p class="rw-bal-line"><b>${a.balance}</b> Dinks</p>
+      <p class="note">Only you can see this. It lists what you earned and spent, newest first${a.total > a.entries.length ? `, the last ${a.entries.length} of ${a.total}` : ''}.</p>
+      ${rows ? `<ul class="rw-acts-list">${rows}</ul>` : '<p class="note">Nothing yet. Dinks you earn or spend show up here.</p>'}${done}`;
+  },
+  async openActivity() {
+    if (!rwShown() || !myName() || !myToken()) return;
+    const c = clubSheet = { view: 'rwactivity', activity: null, error: '' };
+    renderClub();
+    try { const d = await playerCall({ action: 'rewards-activity', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.activity = d; }
+    catch (err) { if (clubSheet !== c) return; c.error = err.message || "Your Dinks activity couldn't load."; }
+    renderClub();
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
   async openStore() {
@@ -74,6 +108,7 @@ Object.assign(Rewards, {
 // The card, the ring, the paddle colour, the court pet and the club looks map follow the server's answer.
 function rwStoreSynced(d) {
   const cur = rwCur();
+  if (d && d.items) rwGoalItem(d); // a goal that is now owned (bought, or granted by a pass tier or a box) is cleared
   const nextPet = d && 'pet' in d ? d.pet : (d && d.worn && d.worn.pet && cur.pet && cur.pet.id === d.worn.pet ? cur.pet : null);
   rwSave(rwClean(Object.assign({}, cur, { dinks: d.dinks, worn: d.worn, pet: nextPet })));
   if (typeof rwSetOwnLook === 'function') rwSetOwnLook(myName(), d.worn, !!d.share, nextPet);
@@ -102,10 +137,21 @@ async function rwStoreAct(body, say, focus) {
   const f = document.querySelector(focus); if (f) f.focus(); // the sheet is redrawn, so put the focus back where the person was
 }
 
+document.addEventListener('change', e => {
+  const t = e.target, c = clubSheet;
+  if (!t || !t.matches || !t.matches('select[data-rw-goal]') || !c || c.view !== 'rwstore' || !c.store) return;
+  const it = c.store.items.find(i => i.id === t.value && !i.owned);
+  rwGoalSet(it ? it.id : '');
+  announce(it ? `Saving goal: ${it.name}.` : 'Saving goal cleared.');
+  renderClub();
+  const f = document.querySelector('[data-rw-goal]'); if (f) f.focus(); // the sheet is redrawn, so put the focus back on the picker
+});
+
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
+  if (t.dataset.rw === 'activity') { Rewards.openActivity(); return; }
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store) return;
   if (t.dataset.rwBoxOpen) {

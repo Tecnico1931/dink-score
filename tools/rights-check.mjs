@@ -109,6 +109,8 @@ await step('player export: only the phone that holds the name gets it, and it ha
   assert.equal(d.gameNights.length, 1);
   assert.equal(d.gameNights[0].rsvp, 'in');
   assert.deepEqual(d.rewardsLedger.map(e => [e.id, e.amount]).sort(), [['box:rights0001', -7], ['boxref:rights0001', 4], ['day:2026-01-05', 1], ['pass:2026-Q1:1', 2]], 'their own rewards ledger (including box spend/refund and season pass claims), not anyone else\'s');
+  assert.equal(d.rewardsActivity.length, 4, 'the same ledger in plain words, with no ids');
+  assert.ok(d.rewardsActivity.every(e => !('id' in e) && typeof e.text === 'string' && Number.isFinite(e.balance)));
   assert.equal(d.rewardsItems.length, 2, 'their own bought items (ring + court pet), not anyone else\'s');
   assert.deepEqual(d.rewardsItems.find(i => i.item === 'frame-court'), { item: 'frame-court', slot: 'frame', worn: true });
   const petExport = d.rewardsItems.find(i => i.item === 'pet-frog');
@@ -195,7 +197,7 @@ await step('club export: organizers only (PIN or creating phone); players, stran
   assert.deepEqual(viaOwner.players.map(p => p.name).sort(), ['=SUM(1+1)', 'Ben', 'Cy']);
   assert.equal(text(viaOwner.games.map(g => g.id)), text(viaPin.games.map(g => g.id)));
   const s = text(viaOwner);
-  assert.ok(!/reward_ledger|rewardsLedger|reward_items|rewardsItems|rewards_public|rewardsPublic|frame-court|pet-frog|petStage|petShiny|rights0001|boxref|pass:2026-Q1/.test(s), 'the rewards ledger, pass claims, bought items, pets, box opens and look visibility stay out of the club export');
+  assert.ok(!/reward_ledger|rewardsLedger|rewardsActivity|reward_items|rewardsItems|rewards_public|rewardsPublic|frame-court|pet-frog|petStage|petShiny|rights0001|boxref|pass:2026-Q1/.test(s), 'the rewards ledger, pass claims, bought items, pets, box opens and look visibility stay out of the club export');
   assert.ok(!/pin_hash|owner_hash|claim_hash|share_token|dupr_id|"refs"|1234567|7654321|token_hash|revoke_hash|key_hash/.test(s) && !s.includes(watchToken), 'no secrets, tokens or DUPR data');
 });
 await step('club export as CSV: games, with spreadsheet formulas defused', async () => {

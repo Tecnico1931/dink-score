@@ -155,6 +155,10 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-item { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
 .rw-name { flex: 1; min-width: 0; } .rw-name b { display: block; font-size: 15px; } .rw-name small { display: block; font-size: 13px; color: var(--muted); }
 .rw-item .btn { min-height: 44px; min-width: 64px; }
+.rw-goal { display: grid; gap: 4px; font-size: 13px; font-weight: 600; } .rw-goal select { width: 100%; font-size: 16px; font-weight: 400; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); }
+.rw-goal-line { margin: 8px 0 2px; font-size: 14px; }
+.rw-acts-list { list-style: none; margin: 8px 0 4px; padding: 0; } .rw-act { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.rw-amt { flex: none; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .rw-sw { width: 30px; height: 30px; margin: 8px 8px 8px 0; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 12px; box-shadow: 0 0 0 2px var(--surface), var(--rw-ring, 0 0 0 0 transparent); }
 .rw-sw svg { width: 62%; height: 62%; }
 .rw-sw.pad { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
@@ -2571,6 +2575,8 @@ function renderClub() {
     body = Rewards.storeHTML(c);
   } else if (c.view === 'rwpass' && club && myName()) {
     body = Rewards.passHTML(c);
+  } else if (c.view === 'rwactivity' && club && myName()) {
+    body = Rewards.activityHTML(c);
   } else if (c.view === 'you') {
     body = youHTML(c);
   } else if (c.view === 'dupr') {
