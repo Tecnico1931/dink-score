@@ -10,6 +10,7 @@
 import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry, paceFrom } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
+import { SEASONAL, seasonFor, isAvailable, closedMessage } from './_economyseason.js';
 
 export const SLOTS = ['frame', 'paddle', 'pet'];
 // id, slot, name, price in Dinks. About a week of daily play pays for a cheap one; the double ring, striped paddle and top pet take two.
@@ -24,16 +25,19 @@ export const CATALOGUE = [
   { id: 'paddle-stripe', slot: 'paddle', name: 'Striped paddle', price: 15 },
   ...PETS
 ];
-export const itemById = id => CATALOGUE.find(i => i.id === id) || null;
+// Seasonal cosmetics (_economyseason.js) are looked up here too, so an owned one stays owned, wearable and visible after its window closes;
+// they are NOT in CATALOGUE, which keeps them out of the mystery box and the pass. Only buying is limited to the season.
+export const itemById = id => CATALOGUE.find(i => i.id === id) || SEASONAL.find(i => i.id === id) || null;
 export const buyId = item => 'buy:' + item.id;
 
 // What a buy would do, from the ledger and the owned ids. Pure. Throws with a plain message when it must be refused.
 //   { already: true }            the player owns it (a replay or a second device): nothing is charged
 //   { entry }                    the spend row to append (null when the ledger already has it)
-export function planBuy(ledger, owned, id) {
+export function planBuy(ledger, owned, id, now = Date.now()) {
   const item = itemById(id);
   if (!item) throw Object.assign(new Error('That item isn\'t in the shop.'), { status: 400 });
   if (owned.includes(item.id)) return { item, already: true };
+  if (!isAvailable(item, now)) throw Object.assign(new Error(closedMessage(item)), { status: 409 });
   try { return { item, entry: spendEntry(ledger, { id: buyId(item), amount: item.price, reason: 'shop:' + item.id }) }; }
   catch (e) {
     if (/Not enough/.test(e.message)) throw Object.assign(new Error(`Not enough Dinks yet: ${item.name} costs ${item.price} and you have ${ledgerBalance(ledger)}.`), { status: 409 });
@@ -112,6 +116,9 @@ export async function shopView(sql, code, key, now = Date.now()) {
   const [items, ledger, share] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key)]);
   const ownedById = new Map(items.map(i => [i.id, i]));
   const shinyWeek = shinyWeekFor(now);
+  const season = seasonFor(now);
+  // This season's items, plus any seasonal item the player already owns (so it stays in What you wear); other seasons are not listed.
+  const seasonal = SEASONAL.filter(i => i.season === season.id || ownedById.has(i.id)).map(i => ({ ...i, seasonal: true, owned: ownedById.has(i.id), available: i.season === season.id }));
   const viewItems = CATALOGUE.map(i => {
     const row = ownedById.get(i.id);
     if (i.slot !== 'pet') return { ...i, owned: !!row };
@@ -122,12 +129,13 @@ export async function shopView(sql, code, key, now = Date.now()) {
   });
   const wornPetRow = items.find(i => i.slot === 'pet' && i.worn);
   const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now) : null;
-  return { dinks: ledgerBalance(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, items: viewItems };
+  const { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn } = season;
+  return { dinks: ledgerBalance(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, items: viewItems.concat(seasonal) };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.
 export async function buyItem(sql, code, key, id, now = Date.now()) {
-  const plan = planBuy(await loadLedger(sql, code, key), (await loadItems(sql, code, key)).map(i => i.id), id);
+  const plan = planBuy(await loadLedger(sql, code, key), (await loadItems(sql, code, key)).map(i => i.id), id, now);
   if (plan.already) return { ...(await shopView(sql, code, key, now)), bought: false };
   const { item } = plan;
   await sql.transaction([
