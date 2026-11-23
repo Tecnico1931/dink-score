@@ -55,7 +55,7 @@ async function setConfirmation(required) {
 }
 /*AUDIT-PURE-START*/
 const AUDIT_WORDS = { create: 'Recorded', edit: 'Edited', delete: 'Deleted', restore: 'Restored', confirm: 'Confirmed', 'keep-both': 'Kept as two games', setting: 'Setting changed', share: 'Public link', unshare: 'Public link' };
-const AUDIT_SETTINGS = { requireConfirmation: 'Count only confirmed games', rewards: 'Rewards', publicResults: 'Public result links' };
+const AUDIT_SETTINGS = { requireConfirmation: 'Count only confirmed games', rewards: 'Rewards', mysteryBox: 'Mystery box', publicResults: 'Public result links' };
 const auditWho = a => (a === 'creator' ? 'the club creator' : a === 'organizer-pin' ? 'an organizer (PIN)' : a === 'member' ? 'a club member' : /^player:/.test(a) ? a.slice(7) : 'someone with the club code');
 // A history row is not always a game: a setting row carries {key: bool} and a link row nothing. Never throws on a shape it does not know.
 const auditGame = g => (g && Array.isArray(g.teams) && g.teams.length > 1 && Array.isArray(g.score) ? `${teamLabel(g.teams[0])} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${teamLabel(g.teams[1])}` : '');

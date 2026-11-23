@@ -26,6 +26,7 @@ test('a setting row reads as a plain sentence, never JSON', () => {
   const l = auditLine(row('setting', { before: { rewards: false }, after: { rewards: true } }));
   assert.deepEqual([l.word, l.what], ['Setting changed', 'Rewards turned on']);
   assert.equal(auditLine(row('setting', { after: { requireConfirmation: false } })).what, 'Count only confirmed games turned off');
+  assert.equal(auditLine(row('setting', { after: { mysteryBox: true } })).what, 'Mystery box turned on');
   assert.equal(auditLine(row('setting', { after: { publicResults: true } })).what, 'Public result links turned on');
   assert.equal(auditLine(row('setting', { after: { somethingNew: true } })).what, 'A club setting was changed');
   assert.equal(auditLine(row('setting')).what, 'A club setting was changed');

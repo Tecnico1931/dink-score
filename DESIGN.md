@@ -296,8 +296,8 @@ The canvas scrolls and snaps round by round on a phone. Where it fits at 93% of 
 Rewards (Dinks, shop, levels and the like) are a calm extra, never the point of the app. They follow these rules without exception:
 - **Off by default, per club.** A club has no rewards until an organizer switches the economy on for it. Off means no reward UI, no reward copy and no reward calls for that club's players.
 - **Dinks are play money.** They have no cash value and no purchase path: nothing is sold for real money, and nothing converts Dinks into money, goods or prizes.
-- **The shop sells looks at fixed prices.** Dinks can be spent on cosmetic items (a ring around a picture, a colour for paddle thumbnails) at a price shown before the tap and set on the server. An item never changes a rating, a score, a rank, a pairing or any rule, nothing is random, and an item is bought once.
-- **Odds are always shown.** Any random reward (a spin, a box, a drop) states its odds in plain numbers before the player takes part.
+- **The shop sells looks at fixed prices.** Dinks can be spent on cosmetic items (a ring around a picture, a colour for paddle thumbnails) at a price shown before the tap and set on the server. An item never changes a rating, a score, a rank, a pairing or any rule, and a fixed-price item is bought once.
+- **Odds are always shown.** Any random reward (such as the optional per-club mystery box, off by default behind its own organizer switch) states its cost, daily opening limit, duplicate refund and every rarity's odds in plain words and numbers from the server draw table before the player takes part, draws only on the server, and uses no pity timers, countdowns, animation, sound or confetti.
 - **Calm motion.** No flashing and no storm effects (confetti, particle bursts, full-screen takeovers). A reward shows as a quiet card, count-up or check mark, and under `prefers-reduced-motion` it appears with no animation at all.
 - **Sound is off until the player turns it on**, per device.
 - **One tap hides it all.** Every player has a single switch that hides all reward UI on their device, and the app works the same without it.

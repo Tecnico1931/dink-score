@@ -168,7 +168,7 @@ html.tv .pub-top .pub-btn { position: fixed; }
   function showDead() {
     dead = true; clearTimeout(timer);
     root.classList.remove('tv');
-    $('#pub-tv').hidden = true; $('#pub-meta').textContent = ''; $('#pub-name').textContent = '';
+    $('#pub-tv').hidden = true; $('#pub-meta').textContent = ''; $('#pub-name').textContent = ''; $('#pub-name').hidden = true;
     document.title = 'Bracket link not active · Dink Score';
     $('#pub-body').innerHTML = `<div class="pub-dead card" role="alert"><h1>This bracket link is not active</h1><p class="pub-note">It may have been turned off or replaced. Ask the organizer for the current link.</p></div>`;
     status();

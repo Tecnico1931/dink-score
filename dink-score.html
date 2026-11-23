@@ -146,6 +146,25 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-sw { width: 30px; height: 30px; margin: 8px 8px 8px 0; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 12px; box-shadow: 0 0 0 2px var(--surface), var(--rw-ring, 0 0 0 0 transparent); }
 .rw-sw svg { width: 62%; height: 62%; }
 .rw-sw.pad { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
+.rw-box { display: grid; gap: 10px; padding: 14px; border-radius: 16px; border: 1.5px solid var(--court); background: var(--surface-2); }
+.rw-box-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.rw-box-cost { font-size: 14px; } .rw-box-cost b { font-size: 26px; line-height: 1; }
+.rw-box-cap { font-size: 13px; color: var(--muted); }
+.rw-box-note, .rw-box-fine { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; }
+.rw-rates { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.rw-rates-h { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+.rw-tier-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rw-tier { display: grid; gap: 2px; padding-top: 6px; border-top: 1px solid var(--line); }
+.rw-tier:first-child { padding-top: 0; border-top: 0; }
+.rw-tier-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.rw-tier-top b { font-size: 14px; }
+.rw-pct { font-size: 14px; color: var(--ink); }
+.rw-tier-items { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+.rw-box-res { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1.5px solid var(--court); }
+.rw-box-res > span:last-child { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rw-box-res b { font-size: 15px; overflow-wrap: anywhere; }
+.rw-box-res small { font-size: 13px; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+.btn-court { background: var(--court); color: var(--on-court); min-height: 44px; }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 /* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */
@@ -5001,6 +5020,7 @@ function otItems(s) {
     { id: 'pin', title: s.hasPin ? 'Organizer PIN' : 'Set an organizer PIN', go: 'data-act="pin-set-open"', hint: s.hasPin ? 'Change it, or lock this phone from the club screen' : 'Without one, anyone with the club code can delete games' },
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
     { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
+    ...(s.rewards ? [{ id: 'mysteryBox', title: 'Mystery box', go: 'data-rw="box"', hint: s.mysteryBox ? 'On. Players can open a random look box with stated chances. Tap to turn off' : 'Off. Tap to add a mystery box with stated chances' }] : []),
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
     { id: 'analytics', title: 'Attendance and busiest hours', go: 'data-act="analytics-open"', hint: 'Totals only, no player is listed' },
@@ -5024,7 +5044,7 @@ function otState(c) {
     liveEvents: evSummary.filter(e => e.status === 'live').length,
     players: clubPlayers().length,
     undoable: md ? (md.audit || []).filter(a => a.undoable && !a.undone).length : known ? otReq.undoable : 0,
-    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards,
+    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards, mysteryBox: !!club.mysteryBox,
     hasPin: !!club.hasPin
   };
 }
@@ -5591,7 +5611,7 @@ async function setConfirmation(required) {
 }
 /*AUDIT-PURE-START*/
 const AUDIT_WORDS = { create: 'Recorded', edit: 'Edited', delete: 'Deleted', restore: 'Restored', confirm: 'Confirmed', 'keep-both': 'Kept as two games', setting: 'Setting changed', share: 'Public link', unshare: 'Public link' };
-const AUDIT_SETTINGS = { requireConfirmation: 'Count only confirmed games', rewards: 'Rewards', publicResults: 'Public result links' };
+const AUDIT_SETTINGS = { requireConfirmation: 'Count only confirmed games', rewards: 'Rewards', mysteryBox: 'Mystery box', publicResults: 'Public result links' };
 const auditWho = a => (a === 'creator' ? 'the club creator' : a === 'organizer-pin' ? 'an organizer (PIN)' : a === 'member' ? 'a club member' : /^player:/.test(a) ? a.slice(7) : 'someone with the club code');
 // A history row is not always a game: a setting row carries {key: bool} and a link row nothing. Never throws on a shape it does not know.
 const auditGame = g => (g && Array.isArray(g.teams) && g.teams.length > 1 && Array.isArray(g.score) ? `${teamLabel(g.teams[0])} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${teamLabel(g.teams[1])}` : '');
