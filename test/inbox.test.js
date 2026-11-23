@@ -227,3 +227,9 @@ test('game-night save/cancel/delete and event create/org actions call inboxAck b
   assert.match(html, /inboxAck\('event',\s*ev\.id,\s*Inbox\.eventFp\(ev\)\)/);
   assert.match(html, /inboxAck\('event',\s*data\.event\.id,\s*Inbox\.eventFp\(data\.event\)\)/);
 });
+
+test('Who are you? says what claiming a name unlocks (UX-21)', () => {
+  const src = appModule('identity');
+  const sub = src.match(/<h2 id="club-h">Who are you\?<\/h2>\s*<p>([^<]*)<\/p>/)[1];
+  for (const w of ['RSVP', 'alerts', 'stats', 'achievements', 'weekly challenges']) assert.ok(sub.includes(w), `subtitle names ${w}`);
+});

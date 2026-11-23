@@ -4599,7 +4599,7 @@ function whoamiHTML(c) {
   if (ask && ask.expiresAt < Date.now()) { setAsk(null); ask = null; }
   if (ask && !askTimer) pollAsk();
   return `<h2 id="club-h">Who are you?</h2>
-    <p>Pick your name so your games count toward your achievements and weekly challenges. Only this phone can use it.</p>
+    <p>Pick your name to RSVP to game nights, get alerts when you're up, and have your games count toward your stats, achievements and weekly challenges. Only this phone can use it.</p>
     ${free.length ? `<div class="field" style="margin:0"><span class="lab">Tap your name</span><div class="chips">${free.map(p => `<button type="button" class="chip-btn" data-claim="${esc(p.name)}">${esc(p.name)}</button>`).join('')}</div></div>` : ''}
     ${ask ? `<div class="field" role="status"><span class="lab">Waiting for an organizer</span><p class="note">You asked to be ${esc(ask.name)}. An organizer can approve it from their own phone. This runs out after a few minutes.</p><div class="btns"><button type="button" class="btn btn-soft" data-act="ask-cancel">Cancel the request</button></div></div>` : ''}
     ${taken.length && !ask ? `<div class="field" style="margin:0"><span class="lab">Already linked to a phone. Is one of these you?</span><div class="chips">${taken.map(p => `<button type="button" class="chip-btn" data-ask="${esc(p.name)}" ${c.busy ? 'disabled' : ''}>Ask an organizer: ${esc(p.name)}</button>`).join('')}</div></div>` : ''}
