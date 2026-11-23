@@ -174,13 +174,17 @@ function drawShareGround(ctx, T) {
   ctx.fillStyle = rg; ctx.fillRect(-W / 2, 0, W, H * rx / ry);
   ctx.restore();
 }
+let shareBallImg = null; // set by the draw*Card functions before the header is drawn; null = flat fallback
 function drawShareHeader(ctx, T, line1, line2) {
   const W = SHARE_W, PAD = 60, topY = 109;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(PAD + 27, topY, 27, 0, Math.PI * 2); ctx.clip();
-  ctx.fillStyle = '#c6d93f'; ctx.fillRect(PAD, topY - 27, 54, 54);
-  ctx.fillStyle = T.ball || '#DDF247'; ctx.beginPath(); ctx.arc(PAD + 27 - 9, topY - 9, 27, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
+  if (shareBallImg) ctx.drawImage(shareBallImg, PAD, topY - 27, 54, 54); // the same icons/pickleball.svg as the app, theme-independent
+  else {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(PAD + 27, topY, 27, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#c6d93f'; ctx.fillRect(PAD, topY - 27, 54, 54);
+    ctx.fillStyle = T.ball || '#DDF247'; ctx.beginPath(); ctx.arc(PAD + 27 - 9, topY - 9, 27, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
   setFont(ctx, 800, 54, DISPLAY_FONT, 'semi-condensed', -1);
   ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText('Dink Score', PAD + 54 + 24, topY + 2);
@@ -215,6 +219,7 @@ function drawShareAvatar(ctx, cx, cy, size, name, avatar, img, fillBg = 'rgba(25
 }
 async function drawShareCard(d, theme, noImages) {
   await shareFonts();
+  shareBallImg = await loadImg('icons/pickleball.svg');
   const T = shareTheme(theme);
   const imgs = noImages ? [] : await Promise.all(d.teams.flatMap(t => t.players.map(p => shareAvatarImage(p.avatar))));
   const W = SHARE_W, H = SHARE_H, PAD = 60;
@@ -302,6 +307,7 @@ async function drawShareCard(d, theme, noImages) {
 // Year-in-review 1080x1350 card reusing the same canvas chrome, fonts, avatars and Night/Day palette.
 async function drawRecapCard(d, theme, noImages) {
   await shareFonts();
+  shareBallImg = await loadImg('icons/pickleball.svg');
   const T = shareTheme(theme);
   const avList = [d.avatar, d.favouritePartner && d.favouritePartner.avatar, d.biggestRival && d.biggestRival.avatar];
   const imgs = noImages ? [null, null, null] : await Promise.all(avList.map(a => shareAvatarImage(a)));

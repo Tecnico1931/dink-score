@@ -24,6 +24,8 @@ test('the pickleball is one vendored, precached, decorative file used by the her
   const svg = fs.readFileSync(new URL('../icons/pickleball.svg', import.meta.url), 'utf8');
   assert.match(svg, /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
   assert.ok(!/<script|href=|<image|<foreignObject|on\w+=/i.test(svg), 'no script or external reference in the artwork');
+  assert.match(svg, /<circle cx="60" cy="60" r="56" fill="url\(#pbs-dink\)"\/><circle cx="60" cy="60" r="55\.4" fill="none" stroke="#7E9810"/, 'body shine and outline circles');
+  assert.ok(!/id="(pbg|pbh|pbs)"/.test(svg) && (svg.match(/id="pb[ghs]-dink"/g) || []).length === 3, 'unique gradient ids, safe to inline beside other SVGs');
   assert.match(fs.readFileSync(new URL('../sw.js', import.meta.url), 'utf8'), /SHELL = \[[^\]]*'icons\/pickleball\.svg'/, 'precached so the hero works offline');
   const homeTiles = between('function homeTiles(', '// "This month"');
   assert.match(homeTiles, /\$\{BALL_IMG\('hero-ball', 124\)\}/);
