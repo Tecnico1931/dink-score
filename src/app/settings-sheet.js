@@ -30,6 +30,9 @@ function renderSettings() {
     <div class="field" style="margin:0"><span class="lab" id="set-app-l">Appearance</span>
       ${seg('data-theme-pick', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], display.theme).replace('role="group"', 'role="group" aria-labelledby="set-app-l"')}
       <p class="note">${themeNote}</p></div>
+    <div class="field" style="margin:0"><span class="lab" id="set-pal-l">Court theme</span>
+      <div class="pal-grid" role="group" aria-labelledby="set-pal-l">${DisplayPrefs.PALETTES.map(p => `<button type="button" class="pal-opt" data-palette-pick="${p.id}" aria-pressed="${display.palette === p.id ? 'true' : 'false'}"><span class="pal-sw" aria-hidden="true" style="--p1:${p.c1};--p2:${p.c2}"><span class="pal-ball"></span></span><span class="pal-name">${p.name}</span></button>`).join('')}</div>
+      <p class="note">Changes the court colour across the app. Team colours and the pickleball stay the same.</p></div>
     <div class="field" style="margin:0"><span class="lab" id="disp-o">Sunlight contrast</span>
       ${seg('data-disp', [['outdoor-0', 'Standard'], ['outdoor-1', 'Sunlight']], 'outdoor-' + display.outdoor).replace('role="group"', 'role="group" aria-labelledby="disp-o"')}
       <p class="note">White page, black text and solid team colours for bright sun.</p></div>

@@ -12,59 +12,106 @@ const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v 
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 const over = (fg, bg, a) => fg.map((v, i) => Math.round(v * a + bg[i] * (1 - a)));
 const vars = body => Object.fromEntries([...body.matchAll(/--([\w-]+):\s*(#[0-9A-Fa-f]{3,6})\b/g)].map(m => [m[1], hexRgb(m[2])]));
-// Each theme is the :root defaults, then its overrides.
-const light = vars(tokenBlock.split('@media')[0]);
-const dark = Object.assign({}, light, vars(tokenBlock.split(':root[data-theme="dark"]')[1].split('}')[0]));
-const outdoor = Object.assign({}, light, vars(tokenBlock.split(':root[data-outdoor]')[1].split('}')[0]));
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const blockVars = (src, sel) => {
+  const m = new RegExp(`(?:^|[\\n{]\\s*)${escRe(sel)}\\s*\\{([^}]*)\\}`).exec(src);
+  assert.ok(m, `missing CSS token block for ${sel}`);
+  return vars(m[1]);
+};
+// Each palette x mode starts from the :root defaults, then layers its overrides exactly as the browser cascade does.
+const light = blockVars(tokenBlock, ':root');
+const dark = Object.assign({}, light, blockVars(tokenBlock, ':root[data-theme="dark"]'));
+const outdoor = Object.assign({}, light, blockVars(tokenBlock, ':root[data-outdoor]'));
+const paletteOutdoorBase = blockVars(tokenBlock, ':root[data-palette][data-outdoor]');
+const PALETTE_IDS = ['green', 'blue', 'clay', 'violet', 'sunset', 'slate'];
+const palettes = {
+  green: { light, dark, mediaDark: Object.assign({}, light, blockVars(tokenBlock, ':root:not([data-theme="light"])')), outdoor }
+};
+for (const id of PALETTE_IDS.slice(1)) {
+  const pLightOverrides = blockVars(tokenBlock, `:root[data-palette="${id}"]`);
+  const pLight = Object.assign({}, light, pLightOverrides);
+  const pDarkBase = Object.assign({}, dark, pLightOverrides);
+  const pDark = Object.assign({}, pDarkBase, blockVars(tokenBlock, `:root[data-palette="${id}"][data-theme="dark"]`));
+  const pMediaDark = Object.assign({}, pDarkBase, blockVars(tokenBlock, `:root[data-palette="${id}"]:not([data-theme="light"])`));
+  const pOutdoor = Object.assign({}, pLight, paletteOutdoorBase, blockVars(tokenBlock, `:root[data-palette="${id}"][data-outdoor]`));
+  palettes[id] = { light: pLight, dark: pDark, mediaDark: pMediaDark, outdoor: pOutdoor };
+}
 const WHITE = [255, 255, 255];
 
 // [foreground, background, minimum, what]: 4.5 for text, 3 for large text and UI components (WCAG 1.4.3, 1.4.11).
-const pairs = t => [
+const pairs = (t, mode, id) => [
   [t.ink, t.bg, 4.5, 'body text'], [t.ink, t.surface, 4.5, 'text on cards'], [t.ink, t['surface-2'], 4.5, 'text on soft buttons'],
   [t.muted, t.bg, 4.5, 'muted text on page'], [t.muted, t.surface, 4.5, 'muted text on cards'], [t.muted, t['surface-2'], 4.5, 'muted text on soft buttons'],
-  [t.bg, t.ink, 4.5, '.btn-ink'], [WHITE, t.blue, 4.5, 'white on blue (.btn-blue, team 1)'], [ [255, 255, 255], t.green, 4.5, 'white on green (team 2)'],
-  [t['ball-ink'], t.ball, 4.5, 'text on the ball highlight'], [t.danger, t.surface, 4.5, 'error text on cards'], [t.danger, t.bg, 4.5, 'error text on page'],
-  [t.up, t.surface, 4.5, 'rating up'], [t.up, t['surface-2'], 4.5, 'rating up on soft cards'], [t.down, t['surface-2'], 4.5, 'rating down on soft cards'], [t.down, t.surface, 4.5, 'rating down'], [t.focus, t.bg, 3, 'focus ring on page'], [t.focus, t.surface, 3, 'focus ring on cards'], [t['blue-text'], t.surface, 4.5, 'blue text on cards'], [t['blue-text'], t.bg, 4.5, 'blue text on page'], [t.green, t.surface, 3, 'green marks on cards'], [t.green, t['surface-2'], 3, 'green rings on soft rows'], [t.blue, t.surface, 3, 'blue marks on cards'], [t.blue, t['surface-2'], 3, 'blue rings on soft rows'], [t.ink, t['surface-2'], 3, 'ink rings on soft rows'],
+  [t.bg, t.ink, 4.5, '.btn-ink'], [WHITE, t.blue, 4.5, 'white on blue (team 1)'], [WHITE, t.green, 4.5, 'white on green (team 2)'],
+  [WHITE, t.accent, 4.5, 'white on accent (.btn-accent)'],
+  [t['ball-ink'], t.ball, 7, 'text on the ball highlight'], [t.danger, t.surface, 4.5, 'error text on cards'], [t.danger, t.bg, 4.5, 'error text on page'],
+  [mode === 'dark' ? t.bg : WHITE, t.danger, 4.5, '.btn-danger label'],
+  [t.up, t.surface, 4.5, 'rating up'], [t.up, t['surface-2'], 4.5, 'rating up on soft cards'], [t.down, t['surface-2'], 4.5, 'rating down on soft cards'], [t.down, t.surface, 4.5, 'rating down'],
+  [t.focus, t.bg, 3, 'focus ring on page'], [t.focus, t.surface, 3, 'focus ring on cards'],
+  [t['blue-text'], t.surface, 4.5, 'blue text on cards'], [t['blue-text'], t.bg, 4.5, 'blue text on page'],
+  [t['accent-text'], t.surface, 4.5, 'accent text on cards'], [t['accent-text'], t.bg, 4.5, 'accent text on page'],
+  [t.accent, t.surface, 3, 'accent marks on cards'], [t.accent, t['surface-2'], 3, 'accent rings on soft rows'],
+  ...(id === 'green' && mode === 'dark' ? [] : [[t['court-ring'], t.surface, 3, 'court-ring on cards'], [t['court-ring'], t['surface-2'], 3, 'court-ring on soft cards']]),
+  [t.green, t.surface, 3, 'green marks on cards'], [t.green, t['surface-2'], 3, 'green rings on soft rows'],
+  [t.blue, t.surface, 3, 'blue marks on cards'], [t.blue, t['surface-2'], 3, 'blue rings on soft rows'],
+  [t.ink, t['surface-2'], 3, 'ink rings on soft rows'],
+  [t.ball, t['court-2'], 3, 'ball highlight on --court-2'],
+  [t['dsp-ink'], t['dsp-bg'], 7, 'TV display primary text on ground'], [t['dsp-ink'], t['dsp-surface'], 7, 'TV display primary text on card'],
+  [t.ball, t['dsp-bg'], 7, 'TV display ball accent on ground'], [t.ball, t['dsp-surface'], 7, 'TV display ball accent on card'],
+  [t['dsp-muted'], t['dsp-bg'], 4.5, 'TV display muted text on ground'], [t['dsp-muted'], t['dsp-surface'], 4.5, 'TV display muted text on card'],
+  [t['dsp-dim'], t['dsp-bg'], 4.5, 'TV display dim text on ground']
 ];
-for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]) {
-  test(`token contrast: ${name}`, () => {
-    for (const [fg, bg, min, what] of pairs(t)) assert.ok(ratio(fg, bg) >= min, `${name}: ${what} is ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`);
-  });
+for (const id of PALETTE_IDS) {
+  for (const mode of ['light', 'dark', 'outdoor']) {
+    const t = palettes[id][mode];
+    test(`token contrast: ${id} (${mode})`, () => {
+      for (const [fg, bg, min, what] of pairs(t, mode, id)) {
+        assert.ok(ratio(fg, bg) >= min, `${id}/${mode}: ${what} is ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`);
+      }
+    });
+    // The court hero card and New game tile (white on --court, dimmed to .92 for secondary text) and the lime Log a result tile (ink at .82), over the worst end of each gradient.
+    test(`hero card, New game and Log a result tiles: contrast ${id} (${mode})`, () => {
+      const courtMin = mode === 'outdoor' ? 7 : 4.5;
+      for (const k of ['court', 'court-2']) {
+        assert.ok(ratio(WHITE, t[k]) >= courtMin, `${id}/${mode}: white on --${k} ${ratio(WHITE, t[k]).toFixed(2)}, needs ${courtMin}`);
+        assert.ok(ratio(over(WHITE, t[k], .92), t[k]) >= 4.5, `${id}/${mode}: .92 white on --${k} ${ratio(over(WHITE, t[k], .92), t[k]).toFixed(2)}`);
+        assert.ok(ratio(over(WHITE, over([0, 0, 0], t[k], .22), .92), over([0, 0, 0], t[k], .22)) >= 4.5, `${id}/${mode}: club pill on --${k}`);
+      }
+      for (const k of ['ball-hi', 'ball', 'ball-lo']) assert.ok(ratio(over(t['ball-ink'], t[k], .82), t[k]) >= 4.5, `${id}/${mode}: ink at .82 on --${k}`);
+    });
+    test(`pet badge colours (classic and shiny): contrast ${id} (${mode})`, () => {
+      const petPairs = [
+        [t.green, t['surface-2'], 3, 'classic pet body (--pet-1) on soft badge (--surface-2)'],
+        [t.green, t.surface, 3, 'classic pet body (--pet-1) on card badge (--surface)'],
+        [t.ball, t.green, 3, 'classic pet lime accent (--pet-2) on body (--green)'],
+        [t['on-court'], t.green, 4.5, 'classic pet eye (--pet-eye) on body (--green)'],
+        [t.blue, t['surface-2'], 3, 'shiny pet body (--pet-1) on soft badge (--surface-2)'],
+        [t.blue, t.surface, 3, 'shiny pet body (--pet-1) on card badge (--surface)'],
+        [t.ball, t.blue, 3, 'shiny pet lime accent and star (--pet-2) on body (--blue)'],
+        [t['on-court'], t.blue, 4.5, 'shiny pet eye (--pet-eye) on body (--blue)'],
+        [t['ball-ink'], t.ball, 4.5, 'pet ink details (--pet-3) on lime (--ball)'],
+        [t['ball-ink'], t['on-court'], 4.5, 'pet ink pupils (--pet-3) on eye (--on-court)']
+      ];
+      for (const [fg, bg, min, what] of petPairs) {
+        assert.ok(ratio(fg, bg) >= min, `${id}/${mode}: ${what} is ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`);
+      }
+    });
+  }
 }
-// The green hero card and New game tile (white on --court, dimmed to .92 for secondary text) and the lime Log a result tile (ink at .82), over the worst end of each gradient.
-for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]) {
-  test(`hero card, New game and Log a result tiles: contrast ${name}`, () => {
-    for (const k of ['court', 'court-2']) {
-      assert.ok(ratio(WHITE, t[k]) >= 4.5, `${name}: white on --${k} ${ratio(WHITE, t[k]).toFixed(2)}`);
-      assert.ok(ratio(over(WHITE, t[k], .92), t[k]) >= 4.5, `${name}: .92 white on --${k} ${ratio(over(WHITE, t[k], .92), t[k]).toFixed(2)}`);
-      assert.ok(ratio(over(WHITE, over([0, 0, 0], t[k], .22), .92), over([0, 0, 0], t[k], .22)) >= 4.5, `${name}: club pill on --${k}`);
+test('all 6 palettes lock Team 1, Team 2 and pickleball tokens and match @media dark with data-theme="dark"', () => {
+  for (const id of PALETTE_IDS) {
+    assert.deepEqual(palettes[id].mediaDark, palettes[id].dark, `${id}: @media dark must match [data-theme="dark"]`);
+    for (const mode of ['light', 'dark', 'outdoor']) {
+      for (const locked of ['blue', 'blue-text', 'green', 'ball', 'ball-ink', 'ball-hi', 'ball-lo']) {
+        assert.deepEqual(palettes[id][mode][locked], palettes.green[mode][locked], `${id}/${mode}: --${locked} must stay locked`);
+      }
     }
-    for (const k of ['ball-hi', 'ball', 'ball-lo']) assert.ok(ratio(over(t['ball-ink'], t[k], .82), t[k]) >= 4.5, `${name}: ink at .82 on --${k}`);
-  });
-}
+  }
+});
 test('the court tokens exist in every theme and the page glow is gone before muted text', () => {
-  for (const k of ['court', 'court-2', 'ball-hi', 'ball-lo', 'on-court']) assert.ok(light[k], `--${k} in light`);
+  for (const k of ['court', 'court-2', 'court-ring', 'accent', 'accent-text', 'ball-hi', 'ball-lo', 'on-court']) assert.ok(light[k], `--${k} in light`);
   assert.match(html, /body \{ background: radial-gradient\(90% 190px at 50% -40px/, 'a short glow: it fades out by about 130 px');
 });
-for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]) {
-  test(`pet badge colours (classic and shiny): contrast ${name}`, () => {
-    const petPairs = [
-      [t.green, t['surface-2'], 3, 'classic pet body (--pet-1) on soft badge (--surface-2)'],
-      [t.green, t.surface, 3, 'classic pet body (--pet-1) on card badge (--surface)'],
-      [t.ball, t.green, 3, 'classic pet lime accent (--pet-2) on body (--green)'],
-      [t['on-court'], t.green, 4.5, 'classic pet eye (--pet-eye) on body (--green)'],
-      [t.blue, t['surface-2'], 3, 'shiny pet body (--pet-1) on soft badge (--surface-2)'],
-      [t.blue, t.surface, 3, 'shiny pet body (--pet-1) on card badge (--surface)'],
-      [t.ball, t.blue, 3, 'shiny pet lime accent and star (--pet-2) on body (--blue)'],
-      [t['on-court'], t.blue, 4.5, 'shiny pet eye (--pet-eye) on body (--blue)'],
-      [t['ball-ink'], t.ball, 4.5, 'pet ink details (--pet-3) on lime (--ball)'],
-      [t['ball-ink'], t['on-court'], 4.5, 'pet ink pupils (--pet-3) on eye (--on-court)']
-    ];
-    for (const [fg, bg, min, what] of petPairs) {
-      assert.ok(ratio(fg, bg) >= min, `${name}: ${what} is ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`);
-    }
-  });
-}
 test('pet CSS uses existing theme custom properties only (no hard-coded hex colours or motion)', () => {
   const petCss = html.slice(html.indexOf('.rw-pet {'), html.indexOf('.me-btn.frame-crown::before'));
   assert.ok(petCss.length > 0, 'pet CSS block exists');
@@ -197,46 +244,75 @@ test('appearance setting: light, dark and match-phone tokens, color-scheme and S
   // Media-query dark block uses the exact same dark tokens as :root[data-theme="dark"].
   const mediaDark = Object.assign({}, light, vars(tokenBlock.split(':root:not([data-theme="light"])')[1].split('}')[0]));
   assert.deepEqual(mediaDark, dark);
-  // Settings sheet has Match phone, Light, Dark plus Sunlight contrast and Court scores.
+  // Settings sheet has Match phone, Light, Dark, Court theme swatches, Sunlight contrast and Court scores.
   assert.match(html, /data-act="settings-open"/);
   assert.match(html, /data-theme-pick/);
+  assert.match(html, /data-palette-pick/);
+  assert.match(html, /pal-grid/);
   assert.match(html, /Match phone/);
   assert.match(html, /prefers-color-scheme: dark[\s\S]*?addEventListener\('change'/);
-  // Built index.html applies pb.display in <head> before paint to prevent FOUC.
+  // Built index.html applies pb.display (including palette and theme-color) in <head> before paint to prevent FOUC.
   const indexHtml = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const headHtml = indexHtml.split('</head>')[0];
   assert.match(headHtml, /<meta name="color-scheme" content="light dark">/);
   assert.match(headHtml, /localStorage\.getItem\('pb\.display'\)/);
+  assert.match(headHtml, /data-palette/);
+  assert.match(headHtml, /#F1F4F9/);
+  // manifest.webmanifest matches the default light theme-color.
+  const manifest = JSON.parse(fs.readFileSync(new URL('../manifest.webmanifest', import.meta.url), 'utf8'));
+  assert.equal(manifest.background_color, '#F2F4F7');
+  assert.equal(manifest.theme_color, '#F2F4F7');
 });
 
-test('DisplayPrefs: normalizes and resolves Match phone, Light, Dark and Outdoor states', () => {
+test('DisplayPrefs: normalizes and resolves Match phone, Light, Dark, Outdoor and all 6 court palettes', () => {
   const m = html.match(/\/\*DISPLAY-START\*\/([\s\S]*?)\/\*DISPLAY-END\*\//);
   assert.ok(m, 'DISPLAY-START/END block missing');
   const DisplayPrefs = new Function(m[1] + '\nreturn DisplayPrefs;')();
 
-  assert.deepEqual(DisplayPrefs.normalize(null), { theme: 'auto', outdoor: 0, large: 0 });
-  assert.deepEqual(DisplayPrefs.normalize({ theme: 'bogus', outdoor: true, large: 1 }), { theme: 'auto', outdoor: 1, large: 1 });
-  assert.deepEqual(DisplayPrefs.normalize({ theme: 'dark', outdoor: 0, large: 0 }), { theme: 'dark', outdoor: 0, large: 0 });
-  assert.deepEqual(DisplayPrefs.normalize({ theme: 'light' }), { theme: 'light', outdoor: 0, large: 0 });
+  assert.deepEqual(DisplayPrefs.PALETTES.map(p => p.id), PALETTE_IDS);
+  assert.equal(DisplayPrefs.paletteInfo('blue').name, 'Court Blue');
+  assert.equal(DisplayPrefs.paletteInfo('bogus').id, 'green');
 
-  // Match phone follows OS preference without pinning data-theme.
+  assert.deepEqual(DisplayPrefs.normalize(null), { theme: 'auto', palette: 'green', outdoor: 0, large: 0 });
+  assert.deepEqual(DisplayPrefs.normalize({ theme: 'bogus', palette: 'neon', outdoor: true, large: 1 }), { theme: 'auto', palette: 'green', outdoor: 1, large: 1 });
+  assert.deepEqual(DisplayPrefs.normalize({ theme: 'dark', palette: 'clay', outdoor: 0, large: 0 }), { theme: 'dark', palette: 'clay', outdoor: 0, large: 0 });
+  assert.deepEqual(DisplayPrefs.normalize({ theme: 'light', palette: 'violet' }), { theme: 'light', palette: 'violet', outdoor: 0, large: 0 });
+
+  // Match phone follows OS preference without pinning data-theme; default green sets no data-palette.
   assert.deepEqual(DisplayPrefs.resolve({ theme: 'auto' }, false), {
-    dataTheme: null, effective: 'light', colorScheme: 'light dark', themeColor: '#F2F4F7', outdoor: false, large: false
+    dataTheme: null, dataPalette: null, palette: 'green', effective: 'light', colorScheme: 'light dark', themeColor: '#F2F4F7', outdoor: false, large: false
   });
   assert.deepEqual(DisplayPrefs.resolve({ theme: 'auto' }, true), {
-    dataTheme: null, effective: 'dark', colorScheme: 'light dark', themeColor: '#0A0F17', outdoor: false, large: false
+    dataTheme: null, dataPalette: null, palette: 'green', effective: 'dark', colorScheme: 'light dark', themeColor: '#0A0F17', outdoor: false, large: false
   });
 
   // Explicit Light overrides dark OS; explicit Dark overrides light OS.
   assert.deepEqual(DisplayPrefs.resolve({ theme: 'light' }, true), {
-    dataTheme: 'light', effective: 'light', colorScheme: 'light', themeColor: '#F2F4F7', outdoor: false, large: false
+    dataTheme: 'light', dataPalette: null, palette: 'green', effective: 'light', colorScheme: 'light', themeColor: '#F2F4F7', outdoor: false, large: false
   });
   assert.deepEqual(DisplayPrefs.resolve({ theme: 'dark' }, false), {
-    dataTheme: 'dark', effective: 'dark', colorScheme: 'dark', themeColor: '#0A0F17', outdoor: false, large: false
+    dataTheme: 'dark', dataPalette: null, palette: 'green', effective: 'dark', colorScheme: 'dark', themeColor: '#0A0F17', outdoor: false, large: false
   });
 
-  // Outdoor overrides both Dark choice and dark OS to high-contrast light.
-  assert.deepEqual(DisplayPrefs.resolve({ theme: 'dark', outdoor: 1, large: 1 }, true), {
-    dataTheme: 'dark', effective: 'light', colorScheme: 'light', themeColor: '#000000', outdoor: true, large: true
-  });
+  // Every palette resolves its exact light/dark theme-color and #000000 in outdoor.
+  const expectedMeta = {
+    green: ['#F2F4F7', '#0A0F17'],
+    blue: ['#F1F4F9', '#090E18'],
+    clay: ['#F6F3F0', '#120C0B'],
+    violet: ['#F4F2F8', '#0D0A14'],
+    sunset: ['#F7F4EF', '#120E0A'],
+    slate: ['#F3F4F6', '#0A0C10']
+  };
+  for (const [id, [lt, dk]] of Object.entries(expectedMeta)) {
+    const wantAttr = id === 'green' ? null : id;
+    assert.deepEqual(DisplayPrefs.resolve({ theme: 'light', palette: id }, true), {
+      dataTheme: 'light', dataPalette: wantAttr, palette: id, effective: 'light', colorScheme: 'light', themeColor: lt, outdoor: false, large: false
+    });
+    assert.deepEqual(DisplayPrefs.resolve({ theme: 'dark', palette: id }, false), {
+      dataTheme: 'dark', dataPalette: wantAttr, palette: id, effective: 'dark', colorScheme: 'dark', themeColor: dk, outdoor: false, large: false
+    });
+    assert.deepEqual(DisplayPrefs.resolve({ theme: 'dark', palette: id, outdoor: 1, large: 1 }, true), {
+      dataTheme: 'dark', dataPalette: wantAttr, palette: id, effective: 'light', colorScheme: 'light', themeColor: '#000000', outdoor: true, large: true
+    });
+  }
 });

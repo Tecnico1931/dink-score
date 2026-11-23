@@ -5,6 +5,7 @@ function applyDisplay() {
   const r = document.documentElement;
   const res = DisplayPrefs.resolve(display, !!(darkMQ && darkMQ.matches));
   if (res.dataTheme) r.setAttribute('data-theme', res.dataTheme); else r.removeAttribute('data-theme');
+  if (res.dataPalette) r.setAttribute('data-palette', res.dataPalette); else r.removeAttribute('data-palette');
   r.toggleAttribute('data-outdoor', res.outdoor); r.toggleAttribute('data-large', res.large);
   const cs = document.querySelector('meta[name=color-scheme]'); if (cs) cs.content = res.colorScheme;
   const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = res.themeColor;
@@ -20,6 +21,7 @@ window.addEventListener('storage', e => {
     display = DisplayPrefs.normalize(store.get('pb.display', {}));
     applyDisplay();
     if (typeof settingsOpen !== 'undefined' && settingsOpen) renderSettings();
+    if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view === 'you' && typeof renderClub === 'function') renderClub();
     if (typeof render === 'function') render();
   }
   if (e.key === 'pb.celebration') {
