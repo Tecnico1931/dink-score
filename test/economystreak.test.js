@@ -57,9 +57,9 @@ test('with the club switch off, or the device switch on, nothing is drawn and no
     { get: (k, f) => (k === 'pb.rewardsHide' ? hide : f), set() {} }, club, String, () => {}, { addEventListener() {} }, () => 'Ana', () => 'tok', null, () => {});
   const off = make({ rewards: false }, false), none = make(null, false), hidden = make({ rewards: true }, true), on = make({ rewards: true }, false);
   for (const x of [off, none]) { assert.equal(x.s.dinks, 0); assert.equal(x.Rewards.cardHTML() + x.Rewards.flameHTML() + x.Rewards.youRowHTML(), ''); }
-  assert.equal(hidden.Rewards.cardHTML(), ''); assert.match(hidden.Rewards.youRowHTML(), /Show my daily streak/);
+  assert.equal(hidden.Rewards.cardHTML(), ''); assert.match(hidden.Rewards.youRowHTML(), /Show rewards and streak/);
   assert.match(on.Rewards.cardHTML(), /Your Dink[\s\S]*can't be bought with real money or cashed out/);
-  assert.match(on.Rewards.youRowHTML(), /Hide my daily streak/);
+  assert.match(on.Rewards.youRowHTML(), /Hide rewards and streak/);
 });
 
 test('calm and play-money rules: no purchase, no randomness, no animation or sound in the module', () => {
@@ -85,7 +85,7 @@ test('the phone only asks the server: no call while off, hidden-or-not it shows 
   assert.equal((await run({ rewards: false, code: 'ABC123' }, { reply })).calls.length, 0, 'off: no reward call at all');
   assert.equal((await run({ rewards: true, code: 'ABC123' }, { reply, name: null })).calls.length, 0, 'no linked name: nothing to ask for');
   const r = await run({ rewards: true, code: 'ABC123' }, { reply, stored: { streak: 40, best: 40, dinks: 999, last: '2025-01-01' } });
-  assert.equal(r.calls.length, 1); assert.equal(r.calls[0].action, 'rewards-sync'); assert.ok(Number.isInteger(r.calls[0].tz));
+  assert.deepEqual(r.calls.map(c => c.action), ['rewards-sync', 'rewards-pass'], 'a sync is followed by one read of the pass for the ready tag'); assert.equal(r.calls[0].action, 'rewards-sync'); assert.ok(Number.isInteger(r.calls[0].tz));
   assert.ok(!('dinks' in r.calls[0]) && !('streak' in r.calls[0]), 'the phone never sends a balance');
   assert.deepEqual(Object.keys(r.kv['pb.rewards']), ['ABC123'], 'the old flat local balance is gone');
   assert.equal(r.x.cur().dinks, 7, "the server's number, not the phone's own 999");

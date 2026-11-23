@@ -234,3 +234,37 @@ test('phone UI: Season pass button on Your Dink card, renders track calmly, clai
   assert.match(p.env.announced[0], /Tier 3 claimed: Court green ring and \+2 Dinks/);
   assert.equal(p.env.focused, '#club-h');
 });
+
+// UX-10: a calm "N ready" tag when a pass tier is unlocked and unclaimed, and a way into the Shop and Season pass from the You sheet.
+test('UX-10: ready tag on the Your Dink card and You sheet, learned from the pass, cleared by a claim', async () => {
+  const unclaimed = buildPassView({ season: Q4, games: 2, ledger: [], items: [], share: false });
+  assert.equal(unclaimed.claimable, 1);
+  const none = buildPassView({ season: Q4, games: 0, ledger: [], items: [], share: false });
+  const p = phone({ passReply: unclaimed, claimReply: { ...unclaimed, claimable: 0, claimed: true, gained: 2, dinks: 2 } });
+  // Nothing known yet: no tag, but the You sheet still has the way in.
+  assert.ok(!/rw-ready/.test(p.x.Rewards.cardHTML()), 'no tag before the pass has been read');
+  assert.match(p.x.Rewards.youRowHTML(), /data-rw="pass"[\s\S]*Shop &amp; season pass[\s\S]*Claim rewards and spend your Dinks/);
+  assert.match(p.x.Rewards.youRowHTML(), /Hide rewards and streak/);
+  // The background check reads the pass (sync does this after a game) and announces a newly ready reward once.
+  await p.x.Rewards.syncReady(true);
+  assert.deepEqual(p.calls.map(c => c.action), ['rewards-pass']);
+  assert.match(p.x.Rewards.cardHTML(), /data-rw="pass" aria-label="Season pass, 1 ready to claim">Season pass<span class="rw-ready">1 ready<\/span>/);
+  assert.match(p.x.Rewards.youRowHTML(), /1 reward is ready to claim[\s\S]*<span class="rw-ready">1 ready<\/span>/);
+  // Opening the pass and claiming keeps the tag in step with the server's own count.
+  await p.x.Rewards.openPass();
+  const click = ds => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
+  click({ rwClaim: '1' });
+  await new Promise(r => setTimeout(r, 10));
+  assert.ok(!/rw-ready/.test(p.x.Rewards.cardHTML()), 'claimed: the tag is gone');
+  assert.match(p.x.Rewards.youRowHTML(), /Claim rewards and spend your Dinks/);
+  // Hidden on this phone or no tier ready: no tag and no extra row.
+  const hid = phone({ hide: true, passReply: unclaimed });
+  await hid.x.Rewards.syncReady(true);
+  assert.equal(hid.calls.length, 0, 'hidden: never asks');
+  assert.ok(!/data-rw="pass"/.test(hid.x.Rewards.youRowHTML()) && /Show rewards and streak/.test(hid.x.Rewards.youRowHTML()));
+  const idle = phone({ passReply: none });
+  await idle.x.Rewards.syncReady(true);
+  assert.ok(!/rw-ready/.test(idle.x.Rewards.cardHTML()));
+  const anon = phone({ name: null, passReply: unclaimed });
+  assert.ok(!/data-rw="pass"/.test(anon.x.Rewards.youRowHTML()), 'a phone with no linked name has no pass to open');
+});
