@@ -117,12 +117,12 @@ function gnHomeHTML() {
 // The Events tab: upcoming game nights with In / Maybe / Out, and the organizer's button to schedule one.
 function gnTabHTML() {
   if (!club || !API_OK) return '';
-  const list = gnUpcoming(), org = gnCanOrg();
+  const list = gnUpcoming(), org = gnCanOrg(), actLabel = org ? 'Manage' : 'Details';
   const cards = list.slice(0, 3).map(n => {
     const w = gnWhenParts(n.startsAt), inNames = (n.rsvps && n.rsvps.in) || [];
     const preview = inNames.length ? `In: ${inNames.slice(0, 6).join(', ')}${inNames.length > 6 ? ` +${inNames.length - 6} more` : ''}` : 'Be the first to say you\'re in.';
     return `<article class="card gn-home" aria-label="${esc(n.title)}">
-      <div class="gn-head"><div><h3 class="gn-title">${esc(n.title)}</h3><div class="gn-when">${w.rel ? `<span class="gn-rel">${esc(w.rel)}</span> · ` : ''}${esc(w.label)}</div></div>${gnCapBadgeHTML(n)}</div>
+      <div class="gn-head"><div class="gn-head-main"><h3 class="gn-title">${esc(n.title)}</h3><div class="gn-when">${w.rel ? `<span class="gn-rel">${esc(w.rel)}</span> · ` : ''}${esc(w.label)}</div></div><div class="gn-head-end"><button type="button" class="link gn-card-act" data-gn="open" aria-label="${actLabel}: ${esc(n.title)}">${actLabel}</button>${gnCapBadgeHTML(n)}</div></div>
       ${n.location ? `<div class="gn-loc">${esc(n.location)}</div>` : ''}
       ${gnRsvpBarHTML(n, false)}
       <p class="note gn-preview">${esc(preview)}</p>
@@ -130,7 +130,7 @@ function gnTabHTML() {
   }).join('');
   const unlock = !org && club.hasPin ? '<button type="button" class="link" data-act="pin-unlock-open">Organizer? Unlock this phone to schedule a game night</button>' : '';
   return `<section aria-labelledby="gn-tab-h" class="ev-sec">
-    <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length > 3 ? `<button type="button" class="link" data-gn="open">See all (${list.length})</button>` : ''}</div>
+    <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length ? `<button type="button" class="link" data-gn="open">See all${list.length > 3 ? ` (${list.length})` : ''}</button>` : ''}</div>
     ${org ? GN_PLAN_ROW : ''}
     ${cards || '<p class="note">No game nights scheduled yet.</p>'}${unlock}
   </section>`;

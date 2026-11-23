@@ -1324,7 +1324,10 @@ html.dsp-lock, html.dsp-lock body { overflow: hidden; }
 .gn-stack { display: flex; flex-direction: column; gap: 12px; }
 .gn-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
 .gn-card.is-off { opacity: .82; }
-.gn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.gn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.gn-head-main { min-width: 0; flex: 1 1 140px; }
+.gn-head-end { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: 0 0 auto; }
+.gn-head-end .link, .ev-sec .sec-head .link { min-width: 44px; text-align: right; }
 .gn-title { font-family: var(--display); font-weight: 700; font-size: 18px; line-height: 1.2; font-stretch: 90%; margin: 0; color: var(--ink); overflow-wrap: anywhere; }
 .gn-when { font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 .gn-rel { color: var(--ink); font-weight: 700; }
@@ -4925,7 +4928,7 @@ function eventsTabView() {
   return `${gnTabHTML()}${evTabStandingsHTML()}
     ${evTab.err ? `<p class="err" role="alert">${esc(evTab.err)}</p>` : ''}
     ${section('evt-h', 'Events', allBtn('data-ev="open-list"', 'All events'), org ? '<button type="button" class="btn btn-soft block" data-ev="tab-new">New event</button>' : '', evBody)}
-    ${section('lgt-h', 'Leagues and ladders', allBtn('data-lg="open"', 'All leagues'), '', lgBody)}`;
+    ${section('lgt-h', 'Leagues and ladders', allBtn('data-lg="open"', 'All leagues'), org ? '<button type="button" class="btn btn-soft block" data-lg="tab-new">New league</button>' : '', lgBody)}`;
 }
 const evElim = e => e.format === 'single_elim' || e.format === 'double_elim';
 function evTabCard(e, kind, org) {
@@ -7472,12 +7475,12 @@ function gnHomeHTML() {
 // The Events tab: upcoming game nights with In / Maybe / Out, and the organizer's button to schedule one.
 function gnTabHTML() {
   if (!club || !API_OK) return '';
-  const list = gnUpcoming(), org = gnCanOrg();
+  const list = gnUpcoming(), org = gnCanOrg(), actLabel = org ? 'Manage' : 'Details';
   const cards = list.slice(0, 3).map(n => {
     const w = gnWhenParts(n.startsAt), inNames = (n.rsvps && n.rsvps.in) || [];
     const preview = inNames.length ? `In: ${inNames.slice(0, 6).join(', ')}${inNames.length > 6 ? ` +${inNames.length - 6} more` : ''}` : 'Be the first to say you\'re in.';
     return `<article class="card gn-home" aria-label="${esc(n.title)}">
-      <div class="gn-head"><div><h3 class="gn-title">${esc(n.title)}</h3><div class="gn-when">${w.rel ? `<span class="gn-rel">${esc(w.rel)}</span> · ` : ''}${esc(w.label)}</div></div>${gnCapBadgeHTML(n)}</div>
+      <div class="gn-head"><div class="gn-head-main"><h3 class="gn-title">${esc(n.title)}</h3><div class="gn-when">${w.rel ? `<span class="gn-rel">${esc(w.rel)}</span> · ` : ''}${esc(w.label)}</div></div><div class="gn-head-end"><button type="button" class="link gn-card-act" data-gn="open" aria-label="${actLabel}: ${esc(n.title)}">${actLabel}</button>${gnCapBadgeHTML(n)}</div></div>
       ${n.location ? `<div class="gn-loc">${esc(n.location)}</div>` : ''}
       ${gnRsvpBarHTML(n, false)}
       <p class="note gn-preview">${esc(preview)}</p>
@@ -7485,7 +7488,7 @@ function gnTabHTML() {
   }).join('');
   const unlock = !org && club.hasPin ? '<button type="button" class="link" data-act="pin-unlock-open">Organizer? Unlock this phone to schedule a game night</button>' : '';
   return `<section aria-labelledby="gn-tab-h" class="ev-sec">
-    <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length > 3 ? `<button type="button" class="link" data-gn="open">See all (${list.length})</button>` : ''}</div>
+    <div class="sec-head"><h2 id="gn-tab-h">Game nights</h2>${list.length ? `<button type="button" class="link" data-gn="open">See all${list.length > 3 ? ` (${list.length})` : ''}</button>` : ''}</div>
     ${org ? GN_PLAN_ROW : ''}
     ${cards || '<p class="note">No game nights scheduled yet.</p>'}${unlock}
   </section>`;
@@ -9811,7 +9814,7 @@ function lgHTML() {
   const body = s.view === 'new' ? lgNewHTML(s) : s.view === 'detail' ? (s.loading || !L ? `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : skel(3)}` : L.kind === 'ladder' ? lgLadderHTML(s, L) : lgLeagueHTML(s, L)) : lgListHTML(s);
   const title = s.view === 'new' ? 'New league or ladder' : s.view === 'detail' ? (L ? L.name : 'League') : 'Leagues and ladders';
   return `<div class="ev-screen" role="dialog" aria-modal="true" aria-labelledby="lg-h"><div class="ev-wrap">
-    <div class="ev-top"><button class="ev-back" data-lg="back" aria-label="${s.view === 'list' ? 'Close leagues and ladders' : 'Back to leagues and ladders'}">${ICON.back}</button><h2 id="lg-h">${esc(title)}</h2></div>${body}</div></div>`;
+    <div class="ev-top"><button class="ev-back" data-lg="back" aria-label="${s.view === 'list' ? 'Close leagues and ladders' : s.fromTab ? 'Back to Events' : 'Back to leagues and ladders'}">${ICON.back}</button><h2 id="lg-h">${esc(title)}</h2></div>${body}</div></div>`;
 }
 const lgProgress = e => e.kind === 'ladder' ? `${e.results} result${e.results === 1 ? '' : 's'} this season${e.top ? ` · top: ${lgName(e.top)}` : ''}`
   : e.status === 'done' ? `Season finished${e.champions && e.champions[0] ? ` · ${e.champions.map(c => c ? lgName(c) : '').filter(Boolean).join(', ')}` : ''}` : `${e.played} of ${e.matches} matches played`;
@@ -10055,12 +10058,14 @@ async function lgSaveChallenge() {
 function lgAct(a, d) {
   if (a === 'open') { lgOpen(); return; }
   if (a === 'tab-open') { lgScreen = { view: 'detail', id: d.id, league: null, loading: true, error: '', list: null, fromTab: true }; renderLeagues(true); lgLoad(d.id); return; }
+  if (a === 'tab-new') { if (!club || !canOrganize()) return; lgScreen = { view: 'new', list: null, error: '', form: lgNewForm(), fromTab: true }; renderLeagues(true); return; }
   if (a === 'tab-tv') { evTabTv('league', d.id); return; }
   const s = lgScreen;
   if (!s) return;
-  if (a === 'back' && s.view === 'detail' && s.fromTab) {
+  if (a === 'back' && s.fromTab && (s.view === 'detail' || s.view === 'new')) {
+    const sel = s.view === 'new' ? '[data-lg="tab-new"]' : `[data-lg="tab-open"][data-id="${CSS.escape(s.id)}"]`;
     lgScreen = null; evTab.at = 0; renderLeagues(true); safeRender();
-    const t = document.querySelector(`[data-lg="tab-open"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
+    const t = document.querySelector(sel) || document.querySelector('[data-lg="open"]'); if (t) t.focus({ preventScroll: true });
     return;
   }
   if (a === 'back') {
