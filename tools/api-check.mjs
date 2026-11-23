@@ -1361,7 +1361,8 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear', 'rewards-activity']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
   let s = ok(await post('Hal', { action: 'rewards-catalog' }));
-  assert.equal(s.items.length, 12); assert.ok(s.items.every(i => !i.owned && i.price > 0)); assert.deepEqual(s.worn, { frame: '', paddle: '', pet: '' });
+  assert.equal(s.items.filter(i => !i.seasonal).length, 12); assert.ok(s.items.every(i => !i.owned && i.price > 0));
+  assert.ok(s.season && s.items.filter(i => i.seasonal).every(i => i.available && i.season === s.season.id), 'only this season\'s items are listed, whatever the date'); // real clock here; fixed clocks are in the seasonal step below assert.deepEqual(s.worn, { frame: '', paddle: '', pet: '' });
   // No Dinks yet: refused with a clear message, nothing charged, nothing owned.
   let r = await post('Hal', { action: 'rewards-buy', item: 'frame-court' });
   assert.equal(r.status, 409); assert.match(r.json.error, /Not enough Dinks yet: Court green ring costs 6 and you have 0/);
@@ -1473,6 +1474,27 @@ await step('rewards club looks: off means 403, opt-in default false hides it, sh
   // Turning club rewards off stops everything immediately.
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await looks()).status, 403, 'off again: nothing leaks');
+});
+await step('rewards seasonal shop: bought only in its season (fixed clocks), owned stays owned and wearable after it, never charged twice', async () => {
+  const { buyItem, wearItem, shopView } = await import(pathToFileURL(path.join(root, 'api', '_economyshop.js')).href);
+  const sql = neon.neon(process.env.DATABASE_URL);
+  await pg.query(`INSERT INTO roster (club, name_key, name) VALUES ($1, 'sol', 'Sol') ON CONFLICT DO NOTHING`, [cf.code]);
+  await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'sol', 'seasonal-test', 'earn', 20, 'test') ON CONFLICT DO NOTHING`, [cf.code]);
+  const autumn = Date.parse('2026-11-23T10:00:00Z'), winter = Date.parse('2026-12-01T00:00:00Z'), nextAutumn = Date.parse('2027-10-01T10:00:00Z');
+  const v0 = await shopView(sql, cf.code, 'sol', autumn);
+  assert.equal(v0.season.id, 'autumn'); assert.deepEqual(v0.items.filter(i => i.seasonal).map(i => i.id), ['frame-clay']);
+  await assert.rejects(buyItem(sql, cf.code, 'sol', 'frame-frost', autumn), e => e.status === 409 && /Winter Frost/.test(e.message), 'another season\'s item is refused');
+  assert.equal((await shopView(sql, cf.code, 'sol', autumn)).dinks, 20, 'nothing charged for the refusal');
+  await assert.rejects(buyItem(sql, cf.code, 'sol', 'frame-clay', Date.parse('2026-08-31T23:59:59Z')), e => e.status === 409);
+  const bought = await buyItem(sql, cf.code, 'sol', 'frame-clay', autumn);
+  assert.equal(bought.bought, true); assert.equal(bought.dinks, 12);
+  const later = await shopView(sql, cf.code, 'sol', winter);
+  assert.equal(later.season.id, 'winter'); assert.ok(later.items.find(i => i.id === 'frame-clay').owned, 'still owned after the window');
+  assert.ok(!later.items.some(i => i.id === 'frame-clay' && !i.available && i.owned === false));
+  assert.equal((await wearItem(sql, cf.code, 'sol', 'frame', 'frame-clay', { now: winter })).worn.frame, 'frame-clay', 'wearable after the window');
+  assert.equal((await buyItem(sql, cf.code, 'sol', 'frame-clay', winter)).bought, false, 'a repeat charges nothing, even out of season');
+  assert.equal((await shopView(sql, cf.code, 'sol', nextAutumn)).dinks, 12);
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'sol' AND id = 'buy:frame-clay'`, [cf.code])).rows[0].n, 1);
 });
 await step('rewards mystery box: off means refused, odds match server table, insufficient balance, duplicate refund, replay idempotent, daily limit, atomic balance floor', async () => {
   const { boxOdds, BOX_PRICE, BOX_DUPLICATE_REFUND, BOX_DAILY_LIMIT } = await import(pathToFileURL(path.join(root, 'api', '_economybox.js')).href);

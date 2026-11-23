@@ -142,6 +142,11 @@ for (const [mode, opt] of states) {
         return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true }
           : { id, slot, name, price, owned, featuredShiny, stage: 1, stageLabel: 'Rookie', playDays: 2, nextStageDays: 5, shiny: false };
       }) };
+      // Seasonal: this season's item for sale, one more from another season already owned (stays wearable), as the server lists them.
+      shop.season = { id: 'autumn', name: 'Autumn Clay', dates: '1 September to 30 November (UTC)', returns: 'Autumn Clay returns every September. Anything you already have stays yours.', startsOn: '2026-09-01', endsOn: '2026-11-30' };
+      shop.items.push({ id: 'frame-clay', slot: 'frame', name: 'Autumn Clay ring', price: 8, season: 'autumn', seasonal: true, owned: false, available: true },
+        { id: 'frame-frost', slot: 'frame', name: 'Winter Frost ring', price: 8, season: 'winter', seasonal: true, owned: true, available: false },
+        { id: 'paddle-heat', slot: 'paddle', name: 'Summer Heat paddle', price: 8, season: 'summer', seasonal: true, owned: true, available: false });
       const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog', petStage: 2, petShiny: true }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
       const pass = {
         season: { id: '2026-Q4', name: 'Fall 2026', start: 0, end: 1 }, games: 6, dinks: 12, worn: shop.worn, share: true, claimable: 2,
@@ -196,7 +201,7 @@ for (const [mode, opt] of states) {
     if (colorScheme === 'light') {
       for (const w of [320, 195]) {
         await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
-        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet .rw-pets, .sheet .rw-pets *, .sheet .rw-box, .sheet .rw-box *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('svg'); }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet .rw-pets, .sheet .rw-pets *, .sheet .rw-season, .sheet .rw-season *, .sheet .rw-box, .sheet .rw-box *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('svg'); }).map(e => e.tagName + '.' + e.className).slice(0, 3));
         if (over.length) report.push({ label: `Shop pets and mystery box: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
       }
       await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);

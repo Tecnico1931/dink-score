@@ -151,6 +151,13 @@ button { cursor: pointer; }
 /* Worn looks, set on <html> (data-rw-frame, data-rw-skin) while rewards are shown, on swatches, and on opted-in club members' avatars. Colours use the app's own tokens so both themes pass contrast. */
 [data-rw-frame="court"] { --rw-ring: 0 0 0 5px var(--green); --rw-ring-sm: 0 0 0 4px var(--green); --rw-c: var(--green); } [data-rw-frame="blue"] { --rw-ring: 0 0 0 5px var(--blue); --rw-ring-sm: 0 0 0 4px var(--blue); --rw-c: var(--blue); } [data-rw-frame="ink"] { --rw-ring: 0 0 0 5px var(--ink); --rw-ring-sm: 0 0 0 4px var(--ink); --rw-c: var(--ink); }
 [data-rw-frame="double"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--blue); --rw-c: var(--green); }
+/* Seasonal looks (api/_economyseason.js): only the app's own tokens, mixed with color-mix where a tint is needed. */
+[data-rw-frame="spring"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--ball); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--ball); --rw-c: var(--green); }
+[data-rw-frame="heat"] { --rw-ring: 0 0 0 5px var(--down); --rw-ring-sm: 0 0 0 4px var(--down); --rw-c: var(--down); }
+[data-rw-frame="clay"] { --rw-c: color-mix(in srgb, var(--down) 55%, var(--ink)); --rw-ring: 0 0 0 5px var(--rw-c); --rw-ring-sm: 0 0 0 4px var(--rw-c); }
+[data-rw-frame="frost"] { --rw-ring: 0 0 0 4px var(--blue), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue-text); --rw-ring-sm: 0 0 0 3.5px var(--blue), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--blue-text); --rw-c: var(--blue); }
+[data-rw-skin="heat"] { --rw-pad-bg: var(--down); --rw-pad-fg: var(--bg); --rw-pad-ring: 0 0 0 2px var(--down); }
+[data-rw-skin="frost"] { --rw-pad-bg: var(--surface-2); --rw-pad-fg: var(--blue-text); --rw-pad-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue); }
 [data-rw-skin="court"] { --rw-pad-bg: var(--green); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--green); }
 [data-rw-skin="blue"] { --rw-pad-bg: var(--blue); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--blue); }
 [data-rw-skin="ink"] { --rw-pad-bg: var(--ink); --rw-pad-fg: var(--bg); --rw-pad-ring: 0 0 0 2px var(--ink); }
@@ -3940,6 +3947,16 @@ function rwGoalHTML(c, s) {
 const rwShort = (n, price) => `Not enough Dinks yet: ${n} costs ${price} and you have `;
 // A button that can't be afforded yet stays focusable and says so out loud when pressed (rwShort), but is drawn muted so it doesn't look ready.
 const rwShortAttrs = need => (need > 0 ? ' aria-disabled="true" data-rw-short="1"' : '');
+// "This season": the current season's rings and paddle colours, fixed price, with the dates in plain words and a plain line that they come
+// back next year. No countdown, no urgency wording, no motion. The season and its items come from the server (api/_economyseason.js).
+function rwSeasonHTML(c, s) {
+  const se = s.season, items = (s.items || []).filter(i => i.seasonal && i.available);
+  if (!se || !items.length) return '';
+  const rows = items.map(i => i.owned
+    ? `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>You have this. Choose it under What you wear.</small></span></div>`
+    : `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more` : ''}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+  return `<h3 class="rw-h">This season: ${esc(se.name)}</h3><section class="rw-season" aria-label="This season"><p class="note">In the shop from ${esc(se.dates)}. ${esc(se.returns)}</p>${rows}</section>`;
+}
 let rwBoxSeq = 0;
 // Idempotency key for one box-open request only; the server chooses the item with its own cryptographic random source.
 const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -3972,7 +3989,7 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
     const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
-    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && (!hasPetsUi || i.slot !== 'pet'));
+    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && (!hasPetsUi || i.slot !== 'pet'));
     const wear = slots.map(([slot, label]) => {
       const own = mine.filter(i => i.slot === slot);
       if (!own.length) return '';
@@ -3981,13 +3998,14 @@ Object.assign(Rewards, {
     }).join('');
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more` : ''}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
-    const allOwned = s.items.every(i => i.owned);
+    const allOwned = s.items.every(i => i.owned || i.seasonal);
+    const seasonSec = rwSeasonHTML(c, s);
     const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour and court pet — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour and court pet on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     const box = rwBoxHTML(c, s);
     return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> ${s.dinks === 1 ? 'Dink' : 'Dinks'}</p>
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}
+      ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
       <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${done}`;
   },
   // "Dinks activity": your own recent ledger rows in plain words (the server's words), newest first, with the balance after each.
