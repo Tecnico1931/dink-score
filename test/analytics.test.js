@@ -54,3 +54,29 @@ test('a bad zone falls back to UTC', () => {
   assert.equal(cleanZone('Not/AZone'), 'UTC');
   assert.equal(cleanZone('Europe/London'), 'Europe/London');
 });
+
+test('Monday 00:02 boundary puts an hour-old game in the previous week and a current-week game in weeks.at(-1)', () => {
+  // Winter (GMT = UTC+0): Mon 2026-11-23 00:02 Europe/London
+  const monGmt = Date.UTC(2026, 10, 23, 0, 2);
+  const prevOnly = analyze([game('Ivy', 'Jon', monGmt - 36e5)], { now: monGmt, tz: 'Europe/London' });
+  assert.equal(prevOnly.weeks.at(-1).start, '2026-11-23');
+  assert.equal(prevOnly.weeks.at(-1).players, 0);
+  assert.equal(prevOnly.weeks.at(-2).start, '2026-11-16');
+  assert.equal(prevOnly.weeks.at(-2).players, 2);
+
+  const curWeek = analyze([game('Ivy', 'Jon', monGmt - 6e4)], { now: monGmt, tz: 'Europe/London' });
+  assert.equal(curWeek.weeks.at(-1).start, '2026-11-23');
+  assert.equal(curWeek.weeks.at(-1).players, 2);
+
+  // Summer (BST = UTC+1): Sun 2026-03-29 23:02 UTC = Mon 2026-03-30 00:02 Europe/London
+  const monBst = Date.UTC(2026, 2, 29, 23, 2);
+  const bstPrev = analyze([game('Ivy', 'Jon', monBst - 36e5)], { now: monBst, tz: 'Europe/London' });
+  assert.equal(bstPrev.weeks.at(-1).start, '2026-03-30');
+  assert.equal(bstPrev.weeks.at(-1).players, 0);
+  assert.equal(bstPrev.weeks.at(-2).start, '2026-03-23');
+  assert.equal(bstPrev.weeks.at(-2).players, 2);
+
+  const bstCur = analyze([game('Ivy', 'Jon', monBst - 6e4)], { now: monBst, tz: 'Europe/London' });
+  assert.equal(bstCur.weeks.at(-1).start, '2026-03-30');
+  assert.equal(bstCur.weeks.at(-1).players, 2);
+});
