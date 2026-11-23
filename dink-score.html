@@ -421,8 +421,12 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .month-facts .mk { color: var(--muted); flex: none; }
 .month-facts .mv { text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .pl-link { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
-.g-actions { display: flex; gap: 12px; align-self: start; }
-.g-actions .link { font-size: 13px; padding: 2px 0; }
+.g-actions { display: flex; gap: 4px; align-items: center; align-self: start; flex-wrap: wrap; min-width: 0; }
+.g-actions .link { font-size: 13px; min-width: 44px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; }
+.g-actions .link.g-del { margin-left: auto; color: var(--muted); }
+.g-actions .link.g-del.armed { color: var(--danger); }
+.game > .lines { grid-column: 1 / -1; }
+.game > .g-actions { grid-column: 1 / -1; width: 100%; padding-left: 10px; padding-top: 4px; border-top: 1px solid var(--line); }
 .tag.warn { background: color-mix(in srgb, var(--down) 14%, transparent); color: var(--down); }
 .tag.confirmed { background: color-mix(in srgb, var(--up) 14%, transparent); color: var(--up); }
 .tag.logged { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
@@ -3136,8 +3140,8 @@ function gameItem(g) {
   const armed = armedDelete === g.id;
   const dupe = isDupe(g.id), canConfirm = canConfirmGame(g);
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
-    <span class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button>${canConfirm ? `<button class="link" data-confirm="${esc(g.id)}">Confirm</button>` : ''}<button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
-    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${club && !g.event ? (g.confirmed ? '<span class="tag confirmed">Confirmed</span>' : `<span class="tag warn">${g.hold ? 'Not counted: unconfirmed' : 'Unconfirmed'}</span>`) : ''}${dupe ? '<span class="tag warn">Possible duplicate</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div>${reactionsHTML(g)}</li>`;
+    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${club && !g.event ? (g.confirmed ? '<span class="tag confirmed">Confirmed</span>' : `<span class="tag warn">${g.hold ? 'Not counted: unconfirmed' : 'Unconfirmed'}</span>`) : ''}${dupe ? '<span class="tag warn">Possible duplicate</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div>${reactionsHTML(g)}
+    <div class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button>${canConfirm ? `<button class="link" data-confirm="${esc(g.id)}">Confirm</button>` : ''}<button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link g-del${armed ? ' armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></div></li>`;
 }
 
 function historyView() {
