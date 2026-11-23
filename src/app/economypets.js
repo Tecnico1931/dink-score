@@ -1,18 +1,19 @@
 /* ---------- rewards pets: vendored inline SVGs, growth progress and Shop/Play UI (L16 phase 2, #107; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
-// Clean-room geometric inline SVGs on a unified 64x64 viewBox using CSS custom properties only (--pet-1, --pet-2, --pet-3, --pet-eye, --pet-bg),
+// Clean-room geometric inline SVGs on a unified 64x64 viewBox using CSS custom properties only (--pet-1, --pet-2, --pet-3, --pet-eye, --pet-bg; the Yorkie adds --pet-steel, --pet-black, --pet-tan, --pet-gold),
 // so every pet follows the app's court-green/lime light, dark and outdoor tokens automatically with zero raster files, zero remote URLs,
 // and zero motion or sound. Growth stages (Rookie 0-4, Club 5-14, Veteran 15+) and weekly shiny rotation come solely from the server.
-const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl'];
+const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie'];
 const RW_PET_NAMES = {
   'pet-frog': 'Court Frog',
   'pet-duck': 'Dink Duck',
   'pet-cat': 'Kitchen Cat',
-  'pet-owl': 'Net Owl'
+  'pet-owl': 'Net Owl',
+  'pet-yorkie': 'Yorkie'
 };
 const RW_PET_STAGE_LABELS = { 1: 'Rookie', 2: 'Club', 3: 'Veteran' };
 const RW_PET_STAR_SVG = '<g data-pet-star="1"><circle cx="54" cy="10" r="7.5" fill="var(--pet-1)"/><polygon points="54,4.5 55.6,8.4 59.5,10 55.6,11.6 54,15.5 52.4,11.6 48.5,10 52.4,8.4" fill="var(--pet-2)"/></g>';
 
-// 4 pets x 3 growth stages (Rookie, Club, Veteran). Distinct silhouettes at 20 px; tokens only, safe SVG primitives only.
+// 5 pets x 3 growth stages (Rookie, Club, Veteran). Distinct silhouettes at 20 px; tokens only, safe SVG primitives only.
 const RW_PET_ART = {
   'pet-frog': {
     1: '<ellipse cx="21" cy="51" rx="6" ry="3.4" fill="var(--pet-1)"/><ellipse cx="43" cy="51" rx="6" ry="3.4" fill="var(--pet-1)"/><ellipse cx="32" cy="40" rx="17" ry="13" fill="var(--pet-1)"/><circle cx="22" cy="24" r="6.8" fill="var(--pet-1)"/><circle cx="42" cy="24" r="6.8" fill="var(--pet-1)"/><circle cx="22" cy="24" r="4.1" fill="var(--pet-eye)"/><circle cx="42" cy="24" r="4.1" fill="var(--pet-eye)"/><circle cx="23" cy="24" r="2" fill="var(--pet-3)"/><circle cx="43" cy="24" r="2" fill="var(--pet-3)"/><ellipse cx="32" cy="44" rx="9.5" ry="6.2" fill="var(--pet-2)"/><circle cx="28" cy="44" r="1.2" fill="var(--pet-3)"/><circle cx="32" cy="42" r="1.2" fill="var(--pet-3)"/><circle cx="36" cy="44" r="1.2" fill="var(--pet-3)"/><path d="M25 34q7 4 14 0" fill="none" stroke="var(--pet-2)" stroke-width="2.4" stroke-linecap="round"/>',
@@ -33,6 +34,13 @@ const RW_PET_ART = {
     1: '<path d="M24 53h6M34 53h6" stroke="var(--pet-1)" stroke-width="3.6" stroke-linecap="round"/><ellipse cx="32" cy="37" rx="15" ry="16.5" fill="var(--pet-1)"/><polygon points="19,25 16,13 27,20" fill="var(--pet-1)"/><polygon points="45,25 48,13 37,20" fill="var(--pet-1)"/><circle cx="25" cy="31" r="7.2" fill="var(--pet-2)"/><circle cx="39" cy="31" r="7.2" fill="var(--pet-2)"/><circle cx="25" cy="31" r="4.9" fill="var(--pet-eye)"/><circle cx="39" cy="31" r="4.9" fill="var(--pet-eye)"/><circle cx="25" cy="31" r="2.4" fill="var(--pet-3)"/><circle cx="39" cy="31" r="2.4" fill="var(--pet-3)"/><polygon points="32,39.5 29,34.2 35,34.2" fill="var(--pet-2)"/><path d="M25 46q7 4 14 0" fill="none" stroke="var(--pet-2)" stroke-width="2.6" stroke-linecap="round"/>',
     2: '<path d="M22 54h7M35 54h7" stroke="var(--pet-1)" stroke-width="3.8" stroke-linecap="round"/><ellipse cx="32" cy="37" rx="18" ry="18.5" fill="var(--pet-1)"/><polygon points="16,24 13,11 26,19" fill="var(--pet-1)"/><polygon points="48,24 46,12 38,19" fill="var(--pet-1)"/><rect x="17" y="21.5" width="30" height="2.8" rx="1.4" fill="var(--pet-2)"/><circle cx="24.5" cy="31" r="7.6" fill="var(--pet-2)"/><circle cx="39.5" cy="31" r="7.6" fill="var(--pet-2)"/><circle cx="24.5" cy="31" r="5.2" fill="var(--pet-eye)"/><circle cx="39.5" cy="31" r="5.2" fill="var(--pet-eye)"/><circle cx="24.5" cy="31" r="2.5" fill="var(--pet-3)"/><circle cx="39.5" cy="31" r="2.5" fill="var(--pet-3)"/><polygon points="32,39.5 28.8,34 35.2,34" fill="var(--pet-2)"/><circle cx="32" cy="46.5" r="5.2" fill="var(--pet-2)"/><circle cx="30" cy="46" r="1.1" fill="var(--pet-3)"/><circle cx="34" cy="46" r="1.1" fill="var(--pet-3)"/><circle cx="32" cy="48.5" r="1.1" fill="var(--pet-3)"/>',
     3: '<path d="M19 54h7M31 54h7" stroke="var(--pet-1)" stroke-width="3.8" stroke-linecap="round"/><ellipse cx="28" cy="37" rx="17.5" ry="18.5" fill="var(--pet-1)"/><polygon points="13,24 10,11 22,19" fill="var(--pet-1)"/><polygon points="43,24 44,12 34,19" fill="var(--pet-1)"/><polygon points="13,18 11.5,12.5 17,16" fill="var(--pet-2)"/><polygon points="41.5,18 42.5,13 37.5,16" fill="var(--pet-2)"/><rect x="13.5" y="21.5" width="29" height="2.8" rx="1.4" fill="var(--pet-2)"/><circle cx="20.8" cy="31" r="7.4" fill="var(--pet-2)"/><circle cx="35.2" cy="31" r="7.4" fill="var(--pet-2)"/><circle cx="20.8" cy="31" r="5" fill="var(--pet-eye)"/><circle cx="35.2" cy="31" r="5" fill="var(--pet-eye)"/><circle cx="20.8" cy="31" r="2.4" fill="var(--pet-3)"/><circle cx="35.2" cy="31" r="2.4" fill="var(--pet-3)"/><polygon points="28,39.5 24.8,34 31.2,34" fill="var(--pet-2)"/><polygon points="28,42 35,45.5 28,51.5 21,45.5" fill="var(--pet-2)"/><path d="M24 46h8" stroke="var(--pet-3)" stroke-width="1.9" stroke-linecap="round"/><rect x="46" y="23" width="11.5" height="15" rx="4.5" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2.2"/><path d="M48 30.5h7.5" stroke="var(--pet-3)" stroke-width="2" stroke-linecap="round"/><rect x="49.8" y="38" width="4" height="10" rx="2" fill="var(--pet-1)"/>'
+  },
+  // Yorkie: front-facing sitting dog with two tall upright ears, a topknot and a long A-shaped silky coat. Own palette (--pet-steel/-black/-tan/-gold, defined
+  // with color-mix() from theme tokens next to .rw-pet in dink-score.html), so the shiny colourway is a CSS swap, never a hex.
+  'pet-yorkie': {
+    1: '<path d="M19 57c-2-12 2-19 13-19s15 7 13 19z" fill="var(--pet-steel)"/><ellipse cx="32" cy="48" rx="6" ry="8" fill="var(--pet-tan)"/><ellipse cx="24" cy="57" rx="5" ry="2.6" fill="var(--pet-tan)"/><ellipse cx="40" cy="57" rx="5" ry="2.6" fill="var(--pet-tan)"/><path d="M19 24L18 9l11 8zM45 24l1-15-11 8z" fill="var(--pet-black)" stroke="var(--pet-steel)" stroke-width="1.6" stroke-linejoin="round"/><path d="M20.8 21l-.4-7.2 5.6 3.8zM43.2 21l.4-7.2-5.6 3.8z" fill="var(--pet-gold)"/><circle cx="32" cy="27" r="12" fill="var(--pet-tan)"/><circle cx="32" cy="13.5" r="3.4" fill="var(--pet-steel)"/><ellipse cx="32" cy="32.5" rx="6.4" ry="4.8" fill="var(--pet-gold)"/><path d="M25.5 25h.1M38.5 25h.1" stroke="var(--pet-eye)" stroke-width="6.4" stroke-linecap="round"/><path d="M26 25.4h.1M39 25.4h.1" stroke="var(--pet-3)" stroke-width="3.4" stroke-linecap="round"/><ellipse cx="32" cy="30.4" rx="2.6" ry="1.9" fill="var(--pet-black)"/><path d="M29 34.6q3 2.4 6 0" fill="none" stroke="var(--pet-black)" stroke-width="1.4" stroke-linecap="round"/>',
+    2: '<path d="M16 57c-3-14 1-21 16-21s19 7 16 21z" fill="var(--pet-steel)"/><path d="M18.5 53q-1.5-6 2-10M45.5 53q1.5-6-2-10" fill="none" stroke="var(--pet-black)" stroke-width="3.2" stroke-linecap="round"/><ellipse cx="32" cy="48" rx="7" ry="9" fill="var(--pet-tan)"/><ellipse cx="23" cy="57" rx="5.4" ry="2.8" fill="var(--pet-tan)"/><ellipse cx="41" cy="57" rx="5.4" ry="2.8" fill="var(--pet-tan)"/><path d="M17.5 24L16 7l13 9zM46.5 24L48 7 35 16z" fill="var(--pet-black)" stroke="var(--pet-steel)" stroke-width="1.6" stroke-linejoin="round"/><path d="M19.6 20.5L19 12l7 4.6zM44.4 20.5L45 12l-7 4.6z" fill="var(--pet-gold)"/><circle cx="32" cy="26.5" r="13" fill="var(--pet-tan)"/><circle cx="32" cy="14" r="3.4" fill="var(--pet-steel)"/><path d="M32 11.5L25 7.5v8zM32 11.5l7-4v8z" fill="var(--pet-2)"/><circle cx="32" cy="11.5" r="2" fill="var(--pet-3)"/><ellipse cx="32" cy="32.5" rx="7" ry="5.2" fill="var(--pet-gold)"/><path d="M25 25h.1M39 25h.1" stroke="var(--pet-eye)" stroke-width="6.8" stroke-linecap="round"/><path d="M25.5 25.4h.1M39.5 25.4h.1" stroke="var(--pet-3)" stroke-width="3.6" stroke-linecap="round"/><ellipse cx="32" cy="30.2" rx="2.8" ry="2" fill="var(--pet-black)"/><path d="M28.8 35q3.2 2.6 6.4 0" fill="none" stroke="var(--pet-black)" stroke-width="1.4" stroke-linecap="round"/>',
+    3: '<g transform="translate(-4 0)"><path d="M10 58c-5-17 2-23 22-23s27 6 22 23z" fill="var(--pet-steel)"/><ellipse cx="32" cy="49" rx="7.4" ry="9" fill="var(--pet-tan)"/><path d="M17.5 24L16 7l13 9zM46.5 24L48 7 35 16z" fill="var(--pet-black)" stroke="var(--pet-steel)" stroke-width="1.6" stroke-linejoin="round"/><path d="M19.6 20.5L19 12l7 4.6zM44.4 20.5L45 12l-7 4.6z" fill="var(--pet-gold)"/><circle cx="32" cy="26.5" r="13" fill="var(--pet-tan)"/><circle cx="32" cy="14" r="3.4" fill="var(--pet-steel)"/><path d="M32 11.5L25 7.5v8zM32 11.5l7-4v8z" fill="var(--pet-2)"/><circle cx="32" cy="11.5" r="2" fill="var(--pet-3)"/><ellipse cx="32" cy="32.5" rx="7" ry="5.2" fill="var(--pet-gold)"/><path d="M25 25h.1M39 25h.1" stroke="var(--pet-eye)" stroke-width="6.8" stroke-linecap="round"/><path d="M25.5 25.4h.1M39.5 25.4h.1" stroke="var(--pet-3)" stroke-width="3.6" stroke-linecap="round"/><ellipse cx="32" cy="30.2" rx="2.8" ry="2" fill="var(--pet-black)"/><path d="M28.8 35q3.2 2.6 6.4 0" fill="none" stroke="var(--pet-black)" stroke-width="1.4" stroke-linecap="round"/></g><rect x="46" y="23" width="12" height="15" rx="4.5" fill="var(--pet-2)" stroke="var(--pet-steel)" stroke-width="2.2"/><rect x="50" y="38" width="4" height="11" rx="2" fill="var(--pet-steel)"/>'
   }
 };
 
@@ -88,12 +96,12 @@ function rwPetStageLine(pet) {
   return days > 0 ? `${label} · ${days} ${days === 1 ? 'play day' : 'play days'}` : label;
 }
 
-// Plain-words 4-week shiny rotation explanation (zero FOMO, deterministic Monday 00:00 UTC cadence).
+// Plain-words shiny rotation explanation, one pet a week over all five pets (zero FOMO, deterministic Monday 00:00 UTC cadence).
 function rwPetRotationCopy(shinyWeek) {
   const order = RW_PET_ORDER.map(id => RW_PET_NAMES[id]).join(' → ');
   const cur = shinyWeek && rwPetName(shinyWeek.petId);
   return cur
-    ? `Each pet gets a free shiny coat every 4 weeks, rotating every Monday (UTC): ${order}.`
+    ? `Each pet gets a free shiny coat every 5 weeks, rotating every Monday (UTC): ${order}.`
     : `Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+). Free shiny coat rotates every Monday (UTC): ${order}.`;
 }
 
@@ -157,7 +165,7 @@ function rwPetsSectionHTML(c, s) {
   }).join('');
   const adopt = adoptRows
     ? `<div><p class="note">Fixed prices, bought once. Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+).</p>${adoptRows}</div>`
-    : '<p class="note">You have adopted all four court pets.</p>';
+    : '<p class="note">You have adopted all five court pets.</p>';
 
   return `<h3 class="rw-h">Court pets</h3><section class="rw-pets" aria-label="Court pets">${head}${picker}${shinyToggle}${adopt}</section>`;
 }

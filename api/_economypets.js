@@ -5,7 +5,7 @@
 // Growth: derived strictly from distinct verified play days in `reward_ledger` (kind = 'earn', valid YYYY-MM-DD
 // day >= adoptedDay UTC). Play days come from attendance only; wins, losses and scores never matter.
 //
-// Weekly shiny coat (Variant A): deterministic 4-week spotlight rotation using Monday 00:00 UTC ISO weeks.
+// Weekly shiny coat (Variant A): deterministic spotlight rotation (4 pets until week index SHINY_FIVE_FROM, then 5) using Monday 00:00 UTC ISO weeks.
 // Active only during that pet's featured week via a one-tap owner toggle on reward_items.shiny; nothing random,
 // nothing permanent to miss.
 
@@ -14,12 +14,13 @@ const WEEK_MS = 7 * DAY_MS;
 const WEEK_EPOCH = Date.UTC(1970, 0, 5); // first Monday in UTC: exact 7-day cadence across 52/53-week years and DST
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Four court pets at fixed Dinks prices (included in CATALOGUE in _economyshop.js; never in random box draws).
+// Five court pets at fixed Dinks prices (included in CATALOGUE in _economyshop.js; never in random box draws). PETS order is the rotation order.
 export const PETS = Object.freeze([
   Object.freeze({ id: 'pet-frog', slot: 'pet', name: 'Court Frog', price: 12 }),
   Object.freeze({ id: 'pet-duck', slot: 'pet', name: 'Dink Duck', price: 14 }),
   Object.freeze({ id: 'pet-cat', slot: 'pet', name: 'Kitchen Cat', price: 18 }),
-  Object.freeze({ id: 'pet-owl', slot: 'pet', name: 'Net Owl', price: 24 })
+  Object.freeze({ id: 'pet-owl', slot: 'pet', name: 'Net Owl', price: 24 }),
+  Object.freeze({ id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 20 })
 ]);
 
 // Three growth stages fed purely by distinct verified play days since adoption.
@@ -82,11 +83,16 @@ export function weekOf(ts) {
   return { id: `${thursday.getUTCFullYear()}-W${String(n).padStart(2, '0')}`, start, end: start + WEEK_MS, index };
 }
 
-// Deterministic 4-week shiny spotlight rotation. Monotonic week index guarantees no skip or repeat across 53-week years or DST.
+// Deterministic shiny spotlight rotation. Monotonic week index guarantees no skip or repeat across 53-week years or DST.
+// Before SHINY_FIVE_FROM (week index 2972 = Mon 2026-12-21 00:00 UTC) the original 4-pet cycle applies: index mod 4 over the first four pets.
+// From that week on the 5-pet cycle applies: (index - SHINY_FIVE_FROM) mod 5 over PETS. 2972 is a multiple of 4, so week 2972 is the Frog in both
+// schedules; no week already scheduled under the old cycle changes before the first Yorkie week (index 2976, Mon 2027-01-18).
+export const SHINY_FIVE_FROM = 2972;
+const LEGACY_CYCLE = 4;
+const mod = (n, m) => ((n % m) + m) % m;
 export function shinyWeekFor(ts) {
   const wk = weekOf(ts);
-  const pos = ((wk.index % PETS.length) + PETS.length) % PETS.length;
-  const pet = PETS[pos];
+  const pet = wk.index < SHINY_FIVE_FROM ? PETS[mod(wk.index, LEGACY_CYCLE)] : PETS[mod(wk.index - SHINY_FIVE_FROM, PETS.length)];
   return { weekId: wk.id, start: wk.start, end: wk.end, petId: pet.id, petName: pet.name };
 }
 
