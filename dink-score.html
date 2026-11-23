@@ -214,6 +214,9 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-pet { --pet-bg: var(--surface-2); --pet-1: var(--green); --pet-2: var(--ball); --pet-3: var(--ball-ink); --pet-eye: var(--on-court); width: 40px; height: 40px; border-radius: 50%; background: var(--pet-bg); display: inline-grid; place-items: center; flex: none; overflow: hidden; box-shadow: 0 0 0 1.5px var(--line); }
 .rw-pet svg { width: 88%; height: 88%; display: block; }
 .rw-pet[data-pet-shiny="true"] { --pet-1: var(--blue); box-shadow: 0 0 0 2px var(--blue); }
+/* Yorkie palette: steel-blue and black coat, tan and gold face, all mixed from theme tokens (black stays dark in both themes via --ball-ink). Shiny swaps to the blue/lime pair. */
+.rw-pet[data-pet="pet-yorkie"] { --pet-steel: color-mix(in srgb, var(--blue) 40%, var(--muted)); --pet-black: color-mix(in srgb, var(--ball-ink) 70%, var(--blue)); --pet-tan: color-mix(in srgb, var(--ball) 50%, var(--down)); --pet-gold: color-mix(in srgb, var(--ball) 72%, var(--down)); }
+.rw-pet[data-pet="pet-yorkie"][data-pet-shiny="true"] { --pet-steel: var(--blue); --pet-black: color-mix(in srgb, var(--ball-ink) 55%, var(--blue)); --pet-tan: color-mix(in srgb, var(--ball) 78%, var(--down)); --pet-gold: var(--ball); }
 .rw-pet.sm { width: 20px; height: 20px; } .rw-pet.md { width: 36px; height: 36px; } .rw-pet.lg { width: 44px; height: 44px; }
 .rw-card-pet { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 14px; background: var(--court-pill); }
 .rw-card-pet .rw-pet { --pet-bg: var(--surface); box-shadow: 0 0 0 2px var(--on-court); }

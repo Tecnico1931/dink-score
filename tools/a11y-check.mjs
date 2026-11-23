@@ -125,7 +125,7 @@ for (const [mode, opt] of states) {
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.evaluate(() => {
       club = { code: 'ABC123', name: 'Check club', hasPin: true, rewards: true, mysteryBox: true }; me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
-      const cat = [['frame-court', 'Court green ring', 6], ['frame-blue', 'Team blue ring', 8], ['frame-ink', 'Ink ring', 8], ['frame-double', 'Double ring', 15], ['paddle-court', 'Court green paddle', 6], ['paddle-blue', 'Team blue paddle', 8], ['paddle-ink', 'Ink paddle', 8], ['paddle-stripe', 'Striped paddle', 15], ['pet-frog', 'Court Frog', 12], ['pet-duck', 'Dink Duck', 14], ['pet-cat', 'Kitchen Cat', 18], ['pet-owl', 'Net Owl', 24]];
+      const cat = [['frame-court', 'Court green ring', 6], ['frame-blue', 'Team blue ring', 8], ['frame-ink', 'Ink ring', 8], ['frame-double', 'Double ring', 15], ['paddle-court', 'Court green paddle', 6], ['paddle-blue', 'Team blue paddle', 8], ['paddle-ink', 'Ink paddle', 8], ['paddle-stripe', 'Striped paddle', 15], ['pet-frog', 'Court Frog', 12], ['pet-duck', 'Dink Duck', 14], ['pet-cat', 'Kitchen Cat', 18], ['pet-owl', 'Net Owl', 24], ['pet-yorkie', 'Yorkie', 20]];
       const byId = Object.fromEntries(cat.map(([id, name, price]) => [id, { id, slot: id.split('-')[0], name, price }]));
       const box = { price: 7, duplicateRefund: 4, dailyLimit: 3, openedToday: 1, tiers: [
         { id: 'common', label: 'Common', chance: 55, items: ['frame-court', 'paddle-court'].map(k => byId[k]) },
@@ -135,10 +135,11 @@ for (const [mode, opt] of states) {
       const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog' };
       const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true };
       const shop = { dinks: 12, pace: 1.5, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
-        const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck'].includes(id);
+        const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck', 'pet-yorkie'].includes(id);
         if (slot !== 'pet') return { id, slot, name, price, owned };
         const featuredShiny = id === 'pet-frog';
         if (!owned) return { id, slot, name, price, owned, featuredShiny };
+        if (id === 'pet-yorkie') return { id, slot, name, price, owned, featuredShiny, stage: 3, stageLabel: 'Veteran', playDays: 16, nextStageDays: null, shiny: false };
         return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true }
           : { id, slot, name, price, owned, featuredShiny, stage: 1, stageLabel: 'Rookie', playDays: 2, nextStageDays: 5, shiny: false };
       }) };
@@ -147,7 +148,7 @@ for (const [mode, opt] of states) {
       shop.items.push({ id: 'frame-clay', slot: 'frame', name: 'Autumn Clay ring', price: 8, season: 'autumn', seasonal: true, owned: false, available: true },
         { id: 'frame-frost', slot: 'frame', name: 'Winter Frost ring', price: 8, season: 'winter', seasonal: true, owned: true, available: false },
         { id: 'paddle-heat', slot: 'paddle', name: 'Summer Heat paddle', price: 8, season: 'summer', seasonal: true, owned: true, available: false });
-      const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog', petStage: 2, petShiny: true }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
+      const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog', petStage: 2, petShiny: true }, ben: { frame: 'frame-court', paddle: 'paddle-blue', pet: 'pet-yorkie', petStage: 3, petShiny: false } };
       const pass = {
         season: { id: '2026-Q4', name: 'Fall 2026', start: 0, end: 1 }, games: 6, dinks: 12, worn: shop.worn, share: true, claimable: 2,
         tiers: [

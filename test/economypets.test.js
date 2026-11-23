@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import {
   PETS, PET_STAGES, petById, isPetId, utcDayKey,
   countPlayDaysSince, petStageFor, petStageFromLedger,
-  weekOf, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook
+  weekOf, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook, SHINY_FIVE_FROM
 } from '../api/_economypets.js';
 import { CATALOGUE, SLOTS, itemById, buyId, planBuy, wornFrom, clubLooksFrom } from '../api/_economyshop.js';
 import { BOX_TIERS } from '../api/_economybox.js';
@@ -27,9 +27,10 @@ const earnDay = (day, id = 'day:' + day) => ({ id, kind: 'earn', amount: 1, reas
 const spendRow = (id, amount, day = null) => ({ id, kind: 'spend', amount: -amount, reason: 'shop', day, streak: null });
 const nullDayEarn = (id, amount) => ({ id, kind: 'earn', amount, reason: 'pass:tier-1', day: null, streak: null });
 
-test('pet catalogue: 4 fixed-price pets in CATALOGUE under slot pet, valid buy ids, excluded from random box draws', () => {
-  assert.equal(PETS.length, 4);
-  assert.deepEqual(PETS.map(p => p.id), ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl']);
+test('pet catalogue: 5 fixed-price pets in CATALOGUE under slot pet, valid buy ids, excluded from random box draws', () => {
+  assert.equal(PETS.length, 5);
+  assert.deepEqual(PETS.map(p => p.id), ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie']);
+  assert.deepEqual(petById('pet-yorkie'), { id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 20 });
   assert.ok(SLOTS.includes('pet'));
   const weekPay = 7 * DAY_PAY + BONUS[0][1] + BONUS[1][1]; // 14 Dinks
   for (const p of PETS) {
@@ -200,6 +201,47 @@ test('weekOf and shinyWeekFor: deterministic 4-week rotation across Monday, 52-w
   }
 });
 
+test('shiny rotation: the 4-pet cycle is untouched before the cutover week, the 5-pet cycle runs from it, fixed clocks across year and DST', () => {
+  const OLD = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl'], NEW = PETS.map(p => p.id);
+  const cutover = Date.UTC(2026, 11, 21); // Mon 2026-12-21 00:00 UTC
+  assert.equal(SHINY_FIVE_FROM, 2972);
+  assert.equal(weekOf(cutover).index, SHINY_FIVE_FROM, 'the cutover is Monday 2026-12-21');
+  assert.equal(SHINY_FIVE_FROM % 4, 0, 'a 4-week cycle boundary, so no seam');
+  const at = i => cutover + (i - SHINY_FIVE_FROM) * WEEK_MS + 13 * 3600000; // mid-week, whatever the DST of the reader
+  const idx = i => weekOf(at(i)).index;
+  // Every week before the cutover maps exactly as the old rule did: index mod 4 over frog, duck, cat, owl (checked across the 2026 DST dates).
+  for (let i = SHINY_FIVE_FROM - 60; i < SHINY_FIVE_FROM; i++) assert.equal(shinyWeekFor(at(i)).petId, OLD[((i % 4) + 4) % 4], `week ${i} unchanged`);
+  // Weeks 2972-2975 (21 Dec 2026 - 17 Jan 2027, which cross the 53-week ISO year) still match the old rule; only 2976 onwards changes.
+  for (let i = SHINY_FIVE_FROM; i < SHINY_FIVE_FROM + 4; i++) assert.equal(shinyWeekFor(at(i)).petId, OLD[i % 4], `week ${i} also matches the old rule`);
+  // From the cutover: frog, duck, cat, owl, yorkie, repeating, each pet exactly once per 5 weeks, no skip or repeat.
+  for (let i = SHINY_FIVE_FROM; i < SHINY_FIVE_FROM + 30; i++) {
+    const w = shinyWeekFor(at(i));
+    assert.equal(w.petId, NEW[(i - SHINY_FIVE_FROM) % 5]);
+    assert.equal(w.petName, PETS.find(p => p.id === w.petId).name);
+    assert.notEqual(w.petId, shinyWeekFor(at(i + 1)).petId);
+    assert.equal(idx(i), i);
+  }
+  assert.equal(shinyWeekFor(Date.UTC(2027, 0, 18)).petId, 'pet-yorkie', 'first Yorkie week starts Mon 2027-01-18');
+  assert.equal(shinyWeekFor(Date.UTC(2027, 0, 24, 23, 59, 59, 999)).petId, 'pet-yorkie');
+  assert.equal(shinyWeekFor(Date.UTC(2027, 0, 25)).petId, 'pet-frog');
+  // The week before the cutover is the owl, the cutover week is the frog (identical under both rules).
+  assert.equal(shinyWeekFor(Date.UTC(2026, 11, 20, 23, 59, 59, 999)).petId, 'pet-owl');
+  assert.equal(shinyWeekFor(cutover).petId, 'pet-frog');
+  // Across 2027 DST changes (US 2027-03-14, EU 2027-03-28, EU 2027-10-31, US 2027-11-07) the cycle keeps exact 5-week spacing.
+  for (const d of [Date.UTC(2027, 2, 14, 7), Date.UTC(2027, 2, 28, 1), Date.UTC(2027, 9, 31, 1), Date.UTC(2027, 10, 7, 6)]) {
+    const w = shinyWeekFor(d), later = shinyWeekFor(d + 5 * WEEK_MS), next = shinyWeekFor(d + WEEK_MS);
+    assert.equal(w.petId, later.petId);
+    assert.notEqual(w.petId, next.petId);
+    assert.equal(w.end - w.start, WEEK_MS);
+  }
+  // Yorkie shiny state: on only in its week, off the Monday after, even with the toggle stored.
+  const row = { id: 'pet-yorkie', item: 'pet-yorkie', slot: 'pet', worn: true, shiny: true, at: '2027-01-10T10:00:00Z' };
+  assert.equal(petStateFor(row, [], Date.UTC(2027, 0, 20)).shiny, true);
+  assert.equal(petStateFor(row, [], Date.UTC(2027, 0, 27)).shiny, false);
+  assert.deepEqual(cleanPetLook({ slot: 'pet', item: 'pet-yorkie', shiny: true, play_days: 15 }, Date.UTC(2027, 0, 20)), { pet: 'pet-yorkie', petStage: 3, petShiny: true });
+  assert.deepEqual(clubLooksFrom([{ name_key: 'yo', slot: 'pet', item: 'pet-yorkie', shiny: true, play_days: 5, dinks: 20 }], Date.UTC(2027, 0, 27)), { yo: { pet: 'pet-yorkie', petStage: 2, petShiny: false } });
+});
+
 test('Variant A shiny state and clubLooksFrom allow-list: active only in featured week, zero extra fields leaked', () => {
   const wk0 = Date.UTC(2026, 4, 4, 12, 0, 0); // fixed Monday week
   const featured = shinyWeekFor(wk0).petId;
@@ -303,13 +345,13 @@ test('client looks: opted-in pet id/stage/shiny pass through Rewards.lookOf for 
   assert.equal(x.Rewards.petBadgeHTML('Ana'), '', 'one-tap hide removes the pet badge');
 });
 
-test('SVG art module: all 4 pets x 3 stages + shiny return valid, safe, tokenised, accessible SVGs with distinct silhouettes', () => {
+test('SVG art module: all 5 pets x 3 stages + shiny return valid, safe, tokenised, accessible SVGs with distinct silhouettes', () => {
   const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const petsMod = new Function('esc', module('economypets') + ';return { RW_PET_ORDER, RW_PET_NAMES, RW_PET_ART, rwPetSvg, rwPetBadgeHTML, rwPetAccessibleName, rwPetStageLine, rwPetRotationCopy };')(esc);
   assert.deepEqual(petsMod.RW_PET_ORDER, PETS.map(p => p.id));
 
   const allowedTags = new Set(['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'polygon']);
-  const allowedVars = new Set(['--pet-1', '--pet-2', '--pet-3', '--pet-eye', '--pet-bg']);
+  const allowedVars = new Set(['--pet-1', '--pet-2', '--pet-3', '--pet-eye', '--pet-bg', '--pet-steel', '--pet-black', '--pet-tan', '--pet-gold']);
   const seenStage1 = new Set();
 
   for (const pet of PETS) {
@@ -354,7 +396,16 @@ test('SVG art module: all 4 pets x 3 stages + shiny return valid, safe, tokenise
     assert.equal(stages.size, 3, `${pet.id} has 3 distinct visual growth stages`);
     seenStage1.add(petsMod.RW_PET_ART[pet.id][1]);
   }
-  assert.equal(seenStage1.size, 4, 'all 4 pets have distinct silhouettes');
+  assert.equal(seenStage1.size, 5, 'all 5 pets have distinct silhouettes');
+
+  // The Yorkie's own colour properties are defined in the page CSS from theme tokens with color-mix(), never a hex.
+  const css = read('dink-score.html').split('\n').filter(l => /\.rw-pet\[data-pet="pet-yorkie"\]/.test(l));
+  assert.equal(css.length, 2, 'classic and shiny Yorkie colourways');
+  for (const l of css) {
+    for (const v of ['--pet-steel', '--pet-black', '--pet-tan', '--pet-gold']) assert.ok(l.includes(v + ':'), `${v} defined`);
+    assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i.test(l), 'Yorkie colours follow theme tokens, no hard-coded colour');
+  }
+  assert.ok(/color-mix\(in srgb, var\(--blue\)/.test(css[0]) && /var\(--ball-ink\)/.test(css[0]), 'classic coat derives from theme tokens');
 
   // Bad inputs fail closed without throwing or injecting markup.
   assert.equal(petsMod.rwPetSvg('pet-dragon'), '');
@@ -423,7 +474,11 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   const html = p.x.Rewards.storeHTML(p.x.sheet);
   assert.match(html, /Court pets/);
   assert.match(html, /This week's shiny coat: Court Frog/);
-  assert.match(html, /Court Frog → Dink Duck → Kitchen Cat → Net Owl/);
+  assert.match(html, /Court Frog → Dink Duck → Kitchen Cat → Net Owl → Yorkie/);
+  assert.match(html, /every 5 weeks/);
+  assert.match(html, /data-rw-buy="pet-yorkie"[^>]*>Adopt/);
+  assert.match(html, /Yorkie<\/b><small>20 Dinks\. You need 5 more\./, 'Yorkie is listed at its fixed price');
+  assert.match(html, /aria-label="Adopt Yorkie for 20 Dinks\. You need 5 more"/);
   assert.match(html, /data-rw-wear="pet:pet-frog"[^>]*aria-pressed="true"/);
   assert.match(html, /data-rw-wear="pet:"/);
   assert.match(html, /Club · 8 more play days to Veteran \(7\/15\)/);

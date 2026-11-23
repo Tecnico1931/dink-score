@@ -1361,7 +1361,7 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear', 'rewards-activity']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
   let s = ok(await post('Hal', { action: 'rewards-catalog' }));
-  assert.equal(s.items.filter(i => !i.seasonal).length, 12); assert.ok(s.items.every(i => !i.owned && i.price > 0));
+  assert.equal(s.items.filter(i => !i.seasonal).length, 13); assert.ok(s.items.every(i => !i.owned && i.price > 0));
   assert.ok(s.season && s.items.filter(i => i.seasonal).every(i => i.available && i.season === s.season.id), 'only this season\'s items are listed, whatever the date'); // real clock here; fixed clocks are in the seasonal step below assert.deepEqual(s.worn, { frame: '', paddle: '', pet: '' });
   // No Dinks yet: refused with a clear message, nothing charged, nothing owned.
   let r = await post('Hal', { action: 'rewards-buy', item: 'frame-court' });
@@ -1709,7 +1709,7 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   const cat0 = ok(await post('Rory', { action: 'rewards-catalog' }));
   assert.ok(cat0.shinyWeek && /^pet-[a-z]+$/.test(cat0.shinyWeek.petId), 'catalog includes deterministic shinyWeek');
   const petItems = cat0.items.filter(i => i.slot === 'pet');
-  assert.equal(petItems.length, 4);
+  assert.equal(petItems.length, 5);
   const featuredPet = petItems.find(i => i.id === cat0.shinyWeek.petId);
   const otherPet = petItems.find(i => i.id !== cat0.shinyWeek.petId);
   assert.ok(featuredPet && otherPet);
@@ -1819,6 +1819,42 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   assert.equal((await petRows('Tess')).length, 0, 'anonymise removes owned pets');
   assert.deepEqual(ok(await looks()), { looks: {} });
   ok(await pPost(club, { action: 'set-rewards', on: false, ownerToken: powner }));
+});
+await step('rewards Yorkie: bought once, one pet worn, stage growth by play days, shiny only in its own week (fixed clocks)', async () => {
+  const { buyItem, wearItem, shopView } = await import(pathToFileURL(path.join(root, 'api', '_economyshop.js')).href);
+  const sql = neon.neon(process.env.DATABASE_URL);
+  const key = 'yori', code = cf.code;
+  await pg.query(`INSERT INTO roster (club, name_key, name) VALUES ($1, $2, 'Yori') ON CONFLICT DO NOTHING`, [code, key]);
+  const earn = (id, n, day = null) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak) VALUES ($1, $2, $3, 'earn', $4, $5, $6, $7) ON CONFLICT DO NOTHING`, [code, key, id, n, day ? 'day' : 'test', day, day ? 1 : null]);
+  const yorkieWeek = Date.parse('2027-01-20T12:00:00Z'), frogWeek = Date.parse('2027-01-27T12:00:00Z'); // weeks 2976 and 2977
+  const worn = async () => (await pg.query(`SELECT item FROM reward_items WHERE club = $1 AND name_key = $2 AND slot = 'pet' AND worn ORDER BY item`, [code, key])).rows.map(r => r.item);
+  await earn('yorkie-seed', 40);
+  const v0 = await shopView(sql, code, key, yorkieWeek);
+  assert.equal(v0.items.filter(i => i.slot === 'pet').length, 5);
+  assert.equal(v0.shinyWeek.petId, 'pet-yorkie');
+  assert.deepEqual(v0.items.filter(i => i.slot === 'pet' && i.featuredShiny).map(i => i.id), ['pet-yorkie'], 'exactly one pet is featured');
+  const bought = await buyItem(sql, code, key, 'pet-yorkie', yorkieWeek);
+  assert.equal(bought.bought, true); assert.equal(bought.dinks, 20, 'charged the catalogue price (20)');
+  assert.equal((await buyItem(sql, code, key, 'pet-yorkie', yorkieWeek)).bought, false, 'a second buy charges nothing');
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id = 'buy:pet-yorkie'`, [code, key])).rows[0].n, 1);
+  await buyItem(sql, code, key, 'pet-frog', yorkieWeek);
+  await wearItem(sql, code, key, 'pet', 'pet-frog', { now: yorkieWeek });
+  await wearItem(sql, code, key, 'pet', 'pet-yorkie', { now: yorkieWeek });
+  assert.deepEqual(await worn(), ['pet-yorkie'], 'only one pet worn at a time');
+  // Growth: only distinct play days on or after adoption count (adoption pinned to a fixed UTC day).
+  await pg.query(`UPDATE reward_items SET at = '2027-01-10T12:00:00Z' WHERE club = $1 AND name_key = $2 AND item = 'pet-yorkie'`, [code, key]);
+  for (const d of ['2027-01-09', '2027-01-10', '2027-01-11', '2027-01-12', '2027-01-13']) await earn('day:' + d, 1, d);
+  let p = (await shopView(sql, code, key, yorkieWeek)).pet;
+  assert.equal(p.id, 'pet-yorkie'); assert.equal(p.stage, 1); assert.equal(p.playDays, 4);
+  await earn('day:2027-01-14', 1, '2027-01-14');
+  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.equal(p.stage, 2); assert.equal(p.stageLabel, 'Club');
+  for (let d = 15; d <= 24; d++) await earn('day:2027-01-' + d, 1, '2027-01-' + d);
+  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.equal(p.stage, 3); assert.equal(p.stageLabel, 'Veteran');
+  // Shiny: only in the Yorkie's own week; the next week the flag stays stored but is off, and a new request is refused.
+  assert.equal((await wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: yorkieWeek })).pet.shiny, true);
+  assert.equal((await shopView(sql, code, key, frogWeek)).pet.shiny, false, 'back to the classic coat next Monday');
+  await assert.rejects(wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: frogWeek }), e => e.status === 409 && /Court Frog/.test(e.message));
+  assert.equal((await wearItem(sql, code, key, 'pet', 'pet-frog', { shiny: true, now: frogWeek })).pet.shiny, true, 'the Frog has its week');
 });
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';
