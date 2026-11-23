@@ -46,6 +46,37 @@ test('the court tokens exist in every theme and the page glow is gone before mut
   for (const k of ['court', 'court-2', 'ball-hi', 'ball-lo', 'on-court']) assert.ok(light[k], `--${k} in light`);
   assert.match(html, /body \{ background: radial-gradient\(90% 190px at 50% -40px/, 'a short glow: it fades out by about 130 px');
 });
+for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]) {
+  test(`pet badge colours (classic and shiny): contrast ${name}`, () => {
+    const petPairs = [
+      [t.green, t['surface-2'], 3, 'classic pet body (--pet-1) on soft badge (--surface-2)'],
+      [t.green, t.surface, 3, 'classic pet body (--pet-1) on card badge (--surface)'],
+      [t.ball, t.green, 3, 'classic pet lime accent (--pet-2) on body (--green)'],
+      [t['on-court'], t.green, 4.5, 'classic pet eye (--pet-eye) on body (--green)'],
+      [t.blue, t['surface-2'], 3, 'shiny pet body (--pet-1) on soft badge (--surface-2)'],
+      [t.blue, t.surface, 3, 'shiny pet body (--pet-1) on card badge (--surface)'],
+      [t.ball, t.blue, 3, 'shiny pet lime accent and star (--pet-2) on body (--blue)'],
+      [t['on-court'], t.blue, 4.5, 'shiny pet eye (--pet-eye) on body (--blue)'],
+      [t['ball-ink'], t.ball, 4.5, 'pet ink details (--pet-3) on lime (--ball)'],
+      [t['ball-ink'], t['on-court'], 4.5, 'pet ink pupils (--pet-3) on eye (--on-court)']
+    ];
+    for (const [fg, bg, min, what] of petPairs) {
+      assert.ok(ratio(fg, bg) >= min, `${name}: ${what} is ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`);
+    }
+  });
+}
+test('pet CSS uses existing theme custom properties only (no hard-coded hex colours or motion)', () => {
+  const petCss = html.slice(html.indexOf('.rw-pet {'), html.indexOf('.me-btn.frame-crown::before'));
+  assert.ok(petCss.length > 0, 'pet CSS block exists');
+  assert.match(petCss, /--pet-bg:\s*var\(--surface-2\)/);
+  assert.match(petCss, /--pet-1:\s*var\(--green\)/);
+  assert.match(petCss, /--pet-2:\s*var\(--ball\)/);
+  assert.match(petCss, /--pet-3:\s*var\(--ball-ink\)/);
+  assert.match(petCss, /--pet-eye:\s*var\(--on-court\)/);
+  assert.match(petCss, /\[data-pet-shiny="true"\]\s*\{[^}]*--pet-1:\s*var\(--blue\)/);
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(petCss), 'pet CSS must not hard-code hex colours');
+  assert.ok(!/animation|transition|@keyframes/.test(petCss), 'pet CSS stays calm with no motion');
+});
 test('danger buttons: label colour passes in every theme', () => {
   // .btn-danger paints text #fff on --danger; dark mode lightens --danger, so its label flips to the dark background colour.
   for (const [name, t] of [['light', light], ['outdoor', outdoor]]) assert.ok(ratio(WHITE, t.danger) >= 4.5, `${name}: white on danger ${ratio(WHITE, t.danger).toFixed(2)}`);

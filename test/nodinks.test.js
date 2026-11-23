@@ -12,7 +12,7 @@ test('the old shop is gone and Dinks live only in the rewards modules: no old sh
   for (const f of ['api/shop.js', 'api/_dinks.js']) assert.ok(!fs.existsSync(path.join(root, f)), f);
   assert.ok(!/api\/shop|dinks/i.test(read('vercel.json').replace(/dinkscore/gi, '')));
   for (const f of ['dink-score.html', 'index.html']) {
-    const t = read(f).replace(read('src/app/economy.js'), '').replace(read('src/app/economyshop.js'), '').replace(read('src/app/economypass.js'), '').replace(/dinkscore/gi, '');
+    const t = read(f).replace(read('src/app/economy.js'), '').replace(read('src/app/economypets.js'), '').replace(read('src/app/economyshop.js'), '').replace(read('src/app/economypass.js'), '').replace(/dinkscore/gi, '');
     assert.ok(!/\bDinks?\b(?! Rating| Score)/.test(t.replace(/Dink Rating|Dink Score/g, '')), f + ' mentions Dinks');
     assert.ok(!/data-tab="shop"|api\('shop'|spin-wheel|equippedFor/.test(t), f + ' still has shop code');
   }

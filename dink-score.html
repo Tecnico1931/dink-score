@@ -189,6 +189,34 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-ptier .rw-sw { margin: 0; }
 .rw-claim { min-height: 44px; min-width: 72px; padding: 10px 14px; font-size: 14px; flex: none; }
 .rw-pill.is-done { background: var(--green); color: var(--on-court); }
+.rw-pet { --pet-bg: var(--surface-2); --pet-1: var(--green); --pet-2: var(--ball); --pet-3: var(--ball-ink); --pet-eye: var(--on-court); width: 40px; height: 40px; border-radius: 50%; background: var(--pet-bg); display: inline-grid; place-items: center; flex: none; overflow: hidden; box-shadow: 0 0 0 1.5px var(--line); }
+.rw-pet svg { width: 88%; height: 88%; display: block; }
+.rw-pet[data-pet-shiny="true"] { --pet-1: var(--blue); box-shadow: 0 0 0 2px var(--blue); }
+.rw-pet.sm { width: 20px; height: 20px; } .rw-pet.md { width: 36px; height: 36px; } .rw-pet.lg { width: 44px; height: 44px; }
+.rw-card-pet { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 14px; background: var(--court-pill); }
+.rw-card-pet .rw-pet { --pet-bg: var(--surface); box-shadow: 0 0 0 2px var(--on-court); }
+.rw-card-pet .rw-pet[data-pet-shiny="true"] { box-shadow: 0 0 0 2px var(--ball); }
+.rw-card-pet-txt { flex: 1 1 110px; min-width: 0; display: grid; gap: 2px; }
+.rw-card-pet-txt b { font-size: 14px; line-height: 1.25; color: var(--on-court); overflow-wrap: anywhere; }
+.rw-card-pet-txt small { font-size: 12px; line-height: 1.3; color: var(--on-court-muted); overflow-wrap: anywhere; }
+.rw-pets { display: grid; gap: 12px; }
+.rw-pets-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px; border-radius: 16px; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); box-shadow: var(--lift); }
+.rw-pets-head .rw-pet { --pet-bg: var(--surface); box-shadow: 0 0 0 2px var(--ball); }
+.rw-pets-head > span:last-child { flex: 1 1 110px; min-width: 0; display: grid; gap: 3px; }
+.rw-pets-head b { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+.rw-pets-head small { font-size: 12px; line-height: 1.35; color: var(--on-court-muted); overflow-wrap: anywhere; }
+.rw-pet-pick { display: grid; gap: 8px; }
+.rw-pet-opt { width: 100%; min-height: 52px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 12px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.rw-pet-opt[aria-pressed="true"] { border-color: var(--court-ring); background: var(--surface-2); }
+.rw-pet-opt > span.rw-pet-meta { flex: 1 1 100px; min-width: 0; display: grid; gap: 2px; }
+.rw-pet-opt b { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.rw-pet-opt small { font-size: 12px; color: var(--muted); line-height: 1.3; overflow-wrap: anywhere; }
+.rw-pet-opt[aria-pressed="true"]::after { content: "\2713"; flex: none; font-weight: 700; color: var(--ink); }
+.rw-pet-shiny { margin: 0; }
+.rw-pet-row { flex-wrap: wrap; }
+.rw-pet-row .rw-name { flex: 1 1 100px; }
+.rw-pet-row .rw-pet { margin: 4px 0; }
+.rw-pet-row .btn { min-height: 44px; min-width: 72px; padding: 10px 14px; font-size: 14px; flex: none; }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 /* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */

@@ -3,11 +3,11 @@
 // rewards-catalog|buy|wear|share|box-odds|box-open); this phone draws what it is told and never sets a price or draws a random item.
 // Cosmetic only: a ring around your picture and a colour on your paddle thumbnails. Nothing here animates or makes a sound, and it never
 // reads or changes a score, a rating, a rank or a pairing. Opened from the Your Dink card (so the one-tap hide removes it too).
-const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails'], ['pet', 'Court pet']];
+const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails']];
 const rwSwatch = it => it.slot === 'frame'
   ? `<span class="rw-sw" data-rw-frame="${esc(rwLook(it.id))}" aria-hidden="true">${esc(initials(myName() || '?'))}</span>`
   : it.slot === 'pet'
-    ? `<span class="rw-sw" aria-hidden="true">${esc(initials(it.name))}</span>`
+    ? (typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 36 }) : `<span class="rw-sw" aria-hidden="true">${esc(initials(it.name))}</span>`)
     : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${iconSvg('paddle')}</span>`;
 const rwShort = (n, price) => `Not enough Dinks yet: ${n} costs ${price} and you have `;
 let rwBoxSeq = 0;
@@ -40,21 +40,25 @@ Object.assign(Rewards, {
     const head = '<h2 id="club-h" tabindex="-1">Shop</h2>';
     if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p>${done}`;
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
-    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned);
-    const wear = RW_SLOTS.map(([slot, label]) => {
+    const hasPetsUi = typeof rwPetsSectionHTML === 'function';
+    const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
+    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && (!hasPetsUi || i.slot !== 'pet'));
+    const wear = slots.map(([slot, label]) => {
       const own = mine.filter(i => i.slot === slot);
       if (!own.length) return '';
       const opt = (id, name, sw) => `<button type="button" class="rw-opt" data-rw-wear="${slot}:${esc(id)}" aria-pressed="${s.worn[slot] === id}" ${c.busy ? 'disabled' : ''}>${sw}<span>${esc(name)}</span></button>`;
       return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
     }).join('');
+    const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${i.price} Dinks${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${i.price} Dinks" ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
-    const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring and paddle colour — never your Dinks, streak or history.' : 'Off by default: only you see your ring and paddle colour on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
+    const allOwned = s.items.every(i => i.owned);
+    const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour and court pet — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour and court pet on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     const box = rwBoxHTML(c, s);
     return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> Dinks</p>
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${box}
-      <h3 class="rw-h">In the shop</h3>${rows || '<p class="note">You have everything in the shop.</p>'}${done}`;
+      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${petsSec}${box}
+      <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${done}`;
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
   async openStore() {
@@ -68,7 +72,13 @@ Object.assign(Rewards, {
 });
 
 // The card, the ring, the paddle colour, the court pet and the club looks map follow the server's answer.
-function rwStoreSynced(d) { rwSave(rwClean(Object.assign({}, rwCur(), { dinks: d.dinks, worn: d.worn }))); if (typeof rwSetOwnLook === 'function') rwSetOwnLook(myName(), d.worn, !!d.share, d.pet); rwRedrawClub(); }
+function rwStoreSynced(d) {
+  const cur = rwCur();
+  const nextPet = d && 'pet' in d ? d.pet : (d && d.worn && d.worn.pet && cur.pet && cur.pet.id === d.worn.pet ? cur.pet : null);
+  rwSave(rwClean(Object.assign({}, cur, { dinks: d.dinks, worn: d.worn, pet: nextPet })));
+  if (typeof rwSetOwnLook === 'function') rwSetOwnLook(myName(), d.worn, !!d.share, nextPet);
+  rwRedrawClub();
+}
 
 async function rwStoreAct(body, say, focus) {
   const c = clubSheet;
@@ -93,7 +103,7 @@ async function rwStoreAct(body, say, focus) {
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear], [data-rw-share], [data-rw-box-open]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   const c = clubSheet;
@@ -123,12 +133,23 @@ document.addEventListener('click', e => {
     rwStoreAct({ action: 'rewards-share', share }, d => (d.share ? 'Your worn look is now shown to the club.' : 'Your worn look is now hidden from the club.'), '[data-rw-share]');
     return;
   }
+  if (t.dataset.rwShiny) {
+    const [id, onRaw] = t.dataset.rwShiny.split(':');
+    const shiny = onRaw === '1';
+    const it = c.store.items.find(i => i.id === id && i.slot === 'pet' && i.owned);
+    if (!it) return;
+    rwStoreAct({ action: 'rewards-wear', slot: 'pet', item: it.id, shiny }, d => {
+      const active = d && d.pet && d.pet.id === it.id && d.pet.shiny;
+      return active ? `Shiny coat on for ${it.name} this week.` : `Classic coat on for ${it.name}.`;
+    }, '[data-rw-shiny]');
+    return;
+  }
   if (t.dataset.rwBuy) {
     const it = c.store.items.find(i => i.id === t.dataset.rwBuy);
     if (!it || it.owned) return;
     // The server decides; this only saves a trip when the balance obviously doesn't reach.
     if (c.store.dinks < it.price) { c.error = rwShort(it.name, it.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
-    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => `${it.name} is yours for ${it.price} Dinks. Choose it under What you wear.`, '#club-h');
+    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${it.price} Dinks. Choose it under Your companion.` : `${it.name} is yours for ${it.price} Dinks. Choose it under What you wear.`), '#club-h');
     return;
   }
   const [slot, id] = t.dataset.rwWear.split(':');

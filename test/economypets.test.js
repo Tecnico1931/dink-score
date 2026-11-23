@@ -268,7 +268,7 @@ test('client looks: opted-in pet id/stage/shiny pass through Rewards.lookOf for 
     }
   };
   const rootEl = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } };
-  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, rwCleanLooks };';
+  const code = module('economy') + ';' + module('economypets') + ';' + module('economyshop') + ';return { Rewards, rwCleanLooks };';
   const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', 'renderClub', 'initials', 'iconSvg', 'skel', 'avatarInner', 'teamLabel',
     'let clubSheet = null;' + code)(
     { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } },
@@ -289,22 +289,170 @@ test('client looks: opted-in pet id/stage/shiny pass through Rewards.lookOf for 
   const anaCard = x.Rewards.teamHTML(['Ana', 'Ben']);
   assert.match(anaCard, /data-rw-frame="court"/);
   assert.ok(!/frog|owl|pet/i.test(anaCard), 'game cards never include pet data');
+});
 
-  // Plain shop sheet lists pets to buy and owned pets under What you wear without extra art.
-  const storeHtml = x.Rewards.storeHTML({
-    store: {
-      dinks: 20,
-      worn: { frame: '', paddle: '', pet: 'pet-frog' },
-      share: false,
-      items: CATALOGUE.map(i => ({ ...i, owned: i.id === 'pet-frog' }))
-    },
-    msg: '', error: '', busy: false
+test('SVG art module: all 4 pets x 3 stages + shiny return valid, safe, tokenised, accessible SVGs with distinct silhouettes', () => {
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const petsMod = new Function('esc', module('economypets') + ';return { RW_PET_ORDER, RW_PET_NAMES, RW_PET_ART, rwPetSvg, rwPetBadgeHTML, rwPetAccessibleName, rwPetStageLine, rwPetRotationCopy };')(esc);
+  assert.deepEqual(petsMod.RW_PET_ORDER, PETS.map(p => p.id));
+
+  const allowedTags = new Set(['svg', 'g', 'path', 'circle', 'ellipse', 'rect', 'polygon']);
+  const allowedVars = new Set(['--pet-1', '--pet-2', '--pet-3', '--pet-eye', '--pet-bg']);
+  const seenStage1 = new Set();
+
+  for (const pet of PETS) {
+    assert.equal(petsMod.RW_PET_NAMES[pet.id], pet.name);
+    const stages = new Set();
+    for (const stage of [1, 2, 3]) {
+      const stageLabel = PET_STAGES[stage - 1].label;
+      for (const shiny of [false, true]) {
+        const svg = petsMod.rwPetSvg(pet.id, { stage, shiny });
+        assert.ok(svg.startsWith('<svg viewBox="0 0 64 64"') && svg.endsWith('</svg>'), `${pet.id} stage ${stage} valid svg wrapper`);
+        assert.ok(Buffer.byteLength(svg, 'utf8') <= 1650, `${pet.id} stage ${stage} shiny=${shiny} stays compact (${Buffer.byteLength(svg, 'utf8')} B)`);
+
+        // Accessible name on non-decorative SVG; aria-hidden on decorative SVG.
+        const expectedName = `${pet.name}, ${stageLabel}${shiny ? ', shiny coat' : ''}`;
+        assert.equal(petsMod.rwPetAccessibleName(pet.id, stage, shiny), expectedName);
+        assert.match(svg, new RegExp(`role="img" aria-label="${expectedName}"`));
+        const dec = petsMod.rwPetSvg(pet.id, { stage, shiny, decorative: true });
+        assert.match(dec, /aria-hidden="true"/);
+        assert.ok(!/role="img"/.test(dec));
+
+        // Safe SVG primitives only; zero scripts, styles, foreignObjects, raster images, remote URLs or event handlers.
+        const tags = [...svg.matchAll(/<\/?([a-zA-Z0-9:-]+)/g)].map(m => m[1].toLowerCase());
+        assert.ok(tags.length >= 4);
+        for (const t of tags) assert.ok(allowedTags.has(t), `disallowed SVG tag <${t}> in ${pet.id} stage ${stage}`);
+        assert.ok(!/https?:|xlink:|href=|url\(|data:|<script|<style|foreignObject|<image|\bon[a-z]+\s*=/i.test(svg), `unsafe reference in ${pet.id} stage ${stage}`);
+
+        // Tokens only: zero hard-coded hex/rgb/hsl colours, only approved --pet-* CSS custom properties.
+        assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i.test(svg), `hard-coded colour in ${pet.id} stage ${stage}`);
+        const vars = [...svg.matchAll(/var\((--[a-z0-9-]+)\)/g)].map(m => m[1]);
+        assert.ok(vars.length >= 3, `${pet.id} stage ${stage} uses CSS tokens`);
+        for (const v of vars) assert.ok(allowedVars.has(v), `unexpected token ${v} in ${pet.id} stage ${stage}`);
+
+        // Shiny coat adds static star pip; classic omits it.
+        assert.equal(svg.includes('data-pet-star="1"'), shiny);
+
+        // Badge wrapper carries clean data attributes and supports 20px sm size.
+        const badge20 = petsMod.rwPetBadgeHTML(pet.id, { stage, shiny, size: 20, decorative: true });
+        assert.match(badge20, new RegExp(`class="rw-pet sm" data-pet="${pet.id}" data-pet-stage="${stage}" data-pet-shiny="${shiny}"`));
+      }
+      stages.add(petsMod.RW_PET_ART[pet.id][stage]);
+    }
+    assert.equal(stages.size, 3, `${pet.id} has 3 distinct visual growth stages`);
+    seenStage1.add(petsMod.RW_PET_ART[pet.id][1]);
+  }
+  assert.equal(seenStage1.size, 4, 'all 4 pets have distinct silhouettes');
+
+  // Bad inputs fail closed without throwing or injecting markup.
+  assert.equal(petsMod.rwPetSvg('pet-dragon'), '');
+  assert.equal(petsMod.rwPetSvg('"><script>'), '');
+  assert.equal(petsMod.rwPetBadgeHTML('frame-court'), '');
+
+  // Growth stage lines state current stage and days remaining clearly.
+  assert.equal(petsMod.rwPetStageLine({ stage: 1, stageLabel: 'Rookie', playDays: 3, nextStageDays: 5 }), 'Rookie · 2 more play days to Club (3/5)');
+  assert.equal(petsMod.rwPetStageLine({ stage: 1, stageLabel: 'Rookie', playDays: 4, nextStageDays: 5 }), 'Rookie · 1 more play day to Club (4/5)');
+  assert.equal(petsMod.rwPetStageLine({ stage: 2, stageLabel: 'Club', playDays: 10, nextStageDays: 15 }), 'Club · 5 more play days to Veteran (10/15)');
+  assert.equal(petsMod.rwPetStageLine({ stage: 3, stageLabel: 'Veteran', playDays: 18, nextStageDays: null }), 'Veteran · 18 play days');
+
+  // Calm & isolation guard on src/app/economypets.js.
+  const src = read('src/app/economypets.js').replace(/^\s*\/\/.*$/gm, '').replace(/ \/\/ .*$/gm, '');
+  assert.ok(!/@keyframes|\banimation\b|\btransition\b|confetti|Audio\(|\.play\(|Math\.random|\bscore\b|\brating|\brank|winner/i.test(src), 'economypets.js must stay calm and game-free');
+});
+
+test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, featured-week shiny toggle, calm hide and announce()', async () => {
+  const mkPhone = ({ hide = false, rewards = true, name = 'Ana', replyFn } = {}) => {
+    const calls = [], kv = { 'pb.rewardsHide': hide }, listeners = [], announced = [], focused = [];
+    const rootEl = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } };
+    const code = module('economy') + ';' + module('economypets') + ';' + module('economyshop')
+      + ';return { Rewards, rwCur, rwSave, rwClean, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
+    const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', 'renderClub', 'initials', 'iconSvg', 'skel', 'avatarInner', 'teamLabel',
+      'let clubSheet = null;' + code)(
+      { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } },
+      { code: 'club-a', rewards },
+      s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+      m => announced.push(m),
+      { documentElement: rootEl, addEventListener: (t, f) => listeners.push(f), querySelector: sel => ({ focus() { focused.push(sel); } }) },
+      () => name, () => (name ? 'tok' : null),
+      async b => { calls.push(b); return replyFn ? replyFn(b) : {}; },
+      () => {}, () => {}, s => s.slice(0, 2), () => '<svg></svg>', () => '<div></div>', n => n.slice(0, 2), ps => ps.join(' & ')
+    );
+    return { x, calls, kv, listeners, announced, focused };
+  };
+
+  const shinyFrogWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog' };
+  const shinyOwlWeek = { weekId: '2026-W23', start: 0, end: 1, petId: 'pet-owl', petName: 'Net Owl' };
+  const mkStore = ({ dinks = 15, wornPet = 'pet-frog', frogShiny = false, shinyWeek = shinyFrogWeek, owned = ['pet-frog'] } = {}) => ({
+    dinks,
+    worn: { frame: '', paddle: '', pet: wornPet },
+    pet: wornPet === 'pet-frog' ? { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: frogShiny && shinyWeek.petId === 'pet-frog', featuredShiny: shinyWeek.petId === 'pet-frog' } : null,
+    shinyWeek,
+    share: false,
+    items: CATALOGUE.map(i => {
+      if (i.slot !== 'pet') return { ...i, owned: false };
+      const isOwned = owned.includes(i.id);
+      const featuredShiny = shinyWeek.petId === i.id;
+      if (!isOwned) return { ...i, owned: false, featuredShiny };
+      return { ...i, owned: true, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: i.id === 'pet-frog' && frogShiny && featuredShiny };
+    })
   });
-  const [wear, buy] = storeHtml.split('In the shop');
-  assert.match(wear, /Court pet/);
-  assert.match(wear, /data-rw-wear="pet:pet-frog"[^>]*aria-pressed="true"/);
-  assert.match(wear, /data-rw-wear="pet:"/);
-  assert.match(buy, /data-rw-buy="pet-duck"/);
-  assert.match(buy, /Dink Duck<\/b><small>14 Dinks/);
-  assert.ok(!/data-rw-buy="pet-frog"/.test(buy));
+
+  // Featured week: Pets section shows court-green spotlight + rotation copy, owned picker with stage/days, one-tap shiny toggle, unowned Adopt list with price & shortfall.
+  const p = mkPhone({
+    replyFn: async b => {
+      if (b.action === 'rewards-catalog') return mkStore();
+      if (b.action === 'rewards-wear' && b.shiny === true) return mkStore({ frogShiny: true });
+      if (b.action === 'rewards-wear' && b.shiny === false) return mkStore({ frogShiny: false });
+      if (b.action === 'rewards-buy') return mkStore({ dinks: 1, owned: ['pet-frog', 'pet-duck'] });
+      return mkStore({ wornPet: '' });
+    }
+  });
+  await p.x.Rewards.openStore();
+  const html = p.x.Rewards.storeHTML(p.x.sheet);
+  assert.match(html, /Court pets/);
+  assert.match(html, /This week's shiny coat: Court Frog/);
+  assert.match(html, /Court Frog → Dink Duck → Kitchen Cat → Net Owl/);
+  assert.match(html, /data-rw-wear="pet:pet-frog"[^>]*aria-pressed="true"/);
+  assert.match(html, /data-rw-wear="pet:"/);
+  assert.match(html, /Club · 8 more play days to Veteran \(7\/15\)/);
+  assert.match(html, /data-rw-shiny="pet-frog:1"[^>]*aria-pressed="false"/, 'one-tap shiny toggle appears during featured week');
+  assert.match(html, /data-rw-buy="pet-duck"/);
+  assert.match(html, /Dink Duck<\/b><small>14 Dinks/);
+  assert.match(html, /Kitchen Cat<\/b><small>18 Dinks\. You need 3 more\./, 'shortfall stated before tapping');
+  assert.ok(!/data-rw-buy="pet-frog"/.test(html), 'owned pet is not offered to adopt again');
+  assert.ok(!/animation|confetti|odds|random/i.test(html), 'calm copy only');
+
+  // Clicking the one-tap shiny toggle sends rewards-wear with shiny: true, announces and updates Your Dink card.
+  const click = ds => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
+  click({ rwShiny: 'pet-frog:1' });
+  await new Promise(r => setTimeout(r, 10));
+  assert.deepEqual(p.calls.at(-1), { name: 'Ana', playerToken: 'tok', action: 'rewards-wear', slot: 'pet', item: 'pet-frog', shiny: true });
+  assert.equal(p.announced.at(-1), 'Shiny coat on for Court Frog this week.');
+  assert.equal(p.focused.at(-1), '[data-rw-shiny]');
+  const cardShiny = p.x.Rewards.cardHTML();
+  assert.match(cardShiny, /rw-card-pet/);
+  assert.match(cardShiny, /data-pet="pet-frog" data-pet-stage="2" data-pet-shiny="true"/);
+  assert.match(cardShiny, /Court Frog · Shiny coat/);
+  assert.match(cardShiny, /Club · 8 more play days to Veteran \(7\/15\)/);
+  assert.match(cardShiny, /role="img" aria-label="Court Frog, Club, shiny coat"/);
+
+  // Clicking Adopt for an affordable pet sends rewards-buy (never a price) and announces.
+  click({ rwBuy: 'pet-duck' });
+  await new Promise(r => setTimeout(r, 10));
+  assert.deepEqual(p.calls.at(-1), { name: 'Ana', playerToken: 'tok', action: 'rewards-buy', item: 'pet-duck' });
+  assert.equal('price' in p.calls.at(-1), false);
+  assert.match(p.announced.at(-1), /Dink Duck is yours for 14 Dinks/);
+
+  // Outside the owned pet's featured week: NO shiny toggle is rendered, while the rotation spotlight still names this week's pet.
+  const offWeekHtml = p.x.Rewards.storeHTML({ store: mkStore({ shinyWeek: shinyOwlWeek }), msg: '', error: '', busy: false });
+  assert.match(offWeekHtml, /This week's shiny coat: Net Owl/);
+  assert.ok(!/data-rw-shiny/.test(offWeekHtml), 'shiny toggle must not appear outside an owned pet featured week');
+
+  // Club rewards off or player hid rewards: nothing shows on Your Dink card or Shop sheet.
+  for (const opts of [{ rewards: false, hide: false }, { rewards: true, hide: true }]) {
+    const h = mkPhone(opts);
+    h.kv['pb.rewards'] = { 'club-a': { dinks: 20, streak: 3, best: 3, last: '', worn: { frame: '', paddle: '', pet: 'pet-frog' }, pet: { id: 'pet-frog', stage: 2, playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true } } };
+    assert.equal(h.x.Rewards.cardHTML(), '');
+    assert.ok(!/rw-pets|data-rw-shiny|data-rw-buy/.test(h.x.Rewards.storeHTML({ store: mkStore(), msg: '', error: '', busy: false })));
+  }
 });

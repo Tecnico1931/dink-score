@@ -29,8 +29,21 @@ const rwCleanLooks = raw => {
   }
   return out;
 };
+const rwCleanPet = (p, wornPet) => {
+  if (!p || typeof p !== 'object') return null;
+  const id = rwSlotId('pet', p.id);
+  if (!id || (wornPet && id !== wornPet)) return null;
+  const stage = p.stage === 2 || p.stage === 3 ? p.stage : 1;
+  const days = Number.isFinite(p.playDays) && p.playDays > 0 ? Math.min(Math.floor(p.playDays), 1e5) : 0;
+  const next = p.nextStageDays === 5 || p.nextStageDays === 15 ? p.nextStageDays : null;
+  return { id, stage, playDays: days, nextStageDays: next, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
+};
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
-  return { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn: { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet) } }; };
+  const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet) };
+  const pet = rwCleanPet(s.pet, worn.pet);
+  const out = { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn };
+  if (pet) out.pet = pet;
+  return out; };
 const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
 // The streak as it stands on `today`: a run that missed yesterday and today is broken (0). Playing today or yesterday keeps it.
 const rwStreak = (s, today) => (s.last && rwDayNum(today) - rwDayNum(s.last) <= 1 ? s.streak : 0);
@@ -146,7 +159,8 @@ const Rewards = {
     if (!rwShown()) return '';
     const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = rwNext(day);
     const line = !myName() || !myToken() ? 'Pick your name in the club to start earning Dinks.' : done ? `Played today. ${nx.in === 1 ? 'Play tomorrow' : `Play ${nx.in} days in a row`} for +${nx.bonus} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
-    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>Dinks</small></span></div><p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? '<button type="button" class="rw-hide" data-rw="pass">Season pass</button><button type="button" class="rw-hide" data-rw="store">Shop</button>' : ''}<button type="button" class="rw-hide" data-rw="hide">Hide this</button></div></section>`;
+    const pet = typeof rwPetCardHTML === 'function' ? rwPetCardHTML(st) : '';
+    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>Dinks</small></span></div>${pet}<p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? '<button type="button" class="rw-hide" data-rw="pass">Season pass</button><button type="button" class="rw-hide" data-rw="store">Shop</button>' : ''}<button type="button" class="rw-hide" data-rw="hide">Hide this</button></div></section>`;
   },
   // The "You" sheet row: the one switch on this phone (shown only where the club has rewards on).
   youRowHTML() {
