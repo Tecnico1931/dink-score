@@ -68,7 +68,7 @@ const when = ms => `<time datetime="${new Date(ms).toISOString()}">${esc(DAY(ms)
 const line = (g, i) => `<div class="rs-line ${g.winner === i ? 'win' : ''}" style="--c:var(${i ? '--green' : '--blue'})"><span class="tick"></span><span class="who">${esc(label(g.teams[i]))}</span><span class="pts num">${g.score[i]}</span></div>`;
 const head = (title, o, token, v, noindex = true) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="#0F241E">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="#F2F4F7">
 <script src="/analytics.js"></script><script defer src="/_vercel/insights/script.js"></script>
 <title>${esc(title)}</title><link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 ${v ? meta(o, token, v) : ''}
