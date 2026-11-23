@@ -6,6 +6,12 @@
 // Pure, free of app globals, so test/inbox.test.js can load this block alone.
 const Inbox = {
   KEEP: 30,
+  nightFp: n => [n.startsAt, n.title, n.location || ''].join('|'),
+  eventFp(e) {
+    const r = typeof e.round === 'number' ? e.round
+      : Array.isArray(e.rounds) && e.rounds.length ? ((e.rounds.find(x => x.status !== 'done') || e.rounds[e.rounds.length - 1]).n || 0) : 0;
+    return `${e.status}:${r}`;
+  },
   // Anything read back from storage is checked: a wrong shape counts as an empty inbox.
   parse(raw) {
     const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
@@ -13,6 +19,15 @@ const Inbox = {
     const log = (Array.isArray(o.log) ? o.log : []).filter(x => x && typeof x.id === 'string' && typeof x.title === 'string' && Number.isFinite(x.at)).slice(0, Inbox.KEEP)
       .map(x => ({ id: x.id.slice(0, 200), kind: String(x.kind || '').slice(0, 20), title: x.title.slice(0, 120), body: String(x.body || '').slice(0, 160), go: String(x.go || '').slice(0, 80), at: x.at }));
     return { base: map(o.base), fp: map(o.fp), ev: map(o.ev), lg: map(o.lg), read: map(o.read), log };
+  },
+  // Pre-record a fingerprint on this device so an action the author just took does not trigger a local Inbox alert.
+  ack(memRaw, kind, id, fp) {
+    const mem = Inbox.parse(memRaw), sid = id == null ? '' : String(id).trim();
+    if (!sid) return mem;
+    const map = kind === 'night' ? mem.fp : kind === 'event' ? mem.ev : kind === 'league' ? mem.lg : null;
+    if (!map) return mem;
+    if (fp == null) delete map[sid]; else map[sid] = String(fp);
+    return mem;
   },
   // mem: what was remembered (or anything). s: what the phone knows now:
   //   { now, me, failed, sync, held: [{ id, label }], nights: [{ id, title, startsAt, location, when, mine }],
@@ -23,15 +38,14 @@ const Inbox = {
     const add = (id, kind, title, body, go) => { if (!mem.log.some(x => x.id === id) && !fresh.some(x => x.id === id)) fresh.push({ id, kind, title, body, go, at: now }); };
     const nights = Array.isArray(s.nights) ? s.nights : null;
     if (nights) {
-      const key = n => [n.startsAt, n.title, n.location || ''].join('|');
       const first = !mem.base.nights;
       const seen = new Set();
       for (const n of nights) {
         seen.add(n.id);
-        const prev = mem.fp[n.id];
+        const prev = mem.fp[n.id], k = Inbox.nightFp(n);
         if (!first && prev === undefined) add(`night:${n.id}:new`, 'night', 'New game night', `${n.title}, ${n.when}`, 'nights');
-        else if (!first && prev !== key(n)) add(`night:${n.id}:${key(n)}`, 'night', 'Game night changed', `${n.title}, ${n.when}`, 'nights');
-        mem.fp[n.id] = key(n);
+        else if (!first && prev !== k) add(`night:${n.id}:${k}`, 'night', 'Game night changed', `${n.title}, ${n.when}`, 'nights');
+        mem.fp[n.id] = k;
         if (s.me && !n.mine) needs.push({ id: `rsvp:${n.id}`, kind: 'rsvp', title: `Are you in? ${n.title}`, body: n.when, go: 'nights' });
       }
       for (const id of Object.keys(mem.fp)) {
@@ -45,7 +59,7 @@ const Inbox = {
     if (Array.isArray(s.events)) {
       const first = !mem.base.events;
       for (const e of s.events) {
-        const k = `${e.status}:${e.round}`, prev = mem.ev[e.id];
+        const k = Inbox.eventFp(e), prev = mem.ev[e.id];
         if (!first && prev !== k) {
           if (e.status === 'live') add(`ev:${e.id}:${k}`, 'event', e.round > 0 ? `Round ${e.round} is live` : 'Event is live', e.name, `event:${e.id}`);
           else if (e.status === 'done') add(`ev:${e.id}:${k}`, 'event', 'Event finished', e.name, `event:${e.id}`);
@@ -99,6 +113,14 @@ function inboxSnap() {
     .map(g => ({ id: g.id, label: `${teamLabel(g.teams[0])} ${Number(g.score[0])}–${Number(g.score[1])} ${teamLabel(g.teams[1])}` }));
   const nights = clubData && Array.isArray(clubData.nights) ? gnUpcoming().map(n => ({ id: n.id, title: n.title, startsAt: n.startsAt, location: n.location || '', when: gnWhenParts(n.startsAt).label, mine: !!gnMyStatus(n) })) : null;
   return { now: Date.now(), me: mine, failed: failedOps().length, sync: clubState, held, nights, events: evLoadedFor === club.code ? evSummary.map(e => ({ id: e.id, name: e.name, status: e.status, round: e.round || 0 })) : null, leagues: inboxLeaguesFor === club.code ? inboxLeagues : null };
+}
+function inboxAck(kind, id, fp) {
+  if (!club || !id) return;
+  const all = inboxStore();
+  all[club.code] = Inbox.ack(all[club.code], kind, id, fp);
+  for (const k of Object.keys(all).slice(0, -12)) delete all[k];
+  store.set('pb.inbox', all);
+  if (inboxClub === club.code) inboxMem = all[club.code];
 }
 // Recompute from what the phone has; called on every draw, writes only when something changed.
 function inboxRefresh() {

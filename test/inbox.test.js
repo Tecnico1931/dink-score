@@ -189,3 +189,41 @@ test('opening Notification settings when Inbox is closed does not touch Inbox an
   assert.equal(env.clubSheet.view, 'notify');
   assert.ok(!env.clubSheet.from, 'from should be falsy when opened outside Inbox');
 });
+
+test('Inbox.ack pre-records self-authored game nights and events so the author is not alerted for their own actions', () => {
+  const base = Inbox.step(null, snap({ nights: [], events: [] })).mem;
+  const n1 = night({ id: 'n1', title: 'Friday Lights', startsAt: NOW + 864e5, location: 'West Park Courts 1-3' });
+  const ackedNight = Inbox.ack(base, 'night', n1.id, Inbox.nightFp(n1));
+  const afterCreateNight = Inbox.step(ackedNight, snap({ nights: [n1], events: [] }));
+  assert.deepEqual(afterCreateNight.fresh, [], 'creating a game night on this device does not add a New game night inbox item');
+
+  const n1Edited = night({ id: 'n1', title: 'Friday Lights', startsAt: NOW + 2 * 864e5, location: 'Court 4' });
+  const ackedEdit = Inbox.ack(afterCreateNight.mem, 'night', n1Edited.id, Inbox.nightFp(n1Edited));
+  const afterEditNight = Inbox.step(ackedEdit, snap({ nights: [n1Edited], events: [] }));
+  assert.deepEqual(afterEditNight.fresh, [], 'editing a game night on this device does not add a Game night changed inbox item');
+
+  const ackedCancel = Inbox.ack(afterEditNight.mem, 'night', n1Edited.id, null);
+  const afterCancelNight = Inbox.step(ackedCancel, snap({ nights: [], events: [] }));
+  assert.deepEqual(afterCancelNight.fresh, [], 'cancelling or deleting a game night on this device does not add a Game night cancelled inbox item');
+
+  const evElimView = { id: 'e1', name: 'Quick Cup', status: 'live', rounds: [] };
+  const ackedElim = Inbox.ack(afterCancelNight.mem, 'event', evElimView.id, Inbox.eventFp(evElimView));
+  const afterCreateElim = Inbox.step(ackedElim, snap({ nights: [], events: [{ id: 'e1', name: 'Quick Cup', status: 'live', round: 0 }] }));
+  assert.deepEqual(afterCreateElim.fresh, [], 'creating an elimination event on this device does not add an Event is live inbox item');
+
+  const evRrView = { id: 'e2', name: 'Sunday Rotation', status: 'live', rounds: [{ n: 1, status: 'live' }] };
+  const ackedRr = Inbox.ack(afterCreateElim.mem, 'event', evRrView.id, Inbox.eventFp(evRrView));
+  const afterCreateRr = Inbox.step(ackedRr, snap({ nights: [], events: [{ id: 'e1', name: 'Quick Cup', status: 'live', round: 0 }, { id: 'e2', name: 'Sunday Rotation', status: 'live', round: 1 }] }));
+  assert.deepEqual(afterCreateRr.fresh, [], 'creating a round-robin event on this device pre-records round 1 and does not add Round 1 is live');
+
+  const otherPeer = Inbox.step(afterCreateRr.mem, snap({ nights: [night({ id: 'n-peer', title: 'peer night' })], events: [{ id: 'e-peer', name: 'Peer Cup', status: 'live', round: 0 }] }));
+  assert.deepEqual(otherPeer.fresh.map(x => x.title).sort(), ['Event is live', 'New game night'], 'actions from other devices still produce inbox items');
+});
+
+test('game-night save/cancel/delete and event create/org actions call inboxAck before refreshing', () => {
+  const html = page();
+  assert.match(html, /inboxAck\('night',\s*saved\.id,\s*saved\.status === 'cancelled' \? null : Inbox\.nightFp\(saved\)\)/);
+  assert.match(html, /inboxAck\('night',\s*id,\s*null\)/);
+  assert.match(html, /inboxAck\('event',\s*ev\.id,\s*Inbox\.eventFp\(ev\)\)/);
+  assert.match(html, /inboxAck\('event',\s*data\.event\.id,\s*Inbox\.eventFp\(data\.event\)\)/);
+});

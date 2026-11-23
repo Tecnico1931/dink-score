@@ -28,6 +28,7 @@ async function evOrg(body, ok) {
   s.busy = true; s.error = ''; renderEvents(true);
   try {
     const data = await evCall(body);
+    if (data.event && data.event.id) inboxAck('event', data.event.id, Inbox.eventFp(data.event));
     if (data.event && evScreen === s) { s.event = data.event; s.id = data.event.id; }
     s.edit = null; s.armEnd = s.armDelete = false;
     if (ok) showToast(ok, false);
@@ -65,6 +66,9 @@ async function evCreate() {
   f.busy = true; f.error = ''; renderEvents(true);
   try {
     const data = await evCall(body);
+    for (const ev of (data.events && data.events.length ? data.events : [data.event])) {
+      if (ev && ev.id) inboxAck('event', ev.id, Inbox.eventFp(ev));
+    }
     evScreen = data.events && data.events.length > 1 ? { view: 'list', list: null, error: '' } : { view: 'detail', id: data.event.id, event: data.event, list: null, error: '' };
     showToast(data.events && data.events.length > 1 ? `${data.events.length} division events started` : 'Event started', false);
     if (evScreen.view === 'list') evLoadList();
@@ -176,7 +180,7 @@ function evAct(a, d) {
   else if (a === 'delete') {
     if (!s.armDelete) { s.armDelete = true; s.armEnd = false; renderEvents(true); return; }
     s.busy = true; renderEvents(true);
-    evCall({ action: 'delete', id: ev.id }).then(() => { showToast('Event deleted', false); evSummary = evSummary.filter(e => e.id !== ev.id); evScreen = { view: 'list', list: null, error: '' }; renderEvents(true); evLoadList(); safeRender(); })
+    evCall({ action: 'delete', id: ev.id }).then(() => { inboxAck('event', ev.id, null); showToast('Event deleted', false); evSummary = evSummary.filter(e => e.id !== ev.id); evScreen = { view: 'list', list: null, error: '' }; renderEvents(true); evLoadList(); safeRender(); })
       .catch(err => { if (err.status === 403) forgetPin(); s.busy = false; s.error = err.message; renderEvents(true); });
   }
 }
