@@ -8,7 +8,7 @@ const rwSwatch = it => it.slot === 'frame'
   ? `<span class="rw-sw" data-rw-frame="${esc(rwLook(it.id))}" aria-hidden="true">${esc(initials(myName() || '?'))}</span>`
   : it.slot === 'pet'
     ? (typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 36 }) : `<span class="rw-sw" aria-hidden="true">${esc(initials(it.name))}</span>`)
-    : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${iconSvg('paddle')}</span>`;
+    : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${rwPaddleSvg()}</span>`;
 // Saving goal: one unowned item the player picks. Kept on this phone only (never sent anywhere) and cleared once it is owned.
 const rwGoalSet = id => store.set('pb.rewardsGoal', id || '');
 function rwGoalItem(s) {
