@@ -15,6 +15,8 @@
 //                                                       to share their look. Never balance, streak, or purchase history.
 //   rewards-box-odds {}                               -> club members (when club.rewards and club.mystery_box are on): server odds table for the mystery box.
 //   rewards-box-open {name, playerToken, openId}      -> opens one mystery box on the server (idempotent by openId, daily limit, duplicate refund). See _economybox.js.
+//   rewards-pass|rewards-pass-claim {name, playerToken, tier?, seasonId?} -> free season pass track per club season (derived from games saved
+//                                                       by this phone, idempotent ledger claims; see _economypass.js). Only while rewards are on.
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
 //   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events, leagues and ladders you are in
@@ -38,6 +40,7 @@ import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js'
 import { rewardsFor, loadLedger } from './_economysync.js';
 import { shopView, buyItem, wearItem, wornOf, loadItems, clubLooks, shareOf, setShare } from './_economyshop.js';
 import { boxOdds, boxStatus, openBox } from './_economybox.js';
+import { passView, claimPassTier } from './_economypass.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -200,6 +203,15 @@ export default handler(async (req, res) => {
         : await wearItem(sql, code, player.name_key, String(body.slot || ''), String(body.item || ''));
       if (club.mystery_box) out.box = await boxStatus(sql, code, player.name_key);
       return send(res, 200, out);
+    } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
+  }
+
+  if (body.action === 'rewards-pass' || body.action === 'rewards-pass-claim') {
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
+    try {
+      if (body.action === 'rewards-pass') return send(res, 200, await passView(sql, code, player.name_key));
+      return send(res, 200, await claimPassTier(sql, code, player.name_key, body.tier, { seasonId: body.seasonId }));
     } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
   }
 
