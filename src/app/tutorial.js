@@ -3,7 +3,7 @@ let tourStep = store.get('pb.tutorialSeen', false) ? null : 0;
 const isStandalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
 const canInstall = !isStandalone && API_OK;
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const MARK_BALL = `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="#0E1726" opacity=".85"><circle cx="22" cy="22" r="4"/><circle cx="38" cy="18" r="4"/><circle cx="31" cy="32" r="4"/><circle cx="19" cy="40" r="4"/><circle cx="44" cy="36" r="4"/><circle cx="33" cy="47" r="4"/></g></svg>`;
+const MARK_BALL = `<svg viewBox="0 0 64 64" aria-hidden="true"><g fill="var(--ball-ink)" opacity=".85"><circle cx="22" cy="22" r="4"/><circle cx="38" cy="18" r="4"/><circle cx="31" cy="32" r="4"/><circle cx="19" cy="40" r="4"/><circle cx="44" cy="36" r="4"/><circle cx="33" cy="47" r="4"/></g></svg>`;
 function tourSteps() {
   const steps = [
     { title: 'Welcome to Dink Score', art: `<div class="art-mark">${MARK_BALL}</div><div class="art-words"><span>Score</span><span>Log</span><span>Rank</span></div>`,
