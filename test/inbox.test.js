@@ -233,3 +233,9 @@ test('Who are you? says what claiming a name unlocks (UX-21)', () => {
   const sub = src.match(/<h2 id="club-h">Who are you\?<\/h2>\s*<p>([^<]*)<\/p>/)[1];
   for (const w of ['RSVP', 'alerts', 'stats', 'achievements', 'weekly challenges']) assert.ok(sub.includes(w), `subtitle names ${w}`);
 });
+
+test('Inbox offers "Pick your name for push alerts" when no name is claimed (UX-21)', () => {
+  const src = appModule('inbox');
+  assert.match(src, /myName\(\) \? \(myToken\(\)[\s\S]*?data-act="inbox-pick-name">Pick your name for push alerts</);
+  assert.match(page(), /act === 'inbox-pick-name'\) \{ closeInbox\(\); clubSheet = \{ view: 'whoami' \}/);
+});

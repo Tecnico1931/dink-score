@@ -3666,7 +3666,7 @@ function renderInbox() {
     ${news.length ? `<h3 class="inbox-sec">Recent</h3><ul class="inbox-list">${news.map(x => inboxItemHTML(x, inboxNew.has(x.id))).join('')}</ul>` : ''}
     ${inboxNeeds.length || news.length ? '' : '<p class="note">You are all caught up. Game night changes, games to confirm, live events and league results show up here.</p>'}
     <p class="note">Built on this phone from your club's data. Nothing is stored on the server.</p>
-    <div class="btns">${myName() && myToken() ? '<button type="button" class="btn btn-soft" data-act="notify-open">Notification settings</button>' : ''}<button type="button" class="btn btn-soft" data-act="inbox-close">Done</button></div>`;
+    <div class="btns">${myName() ? (myToken() ? '<button type="button" class="btn btn-soft" data-act="notify-open">Notification settings</button>' : '') : '<button type="button" class="btn btn-soft" data-act="inbox-pick-name">Pick your name for push alerts</button>'}<button type="button" class="btn btn-soft" data-act="inbox-close">Done</button></div>`;
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="inbox-h"><span class="grip"></span>${body}</div></div>`, 'inbox');
   inboxHeld = true; inboxBehind(true);
 }
@@ -10642,6 +10642,7 @@ document.addEventListener('click', e => {
   if (act === 'settings-close') { closeSettings(); return; }
   if (act === 'inbox-open') { openInbox(); return; }
   if (act === 'inbox-close') { closeInbox(); return; }
+  if (act === 'inbox-pick-name') { closeInbox(); clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }

@@ -8626,6 +8626,7 @@ document.addEventListener('click', e => {
   if (act === 'settings-close') { closeSettings(); return; }
   if (act === 'inbox-open') { openInbox(); return; }
   if (act === 'inbox-close') { closeInbox(); return; }
+  if (act === 'inbox-pick-name') { closeInbox(); clubSheet = { view: 'whoami' }; renderClub(); return; }
   if (!act) return;
   if (act === 'log-open') { openLog(); return; }
   if (act === 'log-close') { logForm = null; render(); return; }
