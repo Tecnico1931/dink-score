@@ -2090,6 +2090,7 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <script>
 /*@APP*/
+/*MODULE-START:push-notifications*/
 /* ---------- opt-in "you're up" notifications (api/_push.js) ---------- */
 const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 const b64uBytes = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0));
@@ -2139,6 +2140,8 @@ async function notifyCategory(cat, on) {
   } catch (err) { if (clubSheet && clubSheet.view === 'notify') { clubSheet.st = Object.assign({}, clubSheet.st, { categories: had }); clubSheet.error = err.message; } }
   if (clubSheet && clubSheet.view === 'notify') { clubSheet.busy = false; renderClub(); }
 }
+/*MODULE-END:push-notifications*/
+/*MODULE-START:rights-transfer*/
 const rightsClubExport = fmt => rightsRun(async () => {
   const res = await fetch('/api/club', { method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
     body: JSON.stringify(Object.assign({ code: club.code, action: 'export', format: fmt }, adminCreds())) }).catch(() => { throw new Error("Can't reach the server. Check your connection."); });
@@ -2204,6 +2207,7 @@ async function recoverClub(clubCode, raw) {
   } catch (err) { clubSheet.busy = false; clubSheet.error = err.message; }
   afterJoin();
 }
+/*MODULE-END:rights-transfer*/
 /*MODULE-START:passkey-account*/
 // Optional account (see api/account.js): a passkey keeps your clubs and history across phones. Nothing else depends on it.
 let acct = null; // the last answer from /api/account: { account, identities } once loaded
@@ -3243,6 +3247,7 @@ function ratingPreview(s) {
     <div class="changes">${named.map(x => `<div class="ch" style="--c:${TEAM_COLOR[x.team]}"><span class="tick"></span><span class="nm">${esc(x.name)}</span><span class="rt">${r2(x.after)}</span>${deltaHTML(x.after - x.before)}</div>`).join('')}</div></div>`;
 }
 
+/*MODULE-START:live-sync*/
 /* ---------- watch scoring (prototype) ----------
    While a club game is scored on this phone, the phone publishes the live state to /api/live. An
    Apple Watch running Shortcuts (setup steps are on the club sheet's watch page) appends point and
@@ -3399,6 +3404,7 @@ function startGame(cfgOverride) {
 function record(s, rallyLog, id) {
   return { ...(rallyLog ? { rallyLog } : {}), id: id || newId(s.startedAt), startedAt: s.startedAt, endedAt: s.endedAt, mode: s.cfg.mode, scoring: s.cfg.scoring, target: s.cfg.target, winBy: s.cfg.winBy, teams: s.cfg.teams, score: s.score, winner: s.winner, rallies: s.rallies };
 }
+/*MODULE-END:live-sync*/
 
 /*MODULE-START:log-result*/
 /* ---------- log a result from another court ---------- */
@@ -4617,6 +4623,7 @@ async function refreshBoard() {
 }
 setInterval(() => { if (clubSheet && clubSheet.view === 'board' && club && !document.hidden) refreshBoard(); }, 4000);
 /*MODULE-END:court-board*/
+/*MODULE-START:live-join*/
 async function joinLiveGame(secret) {
   const c = clubSheet; if (!c || !c.joinId || !club) return;
   const sec = String(secret || '').trim();
@@ -4627,6 +4634,7 @@ async function joinLiveGame(secret) {
     clubSheet = null; renderClub(); persistLive(); keepAwake(true); render();
   } catch (e) { c.error = (e && e.message) || 'Could not open that game.'; renderClub(); }
 }
+/*MODULE-END:live-join*/
 /*MODULE-START:watch-link*/
 /* ---------- Apple Watch: link a watch, the linked watches, send this game (api/_watch.js through api/live.js; the scanner is scan.js, loaded on demand) ---------- */
 // pb.watch holds {linkId: revokeKey} for the watches this phone linked. Their ids go out with every game this phone publishes (publishLive), so a
@@ -6692,6 +6700,7 @@ document.addEventListener('touchend', e => {
 }, { passive: true });
 
 /*MODULE-END:tutorial*/
+/*MODULE-START:events-core*/
 /* ---------- events: tournaments and rotating doubles ---------- */
 // An organizer sets an event up; the players in a match and organizers score it (or any member, if the organizer allows). The server keeps the rounds, courts and
 // standings and, when a match is finished, adds it to the club's games itself, so this screen never saves a game twice.
@@ -6921,7 +6930,9 @@ function evNewHTML(s) {
     ${hint ? `<p class="note" role="status">${esc(hint)}</p>` : ''}${f.error ? `<p class="err" role="alert">${esc(f.error)}</p>` : ''}
     <button type="submit" class="btn btn-ink block" ${imp ? 'data-imp-go' : ''} ${f.busy || hint ? 'disabled' : ''}>${f.busy ? 'Starting…' : imp ? `Create the event with ${imp.players.length} players` : 'Start event'}</button></form>`;
 }
+/*MODULE-END:events-core*/
 
+/*MODULE-START:events-import*/
 // ---- Import players and teams from a Google Sheet or a CSV (the parsing and checks live in sheet-import.js, loaded on demand) ----
 // The preview is edited in place: typing updates the draft and the messages next to each row without redrawing the form.
 let imMod = null;
@@ -7082,7 +7093,9 @@ function evImpAct(a, d, f) {
   }
   return false;
 }
+/*MODULE-END:events-import*/
 
+/*MODULE-START:events-detail*/
 // A result this phone has sent that the server has not confirmed yet (offline, or just sent).
 const evQueued = id => clubOps().find(o => o.type === 'event-result' && o.matchId === id);
 // allow is false for a match already shown (with its buttons) in the "now" section, so no button or field appears twice.
@@ -7312,7 +7325,9 @@ function duprExport(ev, copy) {
   showToast('CSV downloaded', false);
 
 }
+/*MODULE-END:events-detail*/
 
+/*MODULE-START:events-actions*/
 function evMatchOf(id) {
   const ev = evScreen && evScreen.event;
   if (!ev) return null;
@@ -7545,7 +7560,9 @@ document.addEventListener('change', e => {
   evScreen.edit.matches[i].teams[tm][j] = t.value; evScreen.edit.error = '';
   renderEvents(true);
 });
+/*MODULE-END:events-actions*/
 
+/*MODULE-START:leagues-view*/
 /* ---------- leagues and ladders (api/_leagues.js, through /api/events) ---------- */
 // A league is a season of weekly round robin matches in divisions; a ladder is a ranking moved by challenge matches. A new result goes through the
 // outbox like an event result (queueOp, so it waits for signal); fixing a score is organizer-only and online. The server also saves each result as a normal game, once.
@@ -7802,7 +7819,9 @@ function lgLadderHTML(s, L) {
     <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · challenge up to ${L.jump} above${L.decayDays ? ` · idle ${L.decayDays} days = one place down` : ''}</p>
     <section class="ev-sec" aria-labelledby="lg-lad"><h3 id="lg-lad">Ladder</h3>${rows}</section>${openCh}${form}${pending}${recent}${past}${lgOrgHTML(s, L)}`;
 }
+/*MODULE-END:leagues-view*/
 
+/*MODULE-START:leagues-actions*/
 async function lgRun(body, ok) {
   const s = lgScreen;
   if (!s || s.busy) return null;
@@ -7957,6 +7976,7 @@ document.addEventListener('change', e => {
   else if (t.dataset.lgInput === 'resultsBy' && lgScreen.league) lgRun({ action: 'league-results-by', id: lgScreen.league.id, who: t.checked ? 'club' : 'players' });
   else if (t.dataset.lgSel && lgScreen.ch) { lgScreen.ch[t.dataset.lgSel] = t.value; if (t.dataset.lgSel === 'c') lgScreen.ch.d = ''; lgScreen.ch.error = ''; renderLeagues(true); }
 });
+/*MODULE-END:leagues-actions*/
 
 /* ---------- events ---------- */
 document.addEventListener('click', e => {
@@ -8576,6 +8596,7 @@ document.addEventListener('change', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && dssoUI) { e.stopImmediatePropagation(); dssoClose(); } }, true);
 /*MODULE-END:dupr-link*/
 
+/*MODULE-START:boot*/
 if (live && live.state.winner === null && live.open) keepAwake(true);
 applyDisplay();
 render();
@@ -8587,4 +8608,5 @@ if (API_OK && passkeysOk()) acctLoad().then(() => {
   const c = clubSheet, f = document.activeElement;
   if (acctIn() && c && !c.busy && (c.view === 'add' || c.view === 'club') && !(f && f.closest && f.closest('#sheet3') && /^(INPUT|TEXTAREA)$/.test(f.tagName))) renderClub();
 });
+/*MODULE-END:boot*/
 </script>

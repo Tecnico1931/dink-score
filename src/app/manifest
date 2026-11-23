@@ -10,7 +10,10 @@ saved-players
 account-sync
 club-sync
 pickup-sessions
+push-notifications
+rights-transfer
 passkey-account
+live-sync
 log-result
 replay
 share-image
@@ -18,6 +21,7 @@ identity
 achievements
 avatars
 court-board
+live-join
 watch-link
 analytics
 organizer-tools
@@ -34,7 +38,14 @@ season-end
 club-links
 organizer-devices
 tutorial
+events-core
+events-import
+events-detail
+events-actions
+leagues-view
+leagues-actions
 dupr-link
+boot
 economy
 economyshop
 economypass
