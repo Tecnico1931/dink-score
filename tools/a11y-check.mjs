@@ -133,11 +133,31 @@ for (const [mode, opt] of states) {
       ] };
       const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe' }, share: true, box, items: cat.map(([id, name, price]) => ({ id, slot: id.split('-')[0], name, price, owned: ['frame-double', 'paddle-stripe', 'frame-ink'].includes(id) })) };
       const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe' }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
-      playerCall = async b => (b && b.action === 'rewards-looks' ? { looks } : shop);
+      const pass = {
+        season: { id: '2026-Q4', name: 'Fall 2026', start: 0, end: 1 }, games: 6, dinks: 12, worn: shop.worn, share: true, claimable: 2,
+        tiers: [
+          { tier: 1, games: 1, dinks: 2, payoutDinks: 2, item: null, unlocked: true, claimed: true },
+          { tier: 2, games: 3, dinks: 3, payoutDinks: 3, item: null, unlocked: true, claimed: false },
+          { tier: 3, games: 5, dinks: 2, payoutDinks: 2, item: { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6, owned: false }, unlocked: true, claimed: false },
+          { tier: 4, games: 8, dinks: 4, payoutDinks: 4, item: null, unlocked: false, claimed: false },
+          { tier: 6, games: 15, dinks: 2, payoutDinks: 2, item: { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6, owned: false }, unlocked: false, claimed: false }
+        ]
+      };
+      playerCall = async b => (b && b.action === 'rewards-looks' ? { looks } : b && b.action === 'rewards-pass' ? pass : shop);
       render();
     });
     await sleep(300);
     await audit(page, `Your Dink card, ring worn (${colorScheme})`, report);
+    await page.evaluate(() => Rewards.openPass()); await sleep(400);
+    await audit(page, `Season pass sheet (${colorScheme})`, report, '.sheet');
+    if (colorScheme === 'light') {
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Season pass sheet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
+    }
     await page.evaluate(() => Rewards.openStore()); await sleep(400);
     await page.evaluate(() => {
       if (clubSheet && clubSheet.store) {
