@@ -6,7 +6,7 @@
 <meta name="description" content="Pickleball scorekeeper with server tracking, saved players, a Dink Rating leaderboard and a game record.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F2F4F7">
-<script>(function(){try{var d=JSON.parse(localStorage.getItem('pb.display')||'{}')||{};var r=document.documentElement;var t=d.theme==='light'||d.theme==='dark'?d.theme:'';if(t)r.setAttribute('data-theme',t);if(d.outdoor)r.setAttribute('data-outdoor','');if(d.large)r.setAttribute('data-large','');var dk=d.outdoor?false:(t?t==='dark':!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches));var cs=document.querySelector('meta[name=color-scheme]');if(cs)cs.content=d.outdoor?'light':(t||'light dark');var tc=document.querySelector('meta[name=theme-color]');if(tc)tc.content=d.outdoor?'#000000':(dk?'#0A0F17':'#F2F4F7');}catch(e){}})();</script>
+<script>(function(){try{var d=JSON.parse(localStorage.getItem('pb.display')||'{}')||{};var r=document.documentElement;var t=d.theme==='light'||d.theme==='dark'?d.theme:'';if(t)r.setAttribute('data-theme',t);var P={green:['#F2F4F7','#0A0F17'],blue:['#F1F4F9','#090E18'],clay:['#F6F3F0','#120C0B'],violet:['#F4F2F8','#0D0A14'],sunset:['#F7F4EF','#120E0A'],slate:['#F3F4F6','#0A0C10']};var p=P[d.palette]?d.palette:'green';if(p!=='green')r.setAttribute('data-palette',p);if(d.outdoor)r.setAttribute('data-outdoor','');if(d.large)r.setAttribute('data-large','');var dk=d.outdoor?false:(t?t==='dark':!!(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches));var cs=document.querySelector('meta[name=color-scheme]');if(cs)cs.content=d.outdoor?'light':(t||'light dark');var tc=document.querySelector('meta[name=theme-color]');if(tc)tc.content=d.outdoor?'#000000':P[p][dk?1:0];}catch(e){}})();</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -98,6 +98,85 @@ img { max-width: 100%; }
   --shadow: none;
   color-scheme: light;
 }
+/* Selectable court palettes (Court Green is the default above with no data-palette attribute). Team 1 (--blue), Team 2 (--green) and --ball stay locked. */
+:root[data-palette="blue"] {
+  --bg: #F1F4F9; --surface: #FFFFFF; --surface-2: #E7EDF6; --ink: #0C1628; --muted: #52627A; --line: #D9E2EE;
+  --court: #1552A3; --court-2: #0D3A78; --court-ring: #1552A3; --accent: #1552A3; --accent-text: #1552A3; --focus: #1552A3;
+  --dsp-bg: #0C1C33; --dsp-surface: #152E52; --dsp-ink: #F0F5FC; --dsp-muted: #B4C5DC; --dsp-dim: #839AB8;
+}
+:root[data-palette="clay"] {
+  --bg: #F6F3F0; --surface: #FFFFFF; --surface-2: #F0EAE4; --ink: #1F1412; --muted: #685752; --line: #E3DAD2;
+  --court: #A83224; --court-2: #7E2218; --court-ring: #A83224; --accent: #A83224; --accent-text: #A83224; --focus: #A83224;
+  --dsp-bg: #261210; --dsp-surface: #3D1D1A; --dsp-ink: #FAF4F0; --dsp-muted: #D4BCB8; --dsp-dim: #B3928C;
+}
+:root[data-palette="violet"] {
+  --bg: #F4F2F8; --surface: #FFFFFF; --surface-2: #EEEAF6; --ink: #181226; --muted: #5F5673; --line: #DFDAE9;
+  --court: #5E2CA5; --court-2: #441D7D; --court-ring: #5E2CA5; --accent: #5E2CA5; --accent-text: #5E2CA5; --focus: #5E2CA5;
+  --dsp-bg: #1B112B; --dsp-surface: #2B1C44; --dsp-ink: #F5F2FA; --dsp-muted: #C4B9D8; --dsp-dim: #9B8DB5;
+}
+:root[data-palette="sunset"] {
+  --bg: #F7F4EF; --surface: #FFFFFF; --surface-2: #F2ECE3; --ink: #1E160F; --muted: #685A4C; --line: #E4DCD0;
+  --court: #A64100; --court-2: #7E2F00; --court-ring: #A64100; --accent: #A64100; --accent-text: #A64100; --focus: #A64100;
+  --dsp-bg: #26160A; --dsp-surface: #3D2411; --dsp-ink: #FBF6F0; --dsp-muted: #D6C0AD; --dsp-dim: #B5977D;
+}
+:root[data-palette="slate"] {
+  --bg: #F3F4F6; --surface: #FFFFFF; --surface-2: #ECEEF2; --ink: #11161F; --muted: #575F6D; --line: #DCDFE6;
+  --court: #2C384A; --court-2: #1B2330; --court-ring: #2C384A; --accent: #2C384A; --accent-text: #2C384A; --focus: #2C384A;
+  --dsp-bg: #11151C; --dsp-surface: #1E2530; --dsp-ink: #F3F5F8; --dsp-muted: #B6BECB; --dsp-dim: #8792A4;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="blue"]:not([data-theme="light"]) {
+    --bg: #090E18; --surface: #121B2B; --surface-2: #19253A; --ink: #EEF3FA; --muted: #8D9DB5; --line: #24334C;
+    --court: #185AB3; --court-2: #0E3C7D; --court-ring: #4A86E8; --accent: #2A6CD4; --accent-text: #8DB9FF; --focus: #8DB9FF;
+  }
+  :root[data-palette="clay"]:not([data-theme="light"]) {
+    --bg: #120C0B; --surface: #1C1412; --surface-2: #251B18; --ink: #F5EFEA; --muted: #AD9A94; --line: #382925;
+    --court: #A33022; --court-2: #751F15; --court-ring: #E26D5E; --accent: #C74334; --accent-text: #FF998C; --focus: #FF998C;
+  }
+  :root[data-palette="violet"]:not([data-theme="light"]) {
+    --bg: #0D0A14; --surface: #151121; --surface-2: #1E1930; --ink: #F1EEF8; --muted: #9E95B5; --line: #2E2745;
+    --court: #6532AD; --court-2: #47207F; --court-ring: #A67DF0; --accent: #8350DA; --accent-text: #C3A6FF; --focus: #C3A6FF;
+  }
+  :root[data-palette="sunset"]:not([data-theme="light"]) {
+    --bg: #120E0A; --surface: #1B1610; --surface-2: #251E16; --ink: #F6F1EA; --muted: #AE9E8E; --line: #382D22;
+    --court: #9E3E00; --court-2: #732B00; --court-ring: #E67E35; --accent: #BF5206; --accent-text: #FFAC6B; --focus: #FFAC6B;
+  }
+  :root[data-palette="slate"]:not([data-theme="light"]) {
+    --bg: #0A0C10; --surface: #13171E; --surface-2: #1C212B; --ink: #F0F2F5; --muted: #949CA8; --line: #2B323F;
+    --court: #303D50; --court-2: #1E2736; --court-ring: #7E8FA8; --accent: #607087; --accent-text: #B8C4D6; --focus: #B8C4D6;
+  }
+}
+:root[data-palette="blue"][data-theme="dark"] {
+  --bg: #090E18; --surface: #121B2B; --surface-2: #19253A; --ink: #EEF3FA; --muted: #8D9DB5; --line: #24334C;
+  --court: #185AB3; --court-2: #0E3C7D; --court-ring: #4A86E8; --accent: #2A6CD4; --accent-text: #8DB9FF; --focus: #8DB9FF;
+}
+:root[data-palette="clay"][data-theme="dark"] {
+  --bg: #120C0B; --surface: #1C1412; --surface-2: #251B18; --ink: #F5EFEA; --muted: #AD9A94; --line: #382925;
+  --court: #A33022; --court-2: #751F15; --court-ring: #E26D5E; --accent: #C74334; --accent-text: #FF998C; --focus: #FF998C;
+}
+:root[data-palette="violet"][data-theme="dark"] {
+  --bg: #0D0A14; --surface: #151121; --surface-2: #1E1930; --ink: #F1EEF8; --muted: #9E95B5; --line: #2E2745;
+  --court: #6532AD; --court-2: #47207F; --court-ring: #A67DF0; --accent: #8350DA; --accent-text: #C3A6FF; --focus: #C3A6FF;
+}
+:root[data-palette="sunset"][data-theme="dark"] {
+  --bg: #120E0A; --surface: #1B1610; --surface-2: #251E16; --ink: #F6F1EA; --muted: #AE9E8E; --line: #382D22;
+  --court: #9E3E00; --court-2: #732B00; --court-ring: #E67E35; --accent: #BF5206; --accent-text: #FFAC6B; --focus: #FFAC6B;
+}
+:root[data-palette="slate"][data-theme="dark"] {
+  --bg: #0A0C10; --surface: #13171E; --surface-2: #1C212B; --ink: #F0F2F5; --muted: #949CA8; --line: #2B323F;
+  --court: #303D50; --court-2: #1E2736; --court-ring: #7E8FA8; --accent: #607087; --accent-text: #B8C4D6; --focus: #B8C4D6;
+}
+:root[data-palette][data-outdoor] {
+  --bg: #FFFFFF; --surface: #FFFFFF; --surface-2: #E8E8E8; --ink: #000000; --muted: #2B2B2B; --line: #5A5A5A;
+  --blue: #0A28B8; --green: #00593F; --up: #00593F; --down: #A80000; --danger: #A80000; --blue-text: #0A28B8;
+  --on-court-muted: #FFFFFF; --court-line: rgb(255 255 255 / .9); --lift: none; --shadow: none;
+  color-scheme: light;
+}
+:root[data-palette="blue"][data-outdoor] { --court: #0A3580; --court-2: #0A3580; --court-ring: #0A3580; --accent: #0A3580; --accent-text: #0A3580; --focus: #0A3580; }
+:root[data-palette="clay"][data-outdoor] { --court: #8A1C12; --court-2: #8A1C12; --court-ring: #8A1C12; --accent: #8A1C12; --accent-text: #8A1C12; --focus: #8A1C12; }
+:root[data-palette="violet"][data-outdoor] { --court: #4B148C; --court-2: #4B148C; --court-ring: #4B148C; --accent: #4B148C; --accent-text: #4B148C; --focus: #4B148C; }
+:root[data-palette="sunset"][data-outdoor] { --court: #7E2F00; --court-2: #7E2F00; --court-ring: #7E2F00; --accent: #7E2F00; --accent-text: #7E2F00; --focus: #7E2F00; }
+:root[data-palette="slate"][data-outdoor] { --court: #14181F; --court-2: #14181F; --court-ring: #14181F; --accent: #14181F; --accent-text: #14181F; --focus: #14181F; }
 /*TOKENS-END*/
 html { height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); }
 body { height: 100%; height: 100dvh; margin: 0; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
@@ -348,6 +427,17 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(14 23 38 / .14); }
 .seg.sm button { padding: 7px 10px; font-size: 14px; }
 .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+.pal-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 260px) { .pal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.pal-opt { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; min-height: 64px; padding: 6px; border: 1.5px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; }
+.pal-opt[aria-pressed="true"] { border-color: var(--ink); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--ink); }
+.pal-sw { position: relative; display: block; height: 32px; border-radius: 8px; background: linear-gradient(155deg, var(--p1), var(--p2)); overflow: hidden; }
+.pal-sw::before { content: ""; position: absolute; inset: 4px; border: 1px solid rgb(255 255 255 / .5); border-radius: 4px; }
+.pal-ball { position: absolute; top: 5px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--ball); box-shadow: 0 1px 2px rgb(0 0 0 / .3); }
+.pal-opt[aria-pressed="true"] .pal-sw::after { content: "\2713"; position: absolute; left: 5px; bottom: 4px; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; color: var(--p2); font-size: 12px; font-weight: 800; line-height: 1; display: grid; place-items: center; }
+.pal-name { font-size: 12px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+:root[data-palette] .rw-share[aria-pressed="true"], :root[data-palette] .rw-ptier.is-ready { border-color: var(--court-ring); }
+:root[data-palette] .rw-share[aria-pressed="true"] .rw-pill, :root[data-palette] .rw-pill.is-done, :root[data-palette] .week i.has { background: var(--court); }
 .note { font-size: 13px; color: var(--muted); margin: 0; }
 /* Skeletons: placeholder shapes while data loads. Hidden for the first 250 ms so cached or instant data never flashes one; the shimmer only runs when motion is allowed. */
 .skel-wrap { display: flex; flex-direction: column; gap: 10px; opacity: 0; animation: skel-in .01s linear .25s forwards; }
@@ -1425,6 +1515,9 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .delta-pill, :root[data-outdoor] .exp-delta, :root[data-outdoor] .exp-box, :root[data-outdoor] .exp-why { box-shadow: inset 0 0 0 1.5px var(--ink); }
 :root[data-outdoor] .recap-cta, :root[data-outdoor] .recap-hl { box-shadow: inset 0 0 0 2px var(--ink); border-color: transparent; }
 :root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+:root[data-outdoor] .pal-opt { border: 2px solid var(--ink); }
+:root[data-outdoor] .pal-opt[aria-pressed="true"] { background: var(--surface-2); box-shadow: inset 0 0 0 2px var(--ink); }
+:root[data-outdoor] .pal-sw { background: var(--p2); }
 :root[data-outdoor] .rx-btn { border: 2px solid var(--ink); background: var(--surface); color: var(--ink); }
 :root[data-outdoor] .rx-btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
 :root[data-outdoor] .rules-jump { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -2247,19 +2340,32 @@ const store = {
 /*DISPLAY-START*/
 const DisplayPrefs = (() => {
   const THEMES = { auto: 'auto', light: 'light', dark: 'dark' };
+  const PALETTES = [
+    { id: 'green', name: 'Court Green', light: '#F2F4F7', dark: '#0A0F17', c1: '#0E7A55', c2: '#0A5E42' },
+    { id: 'blue', name: 'Court Blue', light: '#F1F4F9', dark: '#090E18', c1: '#1552A3', c2: '#0D3A78' },
+    { id: 'clay', name: 'Clay Red', light: '#F6F3F0', dark: '#120C0B', c1: '#A83224', c2: '#7E2218' },
+    { id: 'violet', name: 'Indoor Violet', light: '#F4F2F8', dark: '#0D0A14', c1: '#5E2CA5', c2: '#441D7D' },
+    { id: 'sunset', name: 'Sunset Orange', light: '#F7F4EF', dark: '#120E0A', c1: '#A64100', c2: '#7E2F00' },
+    { id: 'slate', name: 'Club Slate', light: '#F3F4F6', dark: '#0A0C10', c1: '#2C384A', c2: '#1B2330' }
+  ];
+  const PALETTE_BY_ID = Object.fromEntries(PALETTES.map(p => [p.id, p]));
+  const paletteInfo = id => PALETTE_BY_ID[id] || PALETTE_BY_ID.green;
   const normalize = d => {
     const o = d && typeof d === 'object' ? d : {};
-    return { theme: THEMES[o.theme] || 'auto', outdoor: o.outdoor ? 1 : 0, large: o.large ? 1 : 0 };
+    const palette = PALETTE_BY_ID[o.palette] ? o.palette : 'green';
+    return { theme: THEMES[o.theme] || 'auto', palette, outdoor: o.outdoor ? 1 : 0, large: o.large ? 1 : 0 };
   };
   const resolve = (d, prefersDark) => {
     const p = normalize(d);
+    const info = PALETTE_BY_ID[p.palette];
     const dataTheme = p.theme === 'light' || p.theme === 'dark' ? p.theme : null;
+    const dataPalette = p.palette === 'green' ? null : p.palette;
     const effective = p.outdoor ? 'light' : (dataTheme || (prefersDark ? 'dark' : 'light'));
     const colorScheme = p.outdoor ? 'light' : (dataTheme || 'light dark');
-    const themeColor = p.outdoor ? '#000000' : (effective === 'dark' ? '#0A0F17' : '#F2F4F7');
-    return { dataTheme, effective, colorScheme, themeColor, outdoor: !!p.outdoor, large: !!p.large };
+    const themeColor = p.outdoor ? '#000000' : (effective === 'dark' ? info.dark : info.light);
+    return { dataTheme, dataPalette, palette: p.palette, effective, colorScheme, themeColor, outdoor: !!p.outdoor, large: !!p.large };
   };
-  return { normalize, resolve };
+  return { PALETTES, paletteInfo, normalize, resolve };
 })();
 /*DISPLAY-END*/
 /*CELEBRATION-START*/
@@ -2287,6 +2393,7 @@ function applyDisplay() {
   const r = document.documentElement;
   const res = DisplayPrefs.resolve(display, !!(darkMQ && darkMQ.matches));
   if (res.dataTheme) r.setAttribute('data-theme', res.dataTheme); else r.removeAttribute('data-theme');
+  if (res.dataPalette) r.setAttribute('data-palette', res.dataPalette); else r.removeAttribute('data-palette');
   r.toggleAttribute('data-outdoor', res.outdoor); r.toggleAttribute('data-large', res.large);
   const cs = document.querySelector('meta[name=color-scheme]'); if (cs) cs.content = res.colorScheme;
   const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = res.themeColor;
@@ -2302,6 +2409,7 @@ window.addEventListener('storage', e => {
     display = DisplayPrefs.normalize(store.get('pb.display', {}));
     applyDisplay();
     if (typeof settingsOpen !== 'undefined' && settingsOpen) renderSettings();
+    if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view === 'you' && typeof renderClub === 'function') renderClub();
     if (typeof render === 'function') render();
   }
   if (e.key === 'pb.celebration') {
@@ -4589,7 +4697,7 @@ function youHTML(c) {
     <div class="you-list">${person}
       ${Rewards.youRowHTML()}
       ${canNotify ? youRow('data-act="notify-open"', 'Notifications', "Alerts when you're up or a game night is coming") : ''}
-      ${youRow('data-act="settings-open"', 'Display and sound', `Appearance ${esc({ auto: 'matches phone', light: 'light', dark: 'dark' }[display.theme] || 'matches phone')}, sunlight, court scores, celebration`)}
+      ${youRow('data-act="settings-open"', 'Display and sound', `${esc(DisplayPrefs.paletteInfo(display.palette).name)} · ${esc({ auto: 'matches phone', light: 'light', dark: 'dark' }[display.theme] || 'matches phone')}, sunlight, court scores`)}
       ${club ? youRow('data-act="club-watch"', 'Apple Watch', 'Link a watch and score from your wrist') : ''}
       ${youRow('data-act="acct-open"', 'Account and passkey', acctIn() ? `Signed in as ${esc(acct.account.name)}` : 'Optional: sign in on other phones')}
       ${youRow('data-act="dupr-open"', 'DUPR', 'Link or enter your rating')}
@@ -8617,6 +8725,9 @@ function renderSettings() {
     <div class="field" style="margin:0"><span class="lab" id="set-app-l">Appearance</span>
       ${seg('data-theme-pick', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], display.theme).replace('role="group"', 'role="group" aria-labelledby="set-app-l"')}
       <p class="note">${themeNote}</p></div>
+    <div class="field" style="margin:0"><span class="lab" id="set-pal-l">Court theme</span>
+      <div class="pal-grid" role="group" aria-labelledby="set-pal-l">${DisplayPrefs.PALETTES.map(p => `<button type="button" class="pal-opt" data-palette-pick="${p.id}" aria-pressed="${display.palette === p.id ? 'true' : 'false'}"><span class="pal-sw" aria-hidden="true" style="--p1:${p.c1};--p2:${p.c2}"><span class="pal-ball"></span></span><span class="pal-name">${p.name}</span></button>`).join('')}</div>
+      <p class="note">Changes the court colour across the app. Team colours and the pickleball stay the same.</p></div>
     <div class="field" style="margin:0"><span class="lab" id="disp-o">Sunlight contrast</span>
       ${seg('data-disp', [['outdoor-0', 'Standard'], ['outdoor-1', 'Sunlight']], 'outdoor-' + display.outdoor).replace('role="group"', 'role="group" aria-labelledby="disp-o"')}
       <p class="note">White page, black text and solid team colours for bright sun.</p></div>
@@ -8888,7 +8999,8 @@ function tourSteps() {
   return steps;
 }
 /* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
-const NEWS = { id: '2026-11-22', title: "What's new", items: [
+const NEWS = { id: '2026-11-23', title: "What's new", items: [
+  ['🎨', 'Court themes', 'Match your home court — pick Court Green, Court Blue, Clay Red, Indoor Violet, Sunset Orange or Club Slate in You → Display and sound.'],
   ['🔔', 'Bell and inbox', 'The bell in the header lists game nights to answer, games to confirm, live events and league results. It is worked out on your phone, so nothing extra is shared.'],
   ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, events and courts, or league. New game night invites and league results now send one too.'],
   ['🙂', 'One You sheet', 'Tap your avatar for your profile, notifications, display and sound, Apple Watch, account and your data in one place. The gear is gone.'],
@@ -10480,7 +10592,19 @@ document.addEventListener('click', e => {
     if (t === 'auto' || t === 'light' || t === 'dark') {
       setDisplay({ theme: t });
       if (settingsOpen) renderSettings();
+      if (clubSheet && clubSheet.view === 'you') renderClub();
       announce(t === 'auto' ? 'Appearance: match phone' : `Appearance: ${t}`);
+    }
+    return;
+  }
+  if (ds.palettePick) {
+    const info = DisplayPrefs.paletteInfo(ds.palettePick);
+    if (info.id === ds.palettePick) {
+      setDisplay({ palette: info.id });
+      if (settingsOpen) renderSettings();
+      if (clubSheet && clubSheet.view === 'you') renderClub();
+      announce(`Court theme: ${info.name}`);
+      const btn = $(`[data-palette-pick="${info.id}"]`); if (btn) btn.focus({ preventScroll: true });
     }
     return;
   }

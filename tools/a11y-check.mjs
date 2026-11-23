@@ -49,7 +49,7 @@ for (const [mode, opt] of states) {
   await page.evaluateOnNewDocument(o => { try { if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
   await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
   await audit(page, `${mode}: first-run tour`, report, '.tour');
-  await page.evaluate(() => localStorage.setItem('pb.tutorialSeen', 'true')); await page.evaluate(() => localStorage.setItem('pb.newsSeen', '"2026-11-22"')); await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
+  await page.evaluate(() => localStorage.setItem('pb.tutorialSeen', 'true')); await page.evaluate(() => localStorage.setItem('pb.newsSeen', '"2026-11-23"')); await page.reload({ waitUntil: 'networkidle0' }); await sleep(300);
   await audit(page, `${mode}: home`, report);
   for (const tab of ['leaders', 'history', 'rules']) { await page.click(`[data-tab="${tab}"]`); await sleep(250); await audit(page, `${mode}: ${tab}`, report); }
   await page.click('[data-tab="play"]'); await sleep(200);
@@ -91,7 +91,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); } catch {} });
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-23"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.evaluate(() => {
       const now = Date.now(), H = 36e5, rows = [['Ana', 3, 0, 12], ['Ben', 2, 1, 4], ['Cy', 1, 2, -6]].map(([name, wins, losses, diff], i) => ({ rank: i + 1, name, played: wins + losses, wins, losses, diff, members: [name] }));
@@ -121,7 +121,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: opt.colorScheme }]);
-    await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
+    await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-23"'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.evaluate(() => {
       club = { code: 'ABC123', name: 'Check club', hasPin: true, rewards: true, mysteryBox: true }; me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
@@ -275,7 +275,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); } catch {} });
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-23"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.click('[data-act="new-open"]'); await sleep(300);
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
@@ -294,7 +294,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: colorScheme }]);
-    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); } catch {} });
+    await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-23"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.click('[data-act="new-open"]'); await sleep(300);
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
@@ -316,7 +316,7 @@ for (const [mode, opt] of states) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: opt.colorScheme }]);
-    await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
+    await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-23"'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.evaluate(() => {
       club = { code: 'K7P2QX', name: 'Preview Club', hasPin: true };
@@ -336,6 +336,67 @@ for (const [mode, opt] of states) {
         await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
         const over = await page.evaluate(() => [...document.querySelectorAll('#sheet3 .sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName.toLowerCase() + '.' + e.className).slice(0, 3));
         if (over.length) report.push({ label: `club sheet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+    }
+    await ctx.close();
+  }
+}
+{ // Court theme swatch picker inside You -> Display and sound: keyboard activation, live preview, aria-pressed, 44 px targets, axe, and reflow.
+  const expectMeta = { light: '#F1F4F9', dark: '#090E18', outdoor: '#000000' };
+  for (const [mode, opt] of states) {
+    const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
+    await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: opt.colorScheme }]);
+    await page.evaluateOnNewDocument(o => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-23"'); if (o) localStorage.setItem('pb.display', JSON.stringify({ outdoor: 1, large: 1 })); } catch {} }, opt.outdoor);
+    await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
+    await page.click('[data-act="me-open"]'); await sleep(250);
+    await page.click('[data-act="settings-open"]'); await sleep(300);
+    await audit(page, `${mode}: settings sheet & theme picker (green)`, report, '#sheet9 .sheet');
+    const init = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('#sheet9 [data-palette-pick]')];
+      return {
+        count: btns.length,
+        labels: btns.map(b => b.textContent.trim()),
+        greenPressed: btns.find(b => b.dataset.palettePick === 'green')?.getAttribute('aria-pressed'),
+        hasAttr: document.documentElement.hasAttribute('data-palette')
+      };
+    });
+    if (init.count !== 6 || init.greenPressed !== 'true' || init.hasAttr || init.labels.some(l => !l)) {
+      report.push({ label: `${mode}: theme picker initial state`, axe: [], extra: [{ kind: 'text', name: 'bad initial state: ' + JSON.stringify(init), px: 0 }] });
+    }
+    // Keyboard: focus Court Green, Tab to Court Blue, press Enter; then Tab to Clay Red, press Space.
+    await page.focus('#sheet9 [data-palette-pick="green"]');
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Enter');
+    await sleep(200);
+    const blue = await page.evaluate(() => ({
+      palette: document.documentElement.getAttribute('data-palette'),
+      pressed: document.querySelector('#sheet9 [data-palette-pick="blue"]')?.getAttribute('aria-pressed'),
+      focused: document.activeElement?.dataset?.palettePick || '',
+      themeColor: document.querySelector('meta[name=theme-color]')?.content || '',
+      live: document.getElementById('a11y-live')?.textContent || '',
+      youSub: document.querySelector('#sheet3 [data-act="settings-open"] small')?.textContent || ''
+    }));
+    if (blue.palette !== 'blue' || blue.pressed !== 'true' || blue.focused !== 'blue' || blue.themeColor !== expectMeta[mode] || !/Court Blue/.test(blue.live) || !/Court Blue/.test(blue.youSub)) {
+      report.push({ label: `${mode}: theme picker keyboard (Court Blue)`, axe: [], extra: [{ kind: 'text', name: 'keyboard check failed: ' + JSON.stringify(blue), px: 0 }] });
+    }
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Space');
+    await sleep(200);
+    const clay = await page.evaluate(() => ({
+      palette: document.documentElement.getAttribute('data-palette'),
+      pressed: document.querySelector('#sheet9 [data-palette-pick="clay"]')?.getAttribute('aria-pressed'),
+      focused: document.activeElement?.dataset?.palettePick || ''
+    }));
+    if (clay.palette !== 'clay' || clay.pressed !== 'true' || clay.focused !== 'clay') {
+      report.push({ label: `${mode}: theme picker keyboard (Clay Red)`, axe: [], extra: [{ kind: 'text', name: 'Space key check failed: ' + JSON.stringify(clay), px: 0 }] });
+    }
+    await audit(page, `${mode}: settings sheet & theme picker (clay)`, report, '#sheet9 .sheet');
+    if (mode === 'light') {
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('#sheet9 .sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName.toLowerCase() + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `settings sheet theme picker: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
       }
     }
     await ctx.close();

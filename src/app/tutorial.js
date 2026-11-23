@@ -27,7 +27,8 @@ function tourSteps() {
   return steps;
 }
 /* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
-const NEWS = { id: '2026-11-22', title: "What's new", items: [
+const NEWS = { id: '2026-11-23', title: "What's new", items: [
+  ['🎨', 'Court themes', 'Match your home court — pick Court Green, Court Blue, Clay Red, Indoor Violet, Sunset Orange or Club Slate in You → Display and sound.'],
   ['🔔', 'Bell and inbox', 'The bell in the header lists game nights to answer, games to confirm, live events and league results. It is worked out on your phone, so nothing extra is shared.'],
   ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, events and courts, or league. New game night invites and league results now send one too.'],
   ['🙂', 'One You sheet', 'Tap your avatar for your profile, notifications, display and sound, Apple Watch, account and your data in one place. The gear is gone.'],
