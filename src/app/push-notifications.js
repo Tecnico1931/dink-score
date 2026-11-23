@@ -35,11 +35,12 @@ async function notifyToggle(on) {
   } catch (err) { if (clubSheet) { clubSheet.busy = false; clubSheet.error = err.message; } }
   if (clubSheet) renderClub();
 }
-const PUSH_CATS = [['nights', 'Game nights', 'A new game night, and reminders from an organizer.'], ['confirm', 'Games to confirm', 'A game that is waiting for you to confirm. Coming soon.'], ['events', 'Events and courts', 'Your court when a round opens, and when a court is free and you are next.'], ['league', 'League', 'Your match day and court, a moved match, and when a result is in.']];
+const PUSH_CATS = [['nights', 'Game nights', 'A new game night, and reminders from an organizer.'], ['events', 'Events and courts', 'Your court when a round opens, and when a court is free and you are next.'], ['league', 'League', 'Your match day and court, a moved match, and when a result is in.']];
 async function notifyCategory(cat, on) {
   if (!clubSheet || clubSheet.view !== 'notify' || !clubSheet.st || clubSheet.busy) return;
-  const had = clubSheet.st.categories || PUSH_CATS.map(c => c[0]);
-  const next = PUSH_CATS.map(c => c[0]).filter(k => k === cat ? on : had.includes(k));
+  const shown = PUSH_CATS.map(c => c[0]);
+  const had = clubSheet.st.categories || shown.concat('confirm'); // preserve server default for unshipped categories
+  const next = shown.filter(k => k === cat ? on : had.includes(k)).concat(had.filter(k => !shown.includes(k)));
   clubSheet.busy = true; clubSheet.error = ''; clubSheet.msg = ''; clubSheet.st = Object.assign({}, clubSheet.st, { categories: next }); renderClub();
   try {
     await pushCall(pushCreds({ action: 'push-categories', endpoint: await pushEndpoint(), categories: next }));

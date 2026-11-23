@@ -2227,11 +2227,12 @@ async function notifyToggle(on) {
   } catch (err) { if (clubSheet) { clubSheet.busy = false; clubSheet.error = err.message; } }
   if (clubSheet) renderClub();
 }
-const PUSH_CATS = [['nights', 'Game nights', 'A new game night, and reminders from an organizer.'], ['confirm', 'Games to confirm', 'A game that is waiting for you to confirm. Coming soon.'], ['events', 'Events and courts', 'Your court when a round opens, and when a court is free and you are next.'], ['league', 'League', 'Your match day and court, a moved match, and when a result is in.']];
+const PUSH_CATS = [['nights', 'Game nights', 'A new game night, and reminders from an organizer.'], ['events', 'Events and courts', 'Your court when a round opens, and when a court is free and you are next.'], ['league', 'League', 'Your match day and court, a moved match, and when a result is in.']];
 async function notifyCategory(cat, on) {
   if (!clubSheet || clubSheet.view !== 'notify' || !clubSheet.st || clubSheet.busy) return;
-  const had = clubSheet.st.categories || PUSH_CATS.map(c => c[0]);
-  const next = PUSH_CATS.map(c => c[0]).filter(k => k === cat ? on : had.includes(k));
+  const shown = PUSH_CATS.map(c => c[0]);
+  const had = clubSheet.st.categories || shown.concat('confirm'); // preserve server default for unshipped categories
+  const next = shown.filter(k => k === cat ? on : had.includes(k)).concat(had.filter(k => !shown.includes(k)));
   clubSheet.busy = true; clubSheet.error = ''; clubSheet.msg = ''; clubSheet.st = Object.assign({}, clubSheet.st, { categories: next }); renderClub();
   try {
     await pushCall(pushCreds({ action: 'push-categories', endpoint: await pushEndpoint(), categories: next }));
@@ -6768,7 +6769,7 @@ function tourSteps() {
 /* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
 const NEWS = { id: '2026-11-22', title: "What's new", items: [
   ['🔔', 'Bell and inbox', 'The bell in the header lists game nights to answer, games to confirm, live events and league results. It is worked out on your phone, so nothing extra is shared.'],
-  ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, games to confirm, events and courts, or league. New game night invites and league results now send one too.'],
+  ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, events and courts, or league. New game night invites and league results now send one too.'],
   ['🙂', 'One You sheet', 'Tap your avatar for your profile, notifications, display and sound, Apple Watch, account and your data in one place. The gear is gone.'],
   ['🎟️', 'Events and game nights', 'The Events tab now holds game nights. Answer In, Maybe or Out, jump to Standings, or open the TV view from any event.'],
   ['🎨', 'A fresh court look', 'Play is shorter and wears a court-green look with a lime pickleball. The header fits small phones and the tab bar fades into the page.'],
