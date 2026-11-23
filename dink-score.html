@@ -421,8 +421,12 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .month-facts .mk { color: var(--muted); flex: none; }
 .month-facts .mv { text-align: right; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
 .pl-link { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
-.g-actions { display: flex; gap: 12px; align-self: start; }
-.g-actions .link { font-size: 13px; padding: 2px 0; }
+.g-actions { display: flex; gap: 4px; align-items: center; align-self: start; flex-wrap: wrap; min-width: 0; }
+.g-actions .link { font-size: 13px; min-width: 44px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; }
+.g-actions .link.g-del { margin-left: auto; color: var(--muted); }
+.g-actions .link.g-del.armed { color: var(--danger); }
+.game > .lines { grid-column: 1 / -1; }
+.game > .g-actions { grid-column: 1 / -1; width: 100%; padding-left: 10px; padding-top: 4px; border-top: 1px solid var(--line); }
 .tag.warn { background: color-mix(in srgb, var(--down) 14%, transparent); color: var(--down); }
 .tag.confirmed { background: color-mix(in srgb, var(--up) 14%, transparent); color: var(--up); }
 .tag.logged { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent-text); }
@@ -640,7 +644,6 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .call div:first-child small { color: color-mix(in srgb, var(--ball-ink) 70%, transparent); }
 .net .who { font-size: 13px; color: rgb(255 255 255 / .72); text-align: center; }
 .net .who b { color: #fff; font-weight: 600; }
-.net .watch-chip { min-height: 44px; max-width: calc(100vw - 32px); padding: 6px 16px; line-height: 1.2; text-wrap: balance; border: 0; border-radius: 999px; font-size: 13px; font-weight: 600; color: #fff; background: rgb(0 0 0 / .38); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .22); }
 .net .first-hint { font-size: 12px; font-weight: 600; color: var(--ball); text-align: center; }
 @media (orientation: landscape) and (min-width: 640px) {
   .court { grid-template-columns: 1fr auto 1fr; grid-template-rows: auto 1fr; column-gap: 12px; }
@@ -2914,11 +2917,11 @@ function eventsTabView() {
 }
 const evElim = e => e.format === 'single_elim' || e.format === 'double_elim';
 function evTabCard(e, kind, org) {
-  const lg = kind === 'league', id = esc(e.id), key = kind + e.id, armed = evTab.arm === key;
-  const what = lg ? (e.kind === 'ladder' ? 'Ladder' : 'Table') : evElim(e) ? 'Bracket' : 'Standings';
+  const lg = kind === 'league', id = esc(e.id), key = kind + e.id, armed = evTab.arm === key, elim = !lg && evElim(e);
+  const what = lg ? (e.kind === 'ladder' ? 'Ladder' : 'Table') : elim ? 'Open' : 'Standings';
   const attr = lg ? 'data-lg' : 'data-ev';
   return `<article class="ev-card" aria-label="${esc(e.name)}">${lg ? lgItemBody(e) : evItemBody(e)}
-    <div class="ev-actions"><button type="button" class="btn btn-soft ev-small" ${attr}="tab-open" data-id="${id}" aria-label="${what}: ${esc(e.name)}">${what}</button>${org ? `<button type="button" class="btn ${armed ? 'btn-ink' : 'btn-soft'} ev-small" ${attr}="tab-tv" data-id="${id}" aria-label="${armed ? 'Make a public link and open it' : lg ? 'Open the public page for a big screen' : 'Open the TV view'}: ${esc(e.name)}">${armed ? 'Tap again to share' : 'TV'}</button>` : ''}</div>
+    <div class="ev-actions"><button type="button" class="btn btn-soft ev-small" ${attr}="tab-open" data-id="${id}" aria-label="${what}: ${esc(e.name)}">${what}</button>${elim ? `<button type="button" class="btn btn-soft ev-small" data-ev="tab-bracket" data-id="${id}" aria-label="Bracket: ${esc(e.name)}">Bracket</button>` : ''}${org ? `<button type="button" class="btn ${armed ? 'btn-ink' : 'btn-soft'} ev-small" ${attr}="tab-tv" data-id="${id}" aria-label="${armed ? 'Make a public link and open it' : lg ? 'Open the public page for a big screen' : 'Open the TV view'}: ${esc(e.name)}">${armed ? 'Tap again to share' : 'TV'}</button>` : ''}</div>
     ${armed ? `<p class="note" role="status">This makes a public link anyone can open: names and scores only, nobody can change anything.</p>` : ''}</article>`;
 }
 // The top of the table of the live round robin or league, the same table the event screen draws (BK.standingsHTML).
@@ -2989,7 +2992,7 @@ function homeTiles(games) {
   const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div></div>${BALL_IMG('hero-ball', 124)}
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
-  return `${hero}${Rewards.cardHTML()}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
+  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${Rewards.cardHTML()}${stats}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
@@ -3136,8 +3139,8 @@ function gameItem(g) {
   const armed = armedDelete === g.id;
   const dupe = isDupe(g.id), canConfirm = canConfirmGame(g);
   return `<li class="game"><div class="lines">${line(0)}${line(1)}</div>
-    <span class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button>${canConfirm ? `<button class="link" data-confirm="${esc(g.id)}">Confirm</button>` : ''}<button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link ${armed ? 'armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></span>
-    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${club && !g.event ? (g.confirmed ? '<span class="tag confirmed">Confirmed</span>' : `<span class="tag warn">${g.hold ? 'Not counted: unconfirmed' : 'Unconfirmed'}</span>`) : ''}${dupe ? '<span class="tag warn">Possible duplicate</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div>${reactionsHTML(g)}</li>`;
+    <div class="meta"><span>${esc(date)}</span><span class="tag">${g.mode === 'doubles' ? 'Doubles' : 'Singles'}</span>${g.event && g.event.name ? `<span class="tag">${esc(g.event.name)}</span>` : ''}${g.editedAt ? '<span class="tag">Edited</span>' : ''}${club && !g.event ? (g.confirmed ? '<span class="tag confirmed">Confirmed</span>' : `<span class="tag warn">${g.hold ? 'Not counted: unconfirmed' : 'Unconfirmed'}</span>`) : ''}${dupe ? '<span class="tag warn">Possible duplicate</span>' : ''}${g.logged ? '<span class="tag logged">Logged</span>' : `<span class="tag">${g.scoring === 'rally' ? 'Rally' : 'Side-out'} to ${Number(g.target)}</span><span class="tag">${minutes(g)} min</span>`}</div>${reactionsHTML(g)}
+    <div class="g-actions">${canReplay(g) ? `<button class="link" data-replay="${esc(g.id)}">Replay</button>` : ''}<button class="link" data-share="${esc(g.id)}">Share</button>${canConfirm ? `<button class="link" data-confirm="${esc(g.id)}">Confirm</button>` : ''}<button class="link" data-edit="${esc(g.id)}">Edit</button><button class="link g-del${armed ? ' armed' : ''}" data-del="${esc(g.id)}">${armed ? 'Confirm' : 'Delete'}</button></div></li>`;
 }
 
 function historyView() {
@@ -3344,13 +3347,12 @@ function renderCourt() {
     <div class="court-top">
       <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
       <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${live.event ? esc(live.event.name) + ': ' : ''}${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
-      <div class="cright"><button class="icon-btn" data-act="display" aria-pressed="${display.outdoor ? 'true' : 'false'}" aria-label="Sunlight display: high contrast and large scores">${ICON.sun}</button><button class="icon-btn" data-act="club-share" aria-label="Share this game: join code and QR">${ICON.share}</button><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
+      <div class="cright"><button class="icon-btn" data-act="display" aria-pressed="${display.outdoor ? 'true' : 'false'}" aria-label="Sunlight display: high contrast and large scores">${ICON.sun}</button><button class="icon-btn" data-act="club-share" aria-label="Share this game or link a watch">${ICON.share}</button><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
     </div>
     ${half(0)}
     <div class="net">
       <div class="call" role="group" aria-label="Score call ${callParts.join(' ')}">${callParts.map((n, i) => `<div><b>${n}</b><small>${callLabels[i]}</small></div>`).join('')}</div>
       ${fresh ? '<div class="first-hint">Tap the side that wins each rally</div>' : `<div class="who"><b>${esc(serverName)}</b> serves from the ${side}</div>`}
-      ${s.winner === null ? '<button type="button" class="watch-chip" data-act="watch-court">Link a watch to this game</button>' : ''}
     </div>
     ${half(1)}
   </div>${live.toast ? `<div class="toast">${esc(live.toast)}</div>` : ''}${sheet}`;
@@ -7661,12 +7663,14 @@ function evAct(a, d) {
   if (a === 'open-list') { evOpenList(); return; }
   if (a === 'more') { evLoadMore(); return; }
   if (a === 'tab-open') { evShow(d.id); evScreen.fromTab = true; return; }
+  if (a === 'tab-bracket') { evScreen = { view: 'bracket', id: d.id, event: null, loading: true, error: '', list: null, fromTab: true, tabBracket: true }; renderEvents(true); evLoad(d.id); return; }
   if (a === 'tab-tv') { evTabTv('event', d.id); return; }
   if (a === 'tab-new') { evScreen = { view: 'new', list: null, error: '', form: evNewForm() }; renderEvents(true); return; }
   if (!s) return;
-  if (a === 'back' && s.view === 'detail' && s.fromTab) {
+  if (a === 'back' && ((s.view === 'detail' && s.fromTab) || (s.view === 'bracket' && s.fromTab && s.tabBracket))) {
+    const act = s.view === 'bracket' ? 'tab-bracket' : 'tab-open';
     evScreen = null; evTab.at = 0; renderEvents(true); safeRender();
-    const t = document.querySelector(`[data-ev="tab-open"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
+    const t = document.querySelector(`[data-ev="${act}"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
     return;
   }
   if (a === 'back' && s.view !== 'bracket') {
@@ -7677,7 +7681,7 @@ function evAct(a, d) {
   if (a === 'unlock') { clubSheet = { view: 'unlock', back: null }; renderClub(); return; }
   if (a === 'new') { s.view = 'new'; s.form = evNewForm(); renderEvents(true); return; }
   if (a === 'brackets' && s.view === 'detail') { s.view = 'bracket'; s.sel = s.entry = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
-  if (s.view === 'bracket' && (a === 'back' || a === 'back-detail')) { s.view = 'detail'; s.sel = s.entry = s.share = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
+  if (s.view === 'bracket' && (a === 'back' || a === 'back-detail')) { s.view = 'detail'; s.tabBracket = false; s.sel = s.entry = s.share = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
   if (a === 'open') { evShow(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;

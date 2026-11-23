@@ -270,7 +270,7 @@ for (const [mode, opt] of states) {
     await ctx.close();
   }
 }
-{ // The scoring screen of a game shared from a club phone: the "Link a watch to this game" button (stubbed club, nothing is sent).
+{ // The scoring screen of a game shared from a club phone: Link a watch lives in the Share sheet, not the court net (stubbed club, nothing is sent).
   for (const colorScheme of ['light', 'dark']) {
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
     await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -281,15 +281,11 @@ for (const [mode, opt] of states) {
     for (const [i, n] of ['Ana', 'Ben', 'Cy', 'Di'].entries()) await page.type(`#name-${i >> 1}-${i & 1}`, n);
     await page.click('[data-act="start"]'); await sleep(400);
     await page.evaluate(() => { club = { code: 'ABC123', name: 'Check club' }; live.shared = true; live.id = 'live-1'; renderCourt(); });
-    if (!(await page.$('[data-act="watch-court"]'))) report.push({ label: `court with watch button (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'the Link a watch button is missing', px: 0 }] });
-    else {
-      await audit(page, `court with watch button (${colorScheme})`, report, '.court');
-      for (const w of [320]) { // the call row itself is wider than a 195 px screen (it was before the button), so only 320 px is held to this
-        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(250);
-        const over = await page.evaluate(() => [...document.querySelectorAll('.watch-chip')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
-        if (over.length) report.push({ label: `court with watch button: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
-      }
-    }
+    if (await page.$('.net [data-act="watch-court"]')) report.push({ label: `court net without watch button (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'Link a watch should not be inside .net', px: 0 }] });
+    else await audit(page, `court without watch chip (${colorScheme})`, report, '.court');
+    await page.click('.court [data-act="club-share"]'); await sleep(250);
+    if (!(await page.$('#sheet3 [data-act="watch-court"]'))) report.push({ label: `court share sheet with watch button (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'the Link a watch button is missing from the Share sheet', px: 0 }] });
+    else await audit(page, `court share sheet with watch button (${colorScheme})`, report, '#sheet3');
     await ctx.close();
   }
 }
@@ -306,7 +302,8 @@ for (const [mode, opt] of states) {
     const states = [['no club, not shared', () => {}, '[data-act="watch-share"]'], ['shared: scan or code', () => { live.room = 'ABCDEF'; live.shared = true; live.id = 'live-1'; }, '[data-act="watch-court-scan"]'], ['event match', () => { live.room = null; live.shared = false; live.event = { id: 'e1', name: 'Spring ladder' }; }, '[data-act="club-close"]']];
     for (const [name, set, want] of states) {
       await page.evaluate(set); await page.evaluate(() => { clubSheet = null; renderClub(); renderCourt(); }); await sleep(150);
-      await page.click('[data-act="watch-court"]'); await sleep(250);
+      await page.click('.court [data-act="club-share"]'); await sleep(200);
+      await page.click('#sheet3 [data-act="watch-court"]'); await sleep(250);
       const label = `court watch sheet, ${name} (${colorScheme})`;
       if (!(await page.$('#sheet3 ' + want))) report.push({ label, axe: [], extra: [{ kind: 'text', name: 'the sheet did not show ' + want, px: 0 }] });
       else await audit(page, label, report, '#sheet3');

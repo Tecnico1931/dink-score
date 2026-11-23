@@ -151,9 +151,11 @@ test('the phone page: a watch link with no club leads to one game, not a dead en
   assert.ok(html.includes(mod.slice(mod.indexOf('async function watchGameClaim'), mod.indexOf('async function watchGameClaim') + 200)), 'the built page carries the module');
 });
 
-test('the scoring screen has a Link a watch button for any game in progress that offers the camera and a code, and links on the scan', () => {
-  const html = page(), mod = read('src/app/watch-link.js');
-  assert.match(html, /\$\{s\.winner === null \? '<button type="button" class="watch-chip" data-act="watch-court">Link a watch to this game<\/button>'/, 'shown for a club game, a quick game, a pickup game and an event match alike');
+test('Link a watch lives in the court Share sheet (not the live court net) for any game in progress, offers the camera and a code, and links on the scan', () => {
+  const html = page(), mod = read('src/app/watch-link.js'), shareMod = read('src/app/pickup-sessions.js');
+  const netBlock = html.slice(html.indexOf('<div class="net">'), html.indexOf('</div>\n    ${half(1)}'));
+  assert.doesNotMatch(netBlock, /watch-court|watch-chip/, 'Link a watch is off the live court centre strike zone');
+  assert.match(shareMod, /live && live\.state && live\.state\.winner === null \? '<button type="button" class="btn btn-soft block" data-act="watch-court">Link a watch to this game<\/button>' : ''/, 'shown in the court Share sheet for any game in progress');
   assert.match(html, /c\.view === 'watch-court'\) \{\n    body = watchCourtHTML\(c\)/, 'the court sheet renders with or without a club');
   assert.match(html, /clubSheet = \{ view: 'watch-link', single: true, auto: true, from: 'court' \}; renderClub\(\); watchScanStart\(\)/, 'straight to the camera, for this game only');
   for (const a of ['data-act="watch-court-scan"', 'data-act="watch-offer"', 'data-act="watch-share"']) assert.ok(mod.includes(a), a + ' is on the court sheet');

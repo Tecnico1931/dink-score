@@ -231,9 +231,10 @@ function syncUrl() {
 }
 // The share sheet for the live game. Joining a club is what shares a game: games end up in the club's record, and anyone with the code can join and score.
 function shareSheetHTML(c) {
+  const watchBtn = live && live.state && live.state.winner === null ? '<button type="button" class="btn btn-soft block" data-act="watch-court">Link a watch to this game</button>' : '';
   if (!club) return `<h2 id="club-h">Share this game</h2>
     <p>This game is only on this phone, and it stays here unless you save it to a club. Start a club or join one and other players can join it with a code or QR code. You can also share the result card when the game ends.</p>
-    <div class="btns"><button class="btn btn-blue" data-act="club-open">Join or start a club</button><button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
+    <div class="btns"><button class="btn btn-blue" data-act="club-open">Join or start a club</button>${watchBtn}<button class="btn btn-soft" data-act="club-close">Not now</button></div>`;
   const link = inviteLink();
   let qr = '';
   try { qr = ShareLink.qrSvg(qrcode, link); } catch {}
@@ -243,7 +244,7 @@ function shareSheetHTML(c) {
       <p>Scan with another phone's camera, or send the link. They join ${esc(club.name)} and can see its games and add scores. Games you score here are saved to the club when they end. Anyone with the code can join.</p>
       <div class="invite"><input id="invite-link" readonly value="${esc(link)}" aria-label="Join link"><button class="btn btn-ink" data-act="club-copy" style="padding:10px 14px;border-radius:12px;font-size:14px">${c.copied ? 'Copied' : 'Copy link'}</button></div>
       ${navigator.share ? '<button class="btn btn-blue block" data-act="club-native-share">Share…</button>' : ''}</div>
-    <div class="btns"><button class="btn btn-soft" data-act="club-close">Done</button></div>`;
+    <div class="btns">${watchBtn}<button class="btn btn-soft" data-act="club-close">Done</button></div>`;
 }
 // Opens a club on this phone (joining it if it's new), keeping every other club this phone is in.
 async function joinClub(code, name) {

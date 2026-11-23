@@ -100,12 +100,14 @@ function evAct(a, d) {
   if (a === 'open-list') { evOpenList(); return; }
   if (a === 'more') { evLoadMore(); return; }
   if (a === 'tab-open') { evShow(d.id); evScreen.fromTab = true; return; }
+  if (a === 'tab-bracket') { evScreen = { view: 'bracket', id: d.id, event: null, loading: true, error: '', list: null, fromTab: true, tabBracket: true }; renderEvents(true); evLoad(d.id); return; }
   if (a === 'tab-tv') { evTabTv('event', d.id); return; }
   if (a === 'tab-new') { evScreen = { view: 'new', list: null, error: '', form: evNewForm() }; renderEvents(true); return; }
   if (!s) return;
-  if (a === 'back' && s.view === 'detail' && s.fromTab) {
+  if (a === 'back' && ((s.view === 'detail' && s.fromTab) || (s.view === 'bracket' && s.fromTab && s.tabBracket))) {
+    const act = s.view === 'bracket' ? 'tab-bracket' : 'tab-open';
     evScreen = null; evTab.at = 0; renderEvents(true); safeRender();
-    const t = document.querySelector(`[data-ev="tab-open"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
+    const t = document.querySelector(`[data-ev="${act}"][data-id="${CSS.escape(s.id)}"]`); if (t) t.focus({ preventScroll: true });
     return;
   }
   if (a === 'back' && s.view !== 'bracket') {
@@ -116,7 +118,7 @@ function evAct(a, d) {
   if (a === 'unlock') { clubSheet = { view: 'unlock', back: null }; renderClub(); return; }
   if (a === 'new') { s.view = 'new'; s.form = evNewForm(); renderEvents(true); return; }
   if (a === 'brackets' && s.view === 'detail') { s.view = 'bracket'; s.sel = s.entry = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
-  if (s.view === 'bracket' && (a === 'back' || a === 'back-detail')) { s.view = 'detail'; s.sel = s.entry = s.share = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
+  if (s.view === 'bracket' && (a === 'back' || a === 'back-detail')) { s.view = 'detail'; s.tabBracket = false; s.sel = s.entry = s.share = null; renderEvents(true); const t = $('#events .ev-screen'); if (t) t.scrollTop = 0; return; }
   if (a === 'open') { evShow(d.id); return; }
   if (s.view === 'new') {
     const f = s.form;
