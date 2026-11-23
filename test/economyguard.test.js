@@ -15,8 +15,8 @@ const CORE = ['pb-engine.js', 'rating-engine.js', 'api/_pb.js', 'api/_rating.js'
   'api/_rallylog.js', 'api/_rotation.js', 'api/_confirm.js', 'api/_clublinks.js', 'api/club.js', 'api/games.js'];
 // The currency is "Dinks"; Dink Rating, Dink Score, dink-score and a "nice dink" are the product and the game.
 const TERMS = /\bdinks\b|\bwallet\b|\beconomy\b|\bprestige\b|\bxp\b|\blevelFrom\b|\bLEVEL_MAX\b|\bshop\b|\binventory\b|\bcosmetics?\b/i;
-// Only comments and unused columns of the removed shop (#60, #65): _db.js keeps them (additive, never dropped), _rename.js's header still names it.
-const LEGACY = new Set(['api/_db.js', 'api/_rename.js']);
+// Only comments and unused additive DDL of the removed old shop/prestige (#60, #65): _db.js keeps them until a manual DB cleanup.
+const LEGACY = new Set(['api/_db.js']);
 
 const sources = () => {
   const out = [];

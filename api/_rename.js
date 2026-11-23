@@ -1,5 +1,5 @@
 // Renaming a player and merging two players. A name is stored in several places (the saved player, every game, every event,
-// event DUPR references, shop purchases, account links), so these rewrite them all in one transaction.
+// leagues, court board, reactions, game night RSVPs, rewards ledger and items, event DUPR references, account links), so these rewrite them all in one transaction.
 // The pure part (rewriting one JSON document) is here so it can be tested without a database.
 import { nameKey, cleanName } from './_names.js';
 import { dropRatings } from './_rating_store.js';
@@ -114,6 +114,7 @@ export function renameWrites(sql, code, plan, extra = []) {
   writes.push(sql`UPDATE game_nights SET updated_at = now() WHERE club = ${code} AND id IN (SELECT night_id FROM game_night_rsvps WHERE club = ${code} AND name_key = ${toKey})`);
   writes.push(sql`UPDATE organizer_devices SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`); // the player an unlocked organizer phone is linked to
   writes.push(sql`UPDATE push_subs SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
+  // Data-rights handling for any legacy rows still in `purchases` until the table is manually dropped.
   writes.push(sql`UPDATE purchases SET name_key = ${toKey} WHERE club = ${code} AND name_key = ${fromKey}`);
   if (fromKey !== toKey) {
     // The rewards ledger follows the player. A merge keeps every row of both names: a row whose id the kept name already has gets a prefixed id.

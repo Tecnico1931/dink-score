@@ -770,6 +770,7 @@ await step('game allowance counts only games that are not deleted, and an organi
   assert.equal((await send(1)).status, 429);
   assert.equal((await call(club, 'POST', { body: { code: c5.club.code, action: 'reset-allowance' } })).status, 403);
   ok(await call(club, 'POST', { body: { code: c5.club.code, action: 'reset-allowance', ownerToken: c5.ownerToken } }));
+  assert.equal((await pg.query('SELECT total_count FROM clubs WHERE code = $1', [c5.club.code])).rows[0].total_count, 999999, 'reset-allowance leaves legacy total_count untouched');
   assert.ok((await send(1)).status < 300);
 });
 await step('live games: each club keeps at most 20 open at once, stale ones expire', async () => {
@@ -815,6 +816,15 @@ await step('Dinks and the shop are gone: no routes, and recording, editing and d
   ok(await call(games, 'POST', { body: { code, edit: Object.assign({}, g, { score: [11, 7] }), ownerToken: owner } }));
   ok(await call(games, 'DELETE', { query: `?code=${code}&id=nodinks-1`, headers: { 'x-club-owner': owner } }));
   assert.equal(await purchases(), before, 'no purchase rows written');
+  // Data-rights handling: while legacy purchases still exists, rename moves any legacy rows and anonymise deletes them.
+  const cOld = ok(await call(club, 'POST', { body: { name: 'Legacy leftovers club' } }), 201);
+  const pOld = body => call(playersApi, 'POST', { body: { code: cOld.club.code, ownerToken: cOld.ownerToken, ...body } });
+  const tokOld = ok(await pOld({ action: 'claim', name: 'Pat' })).playerToken;
+  await pg.query("INSERT INTO purchases (club, name_key, item_id, item_name, price) VALUES ($1, 'pat', 'old-1', 'Old item', 5)", [cOld.club.code]);
+  ok(await pOld({ action: 'rename', name: 'Pat', newName: 'Patty' }));
+  assert.deepEqual((await pg.query('SELECT name_key FROM purchases WHERE club = $1', [cOld.club.code])).rows, [{ name_key: 'patty' }], 'rename moves legacy purchases rows for data rights');
+  ok(await pOld({ action: 'anonymise', name: 'Patty', playerToken: tokOld }));
+  assert.deepEqual((await pg.query('SELECT name_key FROM purchases WHERE club = $1', [cOld.club.code])).rows, [], 'anonymise deletes legacy purchases rows for data rights');
   const data = ok(await call(club, 'GET', { query: '?code=' + code }));
   for (const k of ['shop', 'purchases']) assert.ok(!(k in data), k + ' is no longer sent');
   assert.ok(data.players.every(p => !('equipped' in p)));
@@ -1068,7 +1078,7 @@ await step('rally log: the column is additive and nullable, so older rows and ol
     ok(await P({ action: 'rename', name: 'CY', newName: 'Josephe', confirmNew: true }));
     ok(await P({ action: 'rename', name: 'Josephe', newName: 'Cy' }));
   });
-  await step('names: merge folds games, link, picture and purchases into one player; ratings follow from the games', async () => {
+  await step('names: merge folds games, link, picture and role into one player; ratings follow from the games', async () => {
     // "Jose" (a guest typed twice, never linked) is the same person as Joseph (linked, with a picture)
     await G('n-g003', [['Jose', 'Cy'], ['Di', 'Ed']]);
     ok(await P({ action: 'set-role', name: 'Joseph', role: 'organizer' }));

@@ -34,10 +34,8 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}/sql`;
 process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 
-import fs from 'node:fs';
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
-const playersFile = fs.existsSync(path.join(root, 'api', 'players.js')) ? 'players' : 'shop'; // the player-name API was renamed once
-const [account, club, players] = await Promise.all(['account', 'club', playersFile].map(load));
+const [account, club, players] = await Promise.all(['account', 'club', 'players'].map(load));
 const ORIGIN = 'https://dinkscore.vercel.app';
 let ip = 0, cookie = '';
 async function call(handler, method, { body, headers = {}, keepIp = false, jar = true } = {}) {
