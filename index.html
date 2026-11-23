@@ -5053,7 +5053,7 @@ function homeTiles(games) {
   const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div></div>${BALL_IMG('hero-ball', 124)}
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
-  return `${hero}${Rewards.cardHTML()}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${stats}${monthCard(games)}`;
+  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${Rewards.cardHTML()}${stats}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
