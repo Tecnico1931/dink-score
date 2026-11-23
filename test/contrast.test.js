@@ -85,6 +85,47 @@ test('danger buttons: label colour passes in every theme', () => {
   assert.match(html, /prefers-color-scheme: dark\) \{ :root:not\(\[data-theme="light"\]\) \.btn-danger \{ color: var\(--bg\)/);
 });
 
+test('leaders podium: avatar initials and rank pedestal pass contrast in every theme', () => {
+  const css = html.split('</style>')[0];
+  const rule = sel => {
+    const m = new RegExp(`(?:^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
+    assert.ok(m, `missing CSS rule for ${sel}`);
+    return m[1];
+  };
+  const prop = (body, name) => {
+    const m = new RegExp(`(?:^|;)\\s*${name}:\\s*([^;]+)`).exec(body);
+    return m ? m[1].trim() : null;
+  };
+  const resolve = (val, t, cVar) => {
+    if (val === 'var(--c)') return resolve(cVar, t);
+    const v = /^var\(--([\w-]+)\)$/.exec(val);
+    if (v) { assert.ok(t[v[1]], `unknown token --${v[1]}`); return t[v[1]]; }
+    if (/^#[0-9A-Fa-f]{3,6}$/.test(val)) return hexRgb(val);
+    assert.fail(`unhandled podium color value: ${val}`);
+  };
+  const avBase = rule('.step .avatar'), av1 = rule('.step.s1 .avatar');
+  const blBase = rule('.step .block'), bl1 = rule('.step.s1 .block');
+  const avColors = /const avatarColor = \[([^\]]+)\]/.exec(html);
+  assert.ok(avColors, 'missing avatarColor array for leaders podium');
+  const stepC = [...avColors[1].matchAll(/'([^']+)'/g)].map(m => m[1]);
+  assert.equal(stepC.length, 3, 'expected 3 podium avatar colors');
+
+  const specs = [
+    ['podium #1 avatar', prop(av1, 'color') || prop(avBase, 'color'), prop(av1, 'background') || prop(avBase, 'background'), stepC[0]],
+    ['podium #2 avatar', prop(avBase, 'color'), prop(avBase, 'background'), stepC[1]],
+    ['podium #3 avatar', prop(avBase, 'color'), prop(avBase, 'background'), stepC[2]],
+    ['podium #1 block', prop(bl1, 'color') || prop(blBase, 'color'), prop(bl1, 'background') || prop(blBase, 'background'), stepC[0]],
+    ['podium #2/#3 block', prop(blBase, 'color'), prop(blBase, 'background'), stepC[1]],
+  ];
+  for (const [name, t] of [['light', light], ['dark', dark], ['outdoor', outdoor]]) {
+    for (const [what, fgVal, bgVal, cVar] of specs) {
+      assert.ok(fgVal && bgVal, `${what}: missing color or background`);
+      const fg = resolve(fgVal, t, cVar), bg = resolve(bgVal, t, cVar);
+      assert.ok(ratio(fg, bg) >= 4.5, `${name}: ${what} (${fgVal} on ${bgVal}) is ${ratio(fg, bg).toFixed(2)}:1, needs 4.5:1`);
+    }
+  }
+});
+
 // The court: white text over each team's gradient, at the lightest end (the worst case) and at the dimmed "idle" half.
 const a11y = section('A11Y');
 const halfVars = sel => { const m = new RegExp(sel.replace(/[[\]"]/g, '\\$&') + ' \\{[^}]*?--c1: (#[0-9A-Fa-f]{6}); --c2: (#[0-9A-Fa-f]{6})').exec(a11y); assert.ok(m, 'no court colours for ' + sel); return [hexRgb(m[1]), hexRgb(m[2])]; };
