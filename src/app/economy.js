@@ -10,6 +10,9 @@ const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `$
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
 const rwId = v => (typeof v === 'string' && /^[a-z]{3,8}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
 const rwLook = id => String(id || '').replace(/^[a-z]+-/, ''); // 'frame-court' -> 'court': the name the stylesheet draws
+// The worn paddle colour as one small upright pickleball paddle (rounded face, edge, holes, handle), coloured only by the --rw-pad-* tokens of
+// the [data-rw-skin] it sits in, so it follows both themes. Decorative: callers carry the text. The stripe shows only for the striped skin.
+const rwPaddleSvg = () => '<svg class="rw-pdl" viewBox="0 0 18 26" aria-hidden="true" focusable="false"><rect class="rw-pdl-grip" x="7.2" y="16" width="3.6" height="9.2" rx="1.6"/><rect class="rw-pdl-face" x="2" y="1" width="14" height="17.5" rx="6.4"/><rect class="rw-pdl-stripe" x="7" y="1.7" width="4" height="16.1"/><g class="rw-pdl-holes"><circle cx="6.2" cy="6" r="1"/><circle cx="9" cy="6" r="1"/><circle cx="11.8" cy="6" r="1"/><circle cx="6.2" cy="9.6" r="1"/><circle cx="9" cy="9.6" r="1"/><circle cx="11.8" cy="9.6" r="1"/><circle cx="6.2" cy="13.2" r="1"/><circle cx="9" cy="13.2" r="1"/><circle cx="11.8" cy="13.2" r="1"/></g></svg>';
 const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').toLowerCase();
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
 const rwCleanLooks = raw => {
@@ -157,7 +160,7 @@ const Rewards = {
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
     const l = Rewards.lookOf(name);
-    return l && l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
+    return l && l.paddle ? `<span class="rw-pad" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${rwPaddleSvg()}</span>` : '';
   },
   // The worn pet next to a name on Leaderboard, Roster and Profile only (never game cards): pet id, growth stage and shiny flag from the allow-list, nothing else.
   petBadgeHTML(name) {
@@ -176,7 +179,7 @@ const Rewards = {
       const l = cardLook(n);
       if (!l) return esc(n);
       const av = l.frame && typeof avatarInner === 'function' ? `<span class="rw-g-av" data-rw-frame="${esc(l.frame)}" aria-hidden="true">${avatarInner(n)}</span>` : '';
-      const pd = l.paddle && typeof iconSvg === 'function' ? `<span class="rw-pad sm" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${iconSvg('paddle')}</span>` : '';
+      const pd = l.paddle ? `<span class="rw-pad sm" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${rwPaddleSvg()}</span>` : '';
       return `<span class="rw-g-p">${av}${esc(n)}${pd}</span>`;
     }).join(' &amp; ');
   },
