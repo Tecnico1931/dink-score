@@ -153,7 +153,7 @@ function rwPetsSectionHTML(c, s) {
   const adoptRows = unowned.map(i => {
     const need = s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : '';
     const feat = i.featuredShiny ? ' · Shiny week' : '';
-    return `<div class="rw-item rw-pet-row">${rwPetBadgeHTML(i.id, { stage: 1, shiny: false, decorative: true, size: 40 })}<span class="rw-name"><b>${esc(i.name)}</b><small>${i.price} Dinks${need}${feat}</small></span><button type="button" class="btn btn-court" data-rw-buy="${esc(i.id)}" aria-label="Adopt ${esc(i.name)} for ${i.price} Dinks" ${c.busy ? 'disabled' : ''}>Adopt</button></div>`;
+    return `<div class="rw-item rw-pet-row">${rwPetBadgeHTML(i.id, { stage: 1, shiny: false, decorative: true, size: 40 })}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${need}${feat}</small></span><button type="button" class="btn btn-court" data-rw-buy="${esc(i.id)}" aria-label="Adopt ${esc(i.name)} for ${rwDinks(i.price)}${need.replace(/\.$/, '')}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Adopt</button></div>`;
   }).join('');
   const adopt = adoptRows
     ? `<div><p class="note">Fixed prices, bought once. Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+).</p>${adoptRows}</div>`

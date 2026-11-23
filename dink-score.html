@@ -155,6 +155,7 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-item { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
 .rw-name { flex: 1; min-width: 0; } .rw-name b { display: block; font-size: 15px; } .rw-name small { display: block; font-size: 13px; color: var(--muted); }
 .rw-item .btn { min-height: 44px; min-width: 64px; }
+.rw-item .btn[data-rw-short], .rw-box .btn[data-rw-short] { opacity: .55; } :root[data-outdoor] .rw-item .btn[data-rw-short], :root[data-outdoor] .rw-box .btn[data-rw-short] { opacity: 1; text-decoration: line-through; } /* can't afford it yet: muted, still focusable, says why when pressed */
 .rw-goal { display: grid; gap: 4px; font-size: 13px; font-weight: 600; } .rw-goal select { width: 100%; font-size: 16px; font-weight: 400; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); }
 .rw-goal-line { margin: 8px 0 2px; font-size: 14px; }
 .rw-acts-list { list-style: none; margin: 8px 0 4px; padding: 0; } .rw-act { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }

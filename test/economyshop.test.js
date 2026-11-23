@@ -182,3 +182,23 @@ test('club looks: never fetched when off or hidden, cleans server data, renders 
   await new Promise(r => setTimeout(r, 5));
   assert.equal(p.x.Rewards.frameAttr('Ana'), '', 'hiding immediately removes the worn ring from club views');
 });
+
+// UX-09: fixed items come before the mystery box, an unaffordable button is muted but still says why, and "1 Dink" is singular.
+test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 Dink grammar', () => {
+  const { x } = phone();
+  const box = { price: 5, duplicateRefund: 2, dailyLimit: 3, openedToday: 0, tiers: [{ label: 'Common', chance: 100, items: [{ name: 'Team blue ring' }] }] };
+  const html = x.Rewards.storeHTML({ store: { dinks: 1, worn: { frame: 'frame-court', paddle: '' }, items: items(['frame-court']), box }, msg: '', error: '', busy: false });
+  const at = s => html.indexOf(s);
+  assert.ok(at('What you wear') > -1 && at('What you wear') < at('In the shop'), 'What you wear is first');
+  if (at('Mystery box') > -1) assert.ok(at('In the shop') < at('Mystery box'), 'fixed items sit above the mystery box');
+  assert.match(html, /<b>1<\/b> Dink</);
+  assert.ok(!/\b1 Dinks\b|<\/b> Dinks<\/p>/.test(html.replace(/<b>1<\/b> Dink/g, '')), 'no "1 Dinks"');
+  const buy = html.match(/<button[^>]*data-rw-buy="frame-blue"[^>]*>/)[0];
+  assert.match(buy, /aria-disabled="true"/);
+  assert.match(buy, /data-rw-short="1"/);
+  assert.ok(!/ disabled/.test(buy), 'not natively disabled: it stays focusable and announces the shortfall when pressed');
+  assert.match(buy, /aria-label="Get Team blue ring for 8 Dinks\. You need 7 more"/);
+  const rich = x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: items([]), box }, msg: '', error: '', busy: false });
+  assert.ok(!/data-rw-short/.test(rich), 'affordable buttons are drawn as normal');
+  assert.match(x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: [{ id: 'frame-blue', slot: 'frame', name: 'Blue', price: 1, owned: false }] }, msg: '', error: '', busy: false }), /<small>1 Dink<\/small>/);
+});
