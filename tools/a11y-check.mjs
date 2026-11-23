@@ -142,7 +142,7 @@ for (const [mode, opt] of states) {
         return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true }
           : { id, slot, name, price, owned, featuredShiny, stage: 1, stageLabel: 'Rookie', playDays: 2, nextStageDays: 5, shiny: false };
       }) };
-      const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe' }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
+      const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog', petStage: 2, petShiny: true }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
       const pass = {
         season: { id: '2026-Q4', name: 'Fall 2026', start: 0, end: 1 }, games: 6, dinks: 12, worn: shop.worn, share: true, claimable: 2,
         tiers: [
@@ -202,19 +202,33 @@ for (const [mode, opt] of states) {
       tab = 'leaders'; render();
     });
     await sleep(300);
-    if (!(await page.$('.rows .avatar-mini[data-rw-frame="double"]')) || !(await page.$('.rows .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Leaderboard shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on leaderboard', px: 0 }] });
+    if (!(await page.$('.rows .avatar-mini[data-rw-frame="double"]')) || !(await page.$('.rows .rw-pad[data-rw-skin="stripe"]')) || !(await page.$('.rows .rw-pet-club[data-pet="pet-frog"][data-pet-shiny="true"] svg[role="img"][aria-label]')) || !(await page.$('.podium .rw-pet-club'))) report.push({ label: `Leaderboard shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring, paddle badge or pet missing on leaderboard', px: 0 }] });
     else await audit(page, `Leaderboard shared looks (${colorScheme})`, report, '.rows .prow-main');
     await page.evaluate(() => { clubSheet = { view: 'members', membersData: { members: [], audit: [], requests: [] } }; renderClub(); }); await sleep(250);
-    if (!(await page.$('#sheet3 .mem-who .avatar-mini[data-rw-frame="double"]')) || !(await page.$('#sheet3 .mem-who .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Roster shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on roster', px: 0 }] });
+    if (!(await page.$('#sheet3 .mem-who .avatar-mini[data-rw-frame="double"]')) || !(await page.$('#sheet3 .mem-who .rw-pad[data-rw-skin="stripe"]')) || !(await page.$('#sheet3 .mem-who .rw-pet-club'))) report.push({ label: `Roster shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring, paddle badge or pet missing on roster', px: 0 }] });
     else await audit(page, `Roster shared looks (${colorScheme})`, report, '#sheet3 .mem-who .avatar-mini');
     await page.evaluate(() => { clubSheet = null; renderClub(); tab = 'history'; render(); }); await sleep(250);
+    if (await page.$('.game .rw-pet, .game [data-pet]')) report.push({ label: `Game card pets (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'pet shown on a game card (never allowed)', px: 0 }] });
     if (!(await page.$('.game .rw-g-av[data-rw-frame="double"]')) || !(await page.$('.game .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Game card shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on game card', px: 0 }] });
     else await audit(page, `Game card shared looks (${colorScheme})`, report, '.game .lines');
     await page.evaluate(() => { profile = { name: 'Ana', mode: 'doubles' }; renderProfile(); }); await sleep(250);
-    if (!(await page.$('#sheet4 .pf-head .av[data-rw-frame="double"]')) || !(await page.$('#sheet4 .pf-head .rw-pad[data-rw-skin="stripe"]'))) report.push({ label: `Profile shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring or paddle badge missing on profile', px: 0 }] });
+    if (!(await page.$('#sheet4 .pf-head .av[data-rw-frame="double"]')) || !(await page.$('#sheet4 .pf-head .rw-pad[data-rw-skin="stripe"]')) || !(await page.$('#sheet4 .pf-head .rw-pet-club'))) report.push({ label: `Profile shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring, paddle badge or pet missing on profile', px: 0 }] });
     else await audit(page, `Profile shared looks (${colorScheme})`, report, '#sheet4 .pf-head');
     if (colorScheme === 'light') {
-      await page.evaluate(() => { profile = null; renderProfile(); tab = 'history'; render(); });
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('#sheet4 .pf-head, #sheet4 .pf-head *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('svg'); }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Profile pet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
+      await page.evaluate(() => { profile = null; renderProfile(); tab = 'leaders'; render(); }); await sleep(250);
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.podium *, .rows .prow *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('svg'); }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Leaderboard pet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
+      await page.evaluate(() => { tab = 'history'; render(); });
       for (const w of [320, 195]) {
         await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
         const over = await page.evaluate(() => [...document.querySelectorAll('.game .lines *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
