@@ -7,7 +7,76 @@ const SHARE_THEMES = {
   night: { ink: '#EEF2F7', muted: '#8E9BAD', badgeBg: 'rgba(221,242,71,.14)', badgeInk: '#DDF247', cardBg: '#131B26', cardLine: '#243142', heroBg: '#162234', heroMuted: '#9BA9BC', up: '#3DD69E', down: '#FF7A6B', avBg: '#1E2A3B' },
   day: { ink: '#0E1726', muted: '#5D6A7B', badgeBg: '#DDF247', badgeInk: '#1B2104', cardBg: '#FFFFFF', cardLine: '#DEE4EA', heroBg: '#0E1726', heroMuted: '#A3B1C2', up: '#0B8562', down: '#C2372B', avBg: '#0E1726' }
 };
+const SHARE_GROUND = { night: ['#1d2a3d', '#0A0F17'], day: ['#FFFFFF', '#F2F4F7'] };
 const SHARE_PANELS = [['#3D5BFF', '#2B49E6'], ['#0f8c66', '#08664b']];
+
+// Read computed CSS tokens for the active palette in the card's Night (dark) or Day (light) mode,
+// keeping Court Green fallbacks and never altering the locked Team 1 / Team 2 SHARE_PANELS.
+function readShareTokens(theme) {
+  const r = typeof document !== 'undefined' && document.documentElement;
+  if (!r || typeof getComputedStyle !== 'function') return {};
+  const want = theme === 'day' ? 'light' : 'dark';
+  const prevTheme = r.getAttribute('data-theme');
+  const hadOut = r.hasAttribute('data-outdoor');
+  const swap = prevTheme !== want || hadOut;
+  if (swap) {
+    r.setAttribute('data-theme', want);
+    if (hadOut) r.removeAttribute('data-outdoor');
+  }
+  try {
+    const cs = getComputedStyle(r);
+    const get = k => (cs.getPropertyValue(k) || '').trim();
+    return {
+      palette: (r.getAttribute('data-palette') || '').trim(),
+      bg: get('--bg'), surface: get('--surface'), surface2: get('--surface-2'),
+      ink: get('--ink'), muted: get('--muted'), line: get('--line'),
+      court: get('--court'), court2: get('--court-2'),
+      accent: get('--accent'), accentText: get('--accent-text'),
+      onCourt: get('--on-court'), onCourtMuted: get('--on-court-muted'),
+      ball: get('--ball'), ballInk: get('--ball-ink'),
+      up: get('--up'), down: get('--down'), dspSurface: get('--dsp-surface')
+    };
+  } finally {
+    if (swap) {
+      if (prevTheme === null) r.removeAttribute('data-theme');
+      else r.setAttribute('data-theme', prevTheme);
+      if (hadOut) r.setAttribute('data-outdoor', '');
+    }
+  }
+}
+function shareTheme(theme) {
+  const isDay = theme === 'day';
+  const base = SHARE_THEMES[isDay ? 'day' : 'night'];
+  const gBase = SHARE_GROUND[isDay ? 'day' : 'night'];
+  const tok = readShareTokens(theme);
+  const isDefault = (!tok.palette || tok.palette === 'green') &&
+    (!tok.court || tok.court.toLowerCase() === (isDay ? '#0e7a55' : '#0f6b4b'));
+  const ball = tok.ball || '#DDF247';
+  const ballInk = tok.ballInk || '#1B2104';
+  const groundLo = tok.bg || gBase[1];
+  const nightHi = tok.dspSurface && tok.dspSurface.toLowerCase() !== '#17372e'
+    ? tok.dspSurface : (tok.surface2 || gBase[0]);
+  const groundHi = isDay ? (tok.surface || gBase[0]) : (isDefault ? gBase[0] : nightHi);
+  return Object.assign({}, base, {
+    ink: tok.ink || base.ink,
+    muted: tok.muted || base.muted,
+    badgeBg: isDay ? ball : base.badgeBg,
+    badgeInk: isDay ? ballInk : ball,
+    cardBg: tok.surface || base.cardBg,
+    cardLine: tok.line || base.cardLine,
+    heroBg: isDefault ? base.heroBg : (tok.court || base.heroBg),
+    heroBg2: isDefault ? null : (tok.court2 || tok.court || null),
+    heroInk: isDefault ? '#EEF2F7' : (tok.onCourt || '#FFFFFF'),
+    heroMuted: isDefault ? base.heroMuted : (tok.onCourtMuted || 'rgba(255,255,255,.92)'),
+    accent: isDefault ? (tok.ink || base.ink) : (tok.accentText || tok.accent || tok.ink || base.ink),
+    up: isDay ? base.up : (tok.up || base.up),
+    down: tok.down || base.down,
+    avBg: isDefault ? base.avBg : (isDay ? (tok.court2 || tok.ink || base.avBg) : (tok.surface2 || base.avBg)),
+    ground: [groundHi, groundLo],
+    ball,
+    ballInk
+  });
+}
 const DISPLAY_FONT = '"Bricolage Grotesque", "Arial Narrow", sans-serif';
 const UI_FONT = 'Geist, system-ui, -apple-system, "Segoe UI", Roboto, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
@@ -92,10 +161,10 @@ function pill(ctx, x, cy, text, h, padX, bg, fg) {
 }
 const fmtDelta = d => { const v = Math.round(d * 100) / 100; return v === 0 ? '±0.00' : (v > 0 ? '+' : '−') + Math.abs(v).toFixed(2); };
 // Shared card ground (rounded clip + top radial light) and top brand/meta row.
-function drawShareGround(ctx, theme) {
+function drawShareGround(ctx, T) {
   const W = SHARE_W, H = SHARE_H;
   roundRect(ctx, 0, 0, W, H, 84); ctx.clip();
-  const [hi, lo] = theme === 'day' ? ['#FFFFFF', '#F2F4F7'] : ['#1d2a3d', '#0A0F17'];
+  const [hi, lo] = (T && T.ground) || SHARE_GROUND[T === 'day' ? 'day' : 'night'];
   ctx.fillStyle = lo; ctx.fillRect(0, 0, W, H);
   ctx.save();
   const rx = W * 1.2, ry = H * 0.8;
@@ -110,7 +179,7 @@ function drawShareHeader(ctx, T, line1, line2) {
   ctx.save();
   ctx.beginPath(); ctx.arc(PAD + 27, topY, 27, 0, Math.PI * 2); ctx.clip();
   ctx.fillStyle = '#c6d93f'; ctx.fillRect(PAD, topY - 27, 54, 54);
-  ctx.fillStyle = '#DDF247'; ctx.beginPath(); ctx.arc(PAD + 27 - 9, topY - 9, 27, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = T.ball || '#DDF247'; ctx.beginPath(); ctx.arc(PAD + 27 - 9, topY - 9, 27, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
   setFont(ctx, 800, 54, DISPLAY_FONT, 'semi-condensed', -1);
   ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -146,12 +215,12 @@ function drawShareAvatar(ctx, cx, cy, size, name, avatar, img, fillBg = 'rgba(25
 }
 async function drawShareCard(d, theme, noImages) {
   await shareFonts();
-  const T = SHARE_THEMES[theme] || SHARE_THEMES.night;
+  const T = shareTheme(theme);
   const imgs = noImages ? [] : await Promise.all(d.teams.flatMap(t => t.players.map(p => shareAvatarImage(p.avatar))));
   const W = SHARE_W, H = SHARE_H, PAD = 60;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
-  drawShareGround(ctx, theme);
+  drawShareGround(ctx, T);
   drawShareHeader(ctx, T, `${d.date} · ${d.mode}`, d.line2);
 
   // Team panels, in the order the game stores them: team 1 blue on top, team 2 green below.
@@ -180,7 +249,7 @@ async function drawShareCard(d, theme, noImages) {
     if (team.win) {
       setFont(ctx, 700, 30, UI_FONT, 'normal', 1.2);
       const tw = textW(ctx, 'WIN') + 48;
-      pill(ctx, px + pw - 36 - tw, py + 30 + 24, 'WIN', 48, 24, '#DDF247', '#1B2104');
+      pill(ctx, px + pw - 36 - tw, py + 30 + 24, 'WIN', 48, 24, T.ball, T.ballInk);
     }
 
     // Players: avatar, name, rating change.
@@ -233,13 +302,13 @@ async function drawShareCard(d, theme, noImages) {
 // Year-in-review 1080x1350 card reusing the same canvas chrome, fonts, avatars and Night/Day palette.
 async function drawRecapCard(d, theme, noImages) {
   await shareFonts();
-  const T = SHARE_THEMES[theme] || SHARE_THEMES.night;
+  const T = shareTheme(theme);
   const avList = [d.avatar, d.favouritePartner && d.favouritePartner.avatar, d.biggestRival && d.biggestRival.avatar];
   const imgs = noImages ? [null, null, null] : await Promise.all(avList.map(a => shareAvatarImage(a)));
   const W = SHARE_W, H = SHARE_H, PAD = 60, pw = W - PAD * 2;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d');
-  drawShareGround(ctx, theme);
+  drawShareGround(ctx, T);
   drawShareHeader(ctx, T, 'Year in review', d.formatLabel || `${d.year}`);
 
   // Player row: avatar, name, and the single floodlight year badge.
@@ -248,7 +317,7 @@ async function drawRecapCard(d, theme, noImages) {
   setFont(ctx, 800, 36, DISPLAY_FONT, 'condensed', 0.5);
   const yearLabel = String(d.year);
   const yearW = textW(ctx, yearLabel) + 52;
-  pill(ctx, W - PAD - yearW, headCY, yearLabel, 56, 26, '#DDF247', '#1B2104');
+  pill(ctx, W - PAD - yearW, headCY, yearLabel, 56, 26, T.ball, T.ballInk);
   const nameX = PAD + avSize + 24, nameRoom = Math.max(120, W - PAD - yearW - 24 - nameX);
   let nameSize = 52;
   setFont(ctx, 700, nameSize, UI_FONT);
@@ -256,14 +325,23 @@ async function drawRecapCard(d, theme, noImages) {
   ctx.fillStyle = T.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText(ellipsize(ctx, d.name, nameRoom), nameX, headCY + 2);
 
-  // Best Dink Rating hero slab (dark ink slab, squeezed heavy numeral).
+  // Best Dink Rating hero slab (dark ink slab in default green, court gradient in selected palettes).
   const heroY = 324, heroH = 244;
-  ctx.fillStyle = T.heroBg; roundRect(ctx, PAD, heroY, pw, heroH, 52); ctx.fill();
+  if (T.heroBg2) {
+    const ang = 155 * Math.PI / 180, dx = Math.sin(ang), dy = -Math.cos(ang);
+    const len = Math.abs(pw * dx) + Math.abs(heroH * dy), cx = PAD + pw / 2, cy = heroY + heroH / 2;
+    const hg = ctx.createLinearGradient(cx - dx * len / 2, cy - dy * len / 2, cx + dx * len / 2, cy + dy * len / 2);
+    hg.addColorStop(0, T.heroBg); hg.addColorStop(1, T.heroBg2);
+    ctx.fillStyle = hg;
+  } else {
+    ctx.fillStyle = T.heroBg;
+  }
+  roundRect(ctx, PAD, heroY, pw, heroH, 52); ctx.fill();
   const ratingText = d.bestRating !== null && d.bestRating !== undefined ? d.bestRating.toFixed(2) : '–';
   setFont(ctx, 800, 196, DISPLAY_FONT, 'condensed', -8);
   const ratingW = textW(ctx, ratingText);
   const rAsc = ctx.measureText('0').actualBoundingBoxAscent || 140;
-  ctx.fillStyle = '#EEF2F7'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = T.heroInk; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(ratingText, PAD + pw - 48, heroY + heroH / 2 + rAsc / 2 - 4);
   const heroLeftMax = Math.max(160, pw - 96 - ratingW - 32);
   setFont(ctx, 700, 26, UI_FONT, 'normal', 1.2);
@@ -271,7 +349,7 @@ async function drawRecapCard(d, theme, noImages) {
   ctx.fillText(ellipsize(ctx, 'BEST DINK RATING', heroLeftMax), PAD + 48, heroY + 76);
   const peakMode = d.bestRatingMode ? `${d.bestRatingMode === 'singles' ? 'Singles' : 'Doubles'} peak` : 'Peak rating';
   setFont(ctx, 600, 34, UI_FONT);
-  ctx.fillStyle = '#EEF2F7';
+  ctx.fillStyle = T.heroInk;
   ctx.fillText(ellipsize(ctx, peakMode, heroLeftMax), PAD + 48, heroY + 128);
   if (typeof d.pointsDiff === 'number') {
     setFont(ctx, 500, 28, UI_FONT);
@@ -342,7 +420,7 @@ async function drawRecapCard(d, theme, noImages) {
   });
   const rvColor = rv ? (rv.wins > rv.losses ? T.up : rv.wins < rv.losses ? T.down : T.ink) : T.ink;
   drawHighlight(812, 'FAVOURITE PARTNER', fp, imgs[1],
-    d.singlesGames && !d.doublesGames ? 'Singles only — no doubles partner yet' : 'No named doubles partner yet', T.ink);
+    d.singlesGames && !d.doublesGames ? 'Singles only — no doubles partner yet' : 'No named doubles partner yet', T.accent);
   drawHighlight(1020, 'BIGGEST RIVAL', rv, imgs[2], 'No named opponents yet', rvColor);
 
   // Footer: optional format breakdown on the left, club name on the right (never club codes or tokens).

@@ -58,6 +58,8 @@ test('page text is escaped and carries the preview tags', () => {
   assert.match(html, /<meta property="og:image" content="https:\/\/example\.test\/r\/[\w-]{32}\/card\.png">/);
   assert.match(html, /name="twitter:card" content="summary_large_image"/);
   assert.match(html, /name="robots" content="noindex,nofollow"/);
+  assert.match(html, /name="theme-color" content="#F2F4F7"/);
+  assert.ok(!html.includes('#0F241E'), 'no stale pre-restyle theme-color');
   assert.match(html, /<script src="\/r\.js" defer><\/script>/);
   assert.ok(!/<script>/.test(html), 'no inline script (the CSP allows none here)');
   assert.ok(!/join|club code|member/i.test(html.replace(/A read-only result shared from Dink Score\. It shows names and scores only\./, '')), 'no club or member wording');

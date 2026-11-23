@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#0F241E">
+<meta name="theme-color" content="#F2F4F7">
 <script src="/analytics.js"></script>
 <script defer src="/_vercel/insights/script.js"></script>
 <title>League table · Dink Score</title>
@@ -136,6 +136,9 @@ details summary { cursor: pointer; padding: 6px 0; font-weight: 600; min-height:
   const q = new URLSearchParams(location.search);
   const token = (location.pathname.match(/^\/l\/([A-Za-z0-9_-]{32})\/?$/) || [])[1];
   if (q.get('theme') === 'dark' || q.get('theme') === 'light') root.dataset.theme = q.get('theme');
+  if (/^(blue|clay|violet|sunset|slate)$/.test(q.get('palette') || '')) root.dataset.palette = q.get('palette');
+  const tc = $('meta[name="theme-color"]'), bg = getComputedStyle(root).getPropertyValue('--bg').trim();
+  if (tc && bg) tc.content = bg;
   let data = null, json = '', dead = false, failed = 0, lastCheck = 0, timer = 0;
   const POLL = 15000;
   const time = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
