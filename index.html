@@ -172,6 +172,25 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-sw { width: 30px; height: 30px; margin: 8px 8px 8px 0; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 12px; box-shadow: 0 0 0 2px var(--surface), var(--rw-ring, 0 0 0 0 transparent); }
 .rw-sw svg { width: 62%; height: 62%; }
 .rw-sw.pad { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
+.rw-box { display: grid; gap: 10px; padding: 14px; border-radius: 16px; border: 1.5px solid var(--court); background: var(--surface-2); }
+.rw-box-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.rw-box-cost { font-size: 14px; } .rw-box-cost b { font-size: 26px; line-height: 1; }
+.rw-box-cap { font-size: 13px; color: var(--muted); }
+.rw-box-note, .rw-box-fine { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; }
+.rw-rates { display: grid; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.rw-rates-h { margin: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+.rw-tier-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rw-tier { display: grid; gap: 2px; padding-top: 6px; border-top: 1px solid var(--line); }
+.rw-tier:first-child { padding-top: 0; border-top: 0; }
+.rw-tier-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 10px; }
+.rw-tier-top b { font-size: 14px; }
+.rw-pct { font-size: 14px; color: var(--ink); }
+.rw-tier-items { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+.rw-box-res { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1.5px solid var(--court); }
+.rw-box-res > span:last-child { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rw-box-res b { font-size: 15px; overflow-wrap: anywhere; }
+.rw-box-res small { font-size: 13px; color: var(--muted); line-height: 1.35; overflow-wrap: anywhere; }
+.btn-court { background: var(--court); color: var(--on-court); min-height: 44px; }
 .me-btn.frame-crown::before { top: -13px; width: 22px; height: 14px; }
 @media (max-width: 380px) { .wordmark h1 { font-size: 24px; } .wordmark svg { width: 30px; height: 30px; } }
 /* Narrow phones: keep the mark, hide the wordmark text (still the page's h1 for screen readers) so the club chip keeps room for its name. */
@@ -2646,7 +2665,7 @@ async function refreshClub() {
     if (data.notModified) { calmPolls++; clubState = 'idle'; updateSyncPill(); return; } // the server says nothing changed since the last answer: nothing to redo
     calmPolls = 0;
     if (data.club.code !== asked) adoptClubCode(asked, data.club.code); // an organizer changed the code: carry this phone over
-    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.rewards = !!data.club.rewards; club.publicResults = !!data.club.publicResults; club.payLink = data.club.payLink || ''; club.note = data.club.note || ''; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
+    club.name = data.club.name; club.hasPin = !!data.club.hasPin; club.openClaim = !!data.club.openClaim; club.requireConfirmation = !!data.club.requireConfirmation; club.rewards = !!data.club.rewards; club.mysteryBox = !!data.club.mysteryBox; club.publicResults = !!data.club.publicResults; club.payLink = data.club.payLink || ''; club.note = data.club.note || ''; if (data.club.deleteAt) club.deleteAt = data.club.deleteAt; else delete club.deleteAt; saveClubs();
     for (const p of data.players || []) if (p.avatar && p.avatar.type === 'photo') { const c = photoCache[p.name.toLowerCase()]; if (c && c.v === p.avatar.v) p.avatar.value = c.value; }
     clubData = Heal.clubData({ code: club.code, games: data.games, roster: data.roster, deleted: data.deleted, players: data.players || [], nights: data.nights || [], progress: data.progress || null, ratings: data.ratings || null, dupes: data.dupes || [], at: Date.now() }, club.code);
     store.set('pb.clubCache', clubData);
@@ -3439,6 +3458,7 @@ let rwState = rwClean({}), rwCode = null;
 const rwCur = () => { const c = club && club.code; if (c !== rwCode) { rwCode = c; const all = rwAll(); rwState = rwClean(all[c] || all._legacy); } return rwState; };
 const rwHidden = () => !!store.get('pb.rewardsHide', false);
 const rwClubOn = () => !!(club && club.rewards);
+const rwBoxOn = () => rwClubOn() && !!(club && club.mysteryBox);
 const rwShown = () => rwClubOn() && !rwHidden();
 // Keep the synced state (and this phone's worn items) in one place. The worn ring and paddle colour are two attributes on <html> that the
 // stylesheet draws, set only while rewards are shown here, so the one-tap hide and a club with rewards off remove them.
@@ -3544,23 +3564,51 @@ async function rwSetClub(on) {
   try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-rewards', on }, adminCreds())) }); await refreshClub(); renderClub(); render(); announce(on ? 'Rewards are on for this club.' : 'Rewards are off for this club.'); }
   catch (err) { showToast(err.message, false); }
 }
+async function rwSetBox(on) {
+  try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-mystery-box', on }, adminCreds())) }); await refreshClub(); renderClub(); render(); announce(on ? 'Mystery box is on for this club.' : 'Mystery box is off for this club.'); }
+  catch (err) { showToast(err.message, false); }
+}
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-rw]');
   if (!b) return;
   const a = b.dataset.rw;
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
+  if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
 });
-/* ---------- rewards shop: fixed-price cosmetics bought with Dinks (L16 slice 3; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
-// The catalogue, every price and what you own are the server's (api/_economyshop.js, players.js rewards-catalog|buy|wear); this phone draws what
-// it is told and asks by item id, never by price. Cosmetic only: a ring around your picture and a colour on your paddle thumbnails, on this
-// phone. Nothing here is random, nothing moves or makes a sound, and it never reads or changes a score, a rating, a rank or a pairing.
-// Opened from the Your Dink card (so the one-tap hide removes it too). Needs a name linked to this phone.
+/* ---------- rewards shop: fixed-price cosmetics and optional mystery box bought with Dinks (L16, #107; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
+// The catalogue, every price, mystery box odds and what you own are the server's (api/_economyshop.js, api/_economybox.js, players.js
+// rewards-catalog|buy|wear|share|box-odds|box-open); this phone draws what it is told and never sets a price or draws a random item.
+// Cosmetic only: a ring around your picture and a colour on your paddle thumbnails. Nothing here animates or makes a sound, and it never
+// reads or changes a score, a rating, a rank or a pairing. Opened from the Your Dink card (so the one-tap hide removes it too).
 const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails']];
 const rwSwatch = it => it.slot === 'frame'
   ? `<span class="rw-sw" data-rw-frame="${esc(rwLook(it.id))}" aria-hidden="true">${esc(initials(myName() || '?'))}</span>`
   : `<span class="rw-sw pad" data-rw-skin="${esc(rwLook(it.id))}" aria-hidden="true">${iconSvg('paddle')}</span>`;
 const rwShort = (n, price) => `Not enough Dinks yet: ${n} costs ${price} and you have `;
+let rwBoxSeq = 0;
+// Idempotency key for one box-open request only; the server chooses the item with its own cryptographic random source.
+const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+  ? crypto.randomUUID().replace(/-/g, '')
+  : 'b' + Date.now().toString(36) + '_' + (++rwBoxSeq).toString(36) + '00000000').slice(0, 32);
+
+function rwBoxHTML(c, s) {
+  if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !s.box || !Array.isArray(s.box.tiers) || !s.box.tiers.length) return '';
+  const b = s.box, opened = Number(b.openedToday) || 0, limit = Number(b.dailyLimit) || 3, atLimit = opened >= limit;
+  const need = Math.max(0, b.price - s.dinks), r = c.boxResult;
+  const tiers = b.tiers.map(t => `<li class="rw-tier"><div class="rw-tier-top"><b>${esc(t.label)}</b><span class="rw-pct num">${t.chance}% (${t.chance} in 100)</span></div><p class="rw-tier-items">${esc((t.items || []).map(i => i.name).join(', '))}</p></li>`).join('');
+  const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${r.refund} Dinks returned to your balance.` : 'Added to What you wear.'}</small></span></div>` : '';
+  const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : `Open mystery box (${b.price} Dinks)`;
+  return `<h3 class="rw-h">Mystery box</h3><section class="rw-box" aria-label="Mystery box">
+    <div class="rw-box-top"><span class="rw-box-cost"><b class="num">${b.price}</b> Dinks</span><span class="rw-box-cap">${opened} of ${limit} opened today</span></div>
+    <p class="rw-box-note">Grants one cosmetic look from the shop, chosen at random on the server. Free play money only — never bought with real money, and never changes a game, a rating, a rank or who plays.</p>
+    <div class="rw-rates"><p class="rw-rates-h">Odds before you open</p><ul class="rw-tier-list">${tiers}</ul>
+    <p class="rw-box-fine">Duplicate refund: if you already own the item drawn, ${b.duplicateRefund} Dinks are returned to your balance right away. Limit: ${limit} per day (UTC). No pity timer, countdown or streak bonus.</p></div>
+    ${res}
+    <button type="button" class="btn btn-court block" data-rw-box-open="1" ${c.busy || atLimit ? 'disabled' : ''}>${esc(btnLabel)}</button>
+    ${!atLimit && need > 0 ? `<p class="rw-box-fine">You need ${need} more ${need === 1 ? 'Dink' : 'Dinks'} to open a mystery box.</p>` : ''}
+  </section>`;
+}
 
 Object.assign(Rewards, {
   storeHTML(c) {
@@ -3577,16 +3625,17 @@ Object.assign(Rewards, {
     }).join('');
     const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${i.price} Dinks${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${i.price} Dinks" ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
     const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring and paddle colour — never your Dinks, streak or history.' : 'Off by default: only you see your ring and paddle colour on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
+    const box = rwBoxHTML(c, s);
     return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> Dinks</p>
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}
+      ${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${box}
       <h3 class="rw-h">In the shop</h3>${rows || '<p class="note">You have everything in the shop.</p>'}${done}`;
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
   async openStore() {
     if (!rwShown() || !myName() || !myToken()) return;
-    const c = clubSheet = { view: 'rwstore', store: null, msg: '', error: '', busy: false };
+    const c = clubSheet = { view: 'rwstore', store: null, msg: '', error: '', busy: false, boxResult: null, pendingOpenId: '' };
     renderClub();
     try { const d = await playerCall({ action: 'rewards-catalog', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.store = d; rwStoreSynced(d); }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "The shop couldn't load."; }
@@ -3601,18 +3650,50 @@ async function rwStoreAct(body, say, focus) {
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store || c.busy) return;
   c.busy = true; c.error = ''; c.msg = ''; renderClub();
-  try { const d = await playerCall(Object.assign({ name: myName(), playerToken: myToken() }, body)); if (clubSheet !== c) return; c.store = d; c.msg = say(d); rwStoreSynced(d); announce(c.msg); }
-  catch (err) { if (clubSheet !== c) return; c.error = err.message; announce(err.message); }
+  try {
+    const d = await playerCall(Object.assign({ name: myName(), playerToken: myToken() }, body));
+    if (clubSheet !== c) return;
+    c.store = d;
+    if (body.action === 'rewards-box-open') { c.pendingOpenId = ''; c.boxResult = d.result || null; }
+    c.msg = say(d);
+    rwStoreSynced(d);
+    announce(c.msg);
+  } catch (err) {
+    if (clubSheet !== c) return;
+    if (body.action === 'rewards-box-open' && !err.offline) c.pendingOpenId = '';
+    c.error = err.message;
+    announce(err.message);
+  }
   c.busy = false; renderClub();
   const f = document.querySelector(focus); if (f) f.focus(); // the sheet is redrawn, so put the focus back where the person was
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear], [data-rw-share]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw-buy], [data-rw-wear], [data-rw-share], [data-rw-box-open]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store) return;
+  if (t.dataset.rwBoxOpen) {
+    const b = c.store.box;
+    if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !b || c.busy) return;
+    if ((Number(b.openedToday) || 0) >= (Number(b.dailyLimit) || 3)) {
+      c.error = `Daily limit reached: you have opened ${b.dailyLimit} mystery boxes today. Try again tomorrow.`; c.msg = ''; announce(c.error); renderClub(); return;
+    }
+    if (c.store.dinks < b.price) {
+      c.error = rwShort('a mystery box', b.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return;
+    }
+    if (!c.pendingOpenId) c.pendingOpenId = rwBoxOpenId();
+    rwStoreAct({ action: 'rewards-box-open', openId: c.pendingOpenId }, d => {
+      const r = d && d.result;
+      if (!r || !r.item) return 'Mystery box opened.';
+      const tLabel = r.tier && r.tier.label ? ` (${r.tier.label})` : '';
+      return r.duplicate
+        ? `Mystery box: ${r.item.name}${tLabel}, already owned. ${r.refund} Dinks returned to your balance.`
+        : `Mystery box: ${r.item.name}${tLabel}. Added to What you wear.`;
+    }, '#club-h');
+    return;
+  }
   if (t.dataset.rwShare !== undefined) {
     const share = t.dataset.rwShare === '1';
     rwStoreAct({ action: 'rewards-share', share }, d => (d.share ? 'Your worn look is now shown to the club.' : 'Your worn look is now hidden from the club.'), '[data-rw-share]');
@@ -6553,6 +6634,7 @@ function otItems(s) {
     { id: 'pin', title: s.hasPin ? 'Organizer PIN' : 'Set an organizer PIN', go: 'data-act="pin-set-open"', hint: s.hasPin ? 'Change it, or lock this phone from the club screen' : 'Without one, anyone with the club code can delete games' },
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
     { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
+    ...(s.rewards ? [{ id: 'mysteryBox', title: 'Mystery box', go: 'data-rw="box"', hint: s.mysteryBox ? 'On. Players can open a random look box with stated chances. Tap to turn off' : 'Off. Tap to add a mystery box with stated chances' }] : []),
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
     { id: 'analytics', title: 'Attendance and busiest hours', go: 'data-act="analytics-open"', hint: 'Totals only, no player is listed' },
@@ -6576,7 +6658,7 @@ function otState(c) {
     liveEvents: evSummary.filter(e => e.status === 'live').length,
     players: clubPlayers().length,
     undoable: md ? (md.audit || []).filter(a => a.undoable && !a.undone).length : known ? otReq.undoable : 0,
-    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards,
+    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards, mysteryBox: !!club.mysteryBox,
     hasPin: !!club.hasPin
   };
 }
@@ -7139,7 +7221,7 @@ async function setConfirmation(required) {
 }
 /*AUDIT-PURE-START*/
 const AUDIT_WORDS = { create: 'Recorded', edit: 'Edited', delete: 'Deleted', restore: 'Restored', confirm: 'Confirmed', 'keep-both': 'Kept as two games', setting: 'Setting changed', share: 'Public link', unshare: 'Public link' };
-const AUDIT_SETTINGS = { requireConfirmation: 'Count only confirmed games', rewards: 'Rewards', publicResults: 'Public result links' };
+const AUDIT_SETTINGS = { requireConfirmation: 'Count only confirmed games', rewards: 'Rewards', mysteryBox: 'Mystery box', publicResults: 'Public result links' };
 const auditWho = a => (a === 'creator' ? 'the club creator' : a === 'organizer-pin' ? 'an organizer (PIN)' : a === 'member' ? 'a club member' : /^player:/.test(a) ? a.slice(7) : 'someone with the club code');
 // A history row is not always a game: a setting row carries {key: bool} and a link row nothing. Never throws on a shape it does not know.
 const auditGame = g => (g && Array.isArray(g.teams) && g.teams.length > 1 && Array.isArray(g.score) ? `${teamLabel(g.teams[0])} ${Number(g.score[0])}\u2013${Number(g.score[1])} ${teamLabel(g.teams[1])}` : '');

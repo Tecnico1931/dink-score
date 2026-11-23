@@ -20,6 +20,7 @@ function otItems(s) {
     { id: 'pin', title: s.hasPin ? 'Organizer PIN' : 'Set an organizer PIN', go: 'data-act="pin-set-open"', hint: s.hasPin ? 'Change it, or lock this phone from the club screen' : 'Without one, anyone with the club code can delete games' },
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
     { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
+    ...(s.rewards ? [{ id: 'mysteryBox', title: 'Mystery box', go: 'data-rw="box"', hint: s.mysteryBox ? 'On. Players can open a random look box with stated chances. Tap to turn off' : 'Off. Tap to add a mystery box with stated chances' }] : []),
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
     { id: 'analytics', title: 'Attendance and busiest hours', go: 'data-act="analytics-open"', hint: 'Totals only, no player is listed' },
@@ -43,7 +44,7 @@ function otState(c) {
     liveEvents: evSummary.filter(e => e.status === 'live').length,
     players: clubPlayers().length,
     undoable: md ? (md.audit || []).filter(a => a.undoable && !a.undone).length : known ? otReq.undoable : 0,
-    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards,
+    requireConfirmation: !!club.requireConfirmation, rewards: !!club.rewards, mysteryBox: !!club.mysteryBox,
     hasPin: !!club.hasPin
   };
 }

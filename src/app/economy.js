@@ -36,6 +36,7 @@ let rwState = rwClean({}), rwCode = null;
 const rwCur = () => { const c = club && club.code; if (c !== rwCode) { rwCode = c; const all = rwAll(); rwState = rwClean(all[c] || all._legacy); } return rwState; };
 const rwHidden = () => !!store.get('pb.rewardsHide', false);
 const rwClubOn = () => !!(club && club.rewards);
+const rwBoxOn = () => rwClubOn() && !!(club && club.mysteryBox);
 const rwShown = () => rwClubOn() && !rwHidden();
 // Keep the synced state (and this phone's worn items) in one place. The worn ring and paddle colour are two attributes on <html> that the
 // stylesheet draws, set only while rewards are shown here, so the one-tap hide and a club with rewards off remove them.
@@ -141,10 +142,15 @@ async function rwSetClub(on) {
   try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-rewards', on }, adminCreds())) }); await refreshClub(); renderClub(); render(); announce(on ? 'Rewards are on for this club.' : 'Rewards are off for this club.'); }
   catch (err) { showToast(err.message, false); }
 }
+async function rwSetBox(on) {
+  try { await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-mystery-box', on }, adminCreds())) }); await refreshClub(); renderClub(); render(); announce(on ? 'Mystery box is on for this club.' : 'Mystery box is off for this club.'); }
+  catch (err) { showToast(err.message, false); }
+}
 document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-rw]');
   if (!b) return;
   const a = b.dataset.rw;
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
+  if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
 });

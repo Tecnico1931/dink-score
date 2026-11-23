@@ -13,6 +13,8 @@
 //                                                       other members see your worn look. See _economyshop.js.
 //   rewards-looks {}                                  -> club members (when club.rewards is on): allow-listed worn item ids for players who opted in
 //                                                       to share their look. Never balance, streak, or purchase history.
+//   rewards-box-odds {}                               -> club members (when club.rewards and club.mystery_box are on): server odds table for the mystery box.
+//   rewards-box-open {name, playerToken, openId}      -> opens one mystery box on the server (idempotent by openId, daily limit, duplicate refund). See _economybox.js.
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
 //   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events, leagues and ladders you are in
@@ -35,6 +37,7 @@ import { dropRatings } from './_rating_store.js';
 import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
 import { rewardsFor, loadLedger } from './_economysync.js';
 import { shopView, buyItem, wearItem, wornOf, loadItems, clubLooks, shareOf, setShare } from './_economyshop.js';
+import { boxOdds, boxStatus, openBox } from './_economybox.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -174,15 +177,29 @@ export default handler(async (req, res) => {
     return send(res, 200, { ...rw, worn, share });
   }
 
+  if (body.action === 'rewards-box-odds') {
+    if (!club.rewards || !club.mystery_box) throw fail(403, 'Mystery box is off for this club.');
+    return send(res, 200, boxOdds());
+  }
+
+  if (body.action === 'rewards-box-open') {
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    if (!club.rewards || !club.mystery_box) throw fail(403, 'Mystery box is off for this club.');
+    try { return send(res, 200, await openBox(sql, code, player.name_key, body.openId)); }
+    catch (e) { throw e.status ? fail(e.status, e.message) : e; }
+  }
+
   if (body.action === 'rewards-catalog' || body.action === 'rewards-buy' || body.action === 'rewards-wear' || body.action === 'rewards-share') {
     // Fixed prices live in _economyshop.js only; the phone names an item and the server charges the catalogue price. Same gate as the balance.
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
     try {
-      if (body.action === 'rewards-catalog') return send(res, 200, await shopView(sql, code, player.name_key));
-      if (body.action === 'rewards-buy') return send(res, 200, await buyItem(sql, code, player.name_key, String(body.item || '')));
-      if (body.action === 'rewards-share') return send(res, 200, await setShare(sql, code, player.name_key, body.share));
-      return send(res, 200, await wearItem(sql, code, player.name_key, String(body.slot || ''), String(body.item || '')));
+      const out = body.action === 'rewards-catalog' ? await shopView(sql, code, player.name_key)
+        : body.action === 'rewards-buy' ? await buyItem(sql, code, player.name_key, String(body.item || ''))
+        : body.action === 'rewards-share' ? await setShare(sql, code, player.name_key, body.share)
+        : await wearItem(sql, code, player.name_key, String(body.slot || ''), String(body.item || ''));
+      if (club.mystery_box) out.box = await boxStatus(sql, code, player.name_key);
+      return send(res, 200, out);
     } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
   }
 

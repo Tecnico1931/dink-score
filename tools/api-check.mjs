@@ -1457,6 +1457,106 @@ await step('rewards club looks: off means 403, opt-in default false hides it, sh
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await looks()).status, 403, 'off again: nothing leaks');
 });
+await step('rewards mystery box: off means refused, odds match server table, insufficient balance, duplicate refund, replay idempotent, daily limit, atomic balance floor', async () => {
+  const { boxOdds, BOX_PRICE, BOX_DUPLICATE_REFUND, BOX_DAILY_LIMIT } = await import(pathToFileURL(path.join(root, 'api', '_economybox.js')).href);
+  const { CATALOGUE } = await import(pathToFileURL(path.join(root, 'api', '_economyshop.js')).href);
+  const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
+  const grant = (name, id, n) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, $2, $3, 'earn', $4, 'test') ON CONFLICT DO NOTHING`, [cf.code, name.toLowerCase(), id, n]);
+  const join = async name => { cfTok[name] = ok(await cfPost(playersApi, { action: 'claim', name, ownerToken: cf.owner })).playerToken; };
+  await join('Noa'); await join('Oli'); await join('Pia');
+  // Off by default, organizer-only, boolean-only, audited as a setting row.
+  assert.equal((await cfGet()).club.mysteryBox, false, 'a new club has mysteryBox off');
+  assert.equal((await cfPost(club, { action: 'set-mystery-box', on: true })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-mystery-box', on: true, pin: '000000' })).status, 403);
+  assert.equal((await cfPost(club, { action: 'set-mystery-box', on: 'yes', ownerToken: cf.owner })).status, 400);
+  // Both switches off -> refused.
+  assert.equal((await cfPost(playersApi, { action: 'rewards-box-odds' })).status, 403);
+  assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'box_off_0001' })).status, 403);
+  // Rewards on, mysteryBox off -> refused, and catalog omits box.
+  ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
+  assert.equal((await cfPost(playersApi, { action: 'rewards-box-odds' })).status, 403);
+  assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'box_off_0002' })).status, 403);
+  assert.equal('box' in ok(await post('Noa', { action: 'rewards-catalog' })), false);
+  // MysteryBox on, rewards off -> still refused!
+  ok(await cfPost(club, { action: 'set-mystery-box', on: true, pin: cf.pin }));
+  assert.equal((await cfGet()).club.mysteryBox, true);
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+  assert.equal((await cfPost(playersApi, { action: 'rewards-box-odds' })).status, 403);
+  assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'box_off_0003' })).status, 403);
+  // Both switches on: odds endpoint equals server draw table and matches catalog.box.
+  ok(await cfPost(club, { action: 'set-rewards', on: true, ownerToken: cf.owner }));
+  const odds = ok(await cfPost(playersApi, { action: 'rewards-box-odds' }));
+  assert.deepEqual(odds, boxOdds(), 'odds endpoint equals the server draw table');
+  const cat = ok(await post('Noa', { action: 'rewards-catalog' }));
+  assert.deepEqual(cat.box, { ...boxOdds(), openedToday: 0 });
+  // Bad auth and bad openId refused.
+  assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'box_auth_01', playerToken: 'f'.repeat(48) })).status, 403);
+  assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'bad' })).status, 400);
+  // Insufficient balance -> 409, nothing charged or granted.
+  await grant('Noa', 'test:box-low', BOX_PRICE - 1);
+  const low = await post('Noa', { action: 'rewards-box-open', openId: 'box_low_0001' });
+  assert.equal(low.status, 409);
+  assert.match(low.json.error, /Not enough Dinks/);
+  assert.equal(ok(await post('Noa', { action: 'rewards-catalog' })).dinks, BOX_PRICE - 1);
+  // Fund Noa and open once -> spends BOX_PRICE, grants one cosmetic item, returns result.
+  await grant('Noa', 'test:box-top', 30);
+  const bal0 = BOX_PRICE - 1 + 30;
+  const first = ok(await post('Noa', { action: 'rewards-box-open', openId: 'box_open_001' }));
+  assert.equal(first.result.openId, 'box_open_001');
+  assert.equal(first.result.duplicate, false);
+  assert.equal(first.result.refund, 0);
+  assert.equal(first.result.replayed, false);
+  assert.equal(first.dinks, bal0 - BOX_PRICE);
+  assert.equal(first.box.openedToday, 1);
+  assert.ok(first.items.find(i => i.id === first.result.item.id).owned, 'drawn item is now owned');
+  // Replay with the same openId -> exact same result, replayed=true, balance and daily count unchanged.
+  const replay1 = ok(await post('Noa', { action: 'rewards-box-open', openId: 'box_open_001' }));
+  assert.deepEqual(replay1.result, { ...first.result, replayed: true });
+  assert.equal(replay1.dinks, first.dinks);
+  assert.equal(replay1.box.openedToday, 1);
+  // Duplicate refund: Oli already owns every catalogue item, so any draw is a duplicate and refunds BOX_DUPLICATE_REFUND.
+  await grant('Oli', 'test:oli-fund', 40);
+  for (const it of CATALOGUE) await pg.query(`INSERT INTO reward_items (club, name_key, item, slot) VALUES ($1, 'oli', $2, $3) ON CONFLICT DO NOTHING`, [cf.code, it.id, it.slot]);
+  const dup = ok(await post('Oli', { action: 'rewards-box-open', openId: 'box_dup_0001' }));
+  assert.equal(dup.result.duplicate, true);
+  assert.equal(dup.result.refund, BOX_DUPLICATE_REFUND);
+  assert.equal(dup.result.replayed, false);
+  assert.equal(dup.dinks, 40 - BOX_PRICE + BOX_DUPLICATE_REFUND);
+  assert.equal(dup.box.openedToday, 1);
+  // Refund row keeps day=null so it never fakes a daily streak.
+  assert.equal(ok(await post('Oli', { action: 'rewards-get' })).streak, 0, 'duplicate refund never touches daily streak');
+  // Replaying the duplicate openId returns the exact same duplicate result without refunding twice.
+  const dupReplay = ok(await post('Oli', { action: 'rewards-box-open', openId: 'box_dup_0001' }));
+  assert.deepEqual(dupReplay.result, { ...dup.result, replayed: true });
+  assert.equal(dupReplay.dinks, dup.dinks);
+  assert.equal(dupReplay.box.openedToday, 1);
+  // Daily limit: open the remaining boxes up to BOX_DAILY_LIMIT, then the next distinct openId is refused (429).
+  for (let i = 2; i <= BOX_DAILY_LIMIT; i++) {
+    const r = ok(await post('Oli', { action: 'rewards-box-open', openId: 'box_dup_000' + i }));
+    assert.equal(r.box.openedToday, i);
+  }
+  const balAtLimit = ok(await post('Oli', { action: 'rewards-catalog' })).dinks;
+  const over = await post('Oli', { action: 'rewards-box-open', openId: 'box_over_001' });
+  assert.equal(over.status, 429);
+  assert.match(over.json.error, /Daily limit reached/);
+  assert.equal(ok(await post('Oli', { action: 'rewards-catalog' })).dinks, balAtLimit, 'refused open charges nothing');
+  // Replaying an earlier openId from today still returns its original idempotent result even at the daily limit!
+  const replayAtLimit = ok(await post('Oli', { action: 'rewards-box-open', openId: 'box_dup_0001' }));
+  assert.deepEqual(replayAtLimit.result, { ...dup.result, replayed: true });
+  // Concurrent opens with balance == BOX_PRICE: exactly one succeeds, balance never goes below zero.
+  await grant('Pia', 'test:pia-exact', BOX_PRICE);
+  const race = await Promise.all(['box_race_001', 'box_race_002'].map(openId => post('Pia', { action: 'rewards-box-open', openId })));
+  assert.deepEqual(race.map(r => r.status).sort(), [200, 409]);
+  assert.equal(ok(await post('Pia', { action: 'rewards-catalog' })).dinks, 0);
+  // Club payload stays free of box opens and ledger rows; setting audit logged.
+  assert.ok(!/box_open_001|box_dup_0001|boxref:/.test(JSON.stringify(await cfGet())));
+  const mlog = ok(await cfAudit()).audit.filter(r => r.action === 'setting' && r.after && 'mysteryBox' in r.after);
+  assert.ok(mlog.length >= 1 && mlog[0].after.mysteryBox === true);
+  // Turn both switches off cleanly.
+  ok(await cfPost(club, { action: 'set-mystery-box', on: false, ownerToken: cf.owner }));
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+  assert.equal((await cfGet()).club.mysteryBox, false);
+});
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';
   assert.equal((await cfPost(club, { action: 'set-pay-link', link })).status, 403);
@@ -2072,7 +2172,7 @@ await step('analytics: organizers only, totals only, no player named', async () 
   assert.equal((await call(club, 'GET', { query: q, headers: { 'x-club-pin': '000000' } })).status, 403, 'wrong PIN');
   const d = ok(await call(club, 'GET', { query: q, headers: { 'x-club-owner': a.ownerToken } }));
   assert.equal(d.games, 1);
-  assert.equal(d.weeks.at(-1).players, 2);
+  assert.equal(d.weeks.reduce((n, w) => n + w.players, 0), 2);
   assert.equal(d.tz, 'Europe/London');
   assert.ok(!/Ivy|Jon/.test(JSON.stringify(d)), 'no player names in the answer');
   assert.equal(ok(await call(club, 'GET', { query: `?code=${a.club.code}&analytics=1&tz=Bad/Zone`, headers: { 'x-club-owner': a.ownerToken } })).tz, 'UTC');

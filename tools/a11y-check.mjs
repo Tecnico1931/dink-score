@@ -123,9 +123,15 @@ for (const [mode, opt] of states) {
     await page.evaluateOnNewDocument(() => { try { localStorage.setItem('pb.tutorialSeen', 'true'); localStorage.setItem('pb.newsSeen', '"2026-11-22"'); } catch {} });
     await page.goto(base, { waitUntil: 'networkidle0' }); await sleep(400);
     await page.evaluate(() => {
-      club = { code: 'ABC123', name: 'Check club', hasPin: true, rewards: true }; me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
+      club = { code: 'ABC123', name: 'Check club', hasPin: true, rewards: true, mysteryBox: true }; me[club.code] = { name: 'Ana', token: 't'.repeat(48) };
       const cat = [['frame-court', 'Court green ring', 6], ['frame-blue', 'Team blue ring', 8], ['frame-ink', 'Ink ring', 8], ['frame-double', 'Double ring', 15], ['paddle-court', 'Court green paddle', 6], ['paddle-blue', 'Team blue paddle', 8], ['paddle-ink', 'Ink paddle', 8], ['paddle-stripe', 'Striped paddle', 15]];
-      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe' }, share: true, items: cat.map(([id, name, price]) => ({ id, slot: id.split('-')[0], name, price, owned: ['frame-double', 'paddle-stripe', 'frame-ink'].includes(id) })) };
+      const byId = Object.fromEntries(cat.map(([id, name, price]) => [id, { id, slot: id.split('-')[0], name, price }]));
+      const box = { price: 7, duplicateRefund: 4, dailyLimit: 3, openedToday: 1, tiers: [
+        { id: 'common', label: 'Common', chance: 55, items: ['frame-court', 'paddle-court'].map(k => byId[k]) },
+        { id: 'uncommon', label: 'Uncommon', chance: 30, items: ['frame-blue', 'frame-ink', 'paddle-blue', 'paddle-ink'].map(k => byId[k]) },
+        { id: 'rare', label: 'Rare', chance: 15, items: ['frame-double', 'paddle-stripe'].map(k => byId[k]) }
+      ] };
+      const shop = { dinks: 12, worn: { frame: 'frame-double', paddle: 'paddle-stripe' }, share: true, box, items: cat.map(([id, name, price]) => ({ id, slot: id.split('-')[0], name, price, owned: ['frame-double', 'paddle-stripe', 'frame-ink'].includes(id) })) };
       const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe' }, ben: { frame: 'frame-court', paddle: 'paddle-blue' } };
       playerCall = async b => (b && b.action === 'rewards-looks' ? { looks } : shop);
       render();
@@ -133,7 +139,21 @@ for (const [mode, opt] of states) {
     await sleep(300);
     await audit(page, `Your Dink card, ring worn (${colorScheme})`, report);
     await page.evaluate(() => Rewards.openStore()); await sleep(400);
-    await audit(page, `Shop sheet (${colorScheme})`, report, '.sheet');
+    await page.evaluate(() => {
+      if (clubSheet && clubSheet.store) {
+        clubSheet.boxResult = { openId: 'a11y0001', item: clubSheet.store.items[1], tier: { id: 'uncommon', label: 'Uncommon', chance: 30 }, duplicate: false, refund: 0, cost: 7, replayed: false };
+        renderClub();
+      }
+    }); await sleep(200);
+    await audit(page, `Shop sheet with mystery box (${colorScheme})`, report, '.sheet');
+    if (colorScheme === 'light') {
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet .rw-box, .sheet .rw-box *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Shop mystery box: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
+    }
     // Shared club looks on leaderboard rows, game cards and profile header (scoped to the rendered components, plus reflow).
     await page.evaluate(() => {
       clubSheet = null; renderClub();
