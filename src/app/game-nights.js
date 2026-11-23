@@ -246,6 +246,7 @@ async function gnFormSave() {
     }, adminCreds());
     const res = await api('club', { method: 'POST', body: JSON.stringify(payload) });
     const saved = res.night;
+    inboxAck('night', saved.id, saved.status === 'cancelled' ? null : Inbox.nightFp(saved));
     const from = clubSheet.from, pushEnabled = clubSheet.pushEnabled, list = clubSheet.nights;
     clubSheet = { view: 'nights', from, nights: Array.isArray(list) ? list : [], pushEnabled, msg: clubSheet.editing ? 'Game night updated.' : 'Game night scheduled.' };
     gnSyncLocalNight(saved);
@@ -263,6 +264,7 @@ async function gnCancel(id) {
   clubSheet.busy = true; clubSheet.armedCancel = null; clubSheet.error = ''; clubSheet.msg = ''; renderClub();
   try {
     const res = await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'night-cancel', id }, adminCreds())) });
+    inboxAck('night', id, null);
     gnSyncLocalNight(res.night);
     clubSheet.busy = false; clubSheet.msg = `${res.night.title} was cancelled.`;
     announce(clubSheet.msg);
@@ -278,6 +280,7 @@ async function gnDelete(id) {
   clubSheet.busy = true; clubSheet.armedDelete = null; clubSheet.error = ''; clubSheet.msg = ''; renderClub();
   try {
     await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'night-delete', id }, adminCreds())) });
+    inboxAck('night', id, null);
     gnSyncLocalNight(null, id);
     clubSheet.busy = false; clubSheet.msg = 'Game night removed.';
     announce(clubSheet.msg);
