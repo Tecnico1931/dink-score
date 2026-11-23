@@ -10,7 +10,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const earn = n => ({ id: 'day:2026-01-' + String(n).padStart(2, '0'), kind: 'earn', amount: n, reason: 'day', day: null, streak: 1 });
 
 test('the catalogue is small, fixed-price, cosmetic-only and affordable', () => {
-  assert.ok(CATALOGUE.length >= 6 && CATALOGUE.length <= 10);
+  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 16);
   assert.equal(new Set(CATALOGUE.map(i => i.id)).size, CATALOGUE.length, 'ids are unique');
   // Only these keys: nothing here can carry a rule, a score effect or a random draw.
   for (const i of CATALOGUE) {
@@ -46,8 +46,8 @@ test('planBuy: price comes from the catalogue, never below zero, a repeat charge
 });
 
 test('wornFrom gives one item per slot, and none when nothing is worn', () => {
-  assert.deepEqual(wornFrom([]), { frame: '', paddle: '' });
-  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }, { id: 'frame-blue', slot: 'frame', worn: false }, { id: 'paddle-ink', slot: 'paddle', worn: false }]), { frame: 'frame-ink', paddle: '' });
+  assert.deepEqual(wornFrom([]), { frame: '', paddle: '', pet: '' });
+  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }, { id: 'frame-blue', slot: 'frame', worn: false }, { id: 'paddle-ink', slot: 'paddle', worn: false }]), { frame: 'frame-ink', paddle: '', pet: '' });
 });
 
 test('clubLooksFrom allow-lists only catalogue item ids in their own slot and leaks nothing else', () => {

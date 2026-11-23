@@ -301,6 +301,7 @@ export function ensureSchema() {
         at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (club, name_key, item)
       )`;
+      await q`ALTER TABLE reward_items ADD COLUMN IF NOT EXISTS shiny boolean NOT NULL DEFAULT false`; // weekly shiny coat toggle for an owned pet (active only during that pet's featured week)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rewards boolean NOT NULL DEFAULT false`; // true: the club shows the daily play streak and free points (off until an organizer turns it on)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS mystery_box boolean NOT NULL DEFAULT false`; // true: the club enables the mystery box (off by default, requires rewards too)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS require_confirmation boolean NOT NULL DEFAULT false`; // true: unconfirmed games don't count toward ratings and achievements

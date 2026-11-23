@@ -1361,7 +1361,7 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
   let s = ok(await post('Hal', { action: 'rewards-catalog' }));
-  assert.equal(s.items.length, 8); assert.ok(s.items.every(i => !i.owned && i.price > 0)); assert.deepEqual(s.worn, { frame: '', paddle: '' });
+  assert.equal(s.items.length, 12); assert.ok(s.items.every(i => !i.owned && i.price > 0)); assert.deepEqual(s.worn, { frame: '', paddle: '', pet: '' });
   // No Dinks yet: refused with a clear message, nothing charged, nothing owned.
   let r = await post('Hal', { action: 'rewards-buy', item: 'frame-court' });
   assert.equal(r.status, 409); assert.match(r.json.error, /Not enough Dinks yet: Court green ring costs 6 and you have 0/);
@@ -1659,6 +1659,138 @@ await step('rewards season pass: server-derived from verified games in club seas
   assert.equal((await pPost(playersApi, { action: 'rewards-pass', name: 'Pat', playerToken: ptok.Noa })).status, 403);
   ok(await pPost(club, { action: 'set-rewards', on: false, ownerToken: powner }));
   assert.equal((await post('Ollie', { action: 'rewards-pass' })).status, 403, 'off again: refused');
+});
+await step('rewards pets: buy, double buy, insufficient balance, only one worn, play-day stage growth, featured-week shiny toggle, looks allow-list, rename/merge/anonymise', async () => {
+  const pc = ok(await call(club, 'POST', { body: { name: 'Pets check club', pin: '468024' } }), 201);
+  const pcode = pc.club.code, powner = pc.ownerToken, ppin = '468024';
+  const pPost = (h, b) => call(h, 'POST', { body: { code: pcode, ...b } });
+  const pGet = () => call(club, 'GET', { query: '?code=' + pcode });
+  const ptok = {};
+  const join = async name => { ptok[name] = ok(await pPost(playersApi, { action: 'claim', name, ownerToken: powner })).playerToken; };
+  const post = (name, a) => pPost(playersApi, { name, playerToken: ptok[name], ...a });
+  const looks = () => pPost(playersApi, { action: 'rewards-looks' });
+  const grant = (name, id, n, day = null) => pg.query(
+    `INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak) VALUES ($1, $2, $3, 'earn', $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+    [pcode, name.toLowerCase(), id, n, day ? 'day' : 'test', day, day ? 1 : null]
+  );
+  const petRows = async name => (await pg.query(`SELECT item, worn, shiny FROM reward_items WHERE club = $1 AND name_key = $2 AND slot = 'pet' ORDER BY item`, [pcode, name.toLowerCase()])).rows;
+  await join('Rory'); await join('Sami'); await join('Tess');
+  ok(await pPost(club, { action: 'set-rewards', on: true, pin: ppin }));
+
+  // Discover this week's deterministic featured shiny pet and a non-featured pet from the server catalogue.
+  const cat0 = ok(await post('Rory', { action: 'rewards-catalog' }));
+  assert.ok(cat0.shinyWeek && /^pet-[a-z]+$/.test(cat0.shinyWeek.petId), 'catalog includes deterministic shinyWeek');
+  const petItems = cat0.items.filter(i => i.slot === 'pet');
+  assert.equal(petItems.length, 4);
+  const featuredPet = petItems.find(i => i.id === cat0.shinyWeek.petId);
+  const otherPet = petItems.find(i => i.id !== cat0.shinyWeek.petId);
+  assert.ok(featuredPet && otherPet);
+  assert.equal(featuredPet.featuredShiny, true);
+  assert.equal(otherPet.featuredShiny, false);
+
+  // Insufficient balance -> 409, nothing charged or owned.
+  await grant('Rory', 'seed:low', featuredPet.price - 1);
+  const low = await post('Rory', { action: 'rewards-buy', item: featuredPet.id });
+  assert.equal(low.status, 409);
+  assert.match(low.json.error, /Not enough Dinks/);
+  assert.equal((await petRows('Rory')).length, 0);
+
+  // Fund Rory and buy the featured pet -> charged exact catalogue price, idempotent ledger id buy:pet-*.
+  await grant('Rory', 'seed:fund', featuredPet.price + otherPet.price + 10);
+  const balBefore = featuredPet.price - 1 + featuredPet.price + otherPet.price + 10;
+  const bought1 = ok(await post('Rory', { action: 'rewards-buy', item: featuredPet.id, price: 0, dinks: 999 }));
+  assert.equal(bought1.bought, true);
+  assert.equal(bought1.dinks, balBefore - featuredPet.price);
+  assert.equal(bought1.items.find(i => i.id === featuredPet.id).owned, true);
+  const spends1 = (await pg.query(`SELECT id, amount FROM reward_ledger WHERE club = $1 AND name_key = 'rory' AND kind = 'spend'`, [pcode])).rows;
+  assert.deepEqual(spends1, [{ id: 'buy:' + featuredPet.id, amount: -featuredPet.price }]);
+
+  // Double buy / replay -> bought: false, balance and spend rows unchanged.
+  const dupBuy = ok(await post('Rory', { action: 'rewards-buy', item: featuredPet.id }));
+  assert.equal(dupBuy.bought, false);
+  assert.equal(dupBuy.dinks, bought1.dinks);
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'rory' AND kind = 'spend'`, [pcode])).rows[0].n, 1);
+
+  // Concurrent buy with exact balance for one pet -> balance never goes below zero.
+  await grant('Sami', 'seed:sami', 14); // enough for pet-frog (12) OR pet-duck (14), not both (26)
+  const race = await Promise.all(['pet-frog', 'pet-duck'].map(item => post('Sami', { action: 'rewards-buy', item })));
+  assert.deepEqual(race.map(r => r.status).sort(), [200, 409]);
+  assert.ok(ok(await post('Sami', { action: 'rewards-catalog' })).dinks >= 0, 'balance never below zero');
+
+  // Buy a second pet for Rory; wearing switches cleanly so at most one pet is worn at a time.
+  ok(await post('Rory', { action: 'rewards-buy', item: otherPet.id }));
+  let w = ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: otherPet.id }));
+  assert.equal(w.worn.pet, otherPet.id);
+  assert.equal(w.pet.id, otherPet.id);
+  w = ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id }));
+  assert.equal(w.worn.pet, featuredPet.id);
+  assert.deepEqual((await petRows('Rory')).filter(r => r.worn).map(r => r.item), [featuredPet.id], 'only one pet worn at a time');
+  // Unwearing clears the slot.
+  w = ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: '' }));
+  assert.equal(w.worn.pet, '');
+  assert.equal(w.pet, null);
+
+  // Stage growth from verified reward_ledger play days since adoption (pin adoption to a fixed UTC day in DB so boundaries are exact).
+  await pg.query(`UPDATE reward_items SET at = '2026-03-10T12:00:00Z' WHERE club = $1 AND name_key = 'rory' AND item = $2`, [pcode, featuredPet.id]);
+  ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id }));
+  // Days BEFORE adoption (2026-03-01..09), spends, pass claims (day=null) do NOT count toward growth.
+  await grant('Rory', 'day:2026-03-08', 1, '2026-03-08');
+  await grant('Rory', 'day:2026-03-09', 1, '2026-03-09');
+  await grant('Rory', 'pass:2026-Q1:1', 2, null);
+  let st = ok(await post('Rory', { action: 'rewards-get' })).pet;
+  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [1, 'Rookie', 0, 5]);
+  // Add 4 earn days on/after 2026-03-10 -> still Rookie (stage 1).
+  for (let d = 10; d <= 13; d++) await grant('Rory', `day:2026-03-${d}`, 1, `2026-03-${d}`);
+  st = ok(await post('Rory', { action: 'rewards-get' })).pet;
+  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [1, 'Rookie', 4, 5]);
+  // 5th earn day -> Club (stage 2).
+  await grant('Rory', 'day:2026-03-14', 1, '2026-03-14');
+  st = ok(await post('Rory', { action: 'rewards-get' })).pet;
+  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [2, 'Club', 5, 15]);
+  // Up to 14 earn days -> still Club (stage 2).
+  for (let d = 15; d <= 23; d++) await grant('Rory', `day:2026-03-${d}`, 1, `2026-03-${d}`);
+  st = ok(await post('Rory', { action: 'rewards-get' })).pet;
+  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [2, 'Club', 14, 15]);
+  // 15th earn day -> Veteran (stage 3).
+  await grant('Rory', 'day:2026-03-24', 1, '2026-03-24');
+  st = ok(await post('Rory', { action: 'rewards-get' })).pet;
+  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [3, 'Veteran', 15, null]);
+
+  // Weekly shiny toggle (Variant A): refused outside featured week, refused on non-pet slot or bad type, allowed on featured pet.
+  assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: otherPet.id, shiny: true })).status, 409, 'non-featured pet shiny refused');
+  assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: '', shiny: true })).status, 400, 'shiny on empty pet refused');
+  assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'frame', item: '', shiny: true })).status, 400, 'shiny on non-pet slot refused');
+  assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id, shiny: 'yes' })).status, 400, 'non-boolean shiny refused');
+  w = ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id, shiny: true }));
+  assert.equal(w.pet.shiny, true);
+  assert.equal(w.items.find(i => i.id === featuredPet.id).shiny, true);
+  w = ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id, shiny: false }));
+  assert.equal(w.pet.shiny, false);
+  w = ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id, shiny: true }));
+  assert.equal(w.pet.shiny, true);
+
+  // Club-visible looks allow-list: hidden by default, opted-in emits ONLY pet, petStage and petShiny (nothing else leaks).
+  assert.deepEqual(ok(await looks()), { looks: {} }, 'unshared pet does not leak');
+  ok(await post('Rory', { action: 'rewards-share', share: true }));
+  const pub = ok(await looks());
+  assert.deepEqual(pub, { looks: { rory: { pet: featuredPet.id, petStage: 3, petShiny: true } } });
+  assert.ok(!/playDays|play_days|dinks|streak|price|2026-03-10/.test(JSON.stringify(pub)), 'no private pet or ledger fields leak');
+  assert.ok(!JSON.stringify(pub).includes(otherPet.id), 'unworn pet never leaks');
+  assert.ok(!/pet-frog|pet-duck|pet-cat|pet-owl|petStage|petShiny/.test(JSON.stringify(ok(await pGet()))), 'GET /api/club stays free of pet data');
+
+  // Rename keeps worn pet, growth stage, shiny toggle and share choice; merge keeps target worn choice and clears incoming worn/shiny; anonymise removes all pet state.
+  ok(await pPost(playersApi, { action: 'rename', name: 'Rory', newName: 'Rowan', ownerToken: powner }));
+  assert.deepEqual(ok(await looks()), { looks: { rowan: { pet: featuredPet.id, petStage: 3, petShiny: true } } }, 'rename preserves pet stage and shiny');
+  ok(await pPost(playersApi, { action: 'release', name: 'Tess', ownerToken: powner }));
+  ok(await pPost(playersApi, { action: 'merge', name: 'Rowan', into: 'Tess', ownerToken: powner }));
+  assert.deepEqual(ok(await looks()), { looks: {} }, 'merge clears incoming worn/shiny pet so target choice stands');
+  const mergedCat = ok(await pPost(playersApi, { action: 'rewards-catalog', name: 'Tess', playerToken: ptok.Rory }));
+  assert.equal(mergedCat.items.find(i => i.id === featuredPet.id).owned, true, 'merged player keeps owned pet');
+  assert.equal(mergedCat.items.find(i => i.id === featuredPet.id).stage, 3, 'merged player keeps growth stage');
+  ok(await pPost(playersApi, { action: 'anonymise', name: 'Tess', ownerToken: powner }));
+  assert.equal((await petRows('Tess')).length, 0, 'anonymise removes owned pets');
+  assert.deepEqual(ok(await looks()), { looks: {} });
+  ok(await pPost(club, { action: 'set-rewards', on: false, ownerToken: powner }));
 });
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';
