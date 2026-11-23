@@ -20,10 +20,12 @@ function rwGoalHTML(c, s) {
   const open = s.items.filter(i => !i.owned);
   if (!open.length) return '';
   const g = rwGoalItem(s), need = g ? Math.max(0, g.price - s.dinks) : 0, days = need && s.pace ? Math.max(1, Math.ceil(need / s.pace)) : 0;
-  const line = !g ? '' : !need ? `You have enough Dinks for ${g.name} now.` : `${need} more ${need === 1 ? 'Dink' : 'Dinks'}${days ? `, about ${days} play ${days === 1 ? 'day' : 'days'} at your usual pace` : ''}.`;
-  return `<h3 class="rw-h">Saving goal</h3><label class="rw-goal"><span>Saving for</span><select data-rw-goal ${c.busy ? 'disabled' : ''}><option value="">No goal</option>${open.map(i => `<option value="${esc(i.id)}"${g && g.id === i.id ? ' selected' : ''}>${esc(i.name)} (${i.price} Dinks)</option>`).join('')}</select></label>${line ? `<p class="rw-goal-line">${esc(line)}</p>` : ''}<p class="rw-box-fine">Your goal stays on this phone.</p>`;
+  const line = !g ? '' : !need ? `You have enough Dinks for ${g.name} now.` : `${rwDinks(need)} more${days ? `, about ${days} play ${days === 1 ? 'day' : 'days'} at your usual pace` : ''}.`;
+  return `<h3 class="rw-h">Saving goal</h3><label class="rw-goal"><span>Saving for</span><select data-rw-goal ${c.busy ? 'disabled' : ''}><option value="">No goal</option>${open.map(i => `<option value="${esc(i.id)}"${g && g.id === i.id ? ' selected' : ''}>${esc(i.name)} (${rwDinks(i.price)})</option>`).join('')}</select></label>${line ? `<p class="rw-goal-line">${esc(line)}</p>` : ''}<p class="rw-box-fine">Your goal stays on this phone.</p>`;
 }
 const rwShort = (n, price) => `Not enough Dinks yet: ${n} costs ${price} and you have `;
+// A button that can't be afforded yet stays focusable and says so out loud when pressed (rwShort), but is drawn muted so it doesn't look ready.
+const rwShortAttrs = need => (need > 0 ? ' aria-disabled="true" data-rw-short="1"' : '');
 let rwBoxSeq = 0;
 // Idempotency key for one box-open request only; the server chooses the item with its own cryptographic random source.
 const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -35,16 +37,16 @@ function rwBoxHTML(c, s) {
   const b = s.box, opened = Number(b.openedToday) || 0, limit = Number(b.dailyLimit) || 3, atLimit = opened >= limit;
   const need = Math.max(0, b.price - s.dinks), r = c.boxResult;
   const tiers = b.tiers.map(t => `<li class="rw-tier"><div class="rw-tier-top"><b>${esc(t.label)}</b><span class="rw-pct num">${t.chance}% (${t.chance} in 100)</span></div><p class="rw-tier-items">${esc((t.items || []).map(i => i.name).join(', '))}</p></li>`).join('');
-  const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${r.refund} Dinks returned to your balance.` : 'Added to What you wear.'}</small></span></div>` : '';
-  const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : `Open mystery box (${b.price} Dinks)`;
+  const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${rwDinks(r.refund)} returned to your balance.` : 'Added to What you wear.'}</small></span></div>` : '';
+  const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : `Open mystery box (${rwDinks(b.price)})`;
   return `<h3 class="rw-h">Mystery box</h3><section class="rw-box" aria-label="Mystery box">
-    <div class="rw-box-top"><span class="rw-box-cost"><b class="num">${b.price}</b> Dinks</span><span class="rw-box-cap">${opened} of ${limit} opened today</span></div>
+    <div class="rw-box-top"><span class="rw-box-cost"><b class="num">${b.price}</b> ${b.price === 1 ? 'Dink' : 'Dinks'}</span><span class="rw-box-cap">${opened} of ${limit} opened today</span></div>
     <p class="rw-box-note">Grants one cosmetic look from the shop, chosen at random on the server. Free play money only — never bought with real money, and never changes a game, a rating, a rank or who plays.</p>
     <div class="rw-rates"><p class="rw-rates-h">Odds before you open</p><ul class="rw-tier-list">${tiers}</ul>
-    <p class="rw-box-fine">Duplicate refund: if you already own the item drawn, ${b.duplicateRefund} Dinks are returned to your balance right away. Limit: ${limit} per day (UTC). No pity timer, countdown or streak bonus.</p></div>
+    <p class="rw-box-fine">Duplicate refund: if you already own the item drawn, ${rwDinks(b.duplicateRefund)} are returned to your balance right away. Limit: ${limit} per day (UTC). No pity timer, countdown or streak bonus.</p></div>
     ${res}
-    <button type="button" class="btn btn-court block" data-rw-box-open="1" ${c.busy || atLimit ? 'disabled' : ''}>${esc(btnLabel)}</button>
-    ${!atLimit && need > 0 ? `<p class="rw-box-fine">You need ${need} more ${need === 1 ? 'Dink' : 'Dinks'} to open a mystery box.</p>` : ''}
+    <button type="button" class="btn btn-court block" data-rw-box-open="1"${atLimit ? '' : rwShortAttrs(need)} ${c.busy || atLimit ? 'disabled' : ''}>${esc(btnLabel)}</button>
+    ${!atLimit && need > 0 ? `<p class="rw-box-fine">You need ${rwDinks(need)} more to open a mystery box.</p>` : ''}
   </section>`;
 }
 
@@ -64,15 +66,15 @@ Object.assign(Rewards, {
       return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
     }).join('');
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
-    const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${i.price} Dinks${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${i.price} Dinks" ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+    const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more` : ''}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
     const allOwned = s.items.every(i => i.owned);
     const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour and court pet — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour and court pet on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     const box = rwBoxHTML(c, s);
-    return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> Dinks</p>
+    return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> ${s.dinks === 1 ? 'Dink' : 'Dinks'}</p>
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${petsSec}${box}
-      <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${done}`;
+      ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}
+      <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${done}`;
   },
   // "Dinks activity": your own recent ledger rows in plain words (the server's words), newest first, with the balance after each.
   activityHTML(c) {
@@ -82,7 +84,7 @@ Object.assign(Rewards, {
     if (!a) return `${head}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="activity">Try again</button>` : skel(3)}${done}`;
     const day = at => new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     const rows = a.entries.map(e => `<li class="rw-act"><span class="rw-name"><b>${esc(e.text)}</b><small>${esc(day(e.at))} · balance ${e.balance}</small></span><span class="rw-amt num">${e.amount > 0 ? '+' : '−'}${Math.abs(e.amount)}</span></li>`).join('');
-    return `${head}<p class="rw-bal-line"><b>${a.balance}</b> Dinks</p>
+    return `${head}<p class="rw-bal-line"><b>${a.balance}</b> ${a.balance === 1 ? 'Dink' : 'Dinks'}</p>
       <p class="note">Only you can see this. It lists what you earned and spent, newest first${a.total > a.entries.length ? `, the last ${a.entries.length} of ${a.total}` : ''}.</p>
       ${rows ? `<ul class="rw-acts-list">${rows}</ul>` : '<p class="note">Nothing yet. Dinks you earn or spend show up here.</p>'}${done}`;
   },
@@ -169,7 +171,7 @@ document.addEventListener('click', e => {
       if (!r || !r.item) return 'Mystery box opened.';
       const tLabel = r.tier && r.tier.label ? ` (${r.tier.label})` : '';
       return r.duplicate
-        ? `Mystery box: ${r.item.name}${tLabel}, already owned. ${r.refund} Dinks returned to your balance.`
+        ? `Mystery box: ${r.item.name}${tLabel}, already owned. ${rwDinks(r.refund)} returned to your balance.`
         : `Mystery box: ${r.item.name}${tLabel}. Added to What you wear.`;
     }, '#club-h');
     return;
@@ -195,7 +197,7 @@ document.addEventListener('click', e => {
     if (!it || it.owned) return;
     // The server decides; this only saves a trip when the balance obviously doesn't reach.
     if (c.store.dinks < it.price) { c.error = rwShort(it.name, it.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
-    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${it.price} Dinks. Choose it under Your companion.` : `${it.name} is yours for ${it.price} Dinks. Choose it under What you wear.`), '#club-h');
+    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it under What you wear.`), '#club-h');
     return;
   }
   const [slot, id] = t.dataset.rwWear.split(':');

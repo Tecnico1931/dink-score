@@ -3,9 +3,9 @@
 // player's verified phone in the current club season. Free only: no paid tier, no real money, no countdown pressure, no randomness, no motion
 // or sound, and never reads or changes a score, rating, rank or pairing. Reachable from the Your Dink card (so the one-tap hide removes it).
 const rwPassRewardText = t => {
-  if (t.item && t.item.owned && !t.claimed) return `+${t.payoutDinks} Dinks`;
-  if (t.item) return `${t.item.name} + ${t.dinks} Dinks`;
-  return `+${t.dinks} Dinks`;
+  if (t.item && t.item.owned && !t.claimed) return `+${rwDinks(t.payoutDinks)}`;
+  if (t.item) return `${t.item.name} + ${rwDinks(t.dinks)}`;
+  return `+${rwDinks(t.dinks)}`;
 };
 const rwPassMaxGames = p => (p && Array.isArray(p.tiers) && p.tiers.length ? p.tiers[p.tiers.length - 1].games : 1);
 
@@ -20,7 +20,7 @@ Object.assign(Rewards, {
       <div class="rw-pass-top"><span class="rw-pass-season">${esc(p.season.name)}</span><span class="rw-pass-free">Free track</span></div>
       <div class="rw-top">
         <span class="rw-day"><span><b>${p.games}</b><small>${p.games === 1 ? 'Game this season' : 'Games this season'}</small></span></span>
-        <span class="rw-bal"><b>${p.dinks}</b><small>Dinks</small></span>
+        <span class="rw-bal"><b>${p.dinks}</b><small>${p.dinks === 1 ? 'Dink' : 'Dinks'}</small></span>
       </div>
       <div class="rw-bar" role="progressbar" aria-label="Season pass progress" aria-valuemin="0" aria-valuemax="${maxG}" aria-valuenow="${Math.min(p.games, maxG)}"><span style="width:${pct}%"></span></div>
       <p class="rw-fine">Free reward track filled by games you save this season. No paid tier, no real money, and it never changes a game, a rating or a rank.</p>
@@ -47,7 +47,7 @@ Object.assign(Rewards, {
     if (!rwShown() || !myName() || !myToken()) return;
     const c = clubSheet = { view: 'rwpass', pass: null, msg: '', error: '', busy: false };
     renderClub();
-    try { const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.pass = d; rwStoreSynced(d); }
+    try { const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.pass = d; rwSetReady(d.claimable); rwStoreSynced(d); }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "The season pass couldn't load."; }
     renderClub();
   }
@@ -61,11 +61,11 @@ async function rwPassClaim(tier) {
   try {
     const d = await playerCall({ action: 'rewards-pass-claim', name: myName(), playerToken: myToken(), tier, seasonId: c.pass.season.id });
     if (clubSheet !== c) return;
-    c.pass = d;
+    c.pass = d; rwSetReady(d.claimable);
     if (!d.claimed) c.msg = `Tier ${tier} was already claimed.`;
-    else if (d.granted) c.msg = `Tier ${tier} claimed: ${d.granted.name} and +${d.gained} Dinks. Wear it in the Shop.`;
-    else if (itemBefore && itemBefore.item && itemBefore.item.owned) c.msg = `Tier ${tier} claimed: +${d.gained} Dinks (you already own ${itemBefore.item.name}).`;
-    else c.msg = `Tier ${tier} claimed: +${d.gained} Dinks. You now have ${d.dinks} Dinks.`;
+    else if (d.granted) c.msg = `Tier ${tier} claimed: ${d.granted.name} and +${rwDinks(d.gained)}. Wear it in the Shop.`;
+    else if (itemBefore && itemBefore.item && itemBefore.item.owned) c.msg = `Tier ${tier} claimed: +${rwDinks(d.gained)} (you already own ${itemBefore.item.name}).`;
+    else c.msg = `Tier ${tier} claimed: +${rwDinks(d.gained)}. You now have ${rwDinks(d.dinks)}.`;
     rwStoreSynced(d);
     announce(c.msg);
   } catch (err) {

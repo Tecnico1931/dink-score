@@ -5,6 +5,7 @@
 // keeps the last synced value (localStorage pb.rewards, by club) so the card works offline. It never reads or changes a score, a rating, a
 // rank or a pairing.
 const RW_BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
+const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
 const rwId = v => (typeof v === 'string' && /^[a-z]{3,8}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
@@ -68,6 +69,20 @@ function rwApplyLook() {
 }
 const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.5 2.5c.4 3-1.3 4.6-2.9 6.4C8 10.7 6.5 12.6 6.5 15.2a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.2-5.2-.2 1.2-.7 2-1.5 2.5.5-3.5-.2-7.3-1.3-10z"/></svg>';
 
+// Season pass tiers that are unlocked but not claimed yet, for the club on this phone. Learned from the pass answer (rewards-pass, or a claim) and never
+// stored: it is a nudge on the Your Dink card and the You sheet, so a stale value only costs one tap. In memory only.
+const rwReady = { code: null, n: 0, at: 0, busy: false };
+const rwReadyN = () => (rwShown() && club && rwReady.code === club.code ? rwReady.n : 0);
+const rwReadyTag = n => (n > 0 ? `<span class="rw-ready">${n} ready</span>` : '');
+function rwSetReady(n, code = club && club.code) {
+  n = Math.max(0, Math.floor(Number(n) || 0));
+  const known = rwReady.code === code && rwReady.at > 0, grew = known && n > rwReady.n, changed = rwReady.code !== code || rwReady.n !== n;
+  rwReady.code = code; rwReady.n = n; rwReady.at = Date.now();
+  if (!changed || !club || club.code !== code || !rwShown()) return;
+  if (grew) announce(`${n} season pass ${n === 1 ? 'reward is' : 'rewards are'} ready to claim.`);
+  rwRedrawClub();
+  if (typeof clubSheet !== 'undefined' && clubSheet && !/^rw/.test(clubSheet.view) && typeof renderClub === 'function') renderClub();
+}
 let rwBusy = false, rwAt = 0, rwLooksBusy = false, rwLooksAt = 0, rwLooksCode = null;
 const rwLooksByClub = Object.create(null);
 const rwClubLooks = () => (club && club.code && rwLooksByClub[club.code]) || null;
@@ -103,9 +118,20 @@ const Rewards = {
       if (!club || club.code !== code || !d || typeof d.dinks !== 'number') return;
       const next = rwClean(d), changed = JSON.stringify(next) !== JSON.stringify(rwCur());
       rwSave(next, code);
-      if (d.gained > 0 && !rwHidden()) announce(`${d.gained} ${d.gained === 1 ? 'Dink' : 'Dinks'} added. Day ${next.streak} of your streak.`);
+      if (d.gained > 0 && !rwHidden()) announce(`${rwDinks(d.gained)} added. Day ${next.streak} of your streak.`);
       if (changed && !rwHidden()) render();
+      Rewards.syncReady(true);
     } catch { /* offline or off: keep the last value */ } finally { rwBusy = false; }
+  },
+  // Ask the server how many pass tiers are ready to claim (after a sync, so a game just saved counts). Off, hidden or offline: the last value stays.
+  async syncReady(force) {
+    const code = club && club.code;
+    if (!rwShown() || !code || !myName() || !myToken() || rwReady.busy || (!force && rwReady.code === code && Date.now() - rwReady.at < 3e5)) return;
+    rwReady.busy = true;
+    try {
+      const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() });
+      if (club && club.code === code && d && Array.isArray(d.tiers)) rwSetReady(d.tiers.filter(t => t.unlocked && !t.claimed).length, code);
+    } catch { /* offline or off: keep the last value */ } finally { rwReady.busy = false; }
   },
   // Fetch the club's opt-in worn looks (allow-listed item ids only; never balance, streak or history). Skipped when rewards are off or hidden.
   async syncLooks(force) {
@@ -166,13 +192,16 @@ const Rewards = {
     if (!rwShown()) return '';
     const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = rwNext(day);
     const line = !myName() || !myToken() ? 'Pick your name in the club to start earning Dinks.' : done ? `Played today. ${nx.in === 1 ? 'Play tomorrow' : `Play ${nx.in} days in a row`} for +${nx.bonus} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
-    const pet = typeof rwPetCardHTML === 'function' ? rwPetCardHTML(st) : '';
-    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>Dinks</small></span></div>${pet}<p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? '<button type="button" class="rw-hide" data-rw="pass">Season pass</button><button type="button" class="rw-hide" data-rw="store">Shop</button><button type="button" class="rw-hide" data-rw="activity">Dinks activity</button>' : ''}<button type="button" class="rw-hide" data-rw="hide">Hide this</button></div></section>`;
+    const pet = typeof rwPetCardHTML === 'function' ? rwPetCardHTML(st) : '', ready = rwReadyN();
+    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>${st.dinks === 1 ? 'Dink' : 'Dinks'}</small></span></div>${pet}<p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? `<button type="button" class="rw-hide" data-rw="pass"${ready ? ` aria-label="Season pass, ${ready} ready to claim"` : ''}>Season pass${rwReadyTag(ready)}</button><button type="button" class="rw-hide" data-rw="store">Shop</button><button type="button" class="rw-hide" data-rw="activity">Dinks activity</button>` : ''}<button type="button" class="rw-hide" data-rw="hide">Hide this</button></div></section>`;
   },
-  // The "You" sheet row: the one switch on this phone (shown only where the club has rewards on).
+  // The "You" rows (shown only where the club has rewards on): the way into the Shop and Season pass, and the one switch on this phone.
   youRowHTML() {
     if (!rwClubOn()) return '';
-    return `<button type="button" class="you-row" data-rw="${rwHidden() ? 'show' : 'hide'}"><span><b>${rwHidden() ? 'Show my daily streak' : 'Hide my daily streak'}</b><small>${rwHidden() ? 'Your Dink card and flame come back' : 'Hides the streak, the flame and Dinks on this phone'}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+    const n = rwReadyN();
+    const way = rwShown() && myName() && myToken()
+      ? `<button type="button" class="you-row" data-rw="pass"><span><b>Shop &amp; season pass</b><small>${n ? `${n === 1 ? '1 reward is' : `${n} rewards are`} ready to claim` : 'Claim rewards and spend your Dinks'}</small></span>${rwReadyTag(n)}<span class="chev" aria-hidden="true">›</span></button>` : '';
+    return `${way}<button type="button" class="you-row" data-rw="${rwHidden() ? 'show' : 'hide'}"><span><b>${rwHidden() ? 'Show rewards and streak' : 'Hide rewards and streak'}</b><small>${rwHidden() ? 'Your Dink card, flame and Shop come back' : 'Hides the streak, the flame, Dinks and the Shop on this phone'}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
   }
 };
 
