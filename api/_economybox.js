@@ -23,7 +23,7 @@ export const BOX_TIERS = Object.freeze([
   Object.freeze({
     id: 'common',
     label: 'Common',
-    chance: 55,
+    chance: 50,
     items: Object.freeze(['frame-court', 'paddle-court'])
   }),
   Object.freeze({
@@ -37,6 +37,13 @@ export const BOX_TIERS = Object.freeze([
     label: 'Rare',
     chance: 15,
     items: Object.freeze(['frame-double', 'paddle-stripe'])
+  }),
+  // Epic (L16, #107): the top rarity. Cosmetic only, ball-lime, like every other tier; the odds are stated before opening like the rest.
+  Object.freeze({
+    id: 'epic',
+    label: 'Epic',
+    chance: 5,
+    items: Object.freeze(['frame-ball', 'paddle-ball'])
   })
 ]);
 

@@ -232,6 +232,7 @@ button { cursor: pointer; }
 /* Worn looks, set on <html> (data-rw-frame, data-rw-skin) while rewards are shown, on swatches, and on opted-in club members' avatars. Colours use the app's own tokens so both themes pass contrast. */
 [data-rw-frame="court"] { --rw-ring: 0 0 0 5px var(--green); --rw-ring-sm: 0 0 0 4px var(--green); --rw-c: var(--green); } [data-rw-frame="blue"] { --rw-ring: 0 0 0 5px var(--blue); --rw-ring-sm: 0 0 0 4px var(--blue); --rw-c: var(--blue); } [data-rw-frame="ink"] { --rw-ring: 0 0 0 5px var(--ink); --rw-ring-sm: 0 0 0 4px var(--ink); --rw-c: var(--ink); }
 [data-rw-frame="double"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--blue); --rw-c: var(--green); }
+[data-rw-frame="ball"] { --rw-ring: 0 0 0 4px var(--ball), 0 0 0 6px var(--ink), 0 0 0 8px var(--ball); --rw-ring-sm: 0 0 0 3.5px var(--ball), 0 0 0 5px var(--ink), 0 0 0 6.5px var(--ball); --rw-c: var(--ball); }
 /* Seasonal looks (api/_economyseason.js): only the app's own tokens, mixed with color-mix where a tint is needed. */
 [data-rw-frame="spring"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--ball); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--ball); --rw-c: var(--green); }
 [data-rw-frame="heat"] { --rw-ring: 0 0 0 5px var(--down); --rw-ring-sm: 0 0 0 4px var(--down); --rw-c: var(--down); }
@@ -244,6 +245,7 @@ button { cursor: pointer; }
 [data-rw-skin="blue"] { --rw-pad-stripe: transparent; --rw-pad-bg: var(--blue); --rw-pad-edge: var(--blue); --rw-pad-fg: var(--on-court); --rw-pad-ring: 0 0 0 2px var(--blue); }
 [data-rw-skin="ink"] { --rw-pad-stripe: transparent; --rw-pad-bg: var(--ink); --rw-pad-edge: var(--ink); --rw-pad-fg: var(--bg); --rw-pad-ring: 0 0 0 2px var(--ink); }
 [data-rw-skin="stripe"] { --rw-pad-bg: var(--green); --rw-pad-edge: var(--blue); --rw-pad-fg: var(--on-court); --rw-pad-stripe: var(--blue); --rw-pad-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue); }
+[data-rw-skin="ball"] { --rw-pad-stripe: var(--ink); --rw-pad-bg: var(--ball); --rw-pad-edge: var(--ink); --rw-pad-fg: var(--ball-ink); --rw-pad-ring: 0 0 0 2px var(--ink), 0 0 0 4px var(--ball); }
 html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad-fg); box-shadow: var(--rw-pad-ring); }
 .avatar[data-rw-frame], .av[data-rw-frame] { box-shadow: 0 0 0 2px var(--surface), var(--rw-ring); }
 .step .avatar[data-rw-frame] { margin: 4px 0 9px; }

@@ -19,10 +19,12 @@ export const CATALOGUE = [
   { id: 'frame-blue', slot: 'frame', name: 'Team blue ring', price: 8 },
   { id: 'frame-ink', slot: 'frame', name: 'Ink ring', price: 8 },
   { id: 'frame-double', slot: 'frame', name: 'Double ring', price: 15 },
+  { id: 'frame-ball', slot: 'frame', name: 'Ball ring', price: 25 },
   { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6 },
   { id: 'paddle-blue', slot: 'paddle', name: 'Team blue paddle', price: 8 },
   { id: 'paddle-ink', slot: 'paddle', name: 'Ink paddle', price: 8 },
   { id: 'paddle-stripe', slot: 'paddle', name: 'Striped paddle', price: 15 },
+  { id: 'paddle-ball', slot: 'paddle', name: 'Ball paddle', price: 25 },
   ...PETS
 ];
 // Seasonal cosmetics (_economyseason.js) are looked up here too, so an owned one stays owned, wearable and visible after its window closes;
