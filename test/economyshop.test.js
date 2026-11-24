@@ -202,3 +202,14 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
   assert.ok(!/data-rw-short/.test(rich), 'affordable buttons are drawn as normal');
   assert.match(x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: [{ id: 'frame-blue', slot: 'frame', name: 'Blue', price: 1, owned: false }] }, msg: '', error: '', busy: false }), /<small>1 Dink<\/small>/);
 });
+
+test('slots are data-driven: six known, unknown rejected, sound never reaches the club', async () => {
+  const { SLOT_META, wearItem } = await import('../api/_economyshop.js');
+  assert.deepEqual(SLOTS, ['frame', 'paddle', 'pet', 'title', 'style', 'sound']);
+  assert.deepEqual(SLOTS, SLOT_META.map(s => s.id));
+  for (const s of SLOT_META) assert.ok(s.label && s.note && typeof s.club === 'boolean', s.id);
+  await assert.rejects(wearItem(null, 'c', 'k', 'theme', ''), e => e.status === 400 && /Pick frame, paddle, pet, title, style or sound/.test(e.message));
+  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }]), { frame: 'frame-ink', paddle: '', pet: '' }); // newer slots appear once the shop sells in them
+  // a title or style row with an unknown id is dropped; a known-slot row only passes through when its catalogue item exists
+  assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'title', item: 'title-nope' }, { name_key: 'ana', slot: 'sound', item: 'sound-nope' }]), {});
+});

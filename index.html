@@ -3719,7 +3719,12 @@ const rwLook = id => String(id || '').replace(/^[a-z]+-/, ''); // 'frame-court' 
 // the [data-rw-skin] it sits in, so it follows both themes. Decorative: callers carry the text. The stripe shows only for the striped skin.
 const rwPaddleSvg = () => '<svg class="rw-pdl" viewBox="0 0 18 26" aria-hidden="true" focusable="false"><rect class="rw-pdl-grip" x="7.2" y="16" width="3.6" height="9.2" rx="1.6"/><rect class="rw-pdl-face" x="2" y="1" width="14" height="17.5" rx="6.4"/><rect class="rw-pdl-stripe" x="7" y="1.7" width="4" height="16.1"/><g class="rw-pdl-holes"><circle cx="6.2" cy="6" r="1"/><circle cx="9" cy="6" r="1"/><circle cx="11.8" cy="6" r="1"/><circle cx="6.2" cy="9.6" r="1"/><circle cx="9" cy="9.6" r="1"/><circle cx="11.8" cy="9.6" r="1"/><circle cx="6.2" cy="13.2" r="1"/><circle cx="9" cy="13.2" r="1"/><circle cx="11.8" cy="13.2" r="1"/></g></svg>';
 const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').toLowerCase();
+// Slots the server knows (mirror of SLOT_META in api/_economyshop.js). frame, paddle and pet are always present in a look; the newer ones only when set.
+// A sound is never in a club look: it stays on its owner's phone.
+const RW_EXTRA_SLOTS = ['title', 'style'];
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
+// {title, style} ids that are set and well formed, nothing else.
+const rwExtras = v => Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwSlotId(s, v && v[s])]).filter(e => e[1]));
 const rwCleanLooks = raw => {
   const out = Object.create(null);
   if (!raw || typeof raw !== 'object') return out;
@@ -3727,8 +3732,9 @@ const rwCleanLooks = raw => {
     const key = rwKey(k);
     if (!key || !v || typeof v !== 'object') continue;
     const frame = rwSlotId('frame', v.frame), paddle = rwSlotId('paddle', v.paddle), pet = rwSlotId('pet', v.pet);
-    if (!frame && !paddle && !pet) continue;
-    const entry = { frame, paddle };
+    const extra = rwExtras(v);
+    if (!frame && !paddle && !pet && !Object.keys(extra).length) continue;
+    const entry = { frame, paddle, ...extra };
     if (pet) {
       entry.pet = pet;
       entry.petStage = v.petStage === 2 || v.petStage === 3 ? v.petStage : 1;
@@ -3748,7 +3754,7 @@ const rwCleanPet = (p, wornPet) => {
   return { id, stage, playDays: days, nextStageDays: next, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
 };
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
-  const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet) };
+  const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet), ...Object.fromEntries(['title', 'style', 'sound'].map(k => [k, rwId(w[k])]).filter(e => e[1])) };
   const pet = rwCleanPet(s.pet, worn.pet);
   const out = { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn };
   if (pet) out.pet = pet;
@@ -3799,8 +3805,9 @@ const rwSetOwnLook = (name, worn, share, petInfo) => {
   if (!code || !key) return;
   const map = rwLooksByClub[code] || (rwLooksByClub[code] = Object.create(null));
   const frame = share ? rwSlotId('frame', worn && worn.frame) : '', paddle = share ? rwSlotId('paddle', worn && worn.paddle) : '', pet = share ? rwSlotId('pet', worn && worn.pet) : '';
-  if (frame || paddle || pet) {
-    const entry = { frame, paddle };
+  const extra = share ? rwExtras(worn) : {};
+  if (frame || paddle || pet || Object.keys(extra).length) {
+    const entry = { frame, paddle, ...extra };
     if (pet) {
       entry.pet = pet;
       entry.petStage = petInfo && (petInfo.stage === 2 || petInfo.stage === 3) ? petInfo.stage : 1;
@@ -3859,8 +3866,9 @@ const Rewards = {
     const map = rwClubLooks(), hit = map && map[rwKey(name)];
     if (!hit) return null;
     const frame = rwLook(hit.frame), paddle = rwLook(hit.paddle), pet = rwLook(hit.pet);
-    if (!frame && !paddle && !pet) return null;
-    return pet ? { frame, paddle, pet, petStage: hit.petStage === 2 || hit.petStage === 3 ? hit.petStage : 1, petShiny: !!hit.petShiny } : { frame, paddle };
+    const extra = Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwLook(hit[s])]).filter(e => e[1]));
+    if (!frame && !paddle && !pet && !Object.keys(extra).length) return null;
+    return pet ? { frame, paddle, ...extra, pet, petStage: hit.petStage === 2 || hit.petStage === 3 ? hit.petStage : 1, petShiny: !!hit.petShiny } : { frame, paddle, ...extra };
   },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
