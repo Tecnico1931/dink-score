@@ -50,6 +50,8 @@ const pairs = (t, mode, id) => [
   [t.focus, t.bg, 3, 'focus ring on page'], [t.focus, t.surface, 3, 'focus ring on cards'],
   [t['blue-text'], t.surface, 4.5, 'blue text on cards'], [t['blue-text'], t.bg, 4.5, 'blue text on page'],
   [t['accent-text'], t.surface, 4.5, 'accent text on cards'], [t['accent-text'], t.bg, 4.5, 'accent text on page'],
+  // Bottom bar: the active tab's grey pill is ink at 9% over the bar's translucent surface (or the page behind it).
+  ...[['surface', t.surface], ['page', t.bg]].flatMap(([n, b]) => { const hl = over(t.ink, b, 0.09); return [[t['accent-text'], hl, 4.5, `active tab label and icon (accent-text) on its highlight over ${n}`], [t.ink, b, 4.5, `inactive tab label over ${n}`]]; }),
   [t.accent, t.surface, 3, 'accent marks on cards'], [t.accent, t['surface-2'], 3, 'accent rings on soft rows'],
   ...(id === 'green' && mode === 'dark' ? [] : [[t['court-ring'], t.surface, 3, 'court-ring on cards'], [t['court-ring'], t['surface-2'], 3, 'court-ring on soft cards']]),
   [t.green, t.surface, 3, 'green marks on cards'], [t.green, t['surface-2'], 3, 'green rings on soft rows'],
