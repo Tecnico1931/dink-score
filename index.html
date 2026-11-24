@@ -67,6 +67,7 @@ img { max-width: 100%; }
   --focus: #2B49E6;
   --blue-text: #2B49E6; /* blue as text: the dark theme needs a lighter blue than the fill */
   --shadow: 0 1px 2px rgb(14 23 38 / .06), 0 8px 24px -12px rgb(14 23 38 / .18);
+  --rare-bg: #DDE6FF; --rare-fg: #1A33B8; --legendary-bg: #FFE9C7; --legendary-fg: #7A3B00; --mythic-bg: #F6DAEA; --mythic-fg: #7A1450; --shiny-bg: #FFF3B0; --shiny-fg: #5A4A00; /* rarity badges */
   --display: "Bricolage Grotesque", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
   --ui: "Geist", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: light dark;
@@ -79,6 +80,7 @@ img { max-width: 100%; }
     --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
     --court: #0F6B4B; --court-2: #0A4A34; --court-ring: #0F6B4B; --accent: #3D5BFF; --accent-text: #9DB0FF; --lift: 0 1px 0 rgb(255 255 255 / .05) inset, 0 18px 36px -18px rgb(0 0 0 / .8);
     --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
+    --rare-bg: #1E2B57; --rare-fg: #BFCCFF; --legendary-bg: #4A2F0F; --legendary-fg: #FFD08A; --mythic-bg: #4A1838; --mythic-fg: #FFB8DE; --shiny-bg: #3A3510; --shiny-fg: #F0E27A;
     color-scheme: dark;
   }
 }
@@ -88,6 +90,7 @@ img { max-width: 100%; }
   --up: #3DD69E; --down: #FF7A6B; --danger: #FF7A6B; --focus: #9DB0FF; --blue-text: #9DB0FF;
   --court: #0F6B4B; --court-2: #0A4A34; --court-ring: #0F6B4B; --accent: #3D5BFF; --accent-text: #9DB0FF; --lift: 0 1px 0 rgb(255 255 255 / .05) inset, 0 18px 36px -18px rgb(0 0 0 / .8);
   --shadow: 0 1px 0 rgb(255 255 255 / .03) inset, 0 10px 30px -14px rgb(0 0 0 / .7);
+  --rare-bg: #1E2B57; --rare-fg: #BFCCFF; --legendary-bg: #4A2F0F; --legendary-fg: #FFD08A; --mythic-bg: #4A1838; --mythic-fg: #FFB8DE; --shiny-bg: #3A3510; --shiny-fg: #F0E27A;
   color-scheme: dark;
 }
 /* Outdoor display (a per-device setting): maximum contrast in direct sun, whatever the phone's own theme. */
@@ -96,6 +99,7 @@ img { max-width: 100%; }
   --blue: #0A28B8; --green: #00593F; --up: #00593F; --down: #A80000; --danger: #A80000; --focus: #0A28B8; --blue-text: #0A28B8;
   --court: #00593F; --court-2: #00593F; --court-ring: #00593F; --accent: #0A28B8; --accent-text: #0A28B8; --court-line: rgb(255 255 255 / .9); --lift: none;
   --shadow: none;
+  --rare-bg: #E8E8E8; --rare-fg: #000000; --legendary-bg: #E8E8E8; --legendary-fg: #000000; --mythic-bg: #E8E8E8; --mythic-fg: #000000; --shiny-bg: #E8E8E8; --shiny-fg: #000000;
   color-scheme: light;
 }
 /* Selectable court palettes (Court Green is the default above with no data-palette attribute). Team 1 (--blue), Team 2 (--green) and --ball stay locked. */
@@ -288,7 +292,19 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-item { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
 .rw-name { flex: 1; min-width: 0; } .rw-name b { display: block; font-size: 15px; } .rw-name small { display: block; font-size: 13px; color: var(--muted); }
 .rw-item .btn { min-height: 44px; min-width: 64px; }
-.rw-item .btn[data-rw-short], .rw-box .btn[data-rw-short] { opacity: .55; } :root[data-outdoor] .rw-item .btn[data-rw-short], :root[data-outdoor] .rw-box .btn[data-rw-short] { opacity: 1; text-decoration: line-through; } /* can't afford it yet: muted, still focusable, says why when pressed */
+.rw-sec { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 18px 0 8px; } .rw-sec .rw-h { margin: 0; } .rw-sec-note { margin: 0; font-size: 13px; color: var(--muted); }
+.rw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.rw-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.rw-well { min-height: 76px; display: grid; place-items: center; border-radius: 14px; background: var(--surface-2); }
+.rw-well .rw-sw { margin: 0; }
+.rw-badges { min-height: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.rw-badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1; }
+.rw-badge[data-rarity="rare"] { background: var(--rare-bg); color: var(--rare-fg); } .rw-badge[data-rarity="legendary"] { background: var(--legendary-bg); color: var(--legendary-fg); }
+.rw-badge[data-rarity="mythic"] { background: var(--mythic-bg); color: var(--mythic-fg); } .rw-badge[data-rarity="shiny"] { background: var(--shiny-bg); color: var(--shiny-fg); }
+:root[data-outdoor] .rw-badge { border: 1.5px solid var(--ink); }
+.rw-cname { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; } .rw-cost { font-size: 13px; color: var(--muted); }
+.rw-card .btn { width: 100%; min-height: 44px; margin-top: auto; }
+.rw-item .btn[data-rw-short], .rw-box .btn[data-rw-short], .rw-card .btn[data-rw-short] { opacity: .55; } :root[data-outdoor] .rw-item .btn[data-rw-short], :root[data-outdoor] .rw-box .btn[data-rw-short], :root[data-outdoor] .rw-card .btn[data-rw-short] { opacity: 1; text-decoration: line-through; } /* can't afford it yet: muted, still focusable, says why when pressed */
 .rw-goal { display: grid; gap: 4px; font-size: 13px; font-weight: 600; } .rw-goal select { width: 100%; font-size: 16px; font-weight: 400; padding: 0 10px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); }
 .rw-goal-line { margin: 8px 0 2px; font-size: 14px; }
 .rw-acts-list { list-style: none; margin: 8px 0 4px; padding: 0; } .rw-act { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
@@ -4122,11 +4138,7 @@ function rwPetsSectionHTML(c, s) {
     shinyToggle = `<button type="button" class="rw-share rw-pet-shiny" data-rw-shiny="${esc(featuredOwned.id)}:${on ? '0' : '1'}" aria-pressed="${on}" ${c.busy ? 'disabled' : ''}><span><b>Shiny coat for ${esc(featuredOwned.name)} (this week)</b><small>${esc(note)}</small></span><span class="rw-pill" aria-hidden="true">${on ? 'On' : 'Off'}</span></button>`;
   }
 
-  const adoptRows = unowned.map(i => {
-    const need = s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : '';
-    const feat = i.featuredShiny ? ' · Shiny week' : '';
-    return `<div class="rw-item rw-pet-row">${rwPetBadgeHTML(i.id, { stage: 1, shiny: false, decorative: true, size: 40 })}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${need}${feat}</small></span><button type="button" class="btn btn-court" data-rw-buy="${esc(i.id)}" aria-label="Adopt ${esc(i.name)} for ${rwDinks(i.price)}${need.replace(/\.$/, '')}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Adopt</button></div>`;
-  }).join('');
+  const adoptRows = unowned.length && typeof rwShelf === 'function' ? rwShelf(c, s, unowned) : '';
   const adopt = adoptRows
     ? `<div><p class="note">Fixed prices, bought once. Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+).</p>${adoptRows}</div>`
     : '<p class="note">You have adopted all five court pets.</p>';
@@ -4166,11 +4178,34 @@ const rwShortAttrs = need => (need > 0 ? ' aria-disabled="true" data-rw-short="1
 function rwSeasonHTML(c, s) {
   const se = s.season, items = (s.items || []).filter(i => i.seasonal && i.available);
   if (!se || !items.length) return '';
-  const rows = items.map(i => i.owned
-    ? `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>You have this. Choose it under What you wear.</small></span></div>`
-    : `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more` : ''}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+  const rows = rwShelf(c, s, items);
   return `<h3 class="rw-h">This season: ${esc(se.name)}</h3><section class="rw-season" aria-label="This season"><p class="note">In the shop from ${esc(se.dates)}. ${esc(se.returns)}</p>${rows}</section>`;
 }
+// One item card for every shelf: preview well, badge row (always there, so buttons line up), name, price, one full-width button.
+// A button you can't afford yet reads "N more", stays focusable and says the shortfall out loud (aria-label + rwShort on press).
+const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
+function rwCardPreview(it) {
+  return it.slot === 'pet' && typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 44 }) : rwSwatch(it);
+}
+function rwCardButton(c, s, it, o) {
+  const dis = c.busy ? ' disabled' : '';
+  if (it.owned) {
+    if (o.wear === false) return '<button type="button" class="btn btn-soft" aria-disabled="true" tabindex="-1">Owned</button>';
+    const worn = !!(s.worn && s.worn[it.slot] === it.id), word = worn ? 'Wearing' : 'Wear';
+    return `<button type="button" class="btn ${worn ? 'btn-soft' : 'btn-ink'}" data-rw-wear="${it.slot}:${esc(it.id)}" aria-pressed="${worn}" aria-label="${word} ${esc(it.name)}"${dis}>${word}</button>`;
+  }
+  const need = Math.max(0, it.price - s.dinks), verb = it.slot === 'pet' ? 'Adopt' : 'Get';
+  return `<button type="button" class="btn btn-ink" data-rw-buy="${esc(it.id)}" aria-label="${verb} ${esc(it.name)} for ${rwDinks(it.price)}${need ? `. You need ${need} more` : ''}"${rwShortAttrs(need)}${dis}>${need ? `${need} more` : verb}</button>`;
+}
+function rwItemCard(c, s, it, o = {}) {
+  const badges = [];
+  if (RW_RARITY[it.rarity]) badges.push(`<span class="rw-badge" data-rarity="${esc(it.rarity)}">${RW_RARITY[it.rarity]}</span>`);
+  if (it.featuredShiny && !it.owned) badges.push('<span class="rw-badge" data-rarity="shiny"><span aria-hidden="true">\u2605 </span>Shiny week</span>');
+  return `<div class="rw-card" data-rw-card="${esc(it.id)}"><div class="rw-well">${rwCardPreview(it)}</div><div class="rw-badges">${badges.join('')}</div><b class="rw-cname">${esc(it.name)}</b><small class="rw-cost">${rwDinks(it.price)}</small>${rwCardButton(c, s, it, o)}</div>`;
+}
+const rwShelf = (c, s, items, o) => `<div class="rw-grid">${items.map(i => rwItemCard(c, s, i, o)).join('')}</div>`;
+// Section header: title on the left, one muted line on the right.
+const rwSecHead = (title, note) => `<div class="rw-sec"><h3 class="rw-h">${esc(title)}</h3>${note ? `<p class="rw-sec-note">${esc(note)}</p>` : ''}</div>`;
 let rwBoxSeq = 0;
 // Idempotency key for one box-open request only; the server chooses the item with its own cryptographic random source.
 const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -4211,7 +4246,7 @@ Object.assign(Rewards, {
       return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
     }).join('');
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
-    const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more` : ''}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+    const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal);
     const seasonSec = rwSeasonHTML(c, s);
     const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour and court pet — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour and court pet on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
@@ -4220,7 +4255,7 @@ Object.assign(Rewards, {
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
-      <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Dinks activity": your own recent ledger rows in plain words (the server's words), newest first, with the balance after each.
   activityHTML(c) {

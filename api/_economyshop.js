@@ -25,18 +25,20 @@ export const SLOT_META = Object.freeze([
 ].map(Object.freeze));
 export const SLOTS = SLOT_META.map(s => s.id);
 const CLUB_SLOTS = SLOT_META.filter(s => s.club).map(s => s.id);
-// id, slot, name, price in Dinks. About a week of daily play pays for a cheap one; the double ring, striped paddle and top pet take two.
+// Rarity is a label for the badge on a shop card (never odds, never a rule). `common` is the default; seasonal items are common.
+export const RARITIES = ['common', 'rare', 'legendary', 'mythic'];
+// id, slot, name, price in Dinks, rarity. About a week of daily play pays for a cheap one; the double ring, striped paddle and top pet take two.
 export const CATALOGUE = [
-  { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6 },
-  { id: 'frame-blue', slot: 'frame', name: 'Team blue ring', price: 8 },
-  { id: 'frame-ink', slot: 'frame', name: 'Ink ring', price: 8 },
-  { id: 'frame-double', slot: 'frame', name: 'Double ring', price: 15 },
-  { id: 'frame-ball', slot: 'frame', name: 'Ball ring', price: 25 },
-  { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6 },
-  { id: 'paddle-blue', slot: 'paddle', name: 'Team blue paddle', price: 8 },
-  { id: 'paddle-ink', slot: 'paddle', name: 'Ink paddle', price: 8 },
-  { id: 'paddle-stripe', slot: 'paddle', name: 'Striped paddle', price: 15 },
-  { id: 'paddle-ball', slot: 'paddle', name: 'Ball paddle', price: 25 },
+  { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6, rarity: 'common' },
+  { id: 'frame-blue', slot: 'frame', name: 'Team blue ring', price: 8, rarity: 'common' },
+  { id: 'frame-ink', slot: 'frame', name: 'Ink ring', price: 8, rarity: 'common' },
+  { id: 'frame-double', slot: 'frame', name: 'Double ring', price: 15, rarity: 'rare' },
+  { id: 'frame-ball', slot: 'frame', name: 'Ball ring', price: 25, rarity: 'common' },
+  { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6, rarity: 'common' },
+  { id: 'paddle-blue', slot: 'paddle', name: 'Team blue paddle', price: 8, rarity: 'common' },
+  { id: 'paddle-ink', slot: 'paddle', name: 'Ink paddle', price: 8, rarity: 'common' },
+  { id: 'paddle-stripe', slot: 'paddle', name: 'Striped paddle', price: 15, rarity: 'rare' },
+  { id: 'paddle-ball', slot: 'paddle', name: 'Ball paddle', price: 25, rarity: 'common' },
   ...PETS
 ];
 // Seasonal cosmetics (_economyseason.js) are looked up here too, so an owned one stays owned, wearable and visible after its window closes;
@@ -145,7 +147,7 @@ export async function shopView(sql, code, key, now = Date.now()) {
   const shinyWeek = shinyWeekFor(now);
   const season = seasonFor(now);
   // This season's items, plus any seasonal item the player already owns (so it stays in What you wear); other seasons are not listed.
-  const seasonal = SEASONAL.filter(i => i.season === season.id || ownedById.has(i.id)).map(i => ({ ...priced(i, prices), seasonal: true, owned: ownedById.has(i.id), available: i.season === season.id }));
+  const seasonal = SEASONAL.filter(i => i.season === season.id || ownedById.has(i.id)).map(i => ({ ...priced(i, prices), rarity: 'common', seasonal: true, owned: ownedById.has(i.id), available: i.season === season.id }));
   const viewItems = CATALOGUE.map(base => {
     const i = priced(base, prices);
     const row = ownedById.get(i.id);

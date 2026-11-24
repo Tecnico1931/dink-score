@@ -31,11 +31,34 @@ const rwShortAttrs = need => (need > 0 ? ' aria-disabled="true" data-rw-short="1
 function rwSeasonHTML(c, s) {
   const se = s.season, items = (s.items || []).filter(i => i.seasonal && i.available);
   if (!se || !items.length) return '';
-  const rows = items.map(i => i.owned
-    ? `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>You have this. Choose it under What you wear.</small></span></div>`
-    : `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more` : ''}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+  const rows = rwShelf(c, s, items);
   return `<h3 class="rw-h">This season: ${esc(se.name)}</h3><section class="rw-season" aria-label="This season"><p class="note">In the shop from ${esc(se.dates)}. ${esc(se.returns)}</p>${rows}</section>`;
 }
+// One item card for every shelf: preview well, badge row (always there, so buttons line up), name, price, one full-width button.
+// A button you can't afford yet reads "N more", stays focusable and says the shortfall out loud (aria-label + rwShort on press).
+const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
+function rwCardPreview(it) {
+  return it.slot === 'pet' && typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 44 }) : rwSwatch(it);
+}
+function rwCardButton(c, s, it, o) {
+  const dis = c.busy ? ' disabled' : '';
+  if (it.owned) {
+    if (o.wear === false) return '<button type="button" class="btn btn-soft" aria-disabled="true" tabindex="-1">Owned</button>';
+    const worn = !!(s.worn && s.worn[it.slot] === it.id), word = worn ? 'Wearing' : 'Wear';
+    return `<button type="button" class="btn ${worn ? 'btn-soft' : 'btn-ink'}" data-rw-wear="${it.slot}:${esc(it.id)}" aria-pressed="${worn}" aria-label="${word} ${esc(it.name)}"${dis}>${word}</button>`;
+  }
+  const need = Math.max(0, it.price - s.dinks), verb = it.slot === 'pet' ? 'Adopt' : 'Get';
+  return `<button type="button" class="btn btn-ink" data-rw-buy="${esc(it.id)}" aria-label="${verb} ${esc(it.name)} for ${rwDinks(it.price)}${need ? `. You need ${need} more` : ''}"${rwShortAttrs(need)}${dis}>${need ? `${need} more` : verb}</button>`;
+}
+function rwItemCard(c, s, it, o = {}) {
+  const badges = [];
+  if (RW_RARITY[it.rarity]) badges.push(`<span class="rw-badge" data-rarity="${esc(it.rarity)}">${RW_RARITY[it.rarity]}</span>`);
+  if (it.featuredShiny && !it.owned) badges.push('<span class="rw-badge" data-rarity="shiny"><span aria-hidden="true">\u2605 </span>Shiny week</span>');
+  return `<div class="rw-card" data-rw-card="${esc(it.id)}"><div class="rw-well">${rwCardPreview(it)}</div><div class="rw-badges">${badges.join('')}</div><b class="rw-cname">${esc(it.name)}</b><small class="rw-cost">${rwDinks(it.price)}</small>${rwCardButton(c, s, it, o)}</div>`;
+}
+const rwShelf = (c, s, items, o) => `<div class="rw-grid">${items.map(i => rwItemCard(c, s, i, o)).join('')}</div>`;
+// Section header: title on the left, one muted line on the right.
+const rwSecHead = (title, note) => `<div class="rw-sec"><h3 class="rw-h">${esc(title)}</h3>${note ? `<p class="rw-sec-note">${esc(note)}</p>` : ''}</div>`;
 let rwBoxSeq = 0;
 // Idempotency key for one box-open request only; the server chooses the item with its own cryptographic random source.
 const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -76,7 +99,7 @@ Object.assign(Rewards, {
       return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
     }).join('');
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
-    const rows = toBuy.map(i => `<div class="rw-item">${rwSwatch(i)}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : ''}</small></span><button type="button" class="btn btn-ink" data-rw-buy="${esc(i.id)}" aria-label="Get ${esc(i.name)} for ${rwDinks(i.price)}${s.dinks < i.price ? `. You need ${i.price - s.dinks} more` : ''}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Get</button></div>`).join('');
+    const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal);
     const seasonSec = rwSeasonHTML(c, s);
     const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour and court pet — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour and court pet on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
@@ -85,7 +108,7 @@ Object.assign(Rewards, {
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
-      <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Dinks activity": your own recent ledger rows in plain words (the server's words), newest first, with the balance after each.
   activityHTML(c) {

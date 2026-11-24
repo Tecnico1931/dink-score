@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { CATALOGUE, SLOTS, itemById, planBuy, wornFrom, buyId, clubLooksFrom } from '../api/_economyshop.js';
+import { CATALOGUE, RARITIES, SLOTS, itemById, planBuy, wornFrom, buyId, clubLooksFrom } from '../api/_economyshop.js';
 import { DAY_PAY, BONUS, ledgerBalance } from '../api/_economy.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -14,7 +14,7 @@ test('the catalogue is small, fixed-price, cosmetic-only and affordable', () => 
   assert.equal(new Set(CATALOGUE.map(i => i.id)).size, CATALOGUE.length, 'ids are unique');
   // Only these keys: nothing here can carry a rule, a score effect or a random draw.
   for (const i of CATALOGUE) {
-    assert.deepEqual(Object.keys(i).sort(), ['id', 'name', 'price', 'slot']);
+    assert.deepEqual(Object.keys(i).sort(), ['id', 'name', 'price', 'rarity', 'slot']);
     assert.ok(SLOTS.includes(i.slot) && i.id.startsWith(i.slot + '-'));
     assert.ok(Number.isInteger(i.price) && i.price >= 1 && i.price <= 30);
     assert.match(buyId(i), /^[a-z0-9:_-]{4,64}$/, 'the ledger id is valid for spendEntry');
@@ -88,7 +88,7 @@ import { module } from './helpers/app.js';
 const phone = ({ hide = false, on = true, name = 'Ana', looksReply = { looks: {} } } = {}) => {
   const calls = [], kv = { 'pb.rewardsHide': hide }, listeners = [], root = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } };
   const env = { clubSheet: null, renders: 0, announced: [] };
-  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, rwCur, rwClean, rwCleanLooks, rwApplyLook, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
+  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, rwItemCard, rwCur, rwClean, rwCleanLooks, rwApplyLook, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
   const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', 'renderClub', 'initials', 'iconSvg', 'skel', 'avatarInner', 'teamLabel',
     'let clubSheet = null;' + code)(
     { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } }, { code: 'club-a', rewards: on }, String, m => env.announced.push(m),
@@ -115,7 +115,7 @@ test('the shop sheet lists only what is unowned to buy and what is owned to wear
   assert.ok(!/paddle:/.test(wear), 'no paddle picker until a paddle look is owned');
   assert.ok(!/data-rw-buy="frame-court"|data-rw-buy="frame-ink"/.test(buy), 'owned items are not offered again');
   assert.match(buy, /data-rw-buy="frame-blue"[\s\S]*?/);
-  assert.match(buy, /Team blue ring<\/b><small>8 Dinks\. You need 1 more\./, 'the price and the shortfall are stated before the tap');
+  assert.match(buy, /Team blue ring<\/b><small class="rw-cost">8 Dinks<\/small>[\s\S]*?data-rw-buy="frame-blue"[^>]*aria-label="Get Team blue ring for 8 Dinks\. You need 1 more"[^>]*>1 more</, 'the price and the shortfall are stated before the tap');
   assert.match(html, /never changes a game, a rating, a rank/);
   assert.ok(!/animation|confetti|odds|random/i.test(html));
   assert.match(x.Rewards.storeHTML({ store: { dinks: 99, worn: {}, items: items(CATALOGUE.map(i => i.id)) }, msg: '', error: '', busy: false }), /You have everything in the shop/);
@@ -210,7 +210,27 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
   assert.match(buy, /aria-label="Get Team blue ring for 8 Dinks\. You need 7 more"/);
   const rich = x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: items([]), box }, msg: '', error: '', busy: false });
   assert.ok(!/data-rw-short/.test(rich), 'affordable buttons are drawn as normal');
-  assert.match(x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: [{ id: 'frame-blue', slot: 'frame', name: 'Blue', price: 1, owned: false }] }, msg: '', error: '', busy: false }), /<small>1 Dink<\/small>/);
+  assert.match(x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: [{ id: 'frame-blue', slot: 'frame', name: 'Blue', price: 1, owned: false }] }, msg: '', error: '', busy: false }), /<small class="rw-cost">1 Dink<\/small>/);
+});
+test('WI-1: every item has a rarity, the rare tier is badged, and every shelf draws the same card', () => {
+  for (const i of CATALOGUE) assert.ok(RARITIES.includes(i.rarity), `${i.id} has a known rarity`);
+  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie']);
+  const { x } = phone();
+  const html = x.Rewards.storeHTML({ store: { dinks: 10, worn: { frame: 'frame-court' }, items: items(['frame-court']), season: null }, msg: '', error: '', busy: false });
+  const cards = html.match(/<div class="rw-card"[\s\S]*?<\/button><\/div>/g) || [];
+  assert.ok(cards.length >= 5, 'shelf draws cards');
+  for (const c of cards) assert.match(c, /<div class="rw-badges">/, 'every card keeps the badge row so buttons line up');
+  assert.match(html, /data-rw-card="frame-double"[\s\S]*?<span class="rw-badge" data-rarity="rare">Rare<\/span>/);
+  assert.match(html, /data-rw-buy="frame-double"[^>]*aria-disabled="true"[^>]*>5 more</, 'unaffordable reads N more and stays focusable');
+  assert.match(html, /data-rw-buy="frame-blue"[^>]*>Get</, 'affordable reads Get');
+});
+test('WI-1: owned cards read Wear / Wearing / Owned', () => {
+  const { x } = phone();
+  const season = { id: 'winter', name: 'Winter Frost', dates: 'Dec to Feb', returns: 'Back next year.' };
+  const mk = worn => x.Rewards.storeHTML({ store: { dinks: 0, worn, season, items: [{ id: 'frame-frost', slot: 'frame', name: 'Winter Frost ring', price: 8, rarity: 'common', owned: true, seasonal: true, available: true }] }, msg: '', error: '', busy: false });
+  assert.match(mk({ frame: '' }), /data-rw-wear="frame:frame-frost" aria-pressed="false" aria-label="Wear Winter Frost ring"[^>]*>Wear</);
+  assert.match(mk({ frame: 'frame-frost' }), /aria-pressed="true" aria-label="Wearing Winter Frost ring"[^>]*>Wearing</);
+  assert.match(x.rwItemCard({}, { dinks: 0, worn: {} }, { id: 'a', slot: 'frame', name: 'A', price: 1, owned: true }, { wear: false }), />Owned</);
 });
 
 test('slots are data-driven: six known, unknown rejected, sound never reaches the club', async () => {
