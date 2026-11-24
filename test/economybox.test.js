@@ -39,7 +39,7 @@ test('odds table sums to 100 percent, covers every cosmetic catalogue item once,
 });
 
 test('pure drawBoxItem with an injected random source maps every roll 0..99 to the right rarity and item', () => {
-  const counts = { common: 0, uncommon: 0, rare: 0 };
+  const counts = { common: 0, uncommon: 0, rare: 0, epic: 0 };
   for (let roll = 0; roll < 100; roll++) {
     let step = 0;
     const picked = drawBoxItem(max => {
@@ -48,15 +48,16 @@ test('pure drawBoxItem with an injected random source maps every roll 0..99 to t
       return 0;
     });
     counts[picked.tier.id]++;
-    if (roll < 55) assert.equal(picked.tier.id, 'common');
-    else if (roll < 85) assert.equal(picked.tier.id, 'uncommon');
-    else assert.equal(picked.tier.id, 'rare');
+    if (roll < 50) assert.equal(picked.tier.id, 'common');
+    else if (roll < 80) assert.equal(picked.tier.id, 'uncommon');
+    else if (roll < 95) assert.equal(picked.tier.id, 'rare');
+    else assert.equal(picked.tier.id, 'epic');
     assert.deepEqual(tierOfItem(picked.item.id), picked.tier);
   }
-  assert.deepEqual(counts, { common: 55, uncommon: 30, rare: 15 });
+  assert.deepEqual(counts, { common: 50, uncommon: 30, rare: 15, epic: 5 });
 
   // Every item within each tier is reachable by the second random call.
-  const bounds = [['common', 0], ['uncommon', 55], ['rare', 85]];
+  const bounds = [['common', 0], ['uncommon', 50], ['rare', 80], ['epic', 95]];
   for (const [tierId, tierRoll] of bounds) {
     const tier = BOX_TIERS.find(t => t.id === tierId);
     const seen = tier.items.map((_, idx) => {
@@ -158,7 +159,7 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
         return {
           dinks: 17, worn: { frame: '', paddle: '' }, share: false, items: CATALOGUE.map(i => ({ ...i, owned: i.id === 'frame-court' })),
           box: { ...boxOdds(), openedToday: 1 },
-          result: { openId: b.openId, item: CATALOGUE[0], tier: { id: 'common', label: 'Common', chance: 55 }, duplicate: true, refund: BOX_DUPLICATE_REFUND, cost: BOX_PRICE, replayed: false }
+          result: { openId: b.openId, item: CATALOGUE[0], tier: { id: 'common', label: 'Common', chance: 50 }, duplicate: true, refund: BOX_DUPLICATE_REFUND, cost: BOX_PRICE, replayed: false }
         };
       }
       return {};
@@ -167,7 +168,8 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
   await p.x.Rewards.openStore();
   const html = p.x.Rewards.storeHTML(p.x.sheet);
   assert.match(html, /Odds before you open/);
-  assert.match(html, /Common[\s\S]*55% \(55 in 100\)/);
+  assert.match(html, /Common[\s\S]*50% \(50 in 100\)/);
+  assert.match(html, /Epic[\s\S]*5% \(5 in 100\)/);
   assert.match(html, /Uncommon[\s\S]*30% \(30 in 100\)/);
   assert.match(html, /Rare[\s\S]*15% \(15 in 100\)/);
   assert.match(html, /Duplicate refund: if you already own the item drawn, 4 Dinks are returned/);
