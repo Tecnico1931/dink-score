@@ -830,11 +830,15 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .log-team::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--c); }
 .log-team .names { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .log-team input[type="text"] { width: 100%; min-width: 0; border: 1px solid transparent; background: var(--surface); border-radius: 10px; padding: 10px 12px; font-size: 16px; }
-.stepper { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.stepper input { width: 76px; text-align: center; border: 1px solid transparent; background: var(--surface); border-radius: 14px; padding: 4px 0; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 40px; line-height: 1.1; -moz-appearance: textfield; }
+.stepper { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.stepper input { width: 100%; min-width: 76px; text-align: center; border: 1px solid transparent; background: var(--surface); border-radius: 14px; padding: 4px 0; font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 40px; line-height: 1.1; -moz-appearance: textfield; }
 .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .stepper .sb { display: flex; gap: 4px; }
 .stepper .sb button { width: 36px; height: 32px; border-radius: 10px; border: 0; background: var(--surface); font-size: 18px; font-weight: 700; padding: 0; }
+.stepper .sb .target-pill { width: auto; min-width: 44px; min-height: 44px; padding: 0 8px; border-radius: 999px; border: 1.5px solid var(--c); background: var(--surface); color: var(--ink); font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 17px; font-variant-numeric: tabular-nums; transition: background .15s, color .15s, border-color .15s, transform .1s; }
+.stepper .sb .target-pill:active { transform: scale(.96); }
+.stepper .sb .target-pill[aria-pressed="true"] { background: var(--c); color: var(--on-court); border-color: var(--c); }
+@media (max-width: 340px) { .log-team { grid-template-columns: 1fr; } .stepper .sb { flex-wrap: wrap; } }
 .when { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .when input { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 9px 12px; font-size: 15px; }
 .err { color: var(--danger); font-size: 14px; font-weight: 600; margin: 0; }
@@ -1497,6 +1501,8 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .rules-jump { background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-outdoor] .rules-jump a { border: 2px solid var(--ink); box-shadow: none; }
 :root[data-outdoor] .club-row { border: 2px solid var(--ink); }
+:root[data-outdoor] .stepper .sb .target-pill { border: 2px solid var(--ink); }
+:root[data-outdoor] .stepper .sb .target-pill[aria-pressed="true"] { background: var(--c); color: var(--on-court); border-color: var(--c); }
 /* Large scores: the numbers fill the court, the names and call grow with them. */
 :root[data-large] .rules-jump a { font-size: 15px; }
 :root[data-large] .rx-btn { font-size: 16px; }
@@ -3660,8 +3666,24 @@ function beginGame() {
   addToRoster([...teamPlayers(0), ...teamPlayers(1)]);
   startGame();
 }
+const LOG_TARGETS = [11, 15, 21];
+function logTarget(f) { return LOG_TARGETS.includes(+(f && f.target)) ? +f.target : 11; }
+function syncLogTargetPill(t) {
+  if (!logForm) return;
+  const pill = $(`[data-log-win="${t}"]`);
+  if (pill) pill.setAttribute('aria-pressed', String(String(logForm.score[t] ?? '').trim() === String(logTarget(logForm))));
+}
+function setLogScoreTarget(t) {
+  if (!logForm) return;
+  const target = String(logTarget(logForm));
+  logForm.score[t] = target;
+  const input = $('#log-score-' + t);
+  if (input) input.value = target;
+  syncLogTargetPill(t);
+  announce(`${TEAM_NAME[t]} score set to ${target}`);
+}
 function openLog() {
-  logForm = { mode: setup.mode, target: +setup.target, names: [['', ''], ['', '']], score: ['', ''], when: localDateTimeValue(Date.now()), error: '' };
+  logForm = { mode: setup.mode, target: logTarget(setup), names: [['', ''], ['', '']], score: ['', ''], when: localDateTimeValue(Date.now()), error: '' };
   renderLog();
 }
 function renderLog() {
@@ -3670,15 +3692,16 @@ function renderLog() {
   lockBody(true);
   const f = logForm;
   const n = f.mode === 'doubles' ? 2 : 1;
+  const target = logTarget(f);
   const team = t => `<div class="log-team" style="--c:${TEAM_COLOR[t]}"><div class="names">
       ${Array.from({ length: n }, (_, i) => `<input type="text" id="log-${t}-${i}" data-log-name="${t}-${i}" list="roster-list-log" placeholder="${TEAM_NAME[t]} player ${i + 1}" value="${esc(f.names[t][i])}" autocomplete="off" aria-label="${TEAM_NAME[t]} team, player ${i + 1}">`).join('')}</div>
       <div class="stepper"><input type="number" inputmode="numeric" min="0" max="99" id="log-score-${t}" data-log-score="${t}" value="${esc(f.score[t])}" placeholder="0" aria-label="${TEAM_NAME[t]} team score">
-        <div class="sb"><button type="button" data-step="${t}" data-d="-1" aria-label="Lower ${TEAM_NAME[t]} score">−</button><button type="button" data-step="${t}" data-d="1" aria-label="Raise ${TEAM_NAME[t]} score">+</button></div></div></div>`;
+        <div class="sb"><button type="button" data-step="${t}" data-d="-1" aria-label="Lower ${TEAM_NAME[t]} score">−</button><button type="button" data-step="${t}" data-d="1" aria-label="Raise ${TEAM_NAME[t]} score">+</button><button type="button" class="target-pill" data-log-win="${t}" aria-pressed="${String(f.score[t] ?? '').trim() === String(target)}" aria-label="Set ${TEAM_NAME[t]} score to ${target}">${target}</button></div></div></div>`;
   root.innerHTML = `<div class="sheet-bg top" role="dialog" aria-modal="true" aria-labelledby="log-h"><form class="sheet" data-form="log" novalidate><span class="grip"></span>
     <div class="sheet-head"><h2 id="log-h">${f.editId ? 'Edit result' : 'Log a result'}</h2><span style="display:flex;gap:8px;align-items:center">${f.editId ? `<button type="button" class="btn btn-ball share-pill" data-share="${esc(f.editId)}">${ICON.share}Share</button>` : ''}<button type="button" class="x" data-act="log-close" aria-label="Close">✕</button></span></div>
     <p>${f.editId ? `Fix the score, players, format or date. Ratings are recalculated from the corrected game.${club && club.hasPin && !hasOrganizer() ? ' Saving needs the organizer PIN.' : ''}` : `Add a finished game from another court. It counts toward the record and Dink Ratings${live && live.open ? ', and your live game keeps its score' : ''}.`}</p>
     <div class="seg-row" style="margin:0"><div class="field" style="margin:0"><span class="lab">Format</span>${seg('data-log-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], f.mode, 'sm')}</div>
-      <div class="field" style="margin:0"><span class="lab">Played to</span>${seg('data-log-target', [[11, '11'], [15, '15'], [21, '21']], f.target, 'sm')}</div></div>
+      <div class="field" style="margin:0"><span class="lab">Played to</span>${seg('data-log-target', [[11, '11'], [15, '15'], [21, '21']], target, 'sm')}</div></div>
     <div class="log-teams">${team(0)}${team(1)}</div>
     ${rosterNames().length ? `<div class="field" style="margin:0"><span class="lab">${pickup ? 'Players in this session' : 'Saved players'}</span><div class="chips">${chipsHTML(f.names, f.mode, 'log')}</div></div>` : ''}
     <datalist id="roster-list-log">${rosterNames().map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
@@ -8567,11 +8590,13 @@ document.addEventListener('click', e => {
     if (v !== null) { setup[k] = (k === 'target' || k === 'winBy') ? +v : v; store.set('pb.setup', setup); render(); const b = $(`[data-set-${k}="${v}"]`); if (b) b.focus({ preventScroll: true }); return; }
   }
   if (ds.logMode) { logForm.mode = ds.logMode; renderLog(); return; }
-  if (ds.logTarget) { logForm.target = +ds.logTarget; renderLog(); return; }
+  if (ds.logTarget) { logForm.target = +ds.logTarget; renderLog(); if (!e.detail) { const b = $(`[data-log-target="${logForm.target}"]`); if (b) b.focus({ preventScroll: true }); } announce(`Played to ${logForm.target}`); return; }
+  if (ds.logWin !== undefined) { setLogScoreTarget(+ds.logWin); return; }
   if (ds.step !== undefined) {
     const t = +ds.step; const cur = parseInt(logForm.score[t], 10);
     logForm.score[t] = String(Math.min(99, Math.max(0, (Number.isFinite(cur) ? cur : (+ds.d > 0 ? -1 : 1)) + +ds.d)));
     const input = $('#log-score-' + t); if (input) input.value = logForm.score[t];
+    syncLogTargetPill(t);
     return;
   }
   if (ds.pick !== undefined) {
@@ -8700,7 +8725,7 @@ document.addEventListener('input', e => {
   } else if (d.logName && logForm) {
     const [t, i] = d.logName.split('-').map(Number); logForm.names[t][i] = e.target.value;
   } else if (d.logScore !== undefined && logForm) {
-    logForm.score[+d.logScore] = e.target.value;
+    const t = +d.logScore; logForm.score[t] = e.target.value; syncLogTargetPill(t);
   } else if (e.target.hasAttribute && e.target.hasAttribute('data-log-when') && logForm) {
     logForm.when = e.target.value;
   }

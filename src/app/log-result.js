@@ -11,8 +11,24 @@ function beginGame() {
   addToRoster([...teamPlayers(0), ...teamPlayers(1)]);
   startGame();
 }
+const LOG_TARGETS = [11, 15, 21];
+function logTarget(f) { return LOG_TARGETS.includes(+(f && f.target)) ? +f.target : 11; }
+function syncLogTargetPill(t) {
+  if (!logForm) return;
+  const pill = $(`[data-log-win="${t}"]`);
+  if (pill) pill.setAttribute('aria-pressed', String(String(logForm.score[t] ?? '').trim() === String(logTarget(logForm))));
+}
+function setLogScoreTarget(t) {
+  if (!logForm) return;
+  const target = String(logTarget(logForm));
+  logForm.score[t] = target;
+  const input = $('#log-score-' + t);
+  if (input) input.value = target;
+  syncLogTargetPill(t);
+  announce(`${TEAM_NAME[t]} score set to ${target}`);
+}
 function openLog() {
-  logForm = { mode: setup.mode, target: +setup.target, names: [['', ''], ['', '']], score: ['', ''], when: localDateTimeValue(Date.now()), error: '' };
+  logForm = { mode: setup.mode, target: logTarget(setup), names: [['', ''], ['', '']], score: ['', ''], when: localDateTimeValue(Date.now()), error: '' };
   renderLog();
 }
 function renderLog() {
@@ -21,15 +37,16 @@ function renderLog() {
   lockBody(true);
   const f = logForm;
   const n = f.mode === 'doubles' ? 2 : 1;
+  const target = logTarget(f);
   const team = t => `<div class="log-team" style="--c:${TEAM_COLOR[t]}"><div class="names">
       ${Array.from({ length: n }, (_, i) => `<input type="text" id="log-${t}-${i}" data-log-name="${t}-${i}" list="roster-list-log" placeholder="${TEAM_NAME[t]} player ${i + 1}" value="${esc(f.names[t][i])}" autocomplete="off" aria-label="${TEAM_NAME[t]} team, player ${i + 1}">`).join('')}</div>
       <div class="stepper"><input type="number" inputmode="numeric" min="0" max="99" id="log-score-${t}" data-log-score="${t}" value="${esc(f.score[t])}" placeholder="0" aria-label="${TEAM_NAME[t]} team score">
-        <div class="sb"><button type="button" data-step="${t}" data-d="-1" aria-label="Lower ${TEAM_NAME[t]} score">−</button><button type="button" data-step="${t}" data-d="1" aria-label="Raise ${TEAM_NAME[t]} score">+</button></div></div></div>`;
+        <div class="sb"><button type="button" data-step="${t}" data-d="-1" aria-label="Lower ${TEAM_NAME[t]} score">−</button><button type="button" data-step="${t}" data-d="1" aria-label="Raise ${TEAM_NAME[t]} score">+</button><button type="button" class="target-pill" data-log-win="${t}" aria-pressed="${String(f.score[t] ?? '').trim() === String(target)}" aria-label="Set ${TEAM_NAME[t]} score to ${target}">${target}</button></div></div></div>`;
   root.innerHTML = `<div class="sheet-bg top" role="dialog" aria-modal="true" aria-labelledby="log-h"><form class="sheet" data-form="log" novalidate><span class="grip"></span>
     <div class="sheet-head"><h2 id="log-h">${f.editId ? 'Edit result' : 'Log a result'}</h2><span style="display:flex;gap:8px;align-items:center">${f.editId ? `<button type="button" class="btn btn-ball share-pill" data-share="${esc(f.editId)}">${ICON.share}Share</button>` : ''}<button type="button" class="x" data-act="log-close" aria-label="Close">✕</button></span></div>
     <p>${f.editId ? `Fix the score, players, format or date. Ratings are recalculated from the corrected game.${club && club.hasPin && !hasOrganizer() ? ' Saving needs the organizer PIN.' : ''}` : `Add a finished game from another court. It counts toward the record and Dink Ratings${live && live.open ? ', and your live game keeps its score' : ''}.`}</p>
     <div class="seg-row" style="margin:0"><div class="field" style="margin:0"><span class="lab">Format</span>${seg('data-log-mode', [['doubles', 'Doubles'], ['singles', 'Singles']], f.mode, 'sm')}</div>
-      <div class="field" style="margin:0"><span class="lab">Played to</span>${seg('data-log-target', [[11, '11'], [15, '15'], [21, '21']], f.target, 'sm')}</div></div>
+      <div class="field" style="margin:0"><span class="lab">Played to</span>${seg('data-log-target', [[11, '11'], [15, '15'], [21, '21']], target, 'sm')}</div></div>
     <div class="log-teams">${team(0)}${team(1)}</div>
     ${rosterNames().length ? `<div class="field" style="margin:0"><span class="lab">${pickup ? 'Players in this session' : 'Saved players'}</span><div class="chips">${chipsHTML(f.names, f.mode, 'log')}</div></div>` : ''}
     <datalist id="roster-list-log">${rosterNames().map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
