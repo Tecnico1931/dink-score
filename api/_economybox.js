@@ -14,7 +14,7 @@ import { randomInt } from 'node:crypto';
 import { CATALOGUE, BOX_ITEM, itemById, shopView, loadPrices, priceOf } from './_economyshop.js';
 import { dayKey } from './_economy.js';
 
-export const BOX_PRICE = 7;            // free Dinks to open one mystery box
+export const BOX_PRICE = 300;          // free Dinks to open one mystery box (upstream parity price; an organizer can change it in Manage shop)
 export const BOX_DUPLICATE_REFUND = 4; // free Dinks returned right away if the drawn item is already owned
 export const BOX_DAILY_LIMIT = 3;      // maximum boxes a player may open per UTC day
 

@@ -473,7 +473,11 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   await p.x.Rewards.openStore();
   const html = p.x.Rewards.storeHTML(p.x.sheet);
   assert.match(html, /Court pets/);
-  assert.match(html, /This week's shiny coat: Court Frog/);
+  assert.match(html, /Shiny this week<\/span><b>Shiny court frog<\/b>/);
+  assert.match(html, /A rare colour version for anyone who owns the Court Frog\. It keeps its level\. Free until \w+, \w+ \d+\. Next week, another pet\./, 'the end is a date, not a countdown');
+  assert.ok(!/days? left/i.test(html), 'no countdown');
+  assert.ok(!/rw-hero-lock/.test(html), 'an owner sees the toggle, not the locked state');
+  assert.match(html, /data-rw="pets"[^>]*>Pet collection: see how every pet grows</);
   assert.match(html, /Court Frog → Dink Duck → Kitchen Cat → Net Owl → Yorkie/);
   assert.match(html, /every 5 weeks/);
   assert.match(html, /data-rw-buy="pet-yorkie"[^>]*>5 more</);
@@ -512,7 +516,21 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
 
   // Outside the owned pet's featured week: NO shiny toggle is rendered, while the rotation spotlight still names this week's pet.
   const offWeekHtml = p.x.Rewards.storeHTML({ store: mkStore({ shinyWeek: shinyOwlWeek }), msg: '', error: '', busy: false });
-  assert.match(offWeekHtml, /This week's shiny coat: Net Owl/);
+  assert.match(offWeekHtml, /Shiny this week<\/span><b>Shiny net owl<\/b>/);
+  assert.match(offWeekHtml, /rw-hero-lock" aria-disabled="true">Get the net owl first</, 'not owned: quiet locked state, no price');
+  // Pet collection sheet: every pet at all three stages, the owner's own stage, a way back, nothing about scores.
+  click({ rw: 'pets' });
+  assert.equal(p.x.sheet.view, 'rwpets');
+  const coll = p.x.Rewards.petsHTML(p.x.sheet);
+  assert.match(coll, /Pet collection/);
+  for (const n of ['Court Frog', 'Dink Duck', 'Kitchen Cat', 'Net Owl', 'Yorkie']) assert.match(coll, new RegExp(`<b>${n}</b>`));
+  assert.equal((coll.match(/data-pet-stage="1"/g) || []).length, 5);
+  assert.equal((coll.match(/data-pet-stage="2"/g) || []).length, 5);
+  assert.equal((coll.match(/data-pet-stage="3"/g) || []).length, 5);
+  assert.match(coll, /after 5 play days/); assert.match(coll, /after 15 play days/);
+  assert.match(coll, /Yours: Club/);
+  assert.match(coll, /data-rw="store">Back to the shop</);
+  assert.ok(!/animation|confetti|odds|random/i.test(coll.replace(/data-pet-shiny/g, '')), 'calm copy only');
   assert.ok(!/data-rw-shiny/.test(offWeekHtml), 'shiny toggle must not appear outside an owned pet featured week');
 
   // Club rewards off or player hid rewards: nothing shows on Your Dink card or Shop sheet.

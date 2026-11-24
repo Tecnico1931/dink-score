@@ -131,8 +131,13 @@ function rwPetsSectionHTML(c, s) {
   const featuredOwned = owned.find(p => p.featuredShiny) || null;
   const headPetId = sw ? sw.petId : 'pet-frog';
   const headStage = featuredOwned && featuredOwned.id === headPetId ? featuredOwned.stage : 2;
-  const headTitle = sw ? `This week's shiny coat: ${rwPetName(sw.petId)}` : 'Court companions';
-  const head = `<div class="rw-pets-head">${rwPetBadgeHTML(headPetId, { stage: headStage, shiny: !!sw, decorative: true, size: 44 })}<span><b>${esc(headTitle)}</b><small>${esc(rwPetRotationCopy(sw))}</small></span></div>`;
+  // Hero card for the week's shiny coat: the end is a date (Monday 00:00 UTC), never a countdown. Free toggle for an owner, a quiet locked state otherwise.
+  const swName = sw ? rwPetName(sw.petId) : '';
+  const swEnd = sw && Number.isFinite(sw.end) ? new Date(sw.end - 1).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
+  const swOwned = !!featuredOwned;
+  const head = sw
+    ? `<div class="rw-hero">${rwPetBadgeHTML(headPetId, { stage: headStage, shiny: true, decorative: true, size: 44 })}<div class="rw-hero-txt"><span class="rw-badge" data-rarity="shiny"><span aria-hidden="true">✦ </span>Shiny this week</span><b>Shiny ${esc(swName.toLowerCase())}</b><p>A rare colour version for anyone who owns the ${esc(swName)}. It keeps its level.${swEnd ? ` Free until ${esc(swEnd)}.` : ''} Next week, another pet.</p>${swOwned ? '' : `<button type="button" class="btn btn-soft rw-hero-lock" aria-disabled="true">Get the ${esc(swName.toLowerCase())} first</button>`}</div></div><p class="note">${esc(rwPetRotationCopy(sw))}</p>`
+    : `<div class="rw-pets-head">${rwPetBadgeHTML(headPetId, { stage: headStage, shiny: false, decorative: true, size: 44 })}<span><b>Court companions</b><small>${esc(rwPetRotationCopy(null))}</small></span></div>`;
 
   let picker = '';
   if (owned.length) {
@@ -163,5 +168,21 @@ function rwPetsSectionHTML(c, s) {
     ? `<div><p class="note">Fixed prices, bought once. Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+).</p>${adoptRows}</div>`
     : '<p class="note">You have adopted all five court pets.</p>';
 
-  return `<h3 class="rw-h">Court pets</h3><section class="rw-pets" aria-label="Court pets">${head}${picker}${shinyToggle}${adopt}</section>`;
+  const more = `<button type="button" class="btn btn-soft rw-pets-more" data-rw="pets"${c.busy ? ' disabled' : ''}>Pet collection: see how every pet grows</button>`;
+  return `${rwSecHead('Pets', 'A little buddy that hangs out by your picture.')}<section class="rw-pets" aria-label="Court pets">${head}${picker}${shinyToggle}${adopt}${more}</section>`;
+}
+
+// "Pet collection" sheet: every pet at its three growth stages, drawn with the same renderer as everywhere else. Reads the shop answer already on the phone.
+const RW_PET_STAGE_DAYS = { 1: 'from day 1', 2: 'after 5 play days', 3: 'after 15 play days' };
+function rwPetCollectionHTML(c) {
+  const done = '<div class="btns"><button type="button" class="btn btn-soft" data-rw="store">Back to the shop</button></div>';
+  const head = '<h2 id="club-h" tabindex="-1">Pet collection</h2>';
+  if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p>${done}`;
+  const items = (c.store && c.store.items || []).filter(i => i.slot === 'pet');
+  const rows = RW_PET_ORDER.map(id => {
+    const it = items.find(i => i.id === id), stages = [1, 2, 3].map(n => `<li><span class="rw-stage-art">${rwPetBadgeHTML(id, { stage: n, decorative: true, size: 44 })}</span><b>${rwPetStageLabel(n)}</b><small>${RW_PET_STAGE_DAYS[n]}</small></li>`).join('');
+    const mine = it && it.owned ? `<small class="rw-stage-own">Yours: ${esc(it.stageLabel || rwPetStageLabel(it.stage || 1))}</small>` : '';
+    return `<li class="rw-stage-pet"><div class="rw-stage-top"><b>${esc(rwPetName(id))}</b>${mine}</div><ol class="rw-stages">${stages}</ol></li>`;
+  }).join('');
+  return `${head}<p class="note">Every pet grows with the days you play, not with scores or wins: Rookie, then Club after 5 play days, then Veteran after 15. A pet keeps its level in its shiny coat.</p><ul class="rw-stage-list">${rows}</ul>${done}`;
 }
