@@ -208,7 +208,7 @@ test('phone UI: Season pass button on Your Dink card, renders track calmly, clai
 
   // Linked phone with rewards on: button present, openPass loads, passHTML renders tiers, Claim sends only tier + seasonId and announces.
   const p = phone({ passReply: initialPass, claimReply: afterClaim3 });
-  assert.match(p.x.Rewards.cardHTML(), /data-rw="pass">Season pass</);
+  assert.match(p.x.Rewards.cardHTML(), /data-rw="pass" aria-label="Season pass">Pass</);
   await p.x.Rewards.openPass();
   assert.deepEqual(p.calls[0], { action: 'rewards-pass', name: 'Ana', playerToken: 'tok' });
   assert.equal(p.x.sheet.view, 'rwpass');
@@ -248,7 +248,7 @@ test('UX-10: ready tag on the Your Dink card and You sheet, learned from the pas
   // The background check reads the pass (sync does this after a game) and announces a newly ready reward once.
   await p.x.Rewards.syncReady(true);
   assert.deepEqual(p.calls.map(c => c.action), ['rewards-pass']);
-  assert.match(p.x.Rewards.cardHTML(), /data-rw="pass" aria-label="Season pass, 1 ready to claim">Season pass<span class="rw-ready">1 ready<\/span>/);
+  assert.match(p.x.Rewards.cardHTML(), /data-rw="pass" aria-label="Season pass, 1 ready to claim">Pass<span class="rw-ready">1 ready<\/span>/);
   assert.match(p.x.Rewards.youRowHTML(), /1 reward is ready to claim[\s\S]*<span class="rw-ready">1 ready<\/span>/);
   // Opening the pass and claiming keeps the tag in step with the server's own count.
   await p.x.Rewards.openPass();
