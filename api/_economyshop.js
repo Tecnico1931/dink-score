@@ -10,7 +10,7 @@
 import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry, paceFrom } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
-import { SEASONAL, seasonFor, isAvailable, closedMessage } from './_economyseason.js';
+import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
 
 // One place that says which slots exist. `club`: a worn item in the slot may be shown to the club (opt-in look); a sound is only ever heard on the
 // player's own phone. Order = the order the shop lists them. Adding a slot here (plus its items) is all the server needs: wear, buy and the club
@@ -43,7 +43,7 @@ export const CATALOGUE = [
 ];
 // Seasonal cosmetics (_economyseason.js) are looked up here too, so an owned one stays owned, wearable and visible after its window closes;
 // they are NOT in CATALOGUE, which keeps them out of the mystery box and the pass. Only buying is limited to the season.
-export const itemById = id => CATALOGUE.find(i => i.id === id) || SEASONAL.find(i => i.id === id) || null;
+export const itemById = id => CATALOGUE.find(i => i.id === id) || SEASONAL.find(i => i.id === id) || EVENT_ITEMS.find(i => i.id === id) || null;
 export const buyId = item => 'buy:' + item.id;
 
 // Manage shop (WI-3): an organizer may set a club's own price for an item or the mystery box. Only `club_shop_prices` rows (set by
@@ -78,7 +78,7 @@ export async function loadItems(sql, code, key) {
 }
 // The worn item per slot ('' when none), as the phone draws it. A slot is listed once the shop sells something in it, so the answer
 // does not grow before WI-9/10 add titles, name styles and sounds.
-const hasItems = s => CATALOGUE.some(i => i.slot === s) || SEASONAL.some(i => i.slot === s);
+const hasItems = s => CATALOGUE.some(i => i.slot === s) || SEASONAL.some(i => i.slot === s) || EVENT_ITEMS.some(i => i.slot === s);
 export const wornFrom = items => Object.fromEntries(SLOTS.filter(hasItems).map(s => [s, (items.find(i => i.slot === s && i.worn) || {}).id || '']));
 export const wornOf = async (sql, code, key) => wornFrom(await loadItems(sql, code, key));
 
@@ -148,6 +148,9 @@ export async function shopView(sql, code, key, now = Date.now()) {
   const season = seasonFor(now);
   // This season's items, plus any seasonal item the player already owns (so it stays in What you wear); other seasons are not listed.
   const seasonal = SEASONAL.filter(i => i.season === season.id || ownedById.has(i.id)).map(i => ({ ...priced(i, prices), rarity: 'common', seasonal: true, owned: ownedById.has(i.id), available: i.season === season.id }));
+  // The dated event shelf (Christmas...): its items while it is on, plus any event item the player owns. Not `seasonal`: the phone draws it as its own shelf.
+  const event = eventFor(now);
+  const eventItems = EVENT_ITEMS.filter(i => (event && i.event === event.id) || ownedById.has(i.id)).map(i => ({ ...priced(i, prices), owned: ownedById.has(i.id), available: !!event && i.event === event.id }));
   const viewItems = CATALOGUE.map(base => {
     const i = priced(base, prices);
     const row = ownedById.get(i.id);
@@ -160,7 +163,7 @@ export async function shopView(sql, code, key, now = Date.now()) {
   const wornPetRow = items.find(i => i.slot === 'pet' && i.worn);
   const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now) : null;
   const { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn } = season;
-  return { dinks: ledgerBalance(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, items: viewItems.concat(seasonal) };
+  return { dinks: ledgerBalance(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, event: event && { id: event.id, name: event.name, dates: event.dates, note: event.note, startsOn: event.startsOn, endsOn: event.endsOn }, items: viewItems.concat(seasonal, eventItems) };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.

@@ -1361,7 +1361,7 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear', 'rewards-activity']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
   let s = ok(await post('Hal', { action: 'rewards-catalog' }));
-  assert.equal(s.items.filter(i => !i.seasonal).length, 15); assert.ok(s.items.every(i => !i.owned && i.price > 0));
+  assert.equal(s.items.filter(i => !i.seasonal && !i.event).length, 15); assert.ok(s.items.every(i => !i.owned && i.price > 0));
   assert.ok(s.season && s.items.filter(i => i.seasonal).every(i => i.available && i.season === s.season.id), 'only this season\'s items are listed, whatever the date'); // real clock here; fixed clocks are in the seasonal step below assert.deepEqual(s.worn, { frame: '', paddle: '', pet: '' });
   // No Dinks yet: refused with a clear message, nothing charged, nothing owned.
   let r = await post('Hal', { action: 'rewards-buy', item: 'frame-court' });
@@ -1495,6 +1495,25 @@ await step('rewards seasonal shop: bought only in its season (fixed clocks), own
   assert.equal((await buyItem(sql, cf.code, 'sol', 'frame-clay', winter)).bought, false, 'a repeat charges nothing, even out of season');
   assert.equal((await shopView(sql, cf.code, 'sol', nextAutumn)).dinks, 12);
   assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'sol' AND id = 'buy:frame-clay'`, [cf.code])).rows[0].n, 1);
+});
+await step('rewards event shelf: Christmas sells only inside its dates at one price, charged once, owned stays wearable after, never in the box', async () => {
+  const { buyItem, wearItem, shopView } = await import(pathToFileURL(path.join(root, 'api', '_economyshop.js')).href);
+  const sql = neon.neon(process.env.DATABASE_URL);
+  await pg.query(`INSERT INTO roster (club, name_key, name) VALUES ($1, 'eve', 'Eve') ON CONFLICT DO NOTHING`, [cf.code]);
+  await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'eve', 'event-test', 'earn', 500, 'test') ON CONFLICT DO NOTHING`, [cf.code]);
+  const on = Date.parse('2026-12-10T10:00:00Z'), after = Date.parse('2026-12-26T00:00:00Z');
+  const v0 = await shopView(sql, cf.code, 'eve', on);
+  assert.equal(v0.event.id, 'christmas'); assert.ok(v0.event.endsOn === '2026-12-25' && /25 December/.test(v0.event.note));
+  assert.deepEqual(v0.items.filter(i => i.event).map(i => [i.id, i.rarity, i.available]), [['frame-candy', 'rare', true], ['frame-twinkle', 'rare', true]]);
+  assert.equal((await shopView(sql, cf.code, 'eve', after)).event, null); assert.ok(!(await shopView(sql, cf.code, 'eve', after)).items.some(i => i.event));
+  await assert.rejects(buyItem(sql, cf.code, 'eve', 'frame-candy', after), e => e.status === 409 && /Christmas/.test(e.message));
+  const b = await buyItem(sql, cf.code, 'eve', 'frame-candy', on);
+  assert.equal(b.bought, true); assert.equal(b.dinks, 350);
+  assert.equal((await buyItem(sql, cf.code, 'eve', 'frame-candy', on)).bought, false, 'a repeat charges nothing');
+  const later = await shopView(sql, cf.code, 'eve', after);
+  assert.ok(later.items.find(i => i.id === 'frame-candy').owned && !later.items.find(i => i.id === 'frame-candy').available, 'owned stays listed after the window');
+  assert.equal((await wearItem(sql, cf.code, 'eve', 'frame', 'frame-candy', { now: after })).worn.frame, 'frame-candy');
+  await assert.rejects(buyItem(sql, cf.code, 'eve', 'frame-twinkle', after), e => e.status === 409);
 });
 await step('rewards mystery box: off means refused, odds match server table, insufficient balance, duplicate refund, replay idempotent, daily limit, atomic balance floor', async () => {
   const { boxOdds, BOX_PRICE, BOX_DUPLICATE_REFUND, BOX_DAILY_LIMIT } = await import(pathToFileURL(path.join(root, 'api', '_economybox.js')).href);

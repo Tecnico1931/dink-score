@@ -217,6 +217,11 @@ button { cursor: pointer; }
 [data-rw-frame="heat"] { --rw-ring: 0 0 0 5px var(--down); --rw-ring-sm: 0 0 0 4px var(--down); --rw-c: var(--down); }
 [data-rw-frame="clay"] { --rw-c: color-mix(in srgb, var(--down) 55%, var(--ink)); --rw-ring: 0 0 0 5px var(--rw-c); --rw-ring-sm: 0 0 0 4px var(--rw-c); }
 [data-rw-frame="frost"] { --rw-ring: 0 0 0 4px var(--blue), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue-text); --rw-ring-sm: 0 0 0 3.5px var(--blue), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--blue-text); --rw-c: var(--blue); }
+[data-rw-frame="candy"] { --rw-ring: 0 0 0 4px var(--down), 0 0 0 6px var(--surface), 0 0 0 8px var(--green); --rw-ring-sm: 0 0 0 3.5px var(--down), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--green); --rw-c: var(--down); }
+[data-rw-frame="twinkle"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--ball); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--ball); --rw-c: var(--ball); }
+/* Event shelf (api/_economyseason.js EVENTS): a flat tinted surface around the same item cards; no gradient fill, no motion. */
+.rw-event { background: color-mix(in srgb, var(--green) 7%, var(--surface-2)); border: 1px solid color-mix(in srgb, var(--down) 30%, var(--line)); border-radius: 22px; padding: 12px 12px 0; margin-bottom: 12px; }
+.rw-event > .note { margin: 0 0 12px; }
 /* Paddle colourways: face, edge, holes and (striped only) a stripe. --rw-pad-ring is for the plain paddle-tracker thumbnails (.pd-thumb). */
 [data-rw-skin="heat"] { --rw-pad-stripe: transparent; --rw-pad-bg: var(--down); --rw-pad-edge: var(--down); --rw-pad-fg: var(--bg); --rw-pad-ring: 0 0 0 2px var(--down); }
 [data-rw-skin="frost"] { --rw-pad-stripe: transparent; --rw-pad-bg: var(--surface-2); --rw-pad-edge: var(--blue); --rw-pad-fg: var(--blue-text); --rw-pad-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue); }

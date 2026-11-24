@@ -34,6 +34,13 @@ function rwSeasonHTML(c, s) {
   const rows = rwShelf(c, s, items);
   return `<h3 class="rw-h">This season: ${esc(se.name)}</h3><section class="rw-season" aria-label="This season"><p class="note">In the shop from ${esc(se.dates)}. ${esc(se.returns)}</p>${rows}</section>`;
 }
+// The dated event shelf (Christmas...): a tinted card on top of the shop with the end as a date, never a countdown. Items come from the server
+// (api/_economyseason.js EVENTS); owned ones stay in What you wear after the window.
+function rwEventHTML(c, s) {
+  const ev = s.event, items = (s.items || []).filter(i => ev && i.event === ev.id && i.available);
+  if (!ev || !items.length) return '';
+  return `<section class="rw-event" aria-label="${esc(ev.name)}"><h3 class="rw-h">${esc(ev.name)}</h3><p class="note">${esc(ev.note)}</p>${rwShelf(c, s, items)}</section>`;
+}
 // One item card for every shelf: preview well, badge row (always there, so buttons line up), name, price, one full-width button.
 // A button you can't afford yet reads "N more", stays focusable and says the shortfall out loud (aria-label + rwShort on press).
 const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
@@ -97,7 +104,7 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
     const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
-    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && (!hasPetsUi || i.slot !== 'pet'));
+    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && (!hasPetsUi || i.slot !== 'pet'));
     const wear = slots.map(([slot, label]) => {
       const own = mine.filter(i => i.slot === slot);
       if (!own.length) return '';
@@ -106,8 +113,8 @@ Object.assign(Rewards, {
     }).join('');
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
-    const allOwned = s.items.every(i => i.owned || i.seasonal);
-    const seasonSec = rwSeasonHTML(c, s);
+    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event);
+    const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
     const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour and court pet — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour and court pet on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     const box = rwBoxHTML(c, s);
     return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> ${s.dinks === 1 ? 'Dink' : 'Dinks'}</p>

@@ -3,7 +3,7 @@
 // never set a price. The catalogue price (_economyshop.js) stays the default; a row in club_shop_prices overrides it for this club only and
 // is dropped again when set back to the default. Play money only, no names stored, every save is written to club_audit.
 import { CATALOGUE, BOX_ITEM, loadPrices } from './_economyshop.js';
-import { SEASONAL } from './_economyseason.js';
+import { SEASONAL, EVENT_ITEMS } from './_economyseason.js';
 import { BOX_PRICE } from './_economybox.js';
 import { audit } from './_members.js';
 import { fail } from './_db.js';
@@ -16,7 +16,8 @@ const GROUPS = { frame: 'Rings', paddle: 'Paddle colours', pet: 'Pets' };
 const priceable = () => [
   { id: BOX_ITEM, name: 'Mystery box', group: 'Random item', price: BOX_PRICE },
   ...CATALOGUE.map(i => ({ id: i.id, name: i.name, group: GROUPS[i.slot] || i.slot, price: i.price })),
-  ...SEASONAL.map(i => ({ id: i.id, name: i.name, group: 'Seasonal', price: i.price }))
+  ...SEASONAL.map(i => ({ id: i.id, name: i.name, group: 'Seasonal', price: i.price })),
+  ...EVENT_ITEMS.map(i => ({ id: i.id, name: i.name, group: 'Events', price: i.price }))
 ];
 
 export async function pricesView(sql, club) {
