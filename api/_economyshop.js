@@ -8,7 +8,7 @@
 // (_economy.js spendEntry, id `buy:<item>`, so a replay or a second device never charges twice and the balance never goes below zero);
 // ownership is one row per item in reward_items (name key only, like the ledger). Called from players.js as rewards-catalog|buy|wear|share|looks.
 import { loadLedger } from './_economysync.js';
-import { ledgerBalance, spendEntry, paceFrom } from './_economy.js';
+import { ledgerBalance, spendEntry, paceFrom, totals } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
 import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
 import { TITLES, STYLES } from './_economyitems.js';
@@ -178,7 +178,7 @@ export async function shopView(sql, code, key, now = Date.now()) {
   const wornPetRow = items.find(i => i.slot === 'pet' && i.worn);
   const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now) : null;
   const { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn } = season;
-  return { dinks: ledgerBalance(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, event: event && { id: event.id, name: event.name, dates: event.dates, note: event.note, startsOn: event.startsOn, endsOn: event.endsOn }, items: viewItems.concat(seasonal, eventItems) };
+  return { dinks: ledgerBalance(ledger), ...totals(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, event: event && { id: event.id, name: event.name, dates: event.dates, note: event.note, startsOn: event.startsOn, endsOn: event.endsOn }, items: viewItems.concat(seasonal, eventItems) };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.

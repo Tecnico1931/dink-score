@@ -134,7 +134,7 @@ for (const [mode, opt] of states) {
       ] };
       const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog' };
       const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true };
-      const shop = { dinks: 12, pace: 1.5, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
+      const shop = { dinks: 12, earned: 40, spent: 28, pace: 1.5, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
         const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck', 'pet-yorkie'].includes(id);
         if (slot !== 'pet') return { id, slot, name, price, owned };
         const featuredShiny = id === 'pet-frog';
@@ -199,6 +199,10 @@ for (const [mode, opt] of states) {
       }
     }); await sleep(200);
     await audit(page, `Shop sheet with pets and mystery box (${colorScheme})`, report, '.sheet');
+    // Inventory (opened from the Shop header) and the Shop button in the bottom bar (drawn by Rewards.navSync).
+    await page.evaluate(() => { clubSheet.inv = true; renderClub(); }); await sleep(200);
+    await audit(page, `Inventory sheet (${colorScheme})`, report, '.sheet');
+    await page.evaluate(() => { clubSheet.inv = false; renderClub(); }); await sleep(100);
     // Manage shop (organizer): the rewards switch, per-item number fields, sticky save, linked names with Release.
     await page.evaluate(() => {
       owners[club.code] = 'o'.repeat(32);

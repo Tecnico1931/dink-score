@@ -278,6 +278,23 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-item .btn { min-height: 44px; min-width: 64px; }
 .rw-sec { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 18px 0 8px; } .rw-sec .rw-h { margin: 0; } .rw-sec-note { margin: 0; font-size: 13px; color: var(--muted); }
 .rw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+/* header of the rewards sheet: who, balance, streak week, bag, earn chips (flat surfaces, no motion) */
+.rw-head { display: grid; gap: 4px; margin: 4px 0 12px; }
+.rw-who { display: flex; align-items: center; gap: 10px; min-width: 0; } .rw-who-n { flex: 1 1 auto; min-width: 0; font-size: 17px; overflow-wrap: anywhere; }
+.rw-who-av { width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 16px; flex: none; }
+.rw-edit { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.rw-big { margin: 4px 0 0; display: flex; align-items: baseline; gap: 8px; } .rw-big b { font-family: var(--display); font-size: 56px; line-height: 1; font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; } .rw-big span { font-size: 18px; font-weight: 700; color: var(--muted); }
+.rw-tally { margin: 0; font-size: 14px; color: var(--muted); }
+.rw-streak { margin: 12px 0; padding: 14px; border-radius: 22px; background: var(--surface-2); }
+.rw-streak-top { display: flex; align-items: center; gap: 10px; } .rw-streak-fl svg { display: block; width: 28px; height: 28px; color: var(--accent-text); }
+.rw-streak-tx { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; } .rw-streak-tx b { font-size: 18px; } .rw-streak-tx small, .rw-best { font-size: 14px; color: var(--muted); } .rw-best { flex: none; font-weight: 700; }
+.rw-track { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.rw-dayc { position: relative; display: grid; justify-items: center; gap: 4px; } .rw-dayc b { font-size: 12px; color: var(--muted); }
+.rw-dot { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink); border: 1.5px solid var(--line); }
+.rw-dayc.got .rw-dot { background: var(--court); color: var(--on-court); border-color: var(--court); } .rw-dayc.next .rw-dot { border: 2px solid var(--court-ring); } :root[data-outdoor] .rw-dot { border-color: var(--ink); }
+.rw-inv { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 56px; border: 0; border-radius: 20px; background: var(--surface-2); color: var(--ink); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; } .rw-inv svg { width: 24px; height: 24px; flex: none; }
+.rw-count { min-width: 28px; padding: 2px 8px; border-radius: 999px; background: var(--court-pill); color: var(--on-court); font-size: 14px; font-weight: 800; text-align: center; }
+.rw-earn { list-style: none; margin: 12px 0 8px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .rw-earn li { padding: 10px 12px; border-radius: 14px; background: var(--surface-2); font-size: 14px; line-height: 1.35; color: var(--muted); } .rw-earn li b { color: var(--ink); } .rw-earn li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .rw-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .rw-well { min-height: 76px; display: grid; place-items: center; border-radius: 14px; background: var(--surface-2); }
 .rw-well .rw-sw { margin: 0; }
@@ -2780,7 +2797,7 @@ function renderClub() {
     body = avatarSheetHTML(c);
   } else if (c.view === 'paddles' && club && myName()) {
     body = paddleSheetHTML(c);
-  } else if (c.view === 'rwstore' && club && myName()) {
+  } else if (c.view === 'rwstore') {
     body = Rewards.storeHTML(c);
   } else if (c.view === 'rwpass' && club && myName()) {
     body = Rewards.passHTML(c);
@@ -3125,6 +3142,7 @@ function renderApp() {
   const y = document.body.scrollTop;
   if (!club && tab === 'events') tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
+  if (typeof Rewards !== 'undefined') Rewards.navSync();
   inboxRefresh();
   const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${bellButtonHTML()}${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());
