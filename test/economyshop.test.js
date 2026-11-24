@@ -9,22 +9,24 @@ import { DAY_PAY, BONUS, ledgerBalance } from '../api/_economy.js';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const earn = n => ({ id: 'day:2026-01-' + String(n).padStart(2, '0'), kind: 'earn', amount: n, reason: 'day', day: null, streak: 1 });
 
-// Rings, paddles and pets are the cheap starter shelf (a week or two of daily play); titles and name styles (WI-9) carry the upstream prices and are checked in economyitems.test.js.
-const STARTER = CATALOGUE.filter(i => ['frame', 'paddle', 'pet'].includes(i.slot));
-test('the catalogue is fixed-price, cosmetic-only and the starter shelf is affordable', () => {
-  assert.ok(STARTER.length >= 10 && STARTER.length <= 16);
+test('the catalogue is fixed-price and cosmetic-only', () => {
+  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 40);
   assert.equal(new Set(CATALOGUE.map(i => i.id)).size, CATALOGUE.length, 'ids are unique');
   // Only these keys: nothing here can carry a rule, a score effect or a random draw.
   for (const i of CATALOGUE) {
     assert.deepEqual(Object.keys(i).sort(), ['id', 'name', 'price', 'rarity', 'slot']);
     assert.ok(SLOTS.includes(i.slot) && i.id.startsWith(i.slot + '-'));
-    assert.ok(Number.isInteger(i.price) && i.price >= 1 && i.price <= (STARTER.includes(i) ? 30 : 200));
+    // Rings and pets carry the upstream shop's prices (WI-11, the captain's call: parity wins over the old 1-a-day scale), so the old
+    // "any item within two weeks of play" ceiling is gone; the paddles keep their small prices.
+    assert.ok(Number.isInteger(i.price) && i.price >= 1 && i.price <= (i.slot === 'sound' ? 150 : 1000)); // victory sounds carry upstream's prices (WI-10)
     assert.match(buyId(i), /^[a-z0-9:_-]{4,64}$/, 'the ledger id is valid for spendEntry');
   }
-  // A daily player (1 Dink a day plus the day-3 and day-7 streak bonuses) pays for any one item within a week or two.
-  const week = 7 * DAY_PAY + BONUS[0][1] + BONUS[1][1];
-  assert.ok(Math.max(...STARTER.map(i => i.price)) <= 2 * week, 'the dearest starter item is within two weeks of play');
-  assert.ok(Math.min(...CATALOGUE.map(i => i.price)) <= week, 'a first item is within a week');
+  // The upstream rings, by their upstream prices; the older ids keep their place under their upstream names.
+  const ring = id => itemById(id);
+  assert.deepEqual(['frame-ball', 'frame-blue', 'frame-court', 'frame-sunset', 'frame-double', 'frame-pickle', 'frame-ice', 'frame-lava'].map(id => [ring(id).name, ring(id).price]),
+    [['Optic ring', 45], ['Cobalt ring', 45], ['Forest ring', 45], ['Sunset ring', 90], ['Prism ring', 135], ['Pickle ring', 45], ['Ice ring', 60], ['Lava ring', 90]]);
+  assert.equal(ring('frame-double').rarity, 'rare', 'Prism is the rare ring');
+  assert.ok(Math.min(...CATALOGUE.map(i => i.price)) <= 10 && DAY_PAY >= 1 && BONUS.length > 0, 'the cheapest paddle is still within a week of daily play');
 });
 
 test('planBuy: a club price (Manage shop) replaces the catalogue price for that club only; none means the catalogue', () => {
@@ -41,19 +43,19 @@ test('planBuy: price comes from the catalogue, never below zero, a repeat charge
   const frame = itemById('frame-court');
   assert.equal(planBuy([earn(frame.price)], [], 'frame-court').entry.amount, -frame.price);
   assert.equal(planBuy([earn(frame.price)], [], 'frame-court').entry.id, 'buy:frame-court');
-  assert.throws(() => planBuy([earn(frame.price - 1)], [], 'frame-court'), e => e.status === 409 && /costs 6 and you have 5/.test(e.message));
+  assert.throws(() => planBuy([earn(frame.price - 1)], [], 'frame-court'), e => e.status === 409 && new RegExp(`costs ${frame.price} and you have ${frame.price - 1}`).test(e.message));
   assert.throws(() => planBuy([], [], 'frame-court'), e => e.status === 409);
   assert.throws(() => planBuy([earn(99)], [], 'frame-gold'), e => e.status === 400, 'an unknown item is refused');
   assert.throws(() => planBuy([earn(99)], [], '__proto__'), e => e.status === 400);
   assert.deepEqual(planBuy([earn(99)], ['frame-court'], 'frame-court'), { item: frame, already: true }, 'owned: nothing to charge');
   // The ledger already holds the spend (a replay that lost the item row): no second row.
-  const spent = [earn(20), { id: 'buy:frame-court', kind: 'spend', amount: -6, reason: 'shop:frame-court', day: null, streak: null }];
+  const spent = [earn(99), { id: 'buy:frame-court', kind: 'spend', amount: -frame.price, reason: 'shop:frame-court', day: null, streak: null }];
   assert.equal(planBuy(spent, [], 'frame-court').entry, null);
-  assert.equal(ledgerBalance(spent), 14);
+  assert.equal(ledgerBalance(spent), 99 - frame.price);
   // A spend never takes the balance below zero, however many are planned in a row.
-  let ledger = [earn(14)];
+  let ledger = [earn(55)];
   for (const id of ['frame-court', 'paddle-court']) { const p = planBuy(ledger, [], id); ledger = ledger.concat(p.entry); }
-  assert.equal(ledgerBalance(ledger), 2);
+  assert.equal(ledgerBalance(ledger), 4);
   assert.throws(() => planBuy(ledger, [], 'paddle-blue'), e => e.status === 409);
 });
 
@@ -108,8 +110,8 @@ const items = owned => CATALOGUE.map(i => ({ ...i, owned: owned.includes(i.id) }
 
 test('the shop sheet lists only what is unowned to buy and what is owned to wear, with fixed prices up front', () => {
   const { x } = phone();
-  const html = x.Rewards.storeHTML({ store: { dinks: 7, worn: { frame: 'frame-court', paddle: '' }, items: items(['frame-court', 'frame-ink']) }, msg: '', error: '', busy: false });
-  assert.match(html, /<b>7<\/b> Dinks/);
+  const html = x.Rewards.storeHTML({ store: { dinks: 44, worn: { frame: 'frame-court', paddle: '' }, items: items(['frame-court', 'frame-ink']) }, msg: '', error: '', busy: false });
+  assert.match(html, /<b>44<\/b> Dinks/);
   const [wear, buy] = html.split('In the shop');
   assert.match(wear, /data-rw-wear="frame:frame-court"[^>]*aria-pressed="true"/);
   assert.match(wear, /data-rw-wear="frame:frame-ink"[^>]*aria-pressed="false"/);
@@ -117,7 +119,7 @@ test('the shop sheet lists only what is unowned to buy and what is owned to wear
   assert.ok(!/paddle:/.test(wear), 'no paddle picker until a paddle look is owned');
   assert.ok(!/data-rw-buy="frame-court"|data-rw-buy="frame-ink"/.test(buy), 'owned items are not offered again');
   assert.match(buy, /data-rw-buy="frame-blue"[\s\S]*?/);
-  assert.match(buy, /Team blue ring<\/b><small class="rw-cost">8 Dinks<\/small>[\s\S]*?data-rw-buy="frame-blue"[^>]*aria-label="Get Team blue ring for 8 Dinks\. You need 1 more"[^>]*>1 more</, 'the price and the shortfall are stated before the tap');
+  assert.match(buy, /Cobalt ring<\/b><small class="rw-cost">45 Dinks<\/small>[\s\S]*?data-rw-buy="frame-blue"[^>]*aria-label="Get Cobalt ring for 45 Dinks\. You need 1 more"[^>]*>1 more</, 'the price and the shortfall are stated before the tap');
   assert.match(html, /never changes a game, a rating, a rank/);
   assert.ok(!/animation|confetti|odds|random/i.test(html));
   assert.match(x.Rewards.storeHTML({ store: { dinks: 99, worn: {}, items: items(CATALOGUE.map(i => i.id)) }, msg: '', error: '', busy: false }), /You have everything in the shop/);
@@ -144,6 +146,7 @@ test('the card offers the Shop only to a phone linked to a name; opening it asks
   assert.deepEqual(calls[0], { action: 'rewards-catalog', name: 'Ana', playerToken: 'tok' });
   assert.equal(x.sheet.view, 'rwstore'); assert.equal(x.sheet.store.dinks, 20);
   const click = ds => listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
+  x.sheet.store = { ...x.sheet.store, dinks: 99 }; // enough for the 45-Dink Cobalt ring
   click({ rwBuy: 'frame-blue' });
   await new Promise(r => setTimeout(r, 5));
   assert.deepEqual(calls[1], { name: 'Ana', playerToken: 'tok', action: 'rewards-buy', item: 'frame-blue' });
@@ -152,7 +155,7 @@ test('the card offers the Shop only to a phone linked to a name; opening it asks
   // Too little: no call at all, a clear message.
   x.sheet.store = { dinks: 2, worn: {}, share: false, items: items([]) }; x.sheet.busy = false;
   const n = calls.length; click({ rwBuy: 'frame-court' });
-  assert.equal(calls.length, n); assert.match(x.sheet.error, /Not enough Dinks yet: Court green ring costs 6 and you have 2\./);
+  assert.equal(calls.length, n); assert.match(x.sheet.error, /Not enough Dinks yet: Forest ring costs 45 and you have 2\./);
 });
 
 test('club looks: never fetched when off or hidden, cleans server data, renders for members and updates on one-tap share toggle', async () => {
@@ -209,22 +212,23 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
   assert.match(buy, /aria-disabled="true"/);
   assert.match(buy, /data-rw-short="1"/);
   assert.ok(!/ disabled/.test(buy), 'not natively disabled: it stays focusable and announces the shortfall when pressed');
-  assert.match(buy, /aria-label="Get Team blue ring for 8 Dinks\. You need 7 more"/);
-  const rich = x.Rewards.storeHTML({ store: { dinks: 5000, worn: {}, items: items([]), box }, msg: '', error: '', busy: false });
+  assert.match(buy, /aria-label="Get Cobalt ring for 45 Dinks\. You need 44 more"/);
+  const rich = x.Rewards.storeHTML({ store: { dinks: 999, worn: {}, items: items([]), box }, msg: '', error: '', busy: false });
   assert.ok(!/data-rw-short/.test(rich), 'affordable buttons are drawn as normal');
   assert.match(x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: [{ id: 'frame-blue', slot: 'frame', name: 'Blue', price: 1, owned: false }] }, msg: '', error: '', busy: false }), /<small class="rw-cost">1 Dink<\/small>/);
 });
 test('WI-1: every item has a rarity, the rare tier is badged, and every shelf draws the same card', () => {
   for (const i of CATALOGUE) assert.ok(RARITIES.includes(i.rarity), `${i.id} has a known rarity`);
-  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie', 'sound-drum', 'sound-crowd', 'title-erne', 'title-post', 'style-gold', 'style-glowing', 'style-flame', 'style-pickle', 'style-ice', 'style-neon']);
+  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-blob', 'pet-bat', 'pet-fox', 'sound-drum', 'sound-crowd', 'title-erne', 'title-post', 'style-gold', 'style-glowing', 'style-flame', 'style-pickle', 'style-ice', 'style-neon']);
+  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'legendary').map(i => i.id), ['pet-netdragon'], 'Net dragon is the one legendary so far');
   const { x } = phone();
   const html = x.Rewards.storeHTML({ store: { dinks: 10, worn: { frame: 'frame-court' }, items: items(['frame-court']), season: null }, msg: '', error: '', busy: false });
   const cards = html.match(/<div class="rw-card"[\s\S]*?<\/button><\/div>/g) || [];
   assert.ok(cards.length >= 5, 'shelf draws cards');
   for (const c of cards) assert.match(c, /<div class="rw-badges">/, 'every card keeps the badge row so buttons line up');
   assert.match(html, /data-rw-card="frame-double"[\s\S]*?<span class="rw-badge" data-rarity="rare">Rare<\/span>/);
-  assert.match(html, /data-rw-buy="frame-double"[^>]*aria-disabled="true"[^>]*>5 more</, 'unaffordable reads N more and stays focusable');
-  assert.match(html, /data-rw-buy="frame-blue"[^>]*>Get</, 'affordable reads Get');
+  assert.match(html, /data-rw-buy="frame-double"[^>]*aria-disabled="true"[^>]*>125 more</, 'unaffordable reads N more and stays focusable');
+  assert.match(html, /data-rw-buy="paddle-court"[^>]*>Get</, 'affordable reads Get');
 });
 test('WI-1: owned cards read Wear / Wearing / Owned', () => {
   const { x } = phone();

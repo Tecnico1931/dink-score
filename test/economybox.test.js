@@ -24,8 +24,10 @@ test('odds table sums to 100 percent, covers every cosmetic catalogue item once,
 
   const flat = BOX_TIERS.flatMap(t => t.items);
   assert.equal(new Set(flat).size, flat.length, 'no item listed twice across tiers');
-  const boxEligible = CATALOGUE.filter(i => i.slot === 'frame' || i.slot === 'paddle').map(i => i.id).sort();
-  assert.deepEqual(flat.slice().sort(), boxEligible, 'box covers the exact ring and paddle shop catalogue (pets, victory sounds, titles and name styles are fixed-price only)');
+  // WI-11: the four newest rings (Sunset, Pickle, Ice, Lava) are fixed-price only like the pets, so the box odds stay exactly as they were.
+  const fixedOnly = new Set(['frame-sunset', 'frame-pickle', 'frame-ice', 'frame-lava']);
+  const boxEligible = CATALOGUE.filter(i => (i.slot === 'frame' || i.slot === 'paddle') && !fixedOnly.has(i.id)).map(i => i.id).sort();
+  assert.deepEqual(flat.slice().sort(), boxEligible, 'box covers the original ring and paddle shop catalogue (pets, victory sounds, titles, name styles and the newest rings are fixed-price only)');
 
   const odds = boxOdds();
   assert.equal(odds.price, BOX_PRICE);
@@ -193,9 +195,9 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
   click({ rwBoxOpen: '1' });
   await new Promise(r => setTimeout(r, 10));
   assert.equal(p.calls[2].openId, firstId, 'offline retry reuses the same openId');
-  assert.match(p.env.announced.at(-1), /Mystery box: Court green ring \(Common\), already owned\. 4 Dinks returned/);
+  assert.match(p.env.announced.at(-1), /Mystery box: Optic ring \(Common\), already owned\. 4 Dinks returned/);
   const afterHtml = p.x.Rewards.storeHTML(p.x.sheet);
-  assert.match(afterHtml, /Court green ring \(already owned\)/);
+  assert.match(afterHtml, /Optic ring \(already owned\)/);
   assert.match(afterHtml, /1 of 3 opened today/);
 
   // Shortfall refuses locally with a clear announced message and no extra server call.

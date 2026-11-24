@@ -28,13 +28,19 @@ export const SLOTS = SLOT_META.map(s => s.id);
 const CLUB_SLOTS = SLOT_META.filter(s => s.club).map(s => s.id);
 // Rarity is a label for the badge on a shop card (never odds, never a rule). `common` is the default; seasonal items are common.
 export const RARITIES = ['common', 'rare', 'legendary', 'mythic'];
-// id, slot, name, price in Dinks, rarity. About a week of daily play pays for a cheap one; the double ring, striped paddle and top pet take two.
+// id, slot, name, price in Dinks, rarity. Rings and pets follow the upstream shop's list and prices (WI-11, the captain's call: parity wins over the old
+// 1-a-day scale). Ids never change once sold (owned rows and worn looks key on them), so older rings keep their id under their upstream name:
+// court = Forest, blue = Cobalt, double = Prism, ball = Optic. Ink ring and the paddles have no upstream twin and keep their own names.
 export const CATALOGUE = [
-  { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6, rarity: 'common' },
-  { id: 'frame-blue', slot: 'frame', name: 'Team blue ring', price: 8, rarity: 'common' },
-  { id: 'frame-ink', slot: 'frame', name: 'Ink ring', price: 8, rarity: 'common' },
-  { id: 'frame-double', slot: 'frame', name: 'Double ring', price: 15, rarity: 'rare' },
-  { id: 'frame-ball', slot: 'frame', name: 'Ball ring', price: 25, rarity: 'common' },
+  { id: 'frame-ball', slot: 'frame', name: 'Optic ring', price: 45, rarity: 'common' },
+  { id: 'frame-blue', slot: 'frame', name: 'Cobalt ring', price: 45, rarity: 'common' },
+  { id: 'frame-court', slot: 'frame', name: 'Forest ring', price: 45, rarity: 'common' },
+  { id: 'frame-sunset', slot: 'frame', name: 'Sunset ring', price: 90, rarity: 'common' },
+  { id: 'frame-double', slot: 'frame', name: 'Prism ring', price: 135, rarity: 'rare' },
+  { id: 'frame-pickle', slot: 'frame', name: 'Pickle ring', price: 45, rarity: 'common' },
+  { id: 'frame-ice', slot: 'frame', name: 'Ice ring', price: 60, rarity: 'common' },
+  { id: 'frame-lava', slot: 'frame', name: 'Lava ring', price: 90, rarity: 'common' },
+  { id: 'frame-ink', slot: 'frame', name: 'Ink ring', price: 45, rarity: 'common' },
   { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6, rarity: 'common' },
   { id: 'paddle-blue', slot: 'paddle', name: 'Team blue paddle', price: 8, rarity: 'common' },
   { id: 'paddle-ink', slot: 'paddle', name: 'Ink paddle', price: 8, rarity: 'common' },

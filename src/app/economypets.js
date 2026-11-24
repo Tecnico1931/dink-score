@@ -2,18 +2,31 @@
 // Clean-room geometric inline SVGs on a unified 64x64 viewBox using CSS custom properties only (--pet-1, --pet-2, --pet-3, --pet-eye, --pet-bg; the Yorkie adds --pet-steel, --pet-black, --pet-tan, --pet-gold),
 // so every pet follows the app's court-green/lime light, dark and outdoor tokens automatically with zero raster files, zero remote URLs,
 // and zero motion or sound. Growth stages (Rookie 0-4, Club 5-14, Veteran 15+) and weekly shiny rotation come solely from the server.
-const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie'];
+const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon'];
 const RW_PET_NAMES = {
   'pet-frog': 'Court Frog',
-  'pet-duck': 'Dink Duck',
-  'pet-cat': 'Kitchen Cat',
-  'pet-owl': 'Net Owl',
-  'pet-yorkie': 'Yorkie'
+  'pet-duck': 'Dink duck',
+  'pet-cat': 'Kitchen cat',
+  'pet-owl': 'Lob owl',
+  'pet-yorkie': 'Yorkie',
+  'pet-pup': 'Pickle pup',
+  'pet-blob': 'Ball blob',
+  'pet-bat': 'Paddle bat',
+  'pet-turtle': 'Court turtle',
+  'pet-fox': 'Smash fox',
+  'pet-netdragon': 'Net dragon'
 };
 const RW_PET_STAGE_LABELS = { 1: 'Rookie', 2: 'Club', 3: 'Veteran' };
 const RW_PET_STAR_SVG = '<g data-pet-star="1"><circle cx="54" cy="10" r="7.5" fill="var(--pet-1)"/><polygon points="54,4.5 55.6,8.4 59.5,10 55.6,11.6 54,15.5 52.4,11.6 48.5,10 52.4,8.4" fill="var(--pet-2)"/></g>';
 
-// 5 pets x 3 growth stages (Rookie, Club, Veteran). Distinct silhouettes at 20 px; tokens only, safe SVG primitives only.
+// Pets x 3 growth stages (Rookie, Club, Veteran). Distinct silhouettes at 20 px; tokens only, safe SVG primitives only.
+// The six newer pets share one growth recipe (rwPetGrow): Rookie is the body drawn a little smaller, Club adds a lime headband, Veteran steps aside and holds a paddle.
+const RW_PET_PAD = '<rect x="46" y="23" width="12" height="15" rx="4.5" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2.2"/><rect x="50" y="38" width="4" height="11" rx="2" fill="var(--pet-1)"/>';
+const rwPetGrow = (base, band, dx = -6) => ({
+  1: `<g transform="translate(32 58) scale(.86) translate(-32 -58)">${base}</g>`,
+  2: base + band,
+  3: `<g transform="translate(${dx} 0)">${base}${band}</g>${RW_PET_PAD}`
+});
 const RW_PET_ART = {
   'pet-frog': {
     1: '<ellipse cx="21" cy="51" rx="6" ry="3.4" fill="var(--pet-1)"/><ellipse cx="43" cy="51" rx="6" ry="3.4" fill="var(--pet-1)"/><ellipse cx="32" cy="40" rx="17" ry="13" fill="var(--pet-1)"/><circle cx="22" cy="24" r="6.8" fill="var(--pet-1)"/><circle cx="42" cy="24" r="6.8" fill="var(--pet-1)"/><circle cx="22" cy="24" r="4.1" fill="var(--pet-eye)"/><circle cx="42" cy="24" r="4.1" fill="var(--pet-eye)"/><circle cx="23" cy="24" r="2" fill="var(--pet-3)"/><circle cx="43" cy="24" r="2" fill="var(--pet-3)"/><ellipse cx="32" cy="44" rx="9.5" ry="6.2" fill="var(--pet-2)"/><circle cx="28" cy="44" r="1.2" fill="var(--pet-3)"/><circle cx="32" cy="42" r="1.2" fill="var(--pet-3)"/><circle cx="36" cy="44" r="1.2" fill="var(--pet-3)"/><path d="M25 34q7 4 14 0" fill="none" stroke="var(--pet-2)" stroke-width="2.4" stroke-linecap="round"/>',
@@ -43,6 +56,23 @@ const RW_PET_ART = {
     3: '<g transform="translate(-4 0)"><path d="M10 58c-5-17 2-23 22-23s27 6 22 23z" fill="var(--pet-steel)"/><ellipse cx="32" cy="49" rx="7.4" ry="9" fill="var(--pet-tan)"/><path d="M17.5 24L16 7l13 9zM46.5 24L48 7 35 16z" fill="var(--pet-black)" stroke="var(--pet-steel)" stroke-width="1.6" stroke-linejoin="round"/><path d="M19.6 20.5L19 12l7 4.6zM44.4 20.5L45 12l-7 4.6z" fill="var(--pet-gold)"/><circle cx="32" cy="26.5" r="13" fill="var(--pet-tan)"/><circle cx="32" cy="14" r="3.4" fill="var(--pet-steel)"/><path d="M32 11.5L25 7.5v8zM32 11.5l7-4v8z" fill="var(--pet-2)"/><circle cx="32" cy="11.5" r="2" fill="var(--pet-3)"/><ellipse cx="32" cy="32.5" rx="7" ry="5.2" fill="var(--pet-gold)"/><path d="M25 25h.1M39 25h.1" stroke="var(--pet-eye)" stroke-width="6.8" stroke-linecap="round"/><path d="M25.5 25.4h.1M39.5 25.4h.1" stroke="var(--pet-3)" stroke-width="3.6" stroke-linecap="round"/><ellipse cx="32" cy="30.2" rx="2.8" ry="2" fill="var(--pet-black)"/><path d="M28.8 35q3.2 2.6 6.4 0" fill="none" stroke="var(--pet-black)" stroke-width="1.4" stroke-linecap="round"/></g><rect x="46" y="23" width="12" height="15" rx="4.5" fill="var(--pet-2)" stroke="var(--pet-steel)" stroke-width="2.2"/><rect x="50" y="38" width="4" height="11" rx="2" fill="var(--pet-steel)"/>'
   }
 };
+
+// Pickle pup: floppy ears, lime muzzle and three pickle bumps. Ball blob: a round ball with seams and no ears. Paddle bat: two paddle-shaped wings.
+// Court turtle: a shell with court lines, facing right. Smash fox: pointed ears, lime muzzle and a tipped tail. Net dragon: horns, wings and a net on its belly.
+Object.assign(RW_PET_ART, {
+  'pet-pup': rwPetGrow('<ellipse cx="22" cy="56" rx="5.5" ry="3" fill="var(--pet-1)"/><ellipse cx="42" cy="56" rx="5.5" ry="3" fill="var(--pet-1)"/><path d="M45 48c7 0 10-5 9-11" fill="none" stroke="var(--pet-1)" stroke-width="4.6" stroke-linecap="round"/><ellipse cx="32" cy="44" rx="14" ry="12" fill="var(--pet-1)"/><circle cx="26" cy="43" r="1.3" fill="var(--pet-2)"/><circle cx="32" cy="48" r="1.3" fill="var(--pet-2)"/><circle cx="38" cy="43" r="1.3" fill="var(--pet-2)"/><circle cx="32" cy="26" r="12" fill="var(--pet-1)"/><ellipse cx="19" cy="29" rx="4.6" ry="9" fill="var(--pet-2)"/><ellipse cx="45" cy="29" rx="4.6" ry="9" fill="var(--pet-2)"/><circle cx="27" cy="24" r="3.3" fill="var(--pet-eye)"/><circle cx="37" cy="24" r="3.3" fill="var(--pet-eye)"/><circle cx="27.6" cy="24" r="1.7" fill="var(--pet-3)"/><circle cx="37.6" cy="24" r="1.7" fill="var(--pet-3)"/><ellipse cx="32" cy="31" rx="5.6" ry="4" fill="var(--pet-2)"/><ellipse cx="32" cy="29.4" rx="2.3" ry="1.6" fill="var(--pet-3)"/>',
+    '<rect x="21" y="16.5" width="22" height="4" rx="2" fill="var(--pet-2)"/><circle cx="32" cy="18.5" r="1.1" fill="var(--pet-3)"/>'),
+  'pet-blob': rwPetGrow('<ellipse cx="23" cy="57" rx="5" ry="2.8" fill="var(--pet-1)"/><ellipse cx="41" cy="57" rx="5" ry="2.8" fill="var(--pet-1)"/><circle cx="32" cy="37" r="20" fill="var(--pet-1)"/><path d="M13 27q19 10 38 0M13 47q19-10 38 0" fill="none" stroke="var(--pet-2)" stroke-width="2.6" stroke-linecap="round"/><circle cx="25" cy="37" r="4.2" fill="var(--pet-eye)"/><circle cx="39" cy="37" r="4.2" fill="var(--pet-eye)"/><circle cx="25.8" cy="37" r="2.1" fill="var(--pet-3)"/><circle cx="39.8" cy="37" r="2.1" fill="var(--pet-3)"/><path d="M28 44q4 3.2 8 0" fill="none" stroke="var(--pet-3)" stroke-width="2" stroke-linecap="round"/>',
+    '<rect x="14" y="21" width="36" height="4.6" rx="2.3" fill="var(--pet-2)"/><path d="M20 23.3h24" stroke="var(--pet-3)" stroke-width="1.4" stroke-linecap="round"/>'),
+  'pet-bat': rwPetGrow('<ellipse cx="16" cy="32" rx="8" ry="12.5" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2.2"/><ellipse cx="48" cy="32" rx="8" ry="12.5" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2.2"/><path d="M16 27v10M48 27v10" stroke="var(--pet-3)" stroke-width="1.8" stroke-linecap="round"/><ellipse cx="32" cy="37" rx="12.5" ry="15" fill="var(--pet-1)"/><polygon points="22,25 20,10 30,19" fill="var(--pet-1)"/><polygon points="42,25 44,10 34,19" fill="var(--pet-1)"/><polygon points="22.6,22 21.6,14 27,19" fill="var(--pet-2)"/><polygon points="41.4,22 42.4,14 37,19" fill="var(--pet-2)"/><circle cx="26.6" cy="32" r="3.7" fill="var(--pet-eye)"/><circle cx="37.4" cy="32" r="3.7" fill="var(--pet-eye)"/><circle cx="27" cy="32" r="1.9" fill="var(--pet-3)"/><circle cx="37.8" cy="32" r="1.9" fill="var(--pet-3)"/><path d="M28.5 41q3.5 3 7 0" fill="none" stroke="var(--pet-2)" stroke-width="2.2" stroke-linecap="round"/><path d="M27 52v4M37 52v4" stroke="var(--pet-1)" stroke-width="3.4" stroke-linecap="round"/>',
+    '<rect x="22" y="23" width="20" height="3.6" rx="1.8" fill="var(--pet-2)"/>'),
+  'pet-turtle': rwPetGrow('<ellipse cx="19" cy="53" rx="5" ry="3" fill="var(--pet-1)"/><ellipse cx="40" cy="53" rx="5" ry="3" fill="var(--pet-1)"/><polygon points="9,46 2,50 10,51" fill="var(--pet-1)"/><circle cx="52" cy="37" r="6.6" fill="var(--pet-1)"/><ellipse cx="29" cy="40" rx="21" ry="15" fill="var(--pet-1)"/><rect x="16" y="32" width="26" height="15" rx="2.4" fill="none" stroke="var(--pet-2)" stroke-width="2.2"/><path d="M29 32v15M16 39.5h26" stroke="var(--pet-2)" stroke-width="2"/><circle cx="54" cy="35.4" r="2.5" fill="var(--pet-eye)"/><circle cx="54.6" cy="35.4" r="1.2" fill="var(--pet-3)"/><path d="M50 40.4q3 2 6 0" fill="none" stroke="var(--pet-3)" stroke-width="1.6" stroke-linecap="round"/>',
+    '<rect x="46" y="30" width="12" height="3" rx="1.5" fill="var(--pet-2)"/>', -10),
+  'pet-fox': rwPetGrow('<ellipse cx="50" cy="47" rx="8" ry="5.2" fill="var(--pet-1)"/><circle cx="56" cy="46.6" r="3.4" fill="var(--pet-2)"/><ellipse cx="32" cy="48" rx="11" ry="9" fill="var(--pet-1)"/><ellipse cx="27" cy="57" rx="4.4" ry="2.4" fill="var(--pet-1)"/><ellipse cx="37" cy="57" rx="4.4" ry="2.4" fill="var(--pet-1)"/><polygon points="19,24 18,8 30,17" fill="var(--pet-1)"/><polygon points="45,24 46,8 34,17" fill="var(--pet-1)"/><polygon points="20.4,21 19.8,12.6 26.4,17.4" fill="var(--pet-2)"/><polygon points="43.6,21 44.2,12.6 37.6,17.4" fill="var(--pet-2)"/><circle cx="32" cy="28" r="12" fill="var(--pet-1)"/><polygon points="32,41 20,29.5 44,29.5" fill="var(--pet-2)"/><ellipse cx="25.4" cy="26" rx="3" ry="3.4" fill="var(--pet-eye)"/><ellipse cx="38.6" cy="26" rx="3" ry="3.4" fill="var(--pet-eye)"/><circle cx="26" cy="26.4" r="1.6" fill="var(--pet-3)"/><circle cx="39.2" cy="26.4" r="1.6" fill="var(--pet-3)"/><circle cx="32" cy="34.4" r="2.2" fill="var(--pet-3)"/>',
+    '<rect x="21" y="18.5" width="22" height="3.6" rx="1.8" fill="var(--pet-2)"/>', -9),
+  'pet-netdragon': rwPetGrow('<polygon points="20,38 5,26 7,46" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2" stroke-linejoin="round"/><polygon points="44,38 59,26 57,46" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2" stroke-linejoin="round"/><path d="M43 52c9 3 13-4 10-10" fill="none" stroke="var(--pet-1)" stroke-width="4.6" stroke-linecap="round"/><ellipse cx="32" cy="46" rx="12" ry="10.5" fill="var(--pet-1)"/><ellipse cx="32" cy="48" rx="7.4" ry="7" fill="var(--pet-2)"/><path d="M26 45.5h12M26 49h12M26 52.5h12M29 42v13M35 42v13" stroke="var(--pet-3)" stroke-width="1.1"/><polygon points="22,24 17,8 29,17" fill="var(--pet-2)"/><polygon points="42,24 47,8 35,17" fill="var(--pet-2)"/><circle cx="32" cy="28" r="11.6" fill="var(--pet-1)"/><circle cx="26.6" cy="26" r="3.4" fill="var(--pet-eye)"/><circle cx="37.4" cy="26" r="3.4" fill="var(--pet-eye)"/><circle cx="27" cy="26" r="1.8" fill="var(--pet-3)"/><circle cx="37.8" cy="26" r="1.8" fill="var(--pet-3)"/>',
+    '<rect x="22" y="19.5" width="20" height="3.4" rx="1.7" fill="var(--pet-2)"/>', -4)
+});
 
 const rwPetNormId = id => {
   const s = String(id || '');
@@ -96,12 +126,12 @@ function rwPetStageLine(pet) {
   return days > 0 ? `${label} · ${days} ${days === 1 ? 'play day' : 'play days'}` : label;
 }
 
-// Plain-words shiny rotation explanation, one pet a week over all five pets (zero FOMO, deterministic Monday 00:00 UTC cadence).
+// Plain-words shiny rotation explanation, one pet a week in turn over every pet (zero FOMO, deterministic Monday 00:00 UTC cadence).
 function rwPetRotationCopy(shinyWeek) {
   const order = RW_PET_ORDER.map(id => RW_PET_NAMES[id]).join(' → ');
   const cur = shinyWeek && rwPetName(shinyWeek.petId);
   return cur
-    ? `Each pet gets a free shiny coat every 5 weeks, rotating every Monday (UTC): ${order}.`
+    ? `Each pet gets a free shiny coat in turn, rotating every Monday (UTC): ${order}.`
     : `Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+). Free shiny coat rotates every Monday (UTC): ${order}.`;
 }
 
@@ -166,7 +196,7 @@ function rwPetsSectionHTML(c, s) {
   const adoptRows = unowned.length && typeof rwShelf === 'function' ? rwShelf(c, s, unowned) : '';
   const adopt = adoptRows
     ? `<div><p class="note">Fixed prices, bought once. Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+).</p>${adoptRows}</div>`
-    : '<p class="note">You have adopted all five court pets.</p>';
+    : '<p class="note">You have adopted every court pet.</p>';
 
   const more = `<button type="button" class="btn btn-soft rw-pets-more" data-rw="pets"${c.busy ? ' disabled' : ''}>Pet collection: see how every pet grows</button>`;
   return `${rwSecHead('Pets', 'A little buddy that hangs out by your picture.')}<section class="rw-pets" aria-label="Court pets">${head}${picker}${shinyToggle}${adopt}${more}</section>`;

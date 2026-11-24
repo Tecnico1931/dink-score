@@ -5,7 +5,7 @@
 // Growth: derived strictly from distinct verified play days in `reward_ledger` (kind = 'earn', valid YYYY-MM-DD
 // day >= adoptedDay UTC). Play days come from attendance only; wins, losses and scores never matter.
 //
-// Weekly shiny coat (Variant A): deterministic spotlight rotation (4 pets until week index SHINY_FIVE_FROM, then 5) using Monday 00:00 UTC ISO weeks.
+// Weekly shiny coat (Variant A): deterministic spotlight rotation (4 pets until week index SHINY_FIVE_FROM, then 5, then every pet from SHINY_ALL_FROM) using Monday 00:00 UTC ISO weeks.
 // Active only during that pet's featured week via a one-tap owner toggle on reward_items.shiny; nothing random,
 // nothing permanent to miss.
 
@@ -14,13 +14,21 @@ const WEEK_MS = 7 * DAY_MS;
 const WEEK_EPOCH = Date.UTC(1970, 0, 5); // first Monday in UTC: exact 7-day cadence across 52/53-week years and DST
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Five court pets at fixed Dinks prices (included in CATALOGUE in _economyshop.js; never in random box draws). PETS order is the rotation order.
+// Court pets at fixed Dinks prices (included in CATALOGUE in _economyshop.js; never in random box draws). PETS order is the rotation order, so the
+// first five never move and new pets are only ever appended. Prices and rarities follow the upstream shop (WI-11). The owl keeps its id under the
+// upstream name Lob owl; Court Frog and Yorkie have no upstream twin and keep their names.
 export const PETS = Object.freeze([
-  Object.freeze({ id: 'pet-frog', slot: 'pet', name: 'Court Frog', price: 12, rarity: 'common' }),
-  Object.freeze({ id: 'pet-duck', slot: 'pet', name: 'Dink Duck', price: 14, rarity: 'common' }),
-  Object.freeze({ id: 'pet-cat', slot: 'pet', name: 'Kitchen Cat', price: 18, rarity: 'rare' }),
-  Object.freeze({ id: 'pet-owl', slot: 'pet', name: 'Net Owl', price: 24, rarity: 'rare' }),
-  Object.freeze({ id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 20, rarity: 'rare' })
+  Object.freeze({ id: 'pet-frog', slot: 'pet', name: 'Court Frog', price: 200, rarity: 'common' }),
+  Object.freeze({ id: 'pet-duck', slot: 'pet', name: 'Dink duck', price: 200, rarity: 'common' }),
+  Object.freeze({ id: 'pet-cat', slot: 'pet', name: 'Kitchen cat', price: 500, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-owl', slot: 'pet', name: 'Lob owl', price: 450, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 400, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-pup', slot: 'pet', name: 'Pickle pup', price: 200, rarity: 'common' }),
+  Object.freeze({ id: 'pet-blob', slot: 'pet', name: 'Ball blob', price: 300, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-bat', slot: 'pet', name: 'Paddle bat', price: 400, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-turtle', slot: 'pet', name: 'Court turtle', price: 250, rarity: 'common' }),
+  Object.freeze({ id: 'pet-fox', slot: 'pet', name: 'Smash fox', price: 600, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-netdragon', slot: 'pet', name: 'Net dragon', price: 800, rarity: 'legendary' })
 ]);
 
 // Three growth stages fed purely by distinct verified play days since adoption.
@@ -88,11 +96,17 @@ export function weekOf(ts) {
 // From that week on the 5-pet cycle applies: (index - SHINY_FIVE_FROM) mod 5 over PETS. 2972 is a multiple of 4, so week 2972 is the Frog in both
 // schedules; no week already scheduled under the old cycle changes before the first Yorkie week (index 2976, Mon 2027-01-18).
 export const SHINY_FIVE_FROM = 2972;
+// WI-11 added six pets. From SHINY_ALL_FROM (week index 2977 = Mon 2027-01-25 00:00 UTC) the cycle runs over every pet in PETS order. 2977 is five weeks after
+// SHINY_FIVE_FROM, so it is the Frog under the 5-pet cycle too: no week already scheduled changes, and the new pets only ever follow the Yorkie.
+export const SHINY_ALL_FROM = 2977;
 const LEGACY_CYCLE = 4;
+const FIVE_PETS = PETS.slice(0, 5);
 const mod = (n, m) => ((n % m) + m) % m;
 export function shinyWeekFor(ts) {
   const wk = weekOf(ts);
-  const pet = wk.index < SHINY_FIVE_FROM ? PETS[mod(wk.index, LEGACY_CYCLE)] : PETS[mod(wk.index - SHINY_FIVE_FROM, PETS.length)];
+  const pet = wk.index < SHINY_FIVE_FROM ? PETS[mod(wk.index, LEGACY_CYCLE)]
+    : wk.index < SHINY_ALL_FROM ? FIVE_PETS[mod(wk.index - SHINY_FIVE_FROM, FIVE_PETS.length)]
+      : PETS[mod(wk.index - SHINY_ALL_FROM, PETS.length)];
   return { weekId: wk.id, start: wk.start, end: wk.end, petId: pet.id, petName: pet.name };
 }
 

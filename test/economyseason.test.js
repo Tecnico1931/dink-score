@@ -97,7 +97,7 @@ test('planBuy: on sale in its season at one fixed price, refused plainly outside
   // Out of season but already owned: a replay charges nothing and is not refused.
   assert.deepEqual(planBuy([earn(20)], ['frame-clay'], 'frame-clay', at('2027-03-15T10:00:00Z')), { item: frame, already: true });
   // A permanent item is unaffected by the date.
-  assert.ok(planBuy([earn(20)], [], 'frame-court', at('2027-03-15T10:00:00Z')).entry);
+  assert.ok(planBuy([earn(99)], [], 'frame-court', at('2027-03-15T10:00:00Z')).entry);
   // Same item, next year: on sale again at the same price.
   assert.equal(planBuy([earn(20)], [], 'frame-clay', at('2027-10-05T10:00:00Z')).entry.amount, -frame.price);
 });

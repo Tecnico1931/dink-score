@@ -1361,28 +1361,28 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear', 'rewards-activity']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
   let s = ok(await post('Hal', { action: 'rewards-catalog' }));
-  assert.equal(s.items.filter(i => !i.seasonal && !i.event).length, 37); assert.ok(s.items.every(i => !i.owned && i.price > 0));
+  assert.equal(s.items.filter(i => !i.seasonal && !i.event).length, 47); assert.ok(s.items.every(i => !i.owned && i.price > 0));
   assert.ok(s.season && s.items.filter(i => i.seasonal).every(i => i.available && i.season === s.season.id), 'only this season\'s items are listed, whatever the date'); // real clock here; fixed clocks are in the seasonal step below assert.deepEqual(s.worn, { frame: '', paddle: '', pet: '' });
   // No Dinks yet: refused with a clear message, nothing charged, nothing owned.
   let r = await post('Hal', { action: 'rewards-buy', item: 'frame-court' });
-  assert.equal(r.status, 409); assert.match(r.json.error, /Not enough Dinks yet: Court green ring costs 6 and you have 0/);
+  assert.equal(r.status, 409); assert.match(r.json.error, /Not enough Dinks yet: Forest ring costs 45 and you have 0/);
   assert.equal((await spends('Hal')).length + (await owned('Hal')).length, 0);
-  await grant('Hal', 20);
-  // The phone's own price, amount or name is ignored: the catalogue price is charged (6), the unknown item is refused.
+  await grant('Hal', 57);
+  // The phone's own price, amount or name is ignored: the catalogue price is charged (45), the unknown item is refused.
   r = ok(await post('Hal', { action: 'rewards-buy', item: 'frame-court', price: 0, amount: -1, dinks: 999, name2: 'Free' }));
-  assert.deepEqual([r.bought, r.dinks], [true, 14]);
-  assert.deepEqual(await spends('Hal'), [{ id: 'buy:frame-court', amount: -6 }]);
+  assert.deepEqual([r.bought, r.dinks], [true, 12]);
+  assert.deepEqual(await spends('Hal'), [{ id: 'buy:frame-court', amount: -45 }]);
   for (const item of ['frame-gold', '', '__proto__', 'frame-court ']) assert.equal((await post('Hal', { action: 'rewards-buy', item })).status, item === 'frame-court ' ? 400 : 400);
   // A double buy and a replay (a second device, a retry) charge nothing more.
-  for (let i = 0; i < 2; i++) { r = ok(await post('Hal', { action: 'rewards-buy', item: 'frame-court' })); assert.deepEqual([r.bought, r.dinks], [false, 14]); }
+  for (let i = 0; i < 2; i++) { r = ok(await post('Hal', { action: 'rewards-buy', item: 'frame-court' })); assert.deepEqual([r.bought, r.dinks], [false, 12]); }
   assert.equal((await spends('Hal')).length, 1);
-  // Two buys at once that together cost more than the balance (8 + 8 > 14): exactly one goes through, the balance never goes below zero.
+  // Two buys at once that together cost more than the balance (8 + 8 > 12): exactly one goes through, the balance never goes below zero.
   const both = await Promise.all(['paddle-blue', 'paddle-ink'].map(item => post('Hal', { action: 'rewards-buy', item })));
   assert.deepEqual(both.map(x => x.status).sort(), [200, 409]);
-  assert.equal(ok(await post('Hal', { action: 'rewards-catalog' })).dinks, 6);
+  assert.equal(ok(await post('Hal', { action: 'rewards-catalog' })).dinks, 4);
   // Dinks activity: only the caller's own rows, in plain words, newest first with the running balance, never an id.
   const act = ok(await post('Hal', { action: 'rewards-activity' }));
-  assert.equal(act.balance, 6); assert.equal(act.entries[0].balance, 6);
+  assert.equal(act.balance, 4); assert.equal(act.entries[0].balance, 4);
   assert.ok(act.entries.some(e => /^Bought /.test(e.text) && e.amount < 0), 'the buy shows as a spend in words');
   assert.ok(act.entries.every(e => !('id' in e) && !('reason' in e)) && !/buy:|shop:|day:20/.test(JSON.stringify(act)), 'no raw ids or reasons');
   assert.equal(ok(await post('Hal', { action: 'rewards-catalog' })).pace, null, 'too few play days for a pace yet');
@@ -1402,14 +1402,14 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(playersApi, { action: 'rename', name: 'Hal', newName: 'Hank', ownerToken: cf.owner }));
   assert.deepEqual([(await owned('Hal')).length, (await owned('Hank')).length], [0, 2]);
   assert.equal(ok(await cfPost(playersApi, { action: 'rewards-catalog', name: 'Hank', playerToken: cfTok.Hal })).items.filter(i => i.owned).length, 2);
-  await join('Ivy'); await grant('Ivy', 20);
+  await join('Ivy'); await grant('Ivy', 100);
   ok(await post('Ivy', { action: 'rewards-buy', item: 'frame-court' })); ok(await post('Ivy', { action: 'rewards-buy', item: 'frame-ink' }));
   ok(await post('Ivy', { action: 'rewards-wear', slot: 'frame', item: 'frame-ink' }));
   ok(await cfPost(playersApi, { action: 'release', name: 'Ivy', ownerToken: cf.owner }));
   ok(await cfPost(playersApi, { action: 'merge', name: 'Hank', into: 'Ivy', ownerToken: cf.owner }));
   assert.deepEqual((await owned('Ivy')).map(x => [x.item, x.worn]), [['frame-court', false], ['frame-ink', true], [halPaddle, false]]);
   assert.equal((await owned('Hank')).length, 0);
-  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-catalog', name: 'Ivy', playerToken: cfTok.Hal })).dinks, 12, 'the merged balance: both ledgers (20 - 14 each), every spend kept');
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-catalog', name: 'Ivy', playerToken: cfTok.Hal })).dinks, 14, 'the merged balance: both ledgers (Ivy 100 - 90, Hank 57 - 53), every spend kept');
   // Anonymise removes the player's items with the ledger.
   ok(await cfPost(playersApi, { action: 'anonymise', name: 'Ivy', ownerToken: cf.owner }));
   assert.equal((await owned('Ivy')).length + (await spends('Ivy')).length, 0);
@@ -1426,7 +1426,7 @@ await step('rewards club looks: off means 403, opt-in default false hides it, sh
   assert.equal((await looks()).status, 403, 'off: rewards-looks refused');
   assert.equal((await post('Leo', { action: 'rewards-share', share: true })).status, 403, 'off: rewards-share refused');
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
-  await grant('Leo', 30); await grant('Mia', 30);
+  await grant('Leo', 200); await grant('Mia', 200);
   ok(await post('Leo', { action: 'rewards-buy', item: 'frame-court' }));
   ok(await post('Leo', { action: 'rewards-buy', item: 'frame-blue' }));
   ok(await post('Leo', { action: 'rewards-buy', item: 'paddle-stripe' }));
@@ -1740,13 +1740,13 @@ await step('rewards season pass: server-derived from verified games in club seas
   assert.equal(ok(await post('Noa', { action: 'rewards-pass' })).games, 0, 'new season starts at 0 games');
   for (let i = 1; i <= 5; i++) ok(await saveAs('Noa', 'pass-s2-' + i, [['Noa', 'Ollie'], ['Ana', 'Ben']], [11, i], (i + 10) * 7200e3));
   const c3Again = ok(await post('Noa', { action: 'rewards-pass-claim', tier: 3, seasonId: s2 }));
-  assert.deepEqual([c3Again.claimed, c3Again.gained, c3Again.granted], [true, 6, null], 'already-owned cosmetic tier pays its Dinks price instead');
+  assert.deepEqual([c3Again.claimed, c3Again.gained, c3Again.granted], [true, 45, null], 'already-owned cosmetic tier pays its Dinks price instead');
   // Rename preserves season games, claimed tiers and granted items.
   ok(await pPost(playersApi, { action: 'rename', name: 'Noa', newName: 'Nora', ownerToken: powner }));
   const afterRen = ok(await pPost(playersApi, { action: 'rewards-pass', name: 'Nora', playerToken: ptok.Noa }));
   assert.equal(afterRen.games, 5);
   assert.equal(afterRen.tiers[2].claimed, true, 'tier 3 stays claimed after rename');
-  assert.equal(afterRen.dinks, 13);
+  assert.equal(afterRen.dinks, 52);
   assert.deepEqual(await owned('Nora'), ['frame-court']);
   // Merge into an unclaimed player preserves pass claims, games and items without allowing a double claim.
   ok(await pPost(playersApi, { action: 'release', name: 'Pat', ownerToken: powner }));
@@ -1785,7 +1785,7 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   const cat0 = ok(await post('Rory', { action: 'rewards-catalog' }));
   assert.ok(cat0.shinyWeek && /^pet-[a-z]+$/.test(cat0.shinyWeek.petId), 'catalog includes deterministic shinyWeek');
   const petItems = cat0.items.filter(i => i.slot === 'pet');
-  assert.equal(petItems.length, 5);
+  assert.equal(petItems.length, 11);
   const featuredPet = petItems.find(i => i.id === cat0.shinyWeek.petId);
   const otherPet = petItems.find(i => i.id !== cat0.shinyWeek.petId);
   assert.ok(featuredPet && otherPet);
@@ -1816,7 +1816,7 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'rory' AND kind = 'spend'`, [pcode])).rows[0].n, 1);
 
   // Concurrent buy with exact balance for one pet -> balance never goes below zero.
-  await grant('Sami', 'seed:sami', 14); // enough for pet-frog (12) OR pet-duck (14), not both (26)
+  await grant('Sami', 'seed:sami', 200); // enough for pet-frog (200) OR pet-duck (200), not both (400)
   const race = await Promise.all(['pet-frog', 'pet-duck'].map(item => post('Sami', { action: 'rewards-buy', item })));
   assert.deepEqual(race.map(r => r.status).sort(), [200, 409]);
   assert.ok(ok(await post('Sami', { action: 'rewards-catalog' })).dinks >= 0, 'balance never below zero');
@@ -1904,13 +1904,13 @@ await step('rewards Yorkie: bought once, one pet worn, stage growth by play days
   const earn = (id, n, day = null) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak) VALUES ($1, $2, $3, 'earn', $4, $5, $6, $7) ON CONFLICT DO NOTHING`, [code, key, id, n, day ? 'day' : 'test', day, day ? 1 : null]);
   const yorkieWeek = Date.parse('2027-01-20T12:00:00Z'), frogWeek = Date.parse('2027-01-27T12:00:00Z'); // weeks 2976 and 2977
   const worn = async () => (await pg.query(`SELECT item FROM reward_items WHERE club = $1 AND name_key = $2 AND slot = 'pet' AND worn ORDER BY item`, [code, key])).rows.map(r => r.item);
-  await earn('yorkie-seed', 40);
+  await earn('yorkie-seed', 700);
   const v0 = await shopView(sql, code, key, yorkieWeek);
-  assert.equal(v0.items.filter(i => i.slot === 'pet').length, 5);
+  assert.equal(v0.items.filter(i => i.slot === 'pet').length, 11);
   assert.equal(v0.shinyWeek.petId, 'pet-yorkie');
   assert.deepEqual(v0.items.filter(i => i.slot === 'pet' && i.featuredShiny).map(i => i.id), ['pet-yorkie'], 'exactly one pet is featured');
   const bought = await buyItem(sql, code, key, 'pet-yorkie', yorkieWeek);
-  assert.equal(bought.bought, true); assert.equal(bought.dinks, 20, 'charged the catalogue price (20)');
+  assert.equal(bought.bought, true); assert.equal(bought.dinks, 300, 'charged the catalogue price (400)');
   assert.equal((await buyItem(sql, code, key, 'pet-yorkie', yorkieWeek)).bought, false, 'a second buy charges nothing');
   assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id = 'buy:pet-yorkie'`, [code, key])).rows[0].n, 1);
   await buyItem(sql, code, key, 'pet-frog', yorkieWeek);
