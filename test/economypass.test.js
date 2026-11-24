@@ -123,7 +123,7 @@ test('buildPassView reports unlocked, claimed, claimable and already-owned Dinks
   assert.equal(v.season.id, Q4.id);
   assert.equal(v.games, 6);
   assert.equal(v.dinks, 7);
-  assert.deepEqual(v.worn, { frame: 'frame-court', paddle: '', pet: '', sound: '' });
+  assert.deepEqual(v.worn, { frame: 'frame-court', paddle: '', pet: '', title: '', style: '', sound: '' });
   assert.equal(v.share, true);
   assert.equal(v.claimable, 2, 'tiers 2 and 3 unlocked and unclaimed (tier 1 already claimed)');
   assert.equal(v.tiers[0].claimed, true);

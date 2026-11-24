@@ -19,6 +19,9 @@ const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').
 // Slots the server knows (mirror of SLOT_META in api/_economyshop.js). frame, paddle and pet are always present in a look; the newer ones only when set.
 // A sound is never in a club look: it stays on its owner's phone.
 const RW_EXTRA_SLOTS = ['title', 'style'];
+// Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
+const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post' };
+const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon'];
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
 // {title, style} ids that are set and well formed, nothing else.
 const rwExtras = v => Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwSlotId(s, v && v[s])]).filter(e => e[1]));
@@ -166,6 +169,16 @@ const Rewards = {
     const extra = Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwLook(hit[s])]).filter(e => e[1]));
     if (!frame && !paddle && !pet && !Object.keys(extra).length) return null;
     return pet ? { frame, paddle, ...extra, pet, petStage: hit.petStage === 2 || hit.petStage === 3 ? hit.petStage : 1, petShiny: !!hit.petShiny } : { frame, paddle, ...extra };
+  },
+  // A name as text, drawn in the worn name style when this phone may show one (the style is a stylesheet colour, never an image or a rule).
+  nameHTML(name) {
+    const l = Rewards.lookOf(name);
+    return l && RW_STYLES.includes(l.style) ? `<span class="rw-nm" data-rw-style="${l.style}">${esc(name)}</span>` : esc(name);
+  },
+  // The worn title as a small line under the name, or nothing.
+  titleHTML(name) {
+    const l = Rewards.lookOf(name), t = l && Object.hasOwn(RW_TITLES, l.title) ? RW_TITLES[l.title] : '';
+    return t ? `<span class="rw-title">${esc(t)}</span>` : '';
   },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
