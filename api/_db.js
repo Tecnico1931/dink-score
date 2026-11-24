@@ -304,6 +304,13 @@ export function ensureSchema() {
       await q`ALTER TABLE reward_items ADD COLUMN IF NOT EXISTS shiny boolean NOT NULL DEFAULT false`; // weekly shiny coat toggle for an owned pet (active only during that pet's featured week)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rewards boolean NOT NULL DEFAULT false`; // true: the club shows the daily play streak and free points (off until an organizer turns it on)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS mystery_box boolean NOT NULL DEFAULT false`; // true: the club enables the mystery box (off by default, requires rewards too)
+      // Manage shop (_economyprices.js): a club's own price for a shop item or the mystery box (item 'box'); no row = the catalogue price. No names stored; cascades with the club.
+      await q`CREATE TABLE IF NOT EXISTS club_shop_prices (
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        item text NOT NULL,
+        price int NOT NULL CHECK (price BETWEEN 1 AND 99999),
+        PRIMARY KEY (club, item)
+      )`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS require_confirmation boolean NOT NULL DEFAULT false`; // true: unconfirmed games don't count toward ratings and achievements
       await q`CREATE TABLE IF NOT EXISTS game_audit (
         id bigserial PRIMARY KEY,

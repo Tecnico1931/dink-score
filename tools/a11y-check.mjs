@@ -199,6 +199,24 @@ for (const [mode, opt] of states) {
       }
     }); await sleep(200);
     await audit(page, `Shop sheet with pets and mystery box (${colorScheme})`, report, '.sheet');
+    // Manage shop (organizer): the rewards switch, per-item number fields, sticky save, linked names with Release.
+    await page.evaluate(() => {
+      owners[club.code] = 'o'.repeat(32);
+      const prev = playerCall;
+      playerCall = async b => b && b.action === 'rewards-prices' ? { rewards: true, mysteryBox: true, min: 1, max: 99999, items: [{ id: 'box', name: 'Mystery box', group: 'Random item', default: 7, price: 9 }, { id: 'frame-court', name: 'Court green ring', group: 'Rings', default: 6, price: 6 }, { id: 'pet-owl', name: 'Net Owl', group: 'Pets', default: 24, price: 24 }] }
+        : b && b.action === 'members' ? { members: [{ name: 'Ben', claimed: true, role: 'player' }, { name: 'Cy', claimed: true, role: 'player' }], audit: [], requests: [] } : prev(b);
+      Rewards.openManage();
+    }); await sleep(500);
+    await audit(page, `Manage shop sheet (${colorScheme})`, report, '.sheet');
+    if (colorScheme === 'light') {
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Manage shop sheet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
+    }
+    await page.evaluate(() => { delete owners[club.code]; clubSheet = null; renderClub(); }); await sleep(150);
     if (colorScheme === 'light') {
       for (const w of [320, 195]) {
         await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);

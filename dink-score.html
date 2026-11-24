@@ -246,6 +246,15 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-pill { flex: none; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--ink); }
 .rw-share[aria-pressed="true"] .rw-pill { background: var(--green); color: var(--on-court); }
 .rw-bal-line { margin: 0 0 4px; font-size: 14px; } .rw-bal-line b { font-family: var(--display); font-size: 34px; font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; }
+.rw-mg-switch { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 16px; border-radius: 14px; background: var(--surface-2); font-weight: 600; cursor: pointer; }
+.rw-mg-switch input { width: 44px; height: 44px; margin: -6px -8px -6px -6px; flex: none; accent-color: var(--green); } /* the box itself is the 44 px target */
+.rw-mg-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.rw-mg-row label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .rw-mg-row small { font-size: 13px; color: var(--muted); }
+.rw-mg-in { width: 104px; min-height: 44px; padding: 0 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; text-align: right; }
+.rw-mg-save { position: sticky; bottom: 0; z-index: 1; display: grid; gap: 8px; margin: 12px 0; padding: 12px 0; background: var(--surface); }
+.rw-mg-names { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rw-mg-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 4px 14px; border-radius: 12px; background: var(--surface-2); }
+.rw-mg-name .link { min-height: 44px; padding: 0 4px; }
 .rw-h { margin: 18px 0 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .rw-pick { border: 0; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; } .rw-pick legend { padding: 0; margin-bottom: 4px; font-size: 13px; font-weight: 600; }
 .rw-opt { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
@@ -2723,6 +2732,8 @@ function renderClub() {
     body = Rewards.storeHTML(c);
   } else if (c.view === 'rwpass' && club && myName()) {
     body = Rewards.passHTML(c);
+  } else if (c.view === 'rwmanage' && club) {
+    body = Rewards.manageHTML(c);
   } else if (c.view === 'rwactivity' && club && myName()) {
     body = Rewards.activityHTML(c);
   } else if (c.view === 'you') {
@@ -5411,6 +5422,7 @@ function otItems(s) {
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
     { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
     ...(s.rewards ? [{ id: 'mysteryBox', title: 'Mystery box', go: 'data-rw="box"', hint: s.mysteryBox ? 'On. Players can open a random look box with stated chances. Tap to turn off' : 'Off. Tap to add a mystery box with stated chances' }] : []),
+    ...(s.rewards ? [{ id: 'costs', title: 'Item costs', go: 'data-rw="manage"', hint: 'Set what each look and the mystery box cost here, and release linked names' }] : []),
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
     { id: 'analytics', title: 'Attendance and busiest hours', go: 'data-act="analytics-open"', hint: 'Totals only, no player is listed' },
@@ -6055,7 +6067,7 @@ async function loadMembers() {
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
   const t = a.target || 'a member';
-  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'device-unlock': a.target ? `unlocked a phone linked to ${a.target}` : 'unlocked a phone', 'device-remove': a.target ? `removed the phone linked to ${a.target}` : 'removed an unlocked phone', 'device-lock': a.target ? `locked the phone linked to ${a.target}` : 'locked a phone', 'pin-change': `changed the organizer PIN${a.detail && a.detail.phonesRemoved ? ` (${a.detail.phonesRemoved} unlocked phone${a.detail.phonesRemoved === 1 ? '' : 's'} had to unlock again)` : ''}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
+  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, 'cost-change': a.detail && a.detail.reset ? 'put every item cost back to usual' : 'changed item costs', leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'device-unlock': a.target ? `unlocked a phone linked to ${a.target}` : 'unlocked a phone', 'device-remove': a.target ? `removed the phone linked to ${a.target}` : 'removed an unlocked phone', 'device-lock': a.target ? `locked the phone linked to ${a.target}` : 'locked a phone', 'pin-change': `changed the organizer PIN${a.detail && a.detail.phonesRemoved ? ` (${a.detail.phonesRemoved} unlocked phone${a.detail.phonesRemoved === 1 ? '' : 's'} had to unlock again)` : ''}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
   return `${who} ${did}`;
 }
 function memberLeave(el) {

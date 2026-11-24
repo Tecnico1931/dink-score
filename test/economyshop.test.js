@@ -25,6 +25,16 @@ test('the catalogue is small, fixed-price, cosmetic-only and affordable', () => 
   assert.ok(Math.min(...CATALOGUE.map(i => i.price)) <= week, 'a first item is within a week');
 });
 
+test('planBuy: a club price (Manage shop) replaces the catalogue price for that club only; none means the catalogue', () => {
+  const frame = itemById('frame-court');
+  assert.equal(planBuy([earn(99)], [], 'frame-court', Date.now(), { 'frame-court': 3 }).entry.amount, -3);
+  assert.equal(planBuy([earn(99)], [], 'frame-court', Date.now(), {}).entry.amount, -frame.price);
+  assert.equal(planBuy([earn(99)], [], 'frame-court', Date.now(), { 'paddle-ink': 1 }).entry.amount, -frame.price, 'another item\'s price is not used');
+  assert.throws(() => planBuy([earn(2)], [], 'frame-court', Date.now(), { 'frame-court': 3 }), e => e.status === 409 && /costs 3 and you have 2/.test(e.message));
+  assert.equal(itemById('frame-court').price, frame.price, 'the catalogue itself is never mutated');
+  assert.deepEqual(planBuy([earn(99)], ['frame-court'], 'frame-court', Date.now(), { 'frame-court': 3 }).already, true);
+});
+
 test('planBuy: price comes from the catalogue, never below zero, a repeat charges nothing', () => {
   const frame = itemById('frame-court');
   assert.equal(planBuy([earn(frame.price)], [], 'frame-court').entry.amount, -frame.price);

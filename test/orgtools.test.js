@@ -39,7 +39,7 @@ test('every tappable row points at a handler that already exists', () => {
     if (!row.go) continue;
     const act = row.go.match(/data-act="([^"]+)"/);
     if (act) assert.ok(html.includes(`ds.act === '${act[1]}'`) || html.includes(`a === '${act[1]}'`) || act[1] === 'ot-events', act[1]);
-    else assert.match(row.go, /^data-gn="open"|^data-rw="(club|box)"/); // data-rw: handled by the click listener of src/app/economy.js
+    else assert.match(row.go, /^data-gn="open"|^data-rw="(club|box|manage)"/); // data-rw: handled by the click listener of src/app/economy.js
   }
   assert.ok(!ids({ ...base, rewards: false }).includes('mysteryBox'), 'mystery box switch stays hidden while rewards are off');
   assert.ok(ids({ ...base, rewards: true }).includes('mysteryBox'), 'mystery box switch appears when rewards are on');
