@@ -672,14 +672,18 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 }
 .tabs::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(100% + 28px); background: linear-gradient(to top, var(--bg) 30%, transparent); pointer-events: none; z-index: -1; }
 .tabs nav {
-  pointer-events: auto; max-width: 420px; margin: 0 auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 6px;
-  background: color-mix(in srgb, var(--surface) 82%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
-  border: 1px solid var(--line); border-radius: 26px; box-shadow: 0 12px 34px -12px rgb(0 0 0 / .35);
+  pointer-events: auto; max-width: 440px; margin: 0 auto; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0; padding: 5px;
+  background: color-mix(in srgb, var(--surface) 62%, transparent); -webkit-backdrop-filter: blur(24px) saturate(1.8); backdrop-filter: blur(24px) saturate(1.8);
+  border: 1px solid color-mix(in srgb, var(--surface) 18%, transparent); border-radius: 999px;
+  box-shadow: 0 0 0 .5px color-mix(in srgb, var(--ink) 6%, transparent), 0 14px 34px -12px rgb(0 0 0 / .35), inset 0 1px 0 color-mix(in srgb, var(--surface) 25%, transparent);
 }
-.tabs button { border: 0; background: transparent; padding: 8px 4px; border-radius: 20px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s; }
+/* Floating pill, spacing and look taken from the captain's reference app (dink-score.vercel.app): pill, soft grey highlight, accent icon and label on the active tab. */
+.tabs button { border: 0; background: transparent; padding: 7px 2px 6px; border-radius: 999px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; letter-spacing: -.1px; color: var(--ink); transition: background .15s, color .15s; min-width: 0; }
 .tabs button[hidden] { display: none; }
-.tabs button svg { width: 22px; height: 22px; }
-.tabs button[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.tabs button svg { width: 26px; height: 26px; flex: none; }
+.tabs button[aria-current="page"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--accent-text); }
+@media (prefers-reduced-motion: reduce) { .tabs button { transition: none; } }
+@media (max-width: 360px) { .tabs { padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); } .tabs button { padding-inline: 0; letter-spacing: -.2px; } }
 
 /* Scoring screen: a floodlit night court. Two rounded team panels with glowing gradients and condensed numerals,
    a glass score-call capsule sitting on the net tape between them, and the serving side lit while the other dims. */
@@ -1485,7 +1489,6 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 .swap, .me-btn { width: 44px; height: 44px; }
 .stepper .sb button { min-width: 44px; }
 .tabs button { min-height: 48px; font-size: 12px; }
-@media (min-width: 768px) { .tabs nav { max-width: 560px; } }
 .tile.log .t-k, .tile.live .t-k { opacity: 1; }
 .tile.live .t-name { opacity: 1; }
 /* Court contrast: white text on the team colours is 4.5:1 or better along the whole gradient. */
