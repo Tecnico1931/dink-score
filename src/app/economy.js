@@ -193,6 +193,12 @@ const Rewards = {
   },
   label() { const n = rwShown() ? rwStreak(rwCur(), rwDayKey(Date.now())) : 0; return n >= 2 ? `. ${n} day play streak` : ''; },
   // "Your Dink" card on the Play tab.
+  // The small "Your Dinks" tile beside Top player on Play: balance and streak only (the card below keeps the actions).
+  tileHTML() {
+    if (!rwShown()) return '';
+    const st = rwCur(), day = rwStreak(st, rwDayKey(Date.now()));
+    return `<section class="tile rw-tile" aria-label="Your Dinks"><span class="t-k">Your Dinks</span><span class="rw-tile-day">${rwFlame}<span>${day ? `Day ${day} streak` : 'No streak yet'}</span></span><span class="t-big">${st.dinks}</span></section>`;
+  },
   cardHTML() {
     if (!rwShown()) return '';
     const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = rwNext(day);

@@ -1,7 +1,7 @@
 /* ---------- game nights (api/_gamenights.js via api/club.js) ---------- */
 const GN_GRACE_MS = 4 * 60 * 60 * 1000;
 // The organizer's "Schedule a game night" row: a white lifted row with a coral calendar tile and a chevron (same button, same data-gn="new").
-const GN_PLAN_ROW = '<button type="button" class="gn-plan" data-gn="new"><span class="np-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="np-txt"><b>Schedule a game night</b><small>Pick a time and see who\'s in</small></span><span class="np-chev" aria-hidden="true">›</span></button>';
+const GN_PLAN_ROW = '<button type="button" class="gn-plan" data-gn="new"><span class="np-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="np-txt"><b>Plan a game night</b><small>Pick a time and see who\'s in</small></span><span class="np-chev" aria-hidden="true">›</span></button>';
 const gnCanOrg = () => !!club && (isCreator() || (club.hasPin && hasOrganizer()));
 const gnUpcoming = () => ((clubData && clubData.nights) || []).filter(n => n && n.status === 'open' && n.startsAt >= Date.now() - GN_GRACE_MS);
 
@@ -98,6 +98,14 @@ function gnCapBadgeHTML(n) {
 }
 
 // Home screen card for the next game night; nothing when none is scheduled (scheduling lives in the club sheet).
+// Home: the organizer's plan row, and under it the opt-in link to game-night alerts (anyone with a linked name).
+function gnPlanHomeHTML() {
+  if (!club || !API_OK) return '';
+  const row = gnCanOrg() ? GN_PLAN_ROW : '';
+  const link = myName() && myToken() ? '<button type="button" class="link gn-notify" data-act="notify-open">Notify me about game nights</button>' : '';
+  return row || link ? `<section class="gn-plan-home">${row}${link}</section>` : '';
+}
+
 function gnHomeHTML() {
   if (!club || !API_OK) return '';
   const list = gnUpcoming();
