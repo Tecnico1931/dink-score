@@ -44,11 +44,22 @@ export const CATALOGUE = [
 export const itemById = id => CATALOGUE.find(i => i.id === id) || SEASONAL.find(i => i.id === id) || null;
 export const buyId = item => 'buy:' + item.id;
 
+// Manage shop (WI-3): an organizer may set a club's own price for an item or the mystery box. Only `club_shop_prices` rows (set by
+// _economyprices.js behind requireOrganizer) change a price; the catalogue price stays the default, and the phone still never sends one.
+export const BOX_ITEM = 'box';
+export async function loadPrices(sql, code) {
+  const rows = await sql`SELECT item, price FROM club_shop_prices WHERE club = ${code}`;
+  return Object.fromEntries(rows.map(r => [r.item, Number(r.price)]));
+}
+export const priceOf = (item, prices) => (prices && prices[item.id]) || item.price;
+const priced = (item, prices) => { const price = priceOf(item, prices); return price === item.price ? item : { ...item, price }; };
+
 // What a buy would do, from the ledger and the owned ids. Pure. Throws with a plain message when it must be refused.
 //   { already: true }            the player owns it (a replay or a second device): nothing is charged
 //   { entry }                    the spend row to append (null when the ledger already has it)
-export function planBuy(ledger, owned, id, now = Date.now()) {
-  const item = itemById(id);
+export function planBuy(ledger, owned, id, now = Date.now(), prices = null) {
+  const base = itemById(id);
+  const item = base && priced(base, prices);
   if (!item) throw Object.assign(new Error('That item isn\'t in the shop.'), { status: 400 });
   if (owned.includes(item.id)) return { item, already: true };
   if (!isAvailable(item, now)) throw Object.assign(new Error(closedMessage(item)), { status: 409 });
@@ -129,13 +140,14 @@ export async function setShare(sql, code, key, on, now = Date.now()) {
 
 // The shop as the phone shows it: the catalogue with the owned flag, the balance, what is worn, pet stage/weekly shiny state, and whether the club sees it. Prices come from the catalogue only.
 export async function shopView(sql, code, key, now = Date.now()) {
-  const [items, ledger, share] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key)]);
+  const [items, ledger, share, prices] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key), loadPrices(sql, code)]);
   const ownedById = new Map(items.map(i => [i.id, i]));
   const shinyWeek = shinyWeekFor(now);
   const season = seasonFor(now);
   // This season's items, plus any seasonal item the player already owns (so it stays in What you wear); other seasons are not listed.
-  const seasonal = SEASONAL.filter(i => i.season === season.id || ownedById.has(i.id)).map(i => ({ ...i, seasonal: true, owned: ownedById.has(i.id), available: i.season === season.id }));
-  const viewItems = CATALOGUE.map(i => {
+  const seasonal = SEASONAL.filter(i => i.season === season.id || ownedById.has(i.id)).map(i => ({ ...priced(i, prices), seasonal: true, owned: ownedById.has(i.id), available: i.season === season.id }));
+  const viewItems = CATALOGUE.map(base => {
+    const i = priced(base, prices);
     const row = ownedById.get(i.id);
     if (i.slot !== 'pet') return { ...i, owned: !!row };
     const featuredShiny = shinyWeek.petId === i.id;
@@ -151,7 +163,7 @@ export async function shopView(sql, code, key, now = Date.now()) {
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.
 export async function buyItem(sql, code, key, id, now = Date.now()) {
-  const plan = planBuy(await loadLedger(sql, code, key), (await loadItems(sql, code, key)).map(i => i.id), id, now);
+  const plan = planBuy(await loadLedger(sql, code, key), (await loadItems(sql, code, key)).map(i => i.id), id, now, await loadPrices(sql, code));
   if (plan.already) return { ...(await shopView(sql, code, key, now)), bought: false };
   const { item } = plan;
   await sql.transaction([

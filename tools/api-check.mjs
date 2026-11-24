@@ -1596,6 +1596,62 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
   assert.equal((await cfGet()).club.mysteryBox, false);
 });
+await step('rewards Manage shop: organizer-only prices, validated, charged by the buy and the box, reset to default, audited, nothing for a player phone', async () => {
+  const { BOX_PRICE } = await import(pathToFileURL(path.join(root, 'api', '_economybox.js')).href);
+  const { itemById } = await import(pathToFileURL(path.join(root, 'api', '_economyshop.js')).href);
+  const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
+  const org = a => cfPost(playersApi, { pin: cf.pin, ...a });
+  const rows = async () => (await pg.query(`SELECT item, price FROM club_shop_prices WHERE club = $1 ORDER BY item`, [cf.code])).rows;
+  cfTok.Rio = ok(await cfPost(playersApi, { action: 'claim', name: 'Rio', ownerToken: cf.owner })).playerToken;
+  await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'rio', 'mg_grant_1', 'earn', 5, 'test')`, [cf.code]);
+  ok(await cfPost(club, { action: 'set-rewards', on: true, ownerToken: cf.owner }));
+  ok(await cfPost(club, { action: 'set-mystery-box', on: true, ownerToken: cf.owner }));
+  const def = itemById('frame-court').price;
+  // Only an organizer reads or sets prices: a player's phone, a wrong PIN and no credentials are all refused.
+  for (const a of [{ action: 'rewards-prices' }, { action: 'rewards-prices-save', prices: { 'frame-court': 3 } }]) {
+    assert.equal((await post('Rio', a)).status, 403, 'a player phone is not an organizer');
+    assert.equal((await cfPost(playersApi, { ...a, pin: '000000' })).status, 403);
+    assert.equal((await cfPost(playersApi, a)).status, 403);
+  }
+  const v0 = ok(await org({ action: 'rewards-prices' }));
+  assert.equal(v0.items[0].id, 'box'); assert.equal(v0.items[0].price, BOX_PRICE);
+  assert.ok(v0.items.every(i => i.price === i.default) && v0.items.length >= 16 && v0.rewards === true && v0.mysteryBox === true);
+  // Bad input never reaches the table.
+  for (const prices of [{ 'frame-court': 0 }, { 'frame-court': 100000 }, { 'frame-court': 12.5 }, { 'frame-court': 'abc' }, { 'frame-court': -4 }, { nope: 5 }, { __proto__x: 5 }, [3], 'x', null])
+    assert.equal((await org({ action: 'rewards-prices-save', prices })).status, 400, JSON.stringify(prices));
+  assert.deepEqual(await rows(), []);
+  // A price set by the organizer is what the shop shows and what the buy charges; the phone's own price is ignored.
+  const saved = ok(await org({ action: 'rewards-prices-save', prices: { 'frame-court': '3', box: 9 } }));
+  assert.equal(saved.items.find(i => i.id === 'frame-court').price, 3); assert.equal(saved.items.find(i => i.id === 'frame-court').default, def);
+  assert.deepEqual(await rows(), [{ item: 'box', price: 9 }, { item: 'frame-court', price: 3 }]);
+  assert.equal(ok(await post('Rio', { action: 'rewards-catalog' })).items.find(i => i.id === 'frame-court').price, 3);
+  const bought = ok(await post('Rio', { action: 'rewards-buy', item: 'frame-court', price: 1 }));
+  assert.equal(bought.dinks, 2, 'charged the club price (3 of 5), not 1 and not the default');
+  const odds = ok(await cfPost(playersApi, { action: 'rewards-box-odds' }));
+  assert.equal(odds.price, 9);
+  assert.equal(ok(await post('Rio', { action: 'rewards-catalog' })).box.price, 9);
+  const poor = await post('Rio', { action: 'rewards-box-open', openId: 'mg_box_0001' });
+  assert.equal(poor.status, 409); assert.match(poor.json.error, /costs 9 and you have 2/);
+  await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'rio', 'mg_grant_2', 'earn', 10, 'test')`, [cf.code]);
+  const opened = ok(await post('Rio', { action: 'rewards-box-open', openId: 'mg_box_0002' }));
+  assert.equal(opened.result.cost, 9); assert.equal(opened.dinks, 12 - 9 + opened.result.refund);
+  // Setting an item back to its catalogue price drops the row; a no-op save writes nothing; reset clears the rest.
+  ok(await org({ action: 'rewards-prices-save', prices: { 'frame-court': def } }));
+  assert.deepEqual(await rows(), [{ item: 'box', price: 9 }]);
+  const logged = async () => (await pg.query(`SELECT count(*)::int AS n FROM club_audit WHERE club = $1 AND action = 'cost-change'`, [cf.code])).rows[0].n;
+  const n0 = await logged();
+  ok(await org({ action: 'rewards-prices-save', prices: { box: 9 } }));
+  assert.equal(await logged(), n0, 'nothing changed, nothing logged');
+  const reset = ok(await org({ action: 'rewards-prices-save', reset: true }));
+  assert.ok(reset.items.every(i => i.price === i.default)); assert.deepEqual(await rows(), []);
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-box-odds' })).price, BOX_PRICE);
+  assert.equal(await logged(), n0 + 1);
+  // Audited with no names and no prices in the row.
+  const log = (await pg.query(`SELECT actor, target, detail FROM club_audit WHERE club = $1 AND action = 'cost-change' ORDER BY id`, [cf.code])).rows;
+  assert.ok(log.length >= 3 && log.every(r => r.target === null && Object.keys(r.detail).every(k => ['changed', 'reset'].includes(k))));
+  ok(await cfPost(club, { action: 'set-mystery-box', on: false, ownerToken: cf.owner }));
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+});
 await step('rewards season pass: server-derived from verified games in club season, idempotent claims, forged claims ignored, follows season-end, rename, merge and anonymise', async () => {
   const pc = ok(await call(club, 'POST', { body: { name: 'Season pass club', pin: '357911' } }), 201);
   const pcode = pc.club.code, powner = pc.ownerToken, ppin = '357911';

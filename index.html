@@ -272,6 +272,15 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-pill { flex: none; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--ink); }
 .rw-share[aria-pressed="true"] .rw-pill { background: var(--green); color: var(--on-court); }
 .rw-bal-line { margin: 0 0 4px; font-size: 14px; } .rw-bal-line b { font-family: var(--display); font-size: 34px; font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; }
+.rw-mg-switch { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 12px 16px; border-radius: 14px; background: var(--surface-2); font-weight: 600; cursor: pointer; }
+.rw-mg-switch input { width: 44px; height: 44px; margin: -6px -8px -6px -6px; flex: none; accent-color: var(--green); } /* the box itself is the 44 px target */
+.rw-mg-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); }
+.rw-mg-row label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .rw-mg-row small { font-size: 13px; color: var(--muted); }
+.rw-mg-in { width: 104px; min-height: 44px; padding: 0 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; text-align: right; }
+.rw-mg-save { position: sticky; bottom: 0; z-index: 1; display: grid; gap: 8px; margin: 12px 0; padding: 12px 0; background: var(--surface); }
+.rw-mg-names { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rw-mg-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 4px 14px; border-radius: 12px; background: var(--surface-2); }
+.rw-mg-name .link { min-height: 44px; padding: 0 4px; }
 .rw-h { margin: 18px 0 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .rw-pick { border: 0; margin: 0 0 8px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; } .rw-pick legend { padding: 0; margin-bottom: 4px; font-size: 13px; font-weight: 600; }
 .rw-opt { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; }
@@ -4211,7 +4220,7 @@ Object.assign(Rewards, {
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
-      <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${done}`;
+      <h3 class="rw-h">In the shop</h3>${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Dinks activity": your own recent ledger rows in plain words (the server's words), newest first, with the balance after each.
   activityHTML(c) {
@@ -4426,6 +4435,106 @@ document.addEventListener('click', e => {
   if (t.dataset.rw === 'pass') { Rewards.openPass(); return; }
   const tier = Number(t.dataset.rwClaim);
   if (Number.isInteger(tier) && tier > 0) rwPassClaim(tier);
+});
+/* ---------- Manage shop (WI-3): the organizer's sheet for this club's prices, the rewards switch and linked names ---------- */
+// Organizer only (otCan). Prices are the server's: this phone shows what api/_economyprices.js returns and sends the numbers typed here to
+// players.js rewards-prices|rewards-prices-save, which checks the organizer again and clamps them. Nothing here reads a score or a rating.
+const rwMgCan = () => typeof otCan === 'function' && otCan();
+const rwMgDone = '<button type="button" class="btn btn-soft" data-act="club-close">Done</button>';
+
+Object.assign(Rewards, {
+  manageHTML(c) {
+    const head = '<h2 id="club-h" tabindex="-1">Manage shop</h2>', d = c.data;
+    if (!rwMgCan()) return `${head}<p class="note">Only organizers can change the shop.</p><div class="btns">${rwMgDone}</div>`;
+    if (!d) return `${head}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="manage">Try again</button>` : skel(3)}<div class="btns">${rwMgDone}</div>`;
+    const rows = d.items.map(i => {
+      const v = c.draft && i.id in c.draft ? c.draft[i.id] : i.price, id = 'rw-mg-' + i.id;
+      return `<div class="rw-mg-row"><label for="${esc(id)}"><b>${esc(i.name)}</b><small>${esc(i.group)}${i.price !== i.default ? ` · usually ${i.default}` : ''}</small></label><input id="${esc(id)}" class="rw-mg-in num" type="number" inputmode="numeric" min="${d.min}" max="${d.max}" step="1" value="${esc(v)}" data-rw-price="${esc(i.id)}" ${c.busy ? 'disabled' : ''}></div>`;
+    }).join('');
+    const linked = (c.members || []).map(m => `<li class="rw-mg-name"><span>${esc(m.name)}</span><button type="button" class="link" data-rw-mg-release="${esc(m.name)}" ${c.busy ? 'disabled' : ''}>${c.confirmRelease === m.name ? 'Tap again to release' : 'Release'}</button></li>`).join('');
+    const custom = d.items.some(i => i.price !== i.default);
+    return `${head}${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+      <label class="rw-mg-switch"><input type="checkbox" data-rw-mg-club ${d.rewards ? 'checked' : ''} ${c.busy ? 'disabled' : ''}><span>Club rewards in the shop</span></label>
+      <h3 class="rw-h">Item prices (Dinks)</h3>${rows}
+      <div class="rw-mg-save"><button type="button" class="btn btn-court block" data-rw-mg-save="1" ${c.busy ? 'disabled' : ''}>Save shop</button>${custom ? `<button type="button" class="btn btn-soft block" data-rw-mg-reset="1" ${c.busy ? 'disabled' : ''}>Put every price back to usual</button>` : ''}</div>
+      <h3 class="rw-h">Names linked to phones</h3>${linked ? `<ul class="rw-mg-names">${linked}</ul>` : '<p class="note">No names are linked to a phone yet.</p>'}
+      <p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p>
+      <div class="btns">${rwMgDone}</div>`;
+  },
+  // Open the sheet and load the prices and the linked names (both organizer-only calls).
+  async openManage() {
+    if (!rwMgCan()) return;
+    const c = clubSheet = { view: 'rwmanage', data: null, members: null, draft: {}, error: '', msg: '', busy: false, confirmRelease: '' };
+    renderClub();
+    try {
+      const [d, m] = await Promise.all([
+        playerCall(Object.assign({ action: 'rewards-prices' }, adminCreds())),
+        playerCall(Object.assign({ action: 'members' }, adminCreds())).catch(() => null)
+      ]);
+      if (clubSheet !== c) return;
+      c.data = d; c.members = m ? m.members.filter(x => x.claimed) : [];
+    } catch (err) { if (clubSheet !== c) return; c.error = err.message || "The shop settings couldn't load."; }
+    renderClub();
+  }
+});
+
+async function rwMgAct(c, call, say, focus) {
+  if (clubSheet !== c || c.busy) return;
+  c.busy = true; c.error = ''; c.msg = ''; renderClub();
+  try { await call(); if (clubSheet !== c) return; c.msg = say; announce(say); }
+  catch (err) { if (clubSheet !== c) return; c.error = err.message; announce(err.message); }
+  c.busy = false; renderClub();
+  const f = document.querySelector(focus); if (f) f.focus();
+}
+
+document.addEventListener('input', e => {
+  const t = e.target, c = clubSheet;
+  if (!t || !t.matches || !t.matches('input[data-rw-price]') || !c || c.view !== 'rwmanage') return;
+  c.draft[t.dataset.rwPrice] = t.value; // kept as typed; the sheet is only redrawn after a save, so the field keeps the focus
+});
+
+document.addEventListener('change', e => {
+  const t = e.target, c = clubSheet;
+  if (!t || !t.matches || !t.matches('input[data-rw-mg-club]') || !c || c.view !== 'rwmanage' || !c.data || c.busy) return;
+  const on = t.checked;
+  rwMgAct(c, async () => {
+    await api('club', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code, action: 'set-rewards', on }, adminCreds())) });
+    c.data.rewards = on; await refreshClub(); render();
+  }, on ? 'Rewards are on for this club.' : 'Rewards are off for this club.', '[data-rw-mg-club]');
+});
+
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('[data-rw="manage"], [data-rw-mg-save], [data-rw-mg-reset], [data-rw-mg-release]');
+  if (!t) return;
+  if (t.dataset.rw === 'manage') { Rewards.openManage(); return; }
+  const c = clubSheet;
+  if (!c || c.view !== 'rwmanage' || !c.data || c.busy) return;
+  if (t.dataset.rwMgSave) {
+    const prices = {}, d = c.data;
+    for (const i of d.items) {
+      if (!(i.id in c.draft)) continue;
+      const raw = String(c.draft[i.id]).trim(), n = /^\d{1,6}$/.test(raw) ? Number(raw) : NaN;
+      if (!(n >= d.min && n <= d.max)) { c.error = `${i.name}: enter a whole number from ${d.min} to ${d.max}.`; c.msg = ''; announce(c.error); renderClub(); const f = document.getElementById('rw-mg-' + i.id); if (f) f.focus(); return; }
+      if (n !== i.price) prices[i.id] = n;
+    }
+    if (!Object.keys(prices).length) { c.draft = {}; c.msg = 'No prices changed.'; announce(c.msg); renderClub(); return; }
+    rwMgAct(c, async () => { c.data = await playerCall(Object.assign({ action: 'rewards-prices-save', prices }, adminCreds())); c.draft = {}; }, 'Prices saved.', '#club-h');
+    return;
+  }
+  if (t.dataset.rwMgReset) {
+    rwMgAct(c, async () => { c.data = await playerCall(Object.assign({ action: 'rewards-prices-save', reset: true }, adminCreds())); c.draft = {}; }, 'Every price is back to usual.', '#club-h');
+    return;
+  }
+  if (t.dataset.rwMgRelease) {
+    const name = t.dataset.rwMgRelease;
+    if (c.confirmRelease !== name) { c.confirmRelease = name; renderClub(); const f = [...document.querySelectorAll('[data-rw-mg-release]')].find(b => b.dataset.rwMgRelease === name); if (f) f.focus(); return; }
+    c.confirmRelease = '';
+    rwMgAct(c, async () => {
+      await playerCall(Object.assign({ action: 'release', name }, adminCreds()));
+      const m = await playerCall(Object.assign({ action: 'members' }, adminCreds()));
+      if (clubSheet === c) c.members = m.members.filter(x => x.claimed);
+    }, `${name} can now be picked on another phone.`, '#club-h');
+  }
 });
 /* ---------- opt-in "you're up" notifications (api/_push.js) ---------- */
 const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -4825,6 +4934,8 @@ function renderClub() {
     body = Rewards.storeHTML(c);
   } else if (c.view === 'rwpass' && club && myName()) {
     body = Rewards.passHTML(c);
+  } else if (c.view === 'rwmanage' && club) {
+    body = Rewards.manageHTML(c);
   } else if (c.view === 'rwactivity' && club && myName()) {
     body = Rewards.activityHTML(c);
   } else if (c.view === 'you') {
@@ -7490,6 +7601,7 @@ function otItems(s) {
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
     { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
     ...(s.rewards ? [{ id: 'mysteryBox', title: 'Mystery box', go: 'data-rw="box"', hint: s.mysteryBox ? 'On. Players can open a random look box with stated chances. Tap to turn off' : 'Off. Tap to add a mystery box with stated chances' }] : []),
+    ...(s.rewards ? [{ id: 'costs', title: 'Item costs', go: 'data-rw="manage"', hint: 'Set what each look and the mystery box cost here, and release linked names' }] : []),
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
     { id: 'analytics', title: 'Attendance and busiest hours', go: 'data-act="analytics-open"', hint: 'Totals only, no player is listed' },
@@ -8130,7 +8242,7 @@ async function loadMembers() {
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
   const t = a.target || 'a member';
-  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'device-unlock': a.target ? `unlocked a phone linked to ${a.target}` : 'unlocked a phone', 'device-remove': a.target ? `removed the phone linked to ${a.target}` : 'removed an unlocked phone', 'device-lock': a.target ? `locked the phone linked to ${a.target}` : 'locked a phone', 'pin-change': `changed the organizer PIN${a.detail && a.detail.phonesRemoved ? ` (${a.detail.phonesRemoved} unlocked phone${a.detail.phonesRemoved === 1 ? '' : 's'} had to unlock again)` : ''}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
+  const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, 'cost-change': a.detail && a.detail.reset ? 'put every item cost back to usual' : 'changed item costs', leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'device-unlock': a.target ? `unlocked a phone linked to ${a.target}` : 'unlocked a phone', 'device-remove': a.target ? `removed the phone linked to ${a.target}` : 'removed an unlocked phone', 'device-lock': a.target ? `locked the phone linked to ${a.target}` : 'locked a phone', 'pin-change': `changed the organizer PIN${a.detail && a.detail.phonesRemoved ? ` (${a.detail.phonesRemoved} unlocked phone${a.detail.phonesRemoved === 1 ? '' : 's'} had to unlock again)` : ''}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
   return `${who} ${did}`;
 }
 function memberLeave(el) {

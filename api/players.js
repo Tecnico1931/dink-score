@@ -15,6 +15,7 @@
 //                                                       shiny flag) for players who opted in to share their look. Never balance, streak, or purchase history.
 //   rewards-activity {name, playerToken}              -> your own last 100 ledger rows in plain words with the running balance (read-only; no ids, nothing of
 //                                                       anyone else). Only that name's phone; only where the club has rewards on. See _economyactivity.js.
+//   rewards-prices|rewards-prices-save {pin|ownerToken, prices?|reset?} -> organizer: this club's own price per item and for the box; the catalogue price stays the default. See _economyprices.js.
 //   rewards-box-odds {}                               -> club members (when club.rewards and club.mystery_box are on): server odds table for the mystery box.
 //   rewards-box-open {name, playerToken, openId}      -> opens one mystery box on the server (idempotent by openId, daily limit, duplicate refund). See _economybox.js.
 //   rewards-pass|rewards-pass-claim {name, playerToken, tier?, seasonId?} -> free season pass track per club season (derived from games saved
@@ -40,8 +41,9 @@ import { undoKind, undoConflict } from './_undo.js';
 import { dropRatings } from './_rating_store.js';
 import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js';
 import { rewardsFor, loadLedger } from './_economysync.js';
-import { shopView, buyItem, wearItem, wornSummaryOf, loadItems, clubLooks, shareOf, setShare } from './_economyshop.js';
+import { shopView, buyItem, wearItem, wornSummaryOf, loadItems, clubLooks, shareOf, setShare, loadPrices } from './_economyshop.js';
 import { boxOdds, boxStatus, openBox } from './_economybox.js';
+import { pricesView, savePrices } from './_economyprices.js';
 import { passView, claimPassTier } from './_economypass.js';
 import { activityFrom } from './_economyactivity.js';
 
@@ -195,7 +197,7 @@ export default handler(async (req, res) => {
 
   if (body.action === 'rewards-box-odds') {
     if (!club.rewards || !club.mystery_box) throw fail(403, 'Mystery box is off for this club.');
-    return send(res, 200, boxOdds());
+    return send(res, 200, boxOdds(await loadPrices(sql, code)));
   }
 
   if (body.action === 'rewards-box-open') {
@@ -361,6 +363,12 @@ export default handler(async (req, res) => {
 
   // Everything below is for organizers.
   const actor = await requireOrganizer(club, body.pin, req, body.ownerToken);
+
+  if (body.action === 'rewards-prices') return send(res, 200, await pricesView(sql, club));
+  if (body.action === 'rewards-prices-save') {
+    try { return send(res, 200, await savePrices(sql, club, actor, body)); }
+    catch (e) { throw e.status ? fail(e.status, e.message) : e; }
+  }
 
   if (body.action === 'clear-avatar') {
     // Organizer: put someone back to initials (for example a photo that shouldn't be there).

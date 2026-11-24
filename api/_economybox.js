@@ -11,7 +11,7 @@
 // the request's idempotent openId (`box:<openId>` spend, optional `boxref:<openId>` refund with day=null so streaks are
 // untouched). Balance never goes below zero; replaying the same openId returns the exact same result without charging again.
 import { randomInt } from 'node:crypto';
-import { CATALOGUE, itemById, shopView } from './_economyshop.js';
+import { CATALOGUE, BOX_ITEM, itemById, shopView, loadPrices, priceOf } from './_economyshop.js';
 import { dayKey } from './_economy.js';
 
 export const BOX_PRICE = 7;            // free Dinks to open one mystery box
@@ -62,9 +62,11 @@ export function tierOfItem(id) {
 }
 
 // Public odds payload taken directly from the draw constants so UI and draw can never diverge.
-export function boxOdds() {
+// `prices`: the club's own prices from Manage shop (loadPrices); none = the defaults.
+export const boxPriceOf = prices => (prices && prices[BOX_ITEM]) || BOX_PRICE;
+export function boxOdds(prices = null) {
   return {
-    price: BOX_PRICE,
+    price: boxPriceOf(prices),
     duplicateRefund: BOX_DUPLICATE_REFUND,
     dailyLimit: BOX_DAILY_LIMIT,
     tiers: BOX_TIERS.map(t => ({
@@ -73,7 +75,7 @@ export function boxOdds() {
       chance: t.chance,
       items: t.items.map(id => {
         const it = itemById(id);
-        return { id: it.id, name: it.name, slot: it.slot, price: it.price };
+        return { id: it.id, name: it.name, slot: it.slot, price: priceOf(it, prices) };
       })
     }))
   };
@@ -107,7 +109,7 @@ export async function opensToday(sql, code, key, now = Date.now()) {
 }
 
 export async function boxStatus(sql, code, key, now = Date.now()) {
-  return { ...boxOdds(), openedToday: await opensToday(sql, code, key, now) };
+  return { ...boxOdds(await loadPrices(sql, code)), openedToday: await opensToday(sql, code, key, now) };
 }
 
 // Open one mystery box atomically: spend, grant (or refund on duplicate), and read back authoritative result in one transaction.
@@ -117,14 +119,16 @@ export async function openBox(sql, code, key, rawOpenId, { now = Date.now(), ran
   const spendId = boxSpendId(openId);
   const refundId = boxRefundId(openId);
   const drawn = drawBoxItem(randInt);
+  const prices = await loadPrices(sql, code);
+  const BOX_COST = boxPriceOf(prices);
 
   const [, cteRows, ledgerRows, statRows] = await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(hashtext(${code + '/' + key}))`,
     sql`WITH spend AS (
         INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak)
-        SELECT ${code}, ${key}, ${spendId}, 'spend', ${-BOX_PRICE}, ${'box:' + drawn.item.id}, ${today}, NULL
+        SELECT ${code}, ${key}, ${spendId}, 'spend', ${-BOX_COST}, ${'box:' + drawn.item.id}, ${today}, NULL
         WHERE NOT EXISTS (SELECT 1 FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND id = ${spendId})
-          AND coalesce((SELECT sum(amount) FROM reward_ledger WHERE club = ${code} AND name_key = ${key}), 0) >= ${BOX_PRICE}
+          AND coalesce((SELECT sum(amount) FROM reward_ledger WHERE club = ${code} AND name_key = ${key}), 0) >= ${BOX_COST}
           AND (SELECT count(*)::int FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND kind = 'spend' AND reason LIKE 'box:%' AND day = ${today}) < ${BOX_DAILY_LIMIT}
         RETURNING id
       ),
@@ -165,7 +169,7 @@ export async function openBox(sql, code, key, rawOpenId, { now = Date.now(), ran
     if (openedToday >= BOX_DAILY_LIMIT) {
       throw Object.assign(new Error(`Daily limit reached: you have opened ${BOX_DAILY_LIMIT} mystery boxes today. Try again tomorrow.`), { status: 429 });
     }
-    throw Object.assign(new Error(`Not enough Dinks yet: a mystery box costs ${BOX_PRICE} and you have ${balance}.`), { status: 409 });
+    throw Object.assign(new Error(`Not enough Dinks yet: a mystery box costs ${BOX_COST} and you have ${balance}.`), { status: 409 });
   }
 
   const replayed = Number(cteRows[0] ? cteRows[0].spent : 0) === 0;
@@ -180,14 +184,14 @@ export async function openBox(sql, code, key, rawOpenId, { now = Date.now(), ran
   const view = await shopView(sql, code, key);
   return {
     ...view,
-    box: { ...boxOdds(), openedToday },
+    box: { ...boxOdds(prices), openedToday },
     result: {
       openId,
       item,
       tier,
       duplicate,
       refund,
-      cost: BOX_PRICE,
+      cost: BOX_COST,
       replayed
     }
   };
