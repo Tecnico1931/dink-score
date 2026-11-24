@@ -14,7 +14,7 @@ test('the hero card greets by time of day, even with no linked name, and shows t
   assert.match(homeTiles, /club \? esc\(club\.name\) : 'Just this phone'/);
   assert.match(homeTiles, /game\$\{total === 1 \? '' : 's'\} this week/);
   assert.match(homeTiles, /<div class="week" role="img" aria-label="Games per day/);
-  assert.ok(/\$\{hero\}<section class="tiles">\$\{tiles\.join\(''\)\}<\/section>\$\{gnHomeHTML\(\)\}\$\{Rewards\.cardHTML\(\)\}/.test(homeTiles), 'the hero card sits directly above the New game / Log a result tiles, with Your Dink below them');
+  assert.ok(/\$\{hero\}<section class="tiles">\$\{tiles\.join\(''\)\}<\/section>\$\{gnHomeHTML\(\)\}\$\{gnPlanHomeHTML\(\)\}\$\{Rewards\.cardHTML\(\)\}\$\{stats\}/.test(homeTiles), 'hero, New game / Log a result tiles, game-night plan row, Your Dink card, then the Top player and Dinks tiles and the challenges card');
   assert.ok(!/class="tile wide"[^`]*This week/.test(homeTiles), 'the old weekly tile is gone');
 });
 
@@ -63,4 +63,18 @@ test('the sheet keeps reduced motion, the shared sheet styles and both themes (t
   assert.ok(rules.length > 200);
   assert.ok(!/#[0-9a-f]{3,8}\b/i.test(rules.replace(/rgb\([^)]*\)/g, '')), 'new rules use tokens, not hard-coded colours');
   assert.ok(/prefers-reduced-motion: reduce\) \{ \*, \*::before, \*::after \{ transition: none !important; animation: none !important; \}/.test(css));
+});
+
+test('home polish: Log a result is a surface tile, the plan row and notify link sit under the tiles, the Dinks tile pairs with Top player, challenges are a full-width card', () => {
+  assert.ok(!/\.tile\.log \{[^}]*(ball-hi|--ball)/.test(html), 'no ball-yellow wash on Log a result');
+  const homeTiles = between('function homeTiles(', '// "This month"');
+  assert.match(homeTiles, /\$\{rwTile\}<button class="tile\$\{rwTile \? '' : ' wide'\}" data-tab-go="leaders">/);
+  assert.match(homeTiles, /<\/section>\$\{chTile\}`;/, 'challenges follow the tiles as their own card');
+  const plan = between('function gnPlanHomeHTML()', 'function gnHomeHTML()');
+  assert.match(plan, /gnCanOrg\(\) \? GN_PLAN_ROW/);
+  assert.match(plan, /data-act="notify-open">Notify me about game nights/);
+  assert.match(html, /<b>Plan a game night<\/b>/);
+  const ch = between('function challengesTile()', '// Tell the player');
+  assert.match(ch, /<section class="card ch-tile" aria-labelledby="ch-h">/);
+  assert.match(ch, /\$\{Math\.min\(st\.progress, c\.goal\)\} of \$\{c\.goal\}/, 'progress is text too, not only a bar');
 });

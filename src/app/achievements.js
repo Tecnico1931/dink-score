@@ -18,10 +18,10 @@ function challengesTile() {
   const mine = (progressOf(myName()) || {}).week || [];
   const items = info.week.challenges.map(c => {
     const st = mine.find(x => x.id === c.id) || { progress: 0, done: false };
-    return `<li class="${st.done ? 'done' : ''}"><b>${st.done ? '✓ ' : ''}${esc(c.name)}</b><span class="ch-bar" aria-hidden="true"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></li>`;
+    return `<li class="${st.done ? 'done' : ''}"><span class="ch-row"><b>${st.done ? '✓ ' : ''}${esc(c.name)}</b><span class="ch-n">${Math.min(st.progress, c.goal)} of ${c.goal}</span></span><span class="ch-bar" aria-hidden="true"><i style="width:${Math.round(100 * Math.min(st.progress, c.goal) / c.goal)}%"></i></span></li>`;
   }).join('');
   const d = daysLeft(info.week.end);
-  return `<section class="tile ch-tile" aria-label="This week's challenges"><span class="t-k">This week's challenges</span><ul>${items}</ul><span class="t-foot">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></section>`;
+  return `<section class="card ch-tile" aria-labelledby="ch-h"><div class="sec-head"><h2 id="ch-h" class="h-sub">This week's challenges</h2><span class="note">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></div><ul>${items}</ul></section>`;
 }
 
 // Tell the player when something new unlocks (checked after each refresh from the server).

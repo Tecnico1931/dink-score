@@ -71,7 +71,7 @@ for (const id of PALETTE_IDS) {
         assert.ok(ratio(fg, bg) >= min, `${id}/${mode}: ${what} is ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`);
       }
     });
-    // The court hero card and New game tile (white on --court, dimmed to .92 for secondary text) and the lime Log a result tile (ink at .82), over the worst end of each gradient.
+    // The court hero card and New game tile (white on --court, dimmed to .92 for secondary text) over the worst end of each gradient. Log a result is a plain surface tile (ink on --surface is pinned above).
     test(`hero card, New game and Log a result tiles: contrast ${id} (${mode})`, () => {
       const courtMin = mode === 'outdoor' ? 7 : 4.5;
       for (const k of ['court', 'court-2']) {
@@ -79,7 +79,7 @@ for (const id of PALETTE_IDS) {
         assert.ok(ratio(over(WHITE, t[k], .92), t[k]) >= 4.5, `${id}/${mode}: .92 white on --${k} ${ratio(over(WHITE, t[k], .92), t[k]).toFixed(2)}`);
         assert.ok(ratio(over(WHITE, over([0, 0, 0], t[k], .22), .92), over([0, 0, 0], t[k], .22)) >= 4.5, `${id}/${mode}: club pill on --${k}`);
       }
-      for (const k of ['ball-hi', 'ball', 'ball-lo']) assert.ok(ratio(over(t['ball-ink'], t[k], .82), t[k]) >= 4.5, `${id}/${mode}: ink at .82 on --${k}`);
+      assert.ok(ratio(t.bg, t.ink) >= 4.5, `${id}/${mode}: Log a result plus sign (--bg on --ink)`);
     });
     test(`pet badge colours (classic and shiny): contrast ${id} (${mode})`, () => {
       const petPairs = [

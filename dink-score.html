@@ -357,9 +357,14 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .tile.live .t-big { font-size: 54px; grid-column: 1; }
 .tile.live .t-name { grid-column: 1; font-weight: 500; opacity: .8; font-size: 14px; }
 .tile.live .go { grid-column: 2; grid-row: 1 / span 3; background: var(--ball); color: var(--ball-ink); border-radius: 999px; padding: 12px 18px; font-weight: 700; }
-.tile.log { background: linear-gradient(135deg, var(--ball-hi), var(--ball) 60%, var(--ball-lo)); color: var(--ball-ink); box-shadow: 0 14px 30px -14px rgb(180 200 20 / .7), 0 1px 0 rgb(255 255 255 / .5) inset; }
-.tile.log .t-k { color: color-mix(in srgb, var(--ball-ink) 82%, transparent); }
-.tile.log .plus { width: 34px; height: 34px; border-radius: 50%; background: var(--ball-ink); color: var(--ball); display: grid; place-items: center; font-size: 22px; line-height: 1; }
+.tile.log .plus { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-size: 22px; line-height: 1; }
+.rw-tile-day { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.rw-tile-day svg { width: 18px; height: 18px; flex: none; }
+.rw-tile .t-big { margin-top: auto; }
+.gn-plan-home { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.gn-notify { min-height: 44px; padding: 8px 12px; }
+.ch-tile .ch-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.ch-tile .ch-n { flex: none; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tile.log .t-name { margin-top: auto; font-size: 17px; }
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 58px; margin-top: 4px; }
 .week div { display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
@@ -3087,8 +3092,9 @@ function homeTiles(games) {
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
   const top = leaderStats(games, setup.mode)[0];
   const chTile = challengesTile();
-  const stats = `<section class="tiles"><button class="tile${chTile ? '' : ' wide'}" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
-    ${top ? `<span class="t-name">${esc(top.name)}</span><span class="t-big">${r2(top.rating)}</span>` : `<span class="t-name">No ratings yet</span><span class="t-foot">Save a game with named players</span>`}</button>${chTile}</section>`;
+  const rwTile = Rewards.tileHTML();
+  const stats = `<section class="tiles">${rwTile}<button class="tile${rwTile ? '' : ' wide'}" data-tab-go="leaders"><span class="t-k">Top ${setup.mode === 'singles' ? 'singles' : 'doubles'} player</span>
+    ${top ? `<span class="t-name">${esc(top.name)}</span><span class="t-big">${r2(top.rating)}</span>` : `<span class="t-name">No ratings yet</span><span class="t-foot">Save a game with named players</span>`}</button></section>${chTile}`;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const days = Array.from({ length: 7 }, (_, i) => new Date(today.getTime() - (6 - i) * DAY));
   const counts = days.map(d => games.filter(g => g.endedAt >= d.getTime() && g.endedAt < d.getTime() + DAY).length);
@@ -3099,7 +3105,7 @@ function homeTiles(games) {
   const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div></div>${BALL_IMG('hero-ball', 124)}
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
-  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${Rewards.cardHTML()}${stats}${monthCard(games)}`;
+  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${gnPlanHomeHTML()}${Rewards.cardHTML()}${stats}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
@@ -4668,10 +4674,10 @@ function challengesTile() {
   const mine = (progressOf(myName()) || {}).week || [];
   const items = info.week.challenges.map(c => {
     const st = mine.find(x => x.id === c.id) || { progress: 0, done: false };
-    return `<li class="${st.done ? 'done' : ''}"><b>${st.done ? '✓ ' : ''}${esc(c.name)}</b><span class="ch-bar" aria-hidden="true"><i style="width:${Math.round(100 * st.progress / c.goal)}%"></i></span></li>`;
+    return `<li class="${st.done ? 'done' : ''}"><span class="ch-row"><b>${st.done ? '✓ ' : ''}${esc(c.name)}</b><span class="ch-n">${Math.min(st.progress, c.goal)} of ${c.goal}</span></span><span class="ch-bar" aria-hidden="true"><i style="width:${Math.round(100 * Math.min(st.progress, c.goal) / c.goal)}%"></i></span></li>`;
   }).join('');
   const d = daysLeft(info.week.end);
-  return `<section class="tile ch-tile" aria-label="This week's challenges"><span class="t-k">This week's challenges</span><ul>${items}</ul><span class="t-foot">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></section>`;
+  return `<section class="card ch-tile" aria-labelledby="ch-h"><div class="sec-head"><h2 id="ch-h" class="h-sub">This week's challenges</h2><span class="note">${d <= 1 ? 'New ones tomorrow' : `New ones in ${d} days`}</span></div><ul>${items}</ul></section>`;
 }
 
 // Tell the player when something new unlocks (checked after each refresh from the server).
@@ -5500,7 +5506,7 @@ function otHandle(ds) {
 /* ---------- game nights (api/_gamenights.js via api/club.js) ---------- */
 const GN_GRACE_MS = 4 * 60 * 60 * 1000;
 // The organizer's "Schedule a game night" row: a white lifted row with a coral calendar tile and a chevron (same button, same data-gn="new").
-const GN_PLAN_ROW = '<button type="button" class="gn-plan" data-gn="new"><span class="np-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="np-txt"><b>Schedule a game night</b><small>Pick a time and see who\'s in</small></span><span class="np-chev" aria-hidden="true">›</span></button>';
+const GN_PLAN_ROW = '<button type="button" class="gn-plan" data-gn="new"><span class="np-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></span><span class="np-txt"><b>Plan a game night</b><small>Pick a time and see who\'s in</small></span><span class="np-chev" aria-hidden="true">›</span></button>';
 const gnCanOrg = () => !!club && (isCreator() || (club.hasPin && hasOrganizer()));
 const gnUpcoming = () => ((clubData && clubData.nights) || []).filter(n => n && n.status === 'open' && n.startsAt >= Date.now() - GN_GRACE_MS);
 
@@ -5597,6 +5603,14 @@ function gnCapBadgeHTML(n) {
 }
 
 // Home screen card for the next game night; nothing when none is scheduled (scheduling lives in the club sheet).
+// Home: the organizer's plan row, and under it the opt-in link to game-night alerts (anyone with a linked name).
+function gnPlanHomeHTML() {
+  if (!club || !API_OK) return '';
+  const row = gnCanOrg() ? GN_PLAN_ROW : '';
+  const link = myName() && myToken() ? '<button type="button" class="link gn-notify" data-act="notify-open">Notify me about game nights</button>' : '';
+  return row || link ? `<section class="gn-plan-home">${row}${link}</section>` : '';
+}
+
 function gnHomeHTML() {
   if (!club || !API_OK) return '';
   const list = gnUpcoming();
