@@ -3329,6 +3329,7 @@ function rulesView() {
     ['rules-kitchen', 'Kitchen'],
     ['rules-winning', 'Winning'],
     ['rules-rating', 'Rating'],
+    ...Rewards.rulesJump(),
     ['rules-achievements', 'Achievements'],
     ['rules-help', 'Help']
   ];
@@ -3351,6 +3352,7 @@ function rulesView() {
         <li>Reliability grows with the number of games you play, up to 100% at 20 games, and fades after a month without playing. Until your tenth game your rating is marked Provisional, and it moves faster while reliability is low.</li>
         <li>A blowout counts no more than an 11–3 win: the score share used for your rating is capped at about 79%, so running up the score doesn't help.</li>
         <li>Logged results count the same as games scored live.</li></ul></div>
+    ${Rewards.rulesHTML()}
     <div class="rule" id="rules-achievements"><h3>Achievements, challenges and seasons</h3><ul><li><b>Achievements:</b> one-time badges like Shutout, Heater (5 straight wins) and Giant killer. See them on your profile.</li><li><b>Weekly challenges:</b> three new goals every Monday, the same for everyone, shown on the home screen.</li><li><b>Seasons:</b> every three months (Winter, Spring, Summer, Fall) the season table starts fresh at 2.00. The top 3 with 5 or more games win a permanent trophy.</li><li><b>Rivalries:</b> your record against the people you play most, on your profile.</li><li>Only games sent from a club player's own phone (scored live or logged, for any players) count toward these.</li></ul></div>
     <div class="rule" id="rules-help"><h3>Settings, DUPR and tour</h3>
       <div class="rule-goto"><span><b>Display and sound</b> live in <b>You</b> (theme, sunlight, court scores).</span><button type="button" class="link" data-act="settings-open">Open display settings</button></div>

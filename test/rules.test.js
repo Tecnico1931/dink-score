@@ -6,7 +6,16 @@ import assert from 'node:assert/strict';
 import { fn, page } from './helpers/app.js';
 
 const html = page();
-const rulesHtml = new Function(fn('rulesView') + '\nreturn rulesView();')();
+// Rewards is the economy module's: off here (nothing drawn); the second render stands in for rewards being shown.
+const render = Rewards => new Function('Rewards', fn('rulesView') + '\nreturn rulesView();')(Rewards);
+const rulesHtml = render({ rulesJump: () => [], rulesHTML: () => '' });
+const withCard = render({ rulesJump: () => [['rules-earning', 'Earning']], rulesHTML: () => '<div class="rule" id="rules-earning"><h3>Earning card</h3></div>' });
+
+test('the rewards card joins the jump row and sits before Achievements only when rewards are shown', () => {
+  assert.ok(!rulesHtml.includes('rules-earning'), 'nothing drawn where rewards are off');
+  assert.match(withCard, /<a href="#rules-earning">Earning<\/a>[\s\S]*<a href="#rules-achievements">/);
+  assert.ok(withCard.indexOf('id="rules-earning"') < withCard.indexOf('id="rules-achievements"'));
+});
 
 test('every jump label in the Rules jump row is a real anchor with an existing unique target id', () => {
   const nav = rulesHtml.match(/<nav class="rules-jump" aria-label="([^"]+)">([\s\S]*?)<\/nav>/);
