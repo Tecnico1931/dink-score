@@ -192,6 +192,8 @@ const Rewards = {
     return n >= 2 ? `<span class="rw-flame" aria-hidden="true">${rwFlame}<b>${n}</b></span>` : '';
   },
   label() { const n = rwShown() ? rwStreak(rwCur(), rwDayKey(Date.now())) : 0; return n >= 2 ? `. ${n} day play streak` : ''; },
+  // The "N Dinks" chip beside your name on your own profile. Never another player's balance, and gone when rewards are hidden or off.
+  chipHTML(name) { return rwShown() && isMe(name) && myName() && myToken() ? `<span class="badge rw-bal">${rwDinks(rwCur().dinks)}</span>` : ''; },
   // "Your Dink" card on the Play tab.
   // The small "Your Dinks" tile beside Top player on Play: balance and streak only (the card below keeps the actions).
   tileHTML() {

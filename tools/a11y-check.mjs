@@ -228,6 +228,29 @@ for (const [mode, opt] of states) {
     await page.evaluate(() => { profile = { name: 'Ana', mode: 'doubles' }; renderProfile(); }); await sleep(250);
     if (!(await page.$('#sheet4 .pf-head .av[data-rw-frame="double"]')) || !(await page.$('#sheet4 .pf-head .rw-pad[data-rw-skin="stripe"]')) || !(await page.$('#sheet4 .pf-head .rw-pet-club'))) report.push({ label: `Profile shared looks (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: 'shared ring, paddle badge or pet missing on profile', px: 0 }] });
     else await audit(page, `Profile shared looks (${colorScheme})`, report, '#sheet4 .pf-head');
+    // Own profile: Stats / Paddles tabs (roving tabindex, arrow keys, focus kept) and the Dinks chip; another player's profile has neither.
+    {
+      const bad = [];
+      const st = () => page.evaluate(() => ({ tabs: [...document.querySelectorAll('#sheet4 [role="tab"]')].map(b => b.dataset.ptab + ':' + b.getAttribute('aria-selected') + ':' + b.tabIndex), chip: (document.querySelector('#sheet4 .pf-head .rw-bal') || {}).textContent || '', focus: document.activeElement && document.activeElement.dataset.ptab || '', panel: !!document.querySelector('#sheet4 [role="tabpanel"][aria-labelledby]'), pad: !!document.querySelector('#sheet4 [data-act="paddle-open"]') }));
+      const saved = await page.evaluate(() => { const o = JSON.stringify(me[club.code] || null); me[club.code] = Object.assign({}, me[club.code], { name: 'Ana', token: 'tok' }); club.rewards = true; rwSave(Object.assign({}, rwCur(), { dinks: 5 })); profile = { name: 'Ana', mode: 'doubles' }; renderProfile(); return o; });
+      await sleep(200);
+      let s = await st();
+      if (s.tabs.join() !== 'stats:true:0,paddles:false:-1' || s.chip !== '5 Dinks' || !s.panel || s.pad) bad.push('own profile starts on Stats with the chip: ' + JSON.stringify(s));
+      await page.focus('#sheet4 [data-ptab="stats"]'); await page.keyboard.press('ArrowRight'); await sleep(150);
+      s = await st();
+      if (s.tabs.join() !== 'stats:false:-1,paddles:true:0' || s.focus !== 'paddles' || !s.pad) bad.push('ArrowRight should select Paddles and keep focus: ' + JSON.stringify(s));
+      await sleep(350); // let the tab colour transition finish before axe samples it
+      await audit(page, `Own profile, Paddles tab (${colorScheme})`, report, '#sheet4 .sheet');
+      await page.keyboard.press('Home'); await sleep(500);
+      s = await st();
+      if (s.tabs[0] !== 'stats:true:0' || s.focus !== 'stats') bad.push('Home should select Stats: ' + JSON.stringify(s));
+      await audit(page, `Own profile, Stats tab (${colorScheme})`, report, '#sheet4 [role="tablist"]');
+      await page.evaluate(() => { profile = { name: 'Ben', mode: 'doubles' }; renderProfile(); }); await sleep(150);
+      s = await st();
+      if (s.tabs.length || s.chip) bad.push("another player's profile must have no tabs and no Dinks chip: " + JSON.stringify(s));
+      await page.evaluate(o => { if (o === 'null') delete me[club.code]; else me[club.code] = JSON.parse(o); profile = { name: 'Ana', mode: 'doubles' }; renderProfile(); }, saved);
+      for (const m of bad) report.push({ label: `Profile tabs (${colorScheme})`, axe: [], extra: [{ kind: 'text', name: m, px: 0 }] });
+    }
     if (colorScheme === 'light') {
       for (const w of [320, 195]) {
         await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);

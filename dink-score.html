@@ -408,7 +408,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .lab { font-size: 13px; font-weight: 500; color: var(--muted); }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-2); border-radius: 14px; padding: 4px; gap: 4px; }
 .seg button { min-width: 0; border: 0; background: transparent; border-radius: 10px; padding: 10px 6px; font-weight: 600; font-size: 15px; line-height: 1.2; color: var(--muted); transition: background .15s, color .15s; }
-.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(14 23 38 / .14); }
+.seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(14 23 38 / .14); }
 .seg.sm button { padding: 7px 10px; font-size: 14px; }
 .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
 .pal-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -967,6 +967,9 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 
 /* Player badges and DUPR */
 .badge.you { background: var(--ink); color: var(--bg); margin-left: 6px; }
+.badge.rw-bal { background: var(--ball); color: var(--ball-ink); margin-left: 6px; white-space: nowrap; } /* your own balance, on your own profile only */
+.pf-panel { display: flex; flex-direction: column; gap: 16px; }
+.pf-panel:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; border-radius: 8px; }
 .avatar-mini { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--bg); display: inline-grid; place-items: center; font-weight: 700; font-size: 13px; flex: none; }
 .dupr { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
 .dupr small { font-size: 12px; font-weight: 500; opacity: .8; }
@@ -1505,7 +1508,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-outdoor] .btn-soft, :root[data-outdoor] .setup-opts-toggle { box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .delta-pill, :root[data-outdoor] .exp-delta, :root[data-outdoor] .exp-box, :root[data-outdoor] .exp-why { box-shadow: inset 0 0 0 1.5px var(--ink); }
 :root[data-outdoor] .recap-cta, :root[data-outdoor] .recap-hl { box-shadow: inset 0 0 0 2px var(--ink); border-color: transparent; }
-:root[data-outdoor] .seg button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+:root[data-outdoor] .seg button[aria-pressed="true"], :root[data-outdoor] .seg button[aria-selected="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .pal-opt { border: 2px solid var(--ink); }
 :root[data-outdoor] .pal-opt[aria-pressed="true"] { background: var(--surface-2); box-shadow: inset 0 0 0 2px var(--ink); }
 :root[data-outdoor] .pal-sw { background: var(--p2); }
@@ -6341,6 +6344,29 @@ function wireChart() {
   svgEl.addEventListener('pointerdown', e => show(e.clientX));
   svgEl.addEventListener('pointerleave', hide);
 }
+// Closing the profile puts focus back on the button that opened it (when that button is still on the page).
+function closeProfile() {
+  const back = profile && profile.from;
+  profile = null; duprEdit = null; renderProfile();
+  if (back && back.isConnected) { try { back.focus({ preventScroll: true }); } catch {} }
+}
+// Stats / Paddles tabs (your own profile only). Focus stays on the chosen tab because the sheet is redrawn.
+function profileTab(tab, focus = true) {
+  if (!profile) return;
+  profile.tab = tab === 'paddles' ? 'paddles' : 'stats';
+  renderProfile();
+  const b = focus && document.querySelector(`#sheet4 [data-ptab="${profile.tab}"]`);
+  if (b) b.focus({ preventScroll: true });
+}
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (!profile || !t || !t.matches || !t.matches('#sheet4 [role="tab"][data-ptab]')) return;
+  const tabs = ['stats', 'paddles'], i = tabs.indexOf(t.dataset.ptab);
+  const next = e.key === 'ArrowRight' ? tabs[(i + 1) % tabs.length] : e.key === 'ArrowLeft' ? tabs[(i + tabs.length - 1) % tabs.length] : e.key === 'Home' ? tabs[0] : e.key === 'End' ? tabs[tabs.length - 1] : null;
+  if (!next) return;
+  e.preventDefault();
+  profileTab(next);
+});
 function renderProfile() {
   const root = $('#sheet4');
   if (!profile) { duprEdit = null; root.innerHTML = ''; root._html = root._key = ''; return; }
@@ -6372,16 +6398,22 @@ function renderProfile() {
       ${pr.opps.length ? `<div class="field" style="margin:0"><span class="lab">Head to head</span><div class="pf-list">${pr.opps.slice(0, 8).map(e => row(e)).join('')}</div></div>` : ''}
       <div class="field" style="margin:0"><span class="lab">Recent games</span><div class="pf-list">${pr.recent.map(g => { const t = g.teams[0].some(n => sameName(n, profile.name)) ? 0 : 1; const won = g.winner === t; return `<div class="pf-row" style="grid-template-columns:auto 1fr auto"><span class="wl ${won ? 'w' : 'l'}">${won ? 'W' : 'L'}</span><span class="who" style="font-weight:500">vs ${esc(teamLabel(g.teams[1 - t]))}</span><span class="n">${Number(g.score[t])}–${Number(g.score[1 - t])}</span></div>`; }).join('')}</div></div>`;
   }
-  const changed = setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
-    <div class="pf-head"><span class="av"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(pr.name) : ''}>${avatarInner(pr.name)}</span><h2 id="pf-h" tabindex="-1">${esc(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(pr.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(pr.name) : ''}${youTag(pr.name)}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
-    ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
-    ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
-    ${selfDuprHTML(pr.name)}
+  // Your own profile has two tabs, Stats and Paddles; anyone else's is just the stats.
+  const hasTabs = !!club && isMe(pr.name);
+  const tab = hasTabs && profile.tab === 'paddles' ? 'paddles' : 'stats';
+  const tabs = hasTabs ? `<div class="seg" role="tablist" aria-label="Profile sections">${[['stats', 'Stats'], ['paddles', 'Paddles']].map(([v, l]) => `<button type="button" role="tab" id="pf-tab-${v}" data-ptab="${v}" aria-selected="${v === tab}" aria-controls="pf-panel" tabindex="${v === tab ? 0 : -1}">${l}</button>`).join('')}</div>` : '';
+  const panel = tab === 'paddles' ? paddlesProfileHTML(pr.name, rated)
+    : `${selfDuprHTML(pr.name)}
     ${dssoProfileHTML(pr.name)}
-    ${paddlesProfileHTML(pr.name, rated)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}
-    ${club && games ? achievementsHTML(pr.name) : ''}</div></div>`, profile.name + '|' + profile.mode);
+    ${club && games ? achievementsHTML(pr.name) : ''}`;
+  const changed = setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
+    <div class="pf-head"><span class="av"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(pr.name) : ''}>${avatarInner(pr.name)}</span><h2 id="pf-h" tabindex="-1">${esc(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(pr.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(pr.name) : ''}${youTag(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.chipHTML(pr.name) : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
+    ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
+    ${tabs}
+    <div class="pf-panel"${tabs ? ` role="tabpanel" id="pf-panel" aria-labelledby="pf-tab-${tab}" tabindex="0"` : ''}>${panel}</div></div></div>`, profile.name + '|' + profile.mode + '|' + tab);
   if (changed) wireChart();
 }
 /*MODULE-START:rating-explain*/
@@ -8393,7 +8425,7 @@ document.addEventListener('click', e => {
     if (settingsOpen && e.target.closest && e.target.closest('#sheet9') && e.target.classList.contains('sheet-bg')) { closeSettings(); return; }
     if (inboxOpen && e.target.closest && e.target.closest('#sheet11') && e.target.classList.contains('sheet-bg')) { closeInbox(); return; }
     if (shareSheet && e.target.closest && e.target.closest('#sheet5') && e.target.classList.contains('sheet-bg')) { closeShare(); return; }
-    if (profile && e.target.closest && e.target.closest('#sheet4') && e.target.classList.contains('sheet-bg')) { profile = null; renderProfile(); return; }
+    if (profile && e.target.closest && e.target.closest('#sheet4') && e.target.classList.contains('sheet-bg')) { closeProfile(); return; }
     if (logForm && e.target.classList && e.target.classList.contains('sheet-bg') && e.target.classList.contains('top')) { logForm = null; render(); }
     if (newGameOpen && e.target.closest && e.target.closest('#sheet10') && e.target.classList.contains('sheet-bg')) { closeNewGame(); return; }
     return;
@@ -8422,8 +8454,9 @@ document.addEventListener('click', e => {
     if (ds.tour === 'done') closeTour(); else renderTour();
     return;
   }
-  if (ds.player) { if (clubSheet && el.closest && el.closest('#sheet3')) { clubSheet = null; renderClub(); } profile = { name: ds.player, mode: profile ? profile.mode : ratingMode }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
+  if (ds.player) { if (clubSheet && el.closest && el.closest('#sheet3')) { clubSheet = null; renderClub(); } const from = profile ? profile.from : el; profile = { name: ds.player, mode: profile ? profile.mode : ratingMode, from }; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; return; }
   if (ds.pmode) { profile.mode = ds.pmode; renderProfile(); return; }
+  if (ds.ptab && profile) { profileTab(ds.ptab); return; }
   if (ds.act === 'recap-open' && profile) {
     const ys = YearRecap.years(DR, profile.name, ratedGames());
     if (ys.length) { profile.recap = ys[0]; renderProfile(); const sh = $('#sheet4 .sheet'); if (sh) sh.scrollTop = 0; const h = $('#pf-h'); if (h) h.focus({ preventScroll: true }); announce(`Showing ${profile.recap} year in review`); }
@@ -8443,7 +8476,7 @@ document.addEventListener('click', e => {
     if (r.games) openRecapShare(recapCardData(r));
     return;
   }
-  if (ds.act === 'profile-close') { profile = null; duprEdit = null; renderProfile(); return; }
+  if (ds.act === 'profile-close') { closeProfile(); return; }
   // The profile's DUPR box and the Your DUPR card share these; the name is the open profile's, else this phone's player.
   const duprName = profile ? profile.name : myName();
   if (ds.act === 'dupr-edit' && duprName) { duprEdit = { name: duprName, value: String(duprOf(duprName) || ''), error: '', busy: false }; refreshDupr(); const i = $('#dupr-in'); if (i) i.focus(); return; }
@@ -8825,7 +8858,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && inboxOpen) { closeInbox(); return; }
   if (e.key === 'Escape' && settingsOpen) { closeSettings(); return; }
   if (e.key === 'Escape' && shareSheet) { closeShare(); return; }
-  if (e.key === 'Escape' && profile) { profile = null; renderProfile(); return; }
+  if (e.key === 'Escape' && profile) { closeProfile(); return; }
   if (e.key === 'Escape' && clubSheet) { clubSheet = null; renderClub(); if (renderPending) safeRender(); return; }
   if (e.key === 'Escape' && logForm) { logForm = null; render(); return; }
   if (e.key === 'Escape' && newGameOpen) {
