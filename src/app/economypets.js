@@ -158,11 +158,7 @@ function rwPetsSectionHTML(c, s) {
     shinyToggle = `<button type="button" class="rw-share rw-pet-shiny" data-rw-shiny="${esc(featuredOwned.id)}:${on ? '0' : '1'}" aria-pressed="${on}" ${c.busy ? 'disabled' : ''}><span><b>Shiny coat for ${esc(featuredOwned.name)} (this week)</b><small>${esc(note)}</small></span><span class="rw-pill" aria-hidden="true">${on ? 'On' : 'Off'}</span></button>`;
   }
 
-  const adoptRows = unowned.map(i => {
-    const need = s.dinks < i.price ? `. You need ${i.price - s.dinks} more.` : '';
-    const feat = i.featuredShiny ? ' · Shiny week' : '';
-    return `<div class="rw-item rw-pet-row">${rwPetBadgeHTML(i.id, { stage: 1, shiny: false, decorative: true, size: 40 })}<span class="rw-name"><b>${esc(i.name)}</b><small>${rwDinks(i.price)}${need}${feat}</small></span><button type="button" class="btn btn-court" data-rw-buy="${esc(i.id)}" aria-label="Adopt ${esc(i.name)} for ${rwDinks(i.price)}${need.replace(/\.$/, '')}"${rwShortAttrs(i.price - s.dinks)} ${c.busy ? 'disabled' : ''}>Adopt</button></div>`;
-  }).join('');
+  const adoptRows = unowned.length && typeof rwShelf === 'function' ? rwShelf(c, s, unowned) : '';
   const adopt = adoptRows
     ? `<div><p class="note">Fixed prices, bought once. Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+).</p>${adoptRows}</div>`
     : '<p class="note">You have adopted all five court pets.</p>';

@@ -61,7 +61,8 @@ const pairs = (t, mode, id) => [
   [t['dsp-ink'], t['dsp-bg'], 7, 'TV display primary text on ground'], [t['dsp-ink'], t['dsp-surface'], 7, 'TV display primary text on card'],
   [t.ball, t['dsp-bg'], 7, 'TV display ball accent on ground'], [t.ball, t['dsp-surface'], 7, 'TV display ball accent on card'],
   [t['dsp-muted'], t['dsp-bg'], 4.5, 'TV display muted text on ground'], [t['dsp-muted'], t['dsp-surface'], 4.5, 'TV display muted text on card'],
-  [t['dsp-dim'], t['dsp-bg'], 4.5, 'TV display dim text on ground']
+  [t['dsp-dim'], t['dsp-bg'], 4.5, 'TV display dim text on ground'],
+  ...['rare', 'legendary', 'mythic', 'shiny'].map(k => [t[k + '-fg'], t[k + '-bg'], 4.5, `${k} badge text on its chip`])
 ];
 for (const id of PALETTE_IDS) {
   for (const mode of ['light', 'dark', 'outdoor']) {

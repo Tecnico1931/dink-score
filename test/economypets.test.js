@@ -30,11 +30,11 @@ const nullDayEarn = (id, amount) => ({ id, kind: 'earn', amount, reason: 'pass:t
 test('pet catalogue: 5 fixed-price pets in CATALOGUE under slot pet, valid buy ids, excluded from random box draws', () => {
   assert.equal(PETS.length, 5);
   assert.deepEqual(PETS.map(p => p.id), ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie']);
-  assert.deepEqual(petById('pet-yorkie'), { id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 20 });
+  assert.deepEqual(petById('pet-yorkie'), { id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 20, rarity: 'rare' });
   assert.ok(SLOTS.includes('pet'));
   const weekPay = 7 * DAY_PAY + BONUS[0][1] + BONUS[1][1]; // 14 Dinks
   for (const p of PETS) {
-    assert.deepEqual(Object.keys(p).sort(), ['id', 'name', 'price', 'slot']);
+    assert.deepEqual(Object.keys(p).sort(), ['id', 'name', 'price', 'rarity', 'slot']);
     assert.equal(p.slot, 'pet');
     assert.ok(p.id.startsWith('pet-'));
     assert.ok(Number.isInteger(p.price) && p.price >= 1 && p.price <= 2 * weekPay);
@@ -476,16 +476,16 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(html, /This week's shiny coat: Court Frog/);
   assert.match(html, /Court Frog → Dink Duck → Kitchen Cat → Net Owl → Yorkie/);
   assert.match(html, /every 5 weeks/);
-  assert.match(html, /data-rw-buy="pet-yorkie"[^>]*>Adopt/);
-  assert.match(html, /Yorkie<\/b><small>20 Dinks\. You need 5 more\./, 'Yorkie is listed at its fixed price');
+  assert.match(html, /data-rw-buy="pet-yorkie"[^>]*>5 more</);
+  assert.match(html, /Yorkie<\/b><small class="rw-cost">20 Dinks<\/small>/, 'Yorkie is listed at its fixed price');
   assert.match(html, /aria-label="Adopt Yorkie for 20 Dinks\. You need 5 more"/);
   assert.match(html, /data-rw-wear="pet:pet-frog"[^>]*aria-pressed="true"/);
   assert.match(html, /data-rw-wear="pet:"/);
   assert.match(html, /Club · 8 more play days to Veteran \(7\/15\)/);
   assert.match(html, /data-rw-shiny="pet-frog:1"[^>]*aria-pressed="false"/, 'one-tap shiny toggle appears during featured week');
   assert.match(html, /data-rw-buy="pet-duck"/);
-  assert.match(html, /Dink Duck<\/b><small>14 Dinks/);
-  assert.match(html, /Kitchen Cat<\/b><small>18 Dinks\. You need 3 more\./, 'shortfall stated before tapping');
+  assert.match(html, /Dink Duck<\/b><small class="rw-cost">14 Dinks/);
+  assert.match(html, /data-rw-buy="pet-cat"[^>]*aria-label="Adopt Kitchen Cat for 18 Dinks\. You need 3 more"[^>]*>3 more</, 'shortfall stated before tapping');
   assert.ok(!/data-rw-buy="pet-frog"/.test(html), 'owned pet is not offered to adopt again');
   assert.ok(!/animation|confetti|odds|random/i.test(html), 'calm copy only');
 

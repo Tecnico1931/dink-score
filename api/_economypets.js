@@ -16,11 +16,11 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // Five court pets at fixed Dinks prices (included in CATALOGUE in _economyshop.js; never in random box draws). PETS order is the rotation order.
 export const PETS = Object.freeze([
-  Object.freeze({ id: 'pet-frog', slot: 'pet', name: 'Court Frog', price: 12 }),
-  Object.freeze({ id: 'pet-duck', slot: 'pet', name: 'Dink Duck', price: 14 }),
-  Object.freeze({ id: 'pet-cat', slot: 'pet', name: 'Kitchen Cat', price: 18 }),
-  Object.freeze({ id: 'pet-owl', slot: 'pet', name: 'Net Owl', price: 24 }),
-  Object.freeze({ id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 20 })
+  Object.freeze({ id: 'pet-frog', slot: 'pet', name: 'Court Frog', price: 12, rarity: 'common' }),
+  Object.freeze({ id: 'pet-duck', slot: 'pet', name: 'Dink Duck', price: 14, rarity: 'common' }),
+  Object.freeze({ id: 'pet-cat', slot: 'pet', name: 'Kitchen Cat', price: 18, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-owl', slot: 'pet', name: 'Net Owl', price: 24, rarity: 'rare' }),
+  Object.freeze({ id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 20, rarity: 'rare' })
 ]);
 
 // Three growth stages fed purely by distinct verified play days since adoption.
