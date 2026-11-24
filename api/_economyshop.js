@@ -12,7 +12,19 @@ import { ledgerBalance, spendEntry, paceFrom } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
 import { SEASONAL, seasonFor, isAvailable, closedMessage } from './_economyseason.js';
 
-export const SLOTS = ['frame', 'paddle', 'pet'];
+// One place that says which slots exist. `club`: a worn item in the slot may be shown to the club (opt-in look); a sound is only ever heard on the
+// player's own phone. Order = the order the shop lists them. Adding a slot here (plus its items) is all the server needs: wear, buy and the club
+// allow-list read this table. `reward_items.slot` is free text, so there is no schema change.
+export const SLOT_META = Object.freeze([
+  { id: 'frame', label: 'Avatar rings', note: 'A ring around your picture.', club: true },
+  { id: 'paddle', label: 'Paddles', note: 'Paddle thumbnails.', club: true },
+  { id: 'pet', label: 'Pets', note: 'A companion that grows as you play.', club: true },
+  { id: 'title', label: 'Titles', note: 'Shown under your name.', club: true },
+  { id: 'style', label: 'Name styles', note: 'How your name is drawn.', club: true },
+  { id: 'sound', label: 'Victory sounds', note: 'Plays on your phone when you win, if you turn sound on.', club: false }
+].map(Object.freeze));
+export const SLOTS = SLOT_META.map(s => s.id);
+const CLUB_SLOTS = SLOT_META.filter(s => s.club).map(s => s.id);
 // id, slot, name, price in Dinks. About a week of daily play pays for a cheap one; the double ring, striped paddle and top pet take two.
 export const CATALOGUE = [
   { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6 },
@@ -51,8 +63,10 @@ export async function loadItems(sql, code, key) {
   return (await sql`SELECT item, slot, worn, shiny, at FROM reward_items WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, item ASC`)
     .filter(r => itemById(r.item)).map(r => ({ id: r.item, slot: r.slot, worn: !!r.worn, shiny: !!r.shiny, at: r.at }));
 }
-// The worn item per slot ({frame, paddle, pet}, '' when none), as the phone draws it.
-export const wornFrom = items => Object.fromEntries(SLOTS.map(s => [s, (items.find(i => i.slot === s && i.worn) || {}).id || '']));
+// The worn item per slot ('' when none), as the phone draws it. A slot is listed once the shop sells something in it, so the answer
+// does not grow before WI-9/10 add titles, name styles and sounds.
+const hasItems = s => CATALOGUE.some(i => i.slot === s) || SEASONAL.some(i => i.slot === s);
+export const wornFrom = items => Object.fromEntries(SLOTS.filter(hasItems).map(s => [s, (items.find(i => i.slot === s && i.worn) || {}).id || '']));
 export const wornOf = async (sql, code, key) => wornFrom(await loadItems(sql, code, key));
 
 // Worn slot ids plus the active pet's derived stage and weekly shiny flag (or null if no pet is worn).
@@ -72,7 +86,7 @@ export function clubLooksFrom(rows, now = Date.now()) {
   for (const r of Array.isArray(rows) ? rows : []) {
     if (!r || typeof r.name_key !== 'string' || !r.name_key) continue;
     const it = itemById(r.item);
-    if (!it || it.slot !== r.slot || !SLOTS.includes(it.slot)) continue;
+    if (!it || it.slot !== r.slot || !CLUB_SLOTS.includes(it.slot)) continue;
     if (it.slot === 'pet') {
       const petLook = cleanPetLook(r, now);
       if (!petLook) continue;
@@ -159,7 +173,7 @@ export async function buyItem(sql, code, key, id, now = Date.now()) {
 // Wear one owned item, or none (id '' with a slot). One worn item per slot.
 // For slot 'pet', optional boolean `shiny` toggles this week's featured shiny coat (Variant A: refused with 409 outside its featured week).
 export async function wearItem(sql, code, key, slot, id, { shiny, now = Date.now() } = {}) {
-  if (!SLOTS.includes(slot)) throw Object.assign(new Error('Pick frame, paddle or pet.'), { status: 400 });
+  if (!SLOTS.includes(slot)) throw Object.assign(new Error('Pick ' + SLOTS.slice(0, -1).join(', ') + ' or ' + SLOTS[SLOTS.length - 1] + '.'), { status: 400 });
   if (shiny !== undefined && typeof shiny !== 'boolean') throw Object.assign(new Error('Say whether to use the weekly shiny coat.'), { status: 400 });
   if (shiny === true && (slot !== 'pet' || !id)) throw Object.assign(new Error('The weekly shiny coat is only for a worn court pet.'), { status: 400 });
   if (id) {
