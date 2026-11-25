@@ -1605,7 +1605,7 @@ await step('rewards event shelf: Christmas sells only inside its dates at one pr
   const evePre = (await pg.query(`SELECT coalesce(sum(amount), 0)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'eve'`, [cf.code])).rows[0].n; // 500 plus whatever Eve's games earned
   const v0 = await shopView(sql, cf.code, 'eve', on);
   assert.equal(v0.event.id, 'christmas'); assert.ok(v0.event.endsOn === '2026-12-25' && /25 December/.test(v0.event.note));
-  assert.deepEqual(v0.items.filter(i => i.event).map(i => [i.id, i.rarity, i.available]), [['frame-candy', 'rare', true], ['frame-twinkle', 'rare', true]]);
+  assert.deepEqual(v0.items.filter(i => i.event).map(i => [i.id, i.rarity, i.available]), [['title-santa', 'rare', true], ['title-jingle', 'rare', true], ['frame-candy', 'rare', true], ['frame-twinkle', 'rare', true], ['style-candy', 'rare', true], ['style-tinsel', 'rare', true], ['theme-snow', 'rare', true], ['celebrate-snowfall', 'rare', true], ['sound-bells', 'rare', true], ['celebrate-gifts', 'legendary', true]]);
   assert.equal((await shopView(sql, cf.code, 'eve', after)).event, null); assert.ok(!(await shopView(sql, cf.code, 'eve', after)).items.some(i => i.event));
   await assert.rejects(buyItem(sql, cf.code, 'eve', 'frame-candy', after), e => e.status === 409 && /Christmas/.test(e.message));
   const b = await buyItem(sql, cf.code, 'eve', 'frame-candy', on);
