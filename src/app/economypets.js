@@ -27,7 +27,7 @@ const RW_PET_PAD = '<rect x="46" y="23" width="12" height="15" rx="4.5" fill="va
 const rwPetGrow = (base, band, dx = -6, sc = 1) => ({
   1: `<g transform="translate(32 58) scale(.86) translate(-32 -58)">${base}</g>`,
   2: base + band,
-  3: `<g transform="translate(${dx} 0) translate(32 58) scale(${sc}) translate(-32 -58)">${base}${band}</g>${RW_PET_PAD}`
+  3: `<g transform="translate(${dx} 0)${sc === 1 ? '' : ` translate(32 58) scale(${sc}) translate(-32 -58)`}">${base}${band}</g>${RW_PET_PAD}`
 });
 const RW_PET_ART = {
   'pet-frog': {
