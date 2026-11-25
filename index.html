@@ -6133,7 +6133,12 @@ function historyView() {
   const totalRallies = games.reduce((s, g) => s + (g.rallies || 0), 0);
   const timed = games.filter(g => !g.logged);
   const totalMin = timed.reduce((s, g) => s + minutes(g), 0);
-  return head + onPhone + dupesHTML() + `<section class="totals"><div><b>${games.length}</b><span>Games</span></div><div><b>${totalRallies}</b><span>Rallies scored</span></div><div><b>${totalMin}</b><span>Minutes</span></div></section>
+  // Rallies and minutes only exist for games scored live; a club that only logs results sees games, players and points instead of two zeros.
+  const stat = (n, l) => `<div><b>${n}</b><span>${l}</span></div>`;
+  const totals = totalRallies > 0
+    ? stat(games.length, 'Games') + stat(totalRallies, 'Rallies scored') + stat(totalMin, 'Minutes')
+    : stat(games.length, 'Games') + stat(new Set(games.flatMap(g => g.teams.flat()).filter(n => !isDefaultName(n)).map(n => n.trim().toLowerCase())).size, 'Players') + stat(games.reduce((t, g) => t + Number(g.score[0]) + Number(g.score[1]), 0), 'Points');
+  return head + onPhone + dupesHTML() + `<section class="totals">${totals}</section>
     <section><ul class="games">${games.map(gameItem).join('')}</ul></section>`;
 }
 
