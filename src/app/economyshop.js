@@ -82,6 +82,26 @@ const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.random
 const RW_BOX_ART = '<svg class="rw-gift" viewBox="0 0 64 64" width="64" height="64" focusable="false" aria-hidden="true"><rect x="10" y="26" width="44" height="30" rx="4" fill="var(--court)"/><rect x="7" y="20" width="50" height="11" rx="4" fill="var(--court-2)"/><rect x="28" y="20" width="8" height="36" fill="var(--ball)"/><path d="M32 20c-4-9-14-9-13-3 1 5 9 3 13 3zm0 0c4-9 14-9 13-3-1 5-9 3-13 3z" fill="var(--ball)" stroke="var(--court-2)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 // The odds in one sentence, straight from the server's tiers: "50% common · 30% uncommon · ...".
 const rwBoxOddsLine = b => `A random look from the shop. ${(b.tiers || []).map(t => `${t.chance}% ${String(t.label || '').toLowerCase()}`).join(' · ')}.`;
+// Daily spin: a still wheel drawn from the server's segments (no spinning, no sound), the chances in words, one button. After the spin the
+// wheel is turned once, statically, so the won segment sits under the pointer. No countdown: the next spin is "tomorrow".
+function rwWheelSVG(seg, hit) {
+  const n = seg.length, a = 360 / n, pt = (deg, r) => `${(50 + r * Math.sin(deg * Math.PI / 180)).toFixed(2)} ${(50 - r * Math.cos(deg * Math.PI / 180)).toFixed(2)}`;
+  const cells = seg.map((v, i) => {
+    const on = i === hit, d = `M50 50L${pt((i - .5) * a, 47)}A47 47 0 0 1 ${pt((i + .5) * a, 47)}Z`;
+    return `<path d="${d}" fill="var(${on ? '--court' : i % 2 ? '--surface' : '--ball'})" stroke="var(--ink)" stroke-width="1"/><text x="50" y="17" transform="rotate(${i * a} 50 50)" text-anchor="middle" font-size="10" font-weight="800" fill="var(${on ? '--on-court' : '--ink'})">${v}</text>`;
+  }).join('');
+  return `<svg class="rw-wheel" viewBox="0 0 100 100" width="96" height="96" focusable="false" aria-hidden="true"><g${hit >= 0 && hit != null ? ` transform="rotate(${-hit * a} 50 50)"` : ''}>${cells}</g><circle cx="50" cy="50" r="5" fill="var(--ink)"/><path d="M45 1h10L50 11z" fill="var(--ink)" stroke="var(--surface)" stroke-width="1"/></svg>`;
+}
+function rwSpinHTML(c, s) {
+  const sp = s.spin;
+  if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !sp || !Array.isArray(sp.segments) || !sp.segments.length) return '';
+  const won = Number(sp.wonToday) || 0, hit = sp.spunToday ? sp.segments.indexOf(won) : -1;
+  const odds = (sp.chances || []).map(x => `${x.chance}% for ${x.value}`).join(' · ');
+  const res = sp.spunToday ? `<p class="rw-spin-res" role="status"><b>Won today: +${won} ${won === 1 ? 'Dink' : 'Dinks'}.</b> Your next free spin is tomorrow.</p>` : '';
+  return `<h3 class="rw-h">Daily spin</h3><section class="rw-spin" aria-label="Daily spin"><div class="rw-spin-main">${rwWheelSVG(sp.segments, hit)}<div><b class="rw-box-title">Daily spin</b><p class="rw-box-rates">Free Dinks once a day, up to ${esc(sp.max)}.</p></div></div>
+    <p class="rw-box-fine">Chances: ${esc(odds)}. The draw is made on the server. Free play money only, and it never changes a game, a rating, a rank or who plays.</p>${res}
+    <button type="button" class="btn btn-court block" data-rw-spin="1" ${c.busy || sp.spunToday ? 'disabled' : ''}>${sp.spunToday ? 'Spun today' : 'Spin'}</button></section>`;
+}
 function rwBoxHTML(c, s) {
   if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !s.box || !Array.isArray(s.box.tiers) || !s.box.tiers.length) return '';
   const b = s.box, opened = Number(b.openedToday) || 0, limit = Number(b.dailyLimit) || 3, atLimit = opened >= limit;
@@ -159,7 +179,7 @@ Object.assign(Rewards, {
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal || i.event);
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
-    const box = rwBoxHTML(c, s);
+    const box = rwSpinHTML(c, s) + rwBoxHTML(c, s);
     return `${head}${rwShopHeadHTML(c, s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
@@ -255,7 +275,7 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw="inv"], [data-rw="inv-back"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw="inv"], [data-rw="inv-back"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open], [data-rw-spin]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   if (t.dataset.rw === 'activity') { Rewards.openActivity(); return; }
@@ -267,6 +287,12 @@ document.addEventListener('click', e => {
   }
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store) return;
+  if (t.dataset.rwSpin) {
+    const sp = c.store.spin;
+    if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !sp || sp.spunToday || c.busy) return;
+    rwStoreAct({ action: 'rewards-spin' }, d => (d.spinResult ? `Daily spin: +${d.spinResult.value} ${d.spinResult.value === 1 ? 'Dink' : 'Dinks'}. Your next free spin is tomorrow.` : 'Daily spin done.'), '#club-h');
+    return;
+  }
   if (t.dataset.rwBoxOpen) {
     const b = c.store.box;
     if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !b || c.busy) return;

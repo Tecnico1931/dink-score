@@ -18,6 +18,7 @@
 //   rewards-prices|rewards-prices-save {pin|ownerToken, prices?|reset?} -> organizer: this club's own price per item and for the box; the catalogue price stays the default. See _economyprices.js.
 //   rewards-box-odds {}                               -> club members (when club.rewards and club.mystery_box are on): server odds table for the mystery box.
 //   rewards-box-open {name, playerToken, openId}      -> opens one mystery box on the server (idempotent by openId, daily limit, duplicate refund). See _economybox.js.
+//   rewards-spin {name, playerToken}                  -> the free daily spin (one per UTC day, server draw, idempotent; same gate as the box). See _economyspin.js.
 //   rewards-pass|rewards-pass-claim {name, playerToken, tier?, seasonId?} -> free season pass track per club season (derived from games saved
 //                                                       by this phone, idempotent ledger claims; see _economypass.js). Only while rewards are on.
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
@@ -43,6 +44,7 @@ import { cleanPaddles, countPaddlePhotos, paddlePhotoRoom } from './_paddles.js'
 import { rewardsFor, loadLedger } from './_economysync.js';
 import { shopView, buyItem, wearItem, wornSummaryOf, loadItems, clubLooks, shareOf, setShare, loadPrices } from './_economyshop.js';
 import { boxOdds, boxStatus, openBox } from './_economybox.js';
+import { spinStatus, doSpin } from './_economyspin.js';
 import { pricesView, savePrices } from './_economyprices.js';
 import { passView, claimPassTier } from './_economypass.js';
 import { activityFrom } from './_economyactivity.js';
@@ -207,6 +209,14 @@ export default handler(async (req, res) => {
     catch (e) { throw e.status ? fail(e.status, e.message) : e; }
   }
 
+  if (body.action === 'rewards-spin') {
+    const player = await requirePlayer(sql, code, body.name, body.playerToken);
+    if (!club.rewards || !club.mystery_box) throw fail(403, 'Mystery box and daily spin are off for this club.');
+    const { result, ...spin } = await doSpin(sql, code, player.name_key);
+    // The same answer shape as the catalogue (the phone swaps it in whole), plus this spin's win.
+    return send(res, 200, { ...await shopView(sql, code, player.name_key), box: await boxStatus(sql, code, player.name_key), spin, spinResult: result });
+  }
+
   if (body.action === 'rewards-catalog' || body.action === 'rewards-buy' || body.action === 'rewards-wear' || body.action === 'rewards-share') {
     // Fixed prices live in _economyshop.js only; the phone names an item and the server charges the catalogue price. Same gate as the balance.
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
@@ -216,7 +226,7 @@ export default handler(async (req, res) => {
         : body.action === 'rewards-buy' ? await buyItem(sql, code, player.name_key, String(body.item || ''))
         : body.action === 'rewards-share' ? await setShare(sql, code, player.name_key, body.share)
         : await wearItem(sql, code, player.name_key, String(body.slot || ''), String(body.item || ''), { shiny: body.shiny });
-      if (club.mystery_box) out.box = await boxStatus(sql, code, player.name_key);
+      if (club.mystery_box) { out.box = await boxStatus(sql, code, player.name_key); out.spin = await spinStatus(sql, code, player.name_key); }
       return send(res, 200, out);
     } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
   }
