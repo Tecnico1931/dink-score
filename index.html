@@ -6304,7 +6304,7 @@ function renderCourt() {
   if (s.winner !== null) {
     const w = s.winner;
     sheet = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="win-h"><span class="grip"></span>
-      <div class="sheet-head"><h2 class="winner-line" id="win-h">${esc(teamLabel(cfg.teams[w]))} ${cfg.teams[w].length > 1 ? 'win' : 'wins'}</h2><button class="btn btn-ball share-pill" data-act="share-live">${ICON.share}Share</button></div>
+      <div class="sheet-head"><h2 class="winner-line" id="win-h">${esc(teamLabel(cfg.teams[w]))} ${cfg.teams[w].length > 1 ? 'win' : 'wins'}</h2><button class="btn btn-soft share-pill" data-act="share-live">${ICON.share}Share</button></div>
       ${resultBlock(cfg.teams, s.score, w)}
       <div class="facts"><div><b>${s.rallies}</b><small>Rallies</small></div><div><b>${minutes(s)} min</b><small>Duration</small></div><div><b>${cfg.scoring === 'rally' ? 'Rally' : 'Side-out'}</b><small>To ${cfg.target}</small></div></div>
       ${ratingPreview(s)}
@@ -6358,13 +6358,34 @@ document.addEventListener('pointerdown', e => {
 });
 
 let askedWhoami = false;
+// Game Over with only default names: let the scorer name the players before saving, so the game rates.
+function nameBlock() {
+  if (live.event || live.shared) return `<p class="expect">Add player names next time to track Dink Ratings.</p>`;
+  const n = live.naming;
+  if (!n) return `<div style="display:flex;flex-direction:column;gap:8px"><p class="expect">Add player names to track Dink Ratings.</p><button type="button" class="btn btn-soft" data-act="name-open">Add player names</button></div>`;
+  const cfg = live.state.cfg;
+  const ins = cfg.teams.map((t, ti) => t.map((p, i) => `<input class="field-input" id="gn-${ti}-${i}" data-gname="${ti}-${i}" list="roster-list" maxlength="40" autocomplete="off" placeholder="${esc(p)}" value="${esc(n[ti + '-' + i] || '')}" aria-label="${TEAM_NAME[ti]} team, player ${i + 1}">`).join('')).join('');
+  return `<div class="gn-names" role="group" aria-labelledby="gn-l" style="display:flex;flex-direction:column;gap:8px"><p class="expect" id="gn-l">Type a name for each player you want rated.</p>${ins}${n._err ? `<p class="err" role="alert">${esc(n._err)}</p>` : ''}
+    <div class="btns"><button type="button" class="btn btn-ink" data-act="name-save">Save names</button><button type="button" class="btn btn-soft" data-act="name-cancel">Cancel</button></div></div>`;
+}
+function saveGameNames() {
+  const n = live.naming, cfg = live.state.cfg;
+  const names = cfg.teams.map((t, ti) => t.map((p, i) => (n[ti + '-' + i] || '').trim().replace(/\s+/g, ' ') || p));
+  const flat = names.flat();
+  if (!flat.some(x => !isDefaultName(x))) { n._err = 'Type at least one name.'; renderCourt(); const f = $('#gn-0-0'); if (f) f.focus(); return; }
+  if (new Set(flat.map(x => x.toLowerCase())).size < flat.length) { n._err = 'Each player needs a different name.'; renderCourt(); const f = $('#gn-0-0'); if (f) f.focus(); return; }
+  cfg.teams = names; live.naming = null;
+  addToRoster(flat.filter(x => !isDefaultName(x)));
+  persistLive(); renderCourt(); announce('Names saved. Dink Rating changes are shown.');
+  const h = $('#overlay .sheet h2'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+}
 function ratingPreview(s) {
   const rec = Object.assign(record(s), { id: '__pending' });
   const { changes } = DR.compute([...ratedGames(), rec]);
   const c = changes.__pending;
   if (!c) return '';
   const named = c.list.filter(x => !isDefaultName(x.name));
-  if (!named.length) return `<p class="expect">Add player names next time to track Dink Ratings.</p>`;
+  if (!named.length) return nameBlock();
   const fav = c.expected >= 0.5 ? 0 : 1;
   const pf = fav === 0 ? c.expected : 1 - c.expected;
   const target = s.cfg.target;
@@ -11564,7 +11585,10 @@ document.addEventListener('click', e => {
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
   if (act === 'start') beginGame();
   if (act === 'resume') { live.open = true; persistLive(); keepAwake(true); render(); }
-  if (act === 'undo' && live) { clearConfetti(); if (isShared()) { serverUnrally(); return; } if (live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); } }
+  if (act === 'undo' && live) { clearConfetti(); live.naming = null; if (isShared()) { serverUnrally(); return; } if (live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); } }
+  if (act === 'name-open' && live) { live.naming = {}; renderCourt(); const f = $('#gn-0-0'); if (f) f.focus(); return; }
+  if (act === 'name-cancel' && live) { live.naming = null; renderCourt(); const b = $('#overlay [data-act="name-open"]'); if (b) b.focus(); return; }
+  if (act === 'name-save' && live && live.naming) { saveGameNames(); return; }
   if (act === 'end') { live.confirmEnd = true; renderCourt(); }
   if (act === 'keep') { live.confirmEnd = false; renderCourt(); }
   if (act === 'minimize') { clearConfetti(); live.confirmEnd = false; live.open = false; persistLive(); keepAwake(false); render(); }
@@ -11601,6 +11625,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   const d = e.target.dataset || {};
+  if (d.gname && live && live.naming) { live.naming[d.gname] = e.target.value; return; }
   if (d.clIn && clubSheet && clubSheet.view === 'clublinks') { clubSheet.invite = e.target.value; return; }
   if (d.seIn && clubSheet && clubSheet.view === 'season-end') { clubSheet.name = e.target.value; return; }
   if (d.gnIn && clubSheet && clubSheet.view === 'night-form' && clubSheet.draft) { clubSheet.draft[d.gnIn] = e.target.value; return; }
