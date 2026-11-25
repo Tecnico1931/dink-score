@@ -15,7 +15,7 @@ const between = (from, to) => {
   return html.slice(a, b);
 };
 
-const fnSrc = between('function clubRow(', 'function renderClub()');
+const fnSrc = between('function rowIco(', 'function youRow(') + between('function clubRow(', 'function renderClub()');
 const switcherSrc = between('function clubSwitcherHTML()', 'async function clubJoinByCode(');
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
