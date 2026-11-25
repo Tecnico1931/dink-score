@@ -791,7 +791,13 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
   background: color-mix(in srgb, var(--bg) 90%, transparent);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
-.rules-jump ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.rules-jump ul {
+  list-style: none; margin: -3px; padding: 3px 27px 3px 3px; display: flex; flex-wrap: nowrap; gap: 6px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 24px), transparent); mask-image: linear-gradient(to right, var(--ink) calc(100% - 24px), transparent);
+}
+.rules-jump ul::-webkit-scrollbar { display: none; }
+.rules-jump li { flex: none; }
 .rules-jump a {
   display: inline-flex; align-items: center; justify-content: center;
   min-height: 44px; min-width: 44px; padding: 0 11px;
@@ -801,7 +807,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
   box-shadow: var(--shadow);
 }
 .rules-jump a:active { background: var(--surface-2); }
-.rule[id], .rules button, .rules a { scroll-margin-top: calc(118px + env(safe-area-inset-top, 0px)); }
+.rule[id], .rules button, .rules a { scroll-margin-top: calc(68px + env(safe-area-inset-top, 0px)); }
 .rule h3:focus:not(:focus-visible) { outline: none; }
 .rule-goto { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .rule-goto:first-of-type { border-top: 0; padding-top: 0; }
@@ -863,11 +869,13 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .icon-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; color: #fff; background: rgb(255 255 255 / .08); box-shadow: inset 0 0 0 1px rgb(255 255 255 / .1); display: inline-grid; place-items: center; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .icon-btn svg { width: 20px; height: 20px; }
 .icon-btn:disabled { opacity: .3; }
+/* The four court buttons carry a visible word: the same text their accessible names start with. */
+.icon-btn.lab { height: 56px; border-radius: 16px; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; font-weight: 600; line-height: 1; }
 .icon-btn.wide { width: auto; padding: 0 14px; border-radius: 999px; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
 .match { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
 .match b { font-family: var(--display); font-weight: 800; font-stretch: 75%; font-size: 24px; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
 .match span { font-size: 12px; color: rgb(255 255 255 / .55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.cright { display: flex; gap: 8px; }
+.cright { display: flex; gap: 6px; }
 
 .half {
   --c1: #4361FF; --c2: #1A2BA6;
@@ -1722,6 +1730,7 @@ h2.h-sub { font-size: 19px; letter-spacing: -.01em; font-stretch: 90%; }
 :root[data-large] .call b { font-size: 40px; }
 :root[data-large] .call small { font-size: 13px; }
 :root[data-large] .match b { font-size: 30px; }
+:root[data-large] .icon-btn.lab { width: auto; min-width: 44px; padding: 0 4px; font-size: 15px; }
 @media (orientation: landscape) and (min-width: 640px) { :root[data-large] .court .big { font-size: min(52vh, 21vw); } }
 @media (max-height: 640px) { :root[data-large] .big { font-size: clamp(110px, 30vh, 260px); } }
 /*A11Y-END*/
@@ -5394,15 +5403,15 @@ async function acctOpen() {
   await acctLoad();
   if (clubSheet && clubSheet.view === 'account') { clubSheet.busy = false; renderClub(); }
 }
-// Sign-in first on the no-club and join screens, so a returning person is not steered into making a new club.
+// One quiet sign-in row after join and create on the no-club and join screens, so the code box stays the first thing a new member sees.
 function addAcctHTML(c) {
   if (!passkeysOk()) return '';
   const off = c.busy ? 'disabled' : '';
   if (acctIn()) {
     const missing = new Set(acctMissing().map(i => i.code)).size;
-    return `<div class="field"><p class="note" role="status">Signed in as <b>${esc(acct.account.name)}</b>.</p>${missing ? `<button class="btn btn-ink block" data-act="acct-restore-add" ${off}>Bring my clubs to this phone (${missing})</button>` : ''}</div><div class="or"><span>or</span></div>`;
+    return `<div class="field"><p class="note" role="status">Signed in as <b>${esc(acct.account.name)}</b>.</p>${missing ? `<button class="btn btn-soft block" data-act="acct-restore-add" ${off}>Bring my clubs to this phone (${missing})</button>` : ''}</div>`;
   }
-  return `<div class="field"><span class="lab">Already have clubs?</span><button class="btn btn-ink block" data-act="acct-in-add" ${off}>Sign in with a passkey</button><p class="note">Brings the clubs and player names on your account to this phone. The Home Screen app is a separate copy from Safari, so sign in there too.</p></div><div class="or"><span>or</span></div>`;
+  return `<div class="field"><button class="btn btn-soft block" data-act="acct-in-add" ${off}>Already have clubs? Sign in with a passkey</button><p class="note">Brings the clubs and player names on your account to this phone. The Home Screen app is a separate copy from Safari, so sign in there too.</p></div>`;
 }
 // A phone whose token was replaced (your account was restored on another phone) can take its access back.
 const lostToken = msg => /phone isn't linked to that player|only the phone that created/i.test(msg || '');
@@ -5496,32 +5505,15 @@ function clubRow(act, ico, title, hint = '') {
 function clubHomeHTML(c) {
   const local = store.get('pb.games', []).length;
   const deleted = clubData ? (clubData.deleted || []).filter(g => !clubOps().some(o => o.type === 'restore' && o.id === g.id)) : [];
-  const upcoming = gnUpcoming().length;
   const org = otCan();
   const orgRows = org ? [
     odCanOrg() ? clubRow('data-od="open"', '🛡️', 'Who\u2019s an organizer', 'Unlocked phones that can organize this club') : '',
     isCreator() ? clubRow('data-act="recovery-open"', '🆘', 'Creator recovery code', 'Restore organizer access if you lose this phone') : '',
     club.hasPin && !isCreator() && hasOrganizer() ? clubRow('data-act="pin-lock"', '🔒', 'Lock this phone', 'Require the organizer PIN on this phone again') : ''
   ].filter(Boolean).join('') : '';
-  return `<h2 id="club-h" tabindex="-1">${esc(club.name)}</h2>
-    ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
-    ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
-    ${club.deleteAt ? `<p class="err" role="status">${esc(club.name)} is scheduled for deletion on ${esc(new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}. An organizer can undo it under Your data.</p>` : ''}
-    ${needsAttentionHTML()}
-    ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button type="button" class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
-    ${clubInfoHTML()}
-    <section class="club-group" aria-labelledby="club-sec-play">
-      <h3 id="club-sec-play" class="club-sec">Play and events</h3>
-      <div class="club-rows">
-        ${clubRow('data-gn="open" data-gn-from="club"', '📅', upcoming ? `Game nights (${upcoming} upcoming)` : 'Game nights', upcoming ? 'See who is coming and RSVP' : 'See upcoming nights and RSVP')}
-        ${clubRow('data-act="club-board"', '🏟️', 'Open play court board', 'Who is on court and up next')}
-        ${clubRow('data-act="club-games"', '📡', 'Games going on', 'Live scores from other courts')}
-        ${clubRow('data-act="club-mine"', '📊', 'My games across clubs', 'Your record and ratings in every club')}
-        ${clubRow('data-cl="open"', '🤝', 'Linked clubs', 'One leaderboard with a friendly club')}
-        ${clubRow('data-act="pk-open"', '🏓', 'Pickup session', 'Play with people outside the club')}
-      </div>
-    </section>
-    <section class="club-group" aria-labelledby="club-sec-club">
+  // This club (code, link, QR) leads; Organizer follows it only when something waits for an organizer.
+  const secs = {
+    club: `<section class="club-group" aria-labelledby="club-sec-club">
       <h3 id="club-sec-club" class="club-sec">This club</h3>
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
@@ -5531,8 +5523,18 @@ function clubHomeHTML(c) {
         ${clubRow('data-act="move-out-open"', '📲', 'Move to a new phone', 'Copy your clubs and access with a one-time code')}
         ${myName() && myToken() ? clubRow('data-act="member-leave"', '👋', c.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`, 'Your games and ratings stay') : ''}
       </div>
-    </section>
-    <section class="club-group" aria-labelledby="club-sec-org">
+    </section>`,
+    play: `<section class="club-group" aria-labelledby="club-sec-play">
+      <h3 id="club-sec-play" class="club-sec">Play and events</h3>
+      <div class="club-rows">
+        ${clubRow('data-act="club-board"', '🏟️', 'Open play court board', 'Who is on court and up next')}
+        ${clubRow('data-act="club-games"', '📡', 'Games going on', 'Live scores from other courts')}
+        ${clubRow('data-act="club-mine"', '📊', 'My games across clubs', 'Your record and ratings in every club')}
+        ${clubRow('data-cl="open"', '🤝', 'Linked clubs', 'One leaderboard with a friendly club')}
+        ${clubRow('data-act="pk-open"', '🏓', 'Pickup session', 'Play with people outside the club')}
+      </div>
+    </section>`,
+    org: `<section class="club-group" aria-labelledby="club-sec-org">
       <h3 id="club-sec-org" class="club-sec">Organizer</h3>
       ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${org ? ' Set a PIN in Organizer tools to fix that.' : canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p>${!org && canSetFirstPin() ? '<div class="org-btns"><button type="button" class="btn btn-ink" data-act="pin-set-open">Set a PIN</button></div>' : ''}</div>` : ''}
       ${org && club.hasPin && club.shortPin ? '<p class="err" role="status">This PIN is shorter than 6 digits. Change it in Organizer tools so it is harder to guess.</p>' : ''}
@@ -5542,7 +5544,17 @@ function clubHomeHTML(c) {
         <p>Deleting, restoring and running events needs the PIN.</p>
         <div class="org-btns"><button type="button" class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div></div>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button type="button" class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
-    </section>
+    </section>`
+  };
+  const order = org && otPendingTotal(otState(c)) > 0 ? ['club', 'org', 'play'] : ['club', 'play', 'org'];
+  return `<h2 id="club-h" tabindex="-1">${esc(club.name)}</h2>
+    ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
+    ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
+    ${club.deleteAt ? `<p class="err" role="status">${esc(club.name)} is scheduled for deletion on ${esc(new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}. An organizer can undo it under Your data.</p>` : ''}
+    ${needsAttentionHTML()}
+    ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button type="button" class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
+    ${clubInfoHTML()}
+    ${order.map(k => secs[k]).join('\n    ')}
     <p class="note legal-links"><a href="/privacy" target="_blank" rel="noopener">Privacy</a><span aria-hidden="true">·</span><a href="/terms" target="_blank" rel="noopener">Terms</a></p>
     <div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button>
       <button type="button" class="btn btn-line-danger" data-act="club-leave">Leave ${esc(club.name)} on this phone</button></div>`;
@@ -5658,7 +5670,6 @@ function renderClub() {
       ${c.reason === 'save' ? `<p class="need-club">Your game is saved on this phone. Join a club with its code, or start one, and the game is added to its shared record.</p>` : ''}
       ${c.reason === 'pickup' ? `<p class="need-club">Join a club with its code, or start one, and the pickup session's games are added to its shared record. The players' names join the club's saved players.</p>` : ''}
       <p>A club shares one record between everyone's phones: games, saved players and the leaderboard. Nobody needs an account. Anyone with the club code can see and add games.</p>
-      ${acctBlock}
       <form class="club-form" data-form="club-join"><label class="lab" for="club-code">Join with a code</label>
         <div class="add-player"><input id="club-code" placeholder="6-character code" autocomplete="off" autocapitalize="characters" maxlength="7" value="${esc(c.joinCode || '')}"><button type="submit" class="btn btn-ink" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Join</button></div></form>
       <div class="or"><span>or</span></div>
@@ -5667,9 +5678,9 @@ function renderClub() {
         <label class="lab" for="club-new-pin">Organizer PIN</label>
         <div class="add-player"><input id="club-new-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="new-password" placeholder="Leave blank to get a code"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>
         <p class="note">Every club has an organizer. Only people with the PIN can delete or restore games, change the code or run events. Choose 6 to 8 digits, or leave it blank and we'll make an organizer code for you.</p></form>${err}
+      ${acctBlock}
       <button class="link" data-act="pk-open">Playing with people you don't know? Pickup session</button>
       <button class="link" data-act="move-in-open">Moving from another phone?</button>
-      <button class="link" data-act="acct-open">${acctIn() ? 'Your account' : 'Account (optional): keep your clubs across phones'}</button>
       ${club ? '<div class="btns"><button class="btn btn-soft" data-act="club-back">Back</button></div>' : ''}`;
   } else if (c.view === 'unlock') {
     body = `<h2 id="club-h">Organizer PIN</h2>
@@ -6312,7 +6323,7 @@ function renderCourt() {
     <div class="court-top">
       <button class="icon-btn" data-act="end" aria-label="Leave game">${ICON.back}</button>
       <div class="match"><b id="court-clock">${clock(Date.now() - s.startedAt)}</b><span>${live.event ? esc(live.event.name) + ': ' : ''}${cfg.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${cfg.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${cfg.target}, rally ${s.rallies + 1}</span></div>
-      <div class="cright"><button class="icon-btn" data-act="display" aria-pressed="${display.outdoor ? 'true' : 'false'}" aria-label="Sunlight display: high contrast and large scores">${ICON.sun}</button><button class="icon-btn" data-act="club-share" aria-label="Share this game or link a watch">${ICON.share}</button><button class="icon-btn" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}</button><button class="icon-btn" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}</button></div>
+      <div class="cright"><button class="icon-btn lab" data-act="display" aria-pressed="${display.outdoor ? 'true' : 'false'}" aria-label="Sun: sunlight display, high contrast and large scores">${ICON.sun}<span aria-hidden="true">Sun</span></button><button class="icon-btn lab" data-act="club-share" aria-label="Share this game or link a watch">${ICON.share}<span aria-hidden="true">Share</span></button><button class="icon-btn lab" data-act="log-open" aria-label="Log a result from another court">${ICON.plus}<span aria-hidden="true">Log</span></button><button class="icon-btn lab" data-act="undo" aria-label="Undo last rally" ${live.stack.length ? '' : 'disabled'}>${ICON.undo}<span aria-hidden="true">Undo</span></button></div>
     </div>
     ${half(0)}
     <div class="net">
