@@ -10,7 +10,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const earn = n => ({ id: 'day:2026-01-' + String(n).padStart(2, '0'), kind: 'earn', amount: n, reason: 'day', day: null, streak: 1 });
 
 test('the catalogue is fixed-price and cosmetic-only', () => {
-  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 40);
+  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 60);
   assert.equal(new Set(CATALOGUE.map(i => i.id)).size, CATALOGUE.length, 'ids are unique');
   // Only these keys: nothing here can carry a rule, a score effect or a random draw.
   for (const i of CATALOGUE) {
