@@ -6,42 +6,71 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   BOX_PRICE, BOX_DUPLICATE_REFUND, BOX_DAILY_LIMIT, BOX_TIERS,
-  boxOdds, drawBoxItem, tierOfItem, cleanOpenId, boxSpendId, boxRefundId
+  boxOdds, boxTiers, boxEligible, drawBoxItem, tierOfItem, cleanOpenId, boxSpendId, boxRefundId
 } from '../api/_economybox.js';
 import { CATALOGUE } from '../api/_economyshop.js';
+import { SEASONAL, EVENT_ITEMS } from '../api/_economyseason.js';
+import { PASS_ITEMS } from '../api/_economyxp.js';
 import { validEntry } from '../api/_economy.js';
 import { module } from './helpers/app.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 
-test('odds table sums to 100 percent, covers every cosmetic catalogue item once, and refund is strictly below cost', () => {
-  const total = BOX_TIERS.reduce((s, t) => s + t.chance, 0);
-  assert.equal(total, 100, 'rarity chances must sum to exactly 100%');
-  assert.ok(Number.isInteger(BOX_PRICE) && BOX_PRICE > 0);
+test('odds are 82 / 17 / 1, the pool is every unowned non-Mythic catalogue item, and refund is strictly below cost', () => {
+  assert.deepEqual(BOX_TIERS.map(t => [t.id, t.chance]), [['regular', 82], ['pet', 17], ['legendary', 1]]);
+  assert.equal(BOX_TIERS.reduce((s, t) => s + t.chance, 0), 100, 'rarity chances must sum to exactly 100%');
+  assert.equal(BOX_PRICE, 300);
   assert.ok(Number.isInteger(BOX_DUPLICATE_REFUND) && BOX_DUPLICATE_REFUND > 0 && BOX_DUPLICATE_REFUND < BOX_PRICE);
   assert.ok(Number.isInteger(BOX_DAILY_LIMIT) && BOX_DAILY_LIMIT >= 1 && BOX_DAILY_LIMIT <= 10);
 
-  const flat = BOX_TIERS.flatMap(t => t.items);
+  const full = boxTiers();
+  const flat = full.flatMap(t => t.items.map(i => i.id));
   assert.equal(new Set(flat).size, flat.length, 'no item listed twice across tiers');
-  // WI-11: the four newest rings (Sunset, Pickle, Ice, Lava) are fixed-price only like the pets (and every Legendary and Mythic item, WI-13), so the box odds stay exactly as they were.
-  const fixedOnly = new Set(['frame-sunset', 'frame-pickle', 'frame-ice', 'frame-lava']);
-  const boxEligible = CATALOGUE.filter(i => (i.slot === 'frame' || i.slot === 'paddle') && !fixedOnly.has(i.id) && i.rarity !== 'legendary' && i.rarity !== 'mythic').map(i => i.id).sort();
-  assert.deepEqual(flat.slice().sort(), boxEligible, 'box covers the original ring and paddle shop catalogue (pets, victory sounds, titles, name styles and the newest rings are fixed-price only)');
+  assert.deepEqual(flat.slice().sort(), CATALOGUE.filter(i => i.rarity !== 'mythic').map(i => i.id).sort(), 'every non-Mythic catalogue item is in the pool');
+  const [regular, pet, legendary] = full;
+  assert.ok(regular.items.every(i => i.slot !== 'pet' && i.rarity !== 'legendary'));
+  assert.ok(pet.items.length === 10 && pet.items.every(i => i.slot === 'pet' && i.rarity !== 'legendary' && i.rarity !== 'mythic'));
+  assert.ok(legendary.items.length === 11 && legendary.items.every(i => i.rarity === 'legendary'));
+  assert.ok(flat.every(id => CATALOGUE.find(i => i.id === id).rarity !== 'mythic'), 'no Mythic');
+  assert.ok(CATALOGUE.filter(i => i.rarity === 'mythic').every(i => !boxEligible(i)));
+  // Pass, event and seasonal items are not in CATALOGUE, so they can never be drawn.
+  for (const i of [...SEASONAL, ...EVENT_ITEMS, ...PASS_ITEMS]) assert.ok(!flat.includes(i.id), i.id + ' is not a box prize');
 
   const odds = boxOdds();
   assert.equal(odds.price, BOX_PRICE);
   assert.equal(odds.duplicateRefund, BOX_DUPLICATE_REFUND);
   assert.equal(odds.dailyLimit, BOX_DAILY_LIMIT);
-  assert.deepEqual(
-    odds.tiers.map(t => ({ id: t.id, label: t.label, chance: t.chance, items: t.items.map(i => i.id) })),
-    BOX_TIERS.map(t => ({ id: t.id, label: t.label, chance: t.chance, items: [...t.items] })),
-    'boxOdds() comes straight from BOX_TIERS so display and draw cannot differ'
-  );
+  assert.deepEqual(odds.tiers.map(t => [t.id, t.label, t.chance, t.items.length]), full.map(t => [t.id, t.label, t.chance, t.items.length]), 'boxOdds() comes straight from the draw rules');
 });
 
-test('pure drawBoxItem with an injected random source maps every roll 0..99 to the right rarity and item', () => {
-  const counts = { common: 0, uncommon: 0, rare: 0, epic: 0 };
+test('owned items leave the pool, an empty group hands its weight on, and the odds shown still sum to 100', () => {
+  const ids = t => t.items.map(i => i.id);
+  const [regular, pet] = boxTiers();
+  const have = [ids(regular)[0], ids(pet)[0]];
+  const after = boxTiers(have);
+  assert.ok(!after.flatMap(ids).some(id => have.includes(id)), 'an owned item is not offered');
+  assert.deepEqual(after.map(t => t.chance), [82, 17, 1]);
+  // Own every pet: the pet group is empty, its 17 goes to Regular, and the table says so.
+  const noPets = boxTiers(CATALOGUE.filter(i => i.slot === 'pet').map(i => i.id));
+  assert.deepEqual(noPets.map(t => [t.id, t.chance]), [['regular', 99], ['legendary', 1]]);
+  // Own every regular item: the first group left (Pet) takes Regular's 82.
+  const noRegular = boxTiers(regular.items.map(i => i.id));
+  assert.deepEqual(noRegular.map(t => [t.id, t.chance]), [['pet', 99], ['legendary', 1]]);
+  // Own everything the box can give: no tiers, no draw.
+  const all = CATALOGUE.map(i => i.id);
+  assert.deepEqual(boxTiers(all), []);
+  assert.equal(drawBoxItem(() => 0, all), null);
+  assert.deepEqual(boxOdds(null, all).tiers, []);
+  // A draw never returns an owned item, for every possible roll.
+  for (let roll = 0; roll < 100; roll++) {
+    const got = drawBoxItem(max => (max === 100 ? roll : max - 1), have);
+    assert.ok(!have.includes(got.item.id));
+  }
+});
+
+test('pure drawBoxItem with an injected random source maps every roll 0..99 to the right group and item', () => {
+  const counts = { regular: 0, pet: 0, legendary: 0 };
   for (let roll = 0; roll < 100; roll++) {
     let step = 0;
     const picked = drawBoxItem(max => {
@@ -50,23 +79,20 @@ test('pure drawBoxItem with an injected random source maps every roll 0..99 to t
       return 0;
     });
     counts[picked.tier.id]++;
-    if (roll < 50) assert.equal(picked.tier.id, 'common');
-    else if (roll < 80) assert.equal(picked.tier.id, 'uncommon');
-    else if (roll < 95) assert.equal(picked.tier.id, 'rare');
-    else assert.equal(picked.tier.id, 'epic');
+    assert.equal(picked.tier.id, roll < 82 ? 'regular' : roll < 99 ? 'pet' : 'legendary');
     assert.deepEqual(tierOfItem(picked.item.id), picked.tier);
   }
-  assert.deepEqual(counts, { common: 50, uncommon: 30, rare: 15, epic: 5 });
+  assert.deepEqual(counts, { regular: 82, pet: 17, legendary: 1 });
 
-  // Every item within each tier is reachable by the second random call.
-  const bounds = [['common', 0], ['uncommon', 50], ['rare', 80], ['epic', 95]];
+  // Every item within each group is reachable by the second random call.
+  const bounds = [['regular', 0], ['pet', 82], ['legendary', 99]];
   for (const [tierId, tierRoll] of bounds) {
-    const tier = BOX_TIERS.find(t => t.id === tierId);
+    const tier = boxTiers().find(t => t.id === tierId);
     const seen = tier.items.map((_, idx) => {
       let step = 0;
       return drawBoxItem(() => (++step === 1 ? tierRoll : idx)).item.id;
     });
-    assert.deepEqual(seen, [...tier.items]);
+    assert.deepEqual(seen, tier.items.map(i => i.id));
   }
 
   // Out-of-range or non-integer random outputs throw instead of silently biasing.
@@ -131,7 +157,7 @@ const phone = ({ hide = false, rewards = true, mysteryBox = true, name = 'Ana', 
         return {
           dinks: 13, worn: { frame: '', paddle: '' }, share: false, items: items(['frame-blue']),
           box: { ...defaultBox, openedToday: 1 },
-          result: { openId: b.openId, item: CATALOGUE[1], tier: { id: 'uncommon', label: 'Uncommon', chance: 30 }, duplicate: false, refund: 0, cost: BOX_PRICE, replayed: false }
+          result: { openId: b.openId, item: CATALOGUE[1], tier: { id: 'regular', label: 'Regular', chance: 82 }, duplicate: false, refund: 0, cost: BOX_PRICE, replayed: false }
         };
       }
       return { dinks: 20, worn: { frame: '', paddle: '' }, share: false, items: items([]), ...(mysteryBox ? { box: defaultBox } : {}) };
@@ -161,7 +187,7 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
         return {
           dinks: 17, worn: { frame: '', paddle: '' }, share: false, items: CATALOGUE.map(i => ({ ...i, owned: i.id === 'frame-court' })),
           box: { ...boxOdds(), openedToday: 1 },
-          result: { openId: b.openId, item: CATALOGUE[0], tier: { id: 'common', label: 'Common', chance: 50 }, duplicate: true, refund: BOX_DUPLICATE_REFUND, cost: BOX_PRICE, replayed: false }
+          result: { openId: b.openId, item: CATALOGUE[0], tier: { id: 'regular', label: 'Regular', chance: 82 }, duplicate: true, refund: BOX_DUPLICATE_REFUND, cost: BOX_PRICE, replayed: false }
         };
       }
       return {};
@@ -170,16 +196,16 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
   await p.x.Rewards.openStore();
   const html = p.x.Rewards.storeHTML(p.x.sheet);
   assert.match(html, /Odds before you open/);
-  assert.match(html, /Common[\s\S]*50% \(50 in 100\)/);
-  assert.match(html, /Epic[\s\S]*5% \(5 in 100\)/);
-  assert.match(html, /Uncommon[\s\S]*30% \(30 in 100\)/);
-  assert.match(html, /Rare[\s\S]*15% \(15 in 100\)/);
+  assert.match(html, /Regular[\s\S]*82% \(82 in 100\)/);
+  assert.match(html, /Pet[\s\S]*17% \(17 in 100\)/);
+  assert.match(html, /Legendary[\s\S]*1% \(1 in 100\)/);
+  assert.match(html, /you don\u2019t own yet: [^<]*Optic ring/);
   assert.match(html, /Duplicate refund: if you already own the item drawn, 4 Dinks are returned/);
   assert.match(html, /0 of 3 opened today/);
   assert.match(html, new RegExp(`Open mystery box \\(${BOX_PRICE} Dinks\\)`));
   // Card: gift art, the odds in one sentence built from the server tiers, and no shortfall label while the balance reaches.
   assert.match(html, /class="rw-gift"/);
-  assert.match(html, /A random look from the shop\. 50% common · 30% uncommon · 15% rare · 5% epic\./);
+  assert.match(html, /A random look from the shop\. 82% regular · 17% pet · 1% legendary\./);
   assert.ok(!/more Dinks/.test(html));
   assert.equal(BOX_PRICE, 300, 'upstream box price');
 
@@ -195,7 +221,7 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
   click({ rwBoxOpen: '1' });
   await new Promise(r => setTimeout(r, 10));
   assert.equal(p.calls[2].openId, firstId, 'offline retry reuses the same openId');
-  assert.match(p.env.announced.at(-1), /Mystery box: Optic ring \(Common\), already owned\. 4 Dinks returned/);
+  assert.match(p.env.announced.at(-1), /Mystery box: Optic ring \(Regular\), already owned\. 4 Dinks returned/);
   const afterHtml = p.x.Rewards.storeHTML(p.x.sheet);
   assert.match(afterHtml, /Optic ring \(already owned\)/);
   assert.match(afterHtml, /1 of 3 opened today/);

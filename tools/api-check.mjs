@@ -1617,7 +1617,8 @@ await step('rewards event shelf: Christmas sells only inside its dates at one pr
   await assert.rejects(buyItem(sql, cf.code, 'eve', 'frame-twinkle', after), e => e.status === 409);
 });
 await step('rewards mystery box: off means refused, odds match server table, insufficient balance, duplicate refund, replay idempotent, daily limit, atomic balance floor', async () => {
-  const { boxOdds, BOX_PRICE, BOX_DUPLICATE_REFUND, BOX_DAILY_LIMIT } = await import(pathToFileURL(path.join(root, 'api', '_economybox.js')).href);
+  const { boxOdds, boxTiers, boxEligible, openBox, BOX_PRICE, BOX_DUPLICATE_REFUND, BOX_DAILY_LIMIT } = await import(pathToFileURL(path.join(root, 'api', '_economybox.js')).href);
+  const boxSql = neon.neon(process.env.DATABASE_URL);
   const { CATALOGUE } = await import(pathToFileURL(path.join(root, 'api', '_economyshop.js')).href);
   const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
   const grant = (name, id, n) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, $2, $3, 'earn', $4, 'test') ON CONFLICT DO NOTHING`, [cf.code, name.toLowerCase(), id, n]);
@@ -1687,16 +1688,22 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   assert.equal(first.dinks, bal0 - BOX_PRICE);
   assert.equal(first.box.openedToday, 1);
   assert.ok(first.items.find(i => i.id === first.result.item.id).owned, 'drawn item is now owned');
+  assert.ok(boxEligible(first.result.item) && first.result.item.rarity !== 'mythic', 'the prize comes from the widened pool, never Mythic');
+  assert.ok(!first.box.tiers.flatMap(t => t.items).some(i => i.id === first.result.item.id), 'what was just won leaves the odds table');
   // Replay with the same openId -> exact same result, replayed=true, balance and daily count unchanged.
   const replay1 = ok(await post('Noa', { action: 'rewards-box-open', openId: 'box_open_001' }));
   assert.deepEqual(replay1.result, { ...first.result, replayed: true });
   assert.equal(replay1.dinks, first.dinks);
   assert.equal(replay1.box.openedToday, 1);
-  // Duplicate refund: Oli already owns every catalogue item, so any draw is a duplicate and refunds BOX_DUPLICATE_REFUND.
+  // Duplicate refund: Oli owns everything in the pool except the last four regular items. A draw made before another box landed (a stale view,
+  // simulated with `owned: []` and a fixed roll that picks the first regular item) hits an owned item, so it refunds BOX_DUPLICATE_REFUND.
   const oliFund = BOX_PRICE * (BOX_DAILY_LIMIT + 1);
   await grant('Oli', 'test:oli-fund', oliFund);
-  for (const it of CATALOGUE) await pg.query(`INSERT INTO reward_items (club, name_key, item, slot) VALUES ($1, 'oli', $2, $3) ON CONFLICT DO NOTHING`, [cf.code, it.id, it.slot]);
-  const dup = ok(await post('Oli', { action: 'rewards-box-open', openId: 'box_dup_0001' }));
+  const oliLeft = boxTiers().find(t => t.id === 'regular').items.slice(-4).map(i => i.id);
+  for (const it of CATALOGUE) if (!oliLeft.includes(it.id)) await pg.query(`INSERT INTO reward_items (club, name_key, item, slot) VALUES ($1, 'oli', $2, $3) ON CONFLICT DO NOTHING`, [cf.code, it.id, it.slot]);
+  const oliOdds = ok(await post('Oli', { action: 'rewards-catalog' })).box;
+  assert.deepEqual(oliOdds.tiers.map(t => [t.id, t.chance, t.items.map(i => i.id)]), [['regular', 100, oliLeft]], 'a player who owns nearly everything sees only what is left, odds still 100');
+  const dup = await openBox(boxSql, cf.code, 'oli', 'box_dup_0001', { owned: [], randInt: () => 0 });
   assert.equal(dup.result.duplicate, true);
   assert.equal(dup.result.refund, BOX_DUPLICATE_REFUND);
   assert.equal(dup.result.replayed, false);
@@ -1722,6 +1729,15 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   // Replaying an earlier openId from today still returns its original idempotent result even at the daily limit!
   const replayAtLimit = ok(await post('Oli', { action: 'rewards-box-open', openId: 'box_dup_0001' }));
   assert.deepEqual(replayAtLimit.result, { ...dup.result, replayed: true });
+  // A player who owns everything the box can give is refused (409) and charged nothing; Mythic items do not count.
+  await grant('Rae', 'test:rae-all', BOX_PRICE);
+  for (const it of CATALOGUE) if (boxEligible(it)) await pg.query(`INSERT INTO reward_items (club, name_key, item, slot) VALUES ($1, 'rae', $2, $3) ON CONFLICT DO NOTHING`, [cf.code, it.id, it.slot]);
+  const raeBal = ok(await post('Rae', { action: 'rewards-catalog' }));
+  assert.deepEqual(raeBal.box.tiers, [], 'nothing left to draw');
+  const none = await post('Rae', { action: 'rewards-box-open', openId: 'box_none_001' });
+  assert.equal(none.status, 409);
+  assert.match(none.json.error, /own everything/);
+  assert.equal(ok(await post('Rae', { action: 'rewards-catalog' })).dinks, raeBal.dinks, 'nothing charged');
   // Concurrent opens with balance == BOX_PRICE: exactly one succeeds, balance never goes below zero.
   await grant('Pia', 'test:pia-exact', BOX_PRICE);
   const race = await Promise.all(['box_race_001', 'box_race_002'].map(openId => post('Pia', { action: 'rewards-box-open', openId })));

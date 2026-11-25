@@ -124,14 +124,14 @@ function rwBoxHTML(c, s) {
   if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !s.box || !Array.isArray(s.box.tiers) || !s.box.tiers.length) return '';
   const b = s.box, opened = Number(b.openedToday) || 0, limit = Number(b.dailyLimit) || 3, atLimit = opened >= limit;
   const need = Math.max(0, b.price - s.dinks), r = c.boxResult;
-  const tiers = b.tiers.map(t => `<li class="rw-tier"><div class="rw-tier-top"><b>${esc(t.label)}</b><span class="rw-pct num">${t.chance}% (${t.chance} in 100)</span></div><p class="rw-tier-items">${esc((t.items || []).map(i => i.name).join(', '))}</p></li>`).join('');
+  const tiers = b.tiers.map(t => `<li class="rw-tier"><div class="rw-tier-top"><b>${esc(t.label)}</b><span class="rw-pct num">${t.chance}% (${t.chance} in 100)</span></div><p class="rw-tier-items">${esc(`${(t.items || []).length} you don\u2019t own yet: `)}${esc((t.items || []).map(i => i.name).join(', '))}</p></li>`).join('');
   const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${rwDinks(r.refund)} returned to your balance.` : 'Added to your Inventory.'}</small></span></div>` : '';
   const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : need > 0 ? `${need} more Dinks` : `Open mystery box (${rwDinks(b.price)})`;
   const btnAria = !atLimit && need > 0 ? ` aria-label="Open mystery box for ${rwDinks(b.price)}. You need ${need} more"` : '';
   return `<h3 class="rw-h">Mystery box</h3><section class="rw-box" aria-label="Mystery box">
     <div class="rw-box-main">${RW_BOX_ART}<div><b class="rw-box-title">Mystery box</b><p class="rw-box-rates">${esc(rwBoxOddsLine(b))}</p></div></div>
     <div class="rw-box-top"><span class="rw-box-cost"><b class="num">${b.price}</b> ${b.price === 1 ? 'Dink' : 'Dinks'}</span><span class="rw-box-cap">${opened} of ${limit} opened today</span></div>
-    <p class="rw-box-note">Grants one cosmetic look from the shop, chosen at random on the server. Free play money only — never bought with real money, and never changes a game, a rating, a rank or who plays.</p>
+    <p class="rw-box-note">Grants one cosmetic from the shop that you don't own yet (never a Mythic), chosen at random on the server. Free play money only — never bought with real money, and never changes a game, a rating, a rank or who plays.</p>
     <div class="rw-rates"><p class="rw-rates-h">Odds before you open</p><ul class="rw-tier-list">${tiers}</ul>
     <p class="rw-box-fine">Duplicate refund: if you already own the item drawn, ${rwDinks(b.duplicateRefund)} are returned to your balance right away. Limit: ${limit} per day (UTC). No pity timer, countdown or streak bonus.</p></div>
     ${res}

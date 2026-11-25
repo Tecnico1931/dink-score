@@ -11,41 +11,35 @@
 // the request's idempotent openId (`box:<openId>` spend, optional `boxref:<openId>` refund with day=null so streaks are
 // untouched). Balance never goes below zero; replaying the same openId returns the exact same result without charging again.
 import { randomInt } from 'node:crypto';
-import { CATALOGUE, BOX_ITEM, itemById, shopView, loadPrices, priceOf } from './_economyshop.js';
+import { CATALOGUE, BOX_ITEM, itemById, shopView, loadPrices, loadItems, priceOf } from './_economyshop.js';
 import { dayKey } from './_economy.js';
 
 export const BOX_PRICE = 300;          // free Dinks to open one mystery box (upstream parity price; an organizer can change it in Manage shop)
 export const BOX_DUPLICATE_REFUND = 4; // free Dinks returned right away if the drawn item is already owned
 export const BOX_DAILY_LIMIT = 3;      // maximum boxes a player may open per UTC day
 
-// Integer percentage weights summing to 100. Every item belongs to CATALOGUE.
+// Three groups with integer percentage weights summing to 100 (upstream parity: regular 82, pet 17, legendary 1). The pool is every item
+// of CATALOGUE the player does not own yet, except Mythic ones (the seasonal, event and pass shelves are not in CATALOGUE, and a shiny coat is
+// a flag, not an item). A group with nothing left to give hands its weight to the first group that still has items, so the odds shown are
+// always the odds drawn and still sum to 100.
+const isTop = i => i.rarity === 'legendary' || i.rarity === 'mythic';
 export const BOX_TIERS = Object.freeze([
-  Object.freeze({
-    id: 'common',
-    label: 'Common',
-    chance: 50,
-    items: Object.freeze(['frame-court', 'paddle-court'])
-  }),
-  Object.freeze({
-    id: 'uncommon',
-    label: 'Uncommon',
-    chance: 30,
-    items: Object.freeze(['frame-blue', 'frame-ink', 'paddle-blue', 'paddle-ink'])
-  }),
-  Object.freeze({
-    id: 'rare',
-    label: 'Rare',
-    chance: 15,
-    items: Object.freeze(['frame-double', 'paddle-stripe'])
-  }),
-  // Epic (L16, #107): the top rarity. Cosmetic only, ball-lime, like every other tier; the odds are stated before opening like the rest.
-  Object.freeze({
-    id: 'epic',
-    label: 'Epic',
-    chance: 5,
-    items: Object.freeze(['frame-ball', 'paddle-ball'])
-  })
+  Object.freeze({ id: 'regular', label: 'Regular', chance: 82, has: i => i.slot !== 'pet' && !isTop(i) }),
+  Object.freeze({ id: 'pet', label: 'Pet', chance: 17, has: i => i.slot === 'pet' && !isTop(i) }),
+  Object.freeze({ id: 'legendary', label: 'Legendary', chance: 1, has: i => i.rarity === 'legendary' })
 ]);
+export const boxEligible = item => item.rarity !== 'mythic' && BOX_TIERS.some(t => t.has(item));
+
+// The tiers a player can draw from right now: `owned` is an iterable of item ids (null = owns nothing). Empty tiers are left out.
+export function boxTiers(owned = null) {
+  const have = new Set(owned || []);
+  const pool = BOX_TIERS.map(t => ({ ...t, items: CATALOGUE.filter(i => !have.has(i.id) && boxEligible(i) && t.has(i)) }));
+  const live = pool.filter(t => t.items.length);
+  return live.map((t, n) => ({
+    id: t.id, label: t.label, items: t.items,
+    chance: t.chance + (n === 0 ? pool.filter(x => !x.items.length).reduce((s, x) => s + x.chance, 0) : 0)
+  }));
+}
 
 export const boxSpendId = openId => 'box:' + openId;
 export const boxRefundId = openId => 'boxref:' + openId;
@@ -57,46 +51,46 @@ export function cleanOpenId(raw) {
 }
 
 export function tierOfItem(id) {
-  const t = BOX_TIERS.find(x => x.items.includes(id));
+  const item = itemById(id);
+  const t = item && boxEligible(item) ? BOX_TIERS.find(x => x.has(item)) : null;
   return t ? { id: t.id, label: t.label, chance: t.chance } : null;
 }
 
-// Public odds payload taken directly from the draw constants so UI and draw can never diverge.
-// `prices`: the club's own prices from Manage shop (loadPrices); none = the defaults.
+// Public odds payload taken directly from the draw rules so UI and draw can never diverge.
+// `prices`: the club's own prices from Manage shop (loadPrices); none = the defaults. `owned`: the player's item ids (none = a full pool).
 export const boxPriceOf = prices => (prices && prices[BOX_ITEM]) || BOX_PRICE;
-export function boxOdds(prices = null) {
+export function boxOdds(prices = null, owned = null) {
   return {
     price: boxPriceOf(prices),
     duplicateRefund: BOX_DUPLICATE_REFUND,
     dailyLimit: BOX_DAILY_LIMIT,
-    tiers: BOX_TIERS.map(t => ({
+    tiers: boxTiers(owned).map(t => ({
       id: t.id,
       label: t.label,
       chance: t.chance,
-      items: t.items.map(id => {
-        const it = itemById(id);
-        return { id: it.id, name: it.name, slot: it.slot, price: priceOf(it, prices) };
-      })
+      items: t.items.map(it => ({ id: it.id, name: it.name, slot: it.slot, price: priceOf(it, prices) }))
     }))
   };
 }
 
 // Pure draw function. `randInt(max)` returns a uniform integer in [0, max).
-// Production uses node:crypto randomInt; tests inject a deterministic source.
-export function drawBoxItem(randInt = randomInt) {
-  const total = BOX_TIERS.reduce((sum, t) => sum + t.chance, 0);
+// Production uses node:crypto randomInt; tests inject a deterministic source. Returns null when the player owns every possible prize.
+export function drawBoxItem(randInt = randomInt, owned = null) {
+  const tiers = boxTiers(owned);
+  if (!tiers.length) return null;
+  const total = tiers.reduce((sum, t) => sum + t.chance, 0);
   if (total !== 100) throw new Error('Mystery box odds must sum to 100.');
   const roll = randInt(total);
   if (!Number.isInteger(roll) || roll < 0 || roll >= total) throw new Error('Random source out of range.');
   let acc = 0;
-  let chosen = BOX_TIERS[BOX_TIERS.length - 1];
-  for (const t of BOX_TIERS) {
+  let chosen = tiers[tiers.length - 1];
+  for (const t of tiers) {
     acc += t.chance;
     if (roll < acc) { chosen = t; break; }
   }
   const pick = randInt(chosen.items.length);
   if (!Number.isInteger(pick) || pick < 0 || pick >= chosen.items.length) throw new Error('Random source out of range.');
-  const item = itemById(chosen.items[pick]);
+  const item = chosen.items[pick];
   if (!item || !CATALOGUE.some(c => c.id === item.id)) throw new Error('Mystery box item missing from catalogue.');
   return { tier: { id: chosen.id, label: chosen.label, chance: chosen.chance }, item };
 }
@@ -109,18 +103,26 @@ export async function opensToday(sql, code, key, now = Date.now()) {
 }
 
 export async function boxStatus(sql, code, key, now = Date.now()) {
-  return { ...boxOdds(await loadPrices(sql, code)), openedToday: await opensToday(sql, code, key, now) };
+  return { ...boxOdds(await loadPrices(sql, code), (await loadItems(sql, code, key)).map(i => i.id)), openedToday: await opensToday(sql, code, key, now) };
 }
 
 // Open one mystery box atomically: spend, grant (or refund on duplicate), and read back authoritative result in one transaction.
-export async function openBox(sql, code, key, rawOpenId, { now = Date.now(), randInt = randomInt } = {}) {
+// `owned` (tests only) overrides the ids read from the database, to stand in for a draw made before another box landed.
+export async function openBox(sql, code, key, rawOpenId, { now = Date.now(), randInt = randomInt, owned = null } = {}) {
   const openId = cleanOpenId(rawOpenId);
   const today = dayKey(now, 0);
   const spendId = boxSpendId(openId);
   const refundId = boxRefundId(openId);
-  const drawn = drawBoxItem(randInt);
   const prices = await loadPrices(sql, code);
   const BOX_COST = boxPriceOf(prices);
+  const ownedIds = owned || (await loadItems(sql, code, key)).map(i => i.id);
+  let drawn = drawBoxItem(randInt, ownedIds);
+  if (!drawn) {
+    // Nothing left to give: only a replay of an open that already happened may continue (its spend row wins, this draw is unused).
+    const [seen] = await sql`SELECT 1 AS n FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND id = ${spendId}`;
+    if (!seen) throw Object.assign(new Error('You already own everything the mystery box can give.'), { status: 409 });
+    drawn = drawBoxItem(randInt, null);
+  }
 
   const [, cteRows, ledgerRows, statRows] = await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(hashtext(${code + '/' + key}))`,
@@ -175,7 +177,7 @@ export async function openBox(sql, code, key, rawOpenId, { now = Date.now(), ran
   const replayed = Number(cteRows[0] ? cteRows[0].spent : 0) === 0;
   const itemId = String(spendRow.reason || '').replace(/^box:/, '');
   const item = itemById(itemId);
-  const tier = tierOfItem(itemId);
+  const tier = replayed ? tierOfItem(itemId) : drawn.tier;
   if (!item || !tier) throw Object.assign(new Error('Could not read the mystery box result.'), { status: 500 });
   const refundRow = ledgerRows.find(r => r.id === refundId);
   const duplicate = !!refundRow;
@@ -184,7 +186,7 @@ export async function openBox(sql, code, key, rawOpenId, { now = Date.now(), ran
   const view = await shopView(sql, code, key);
   return {
     ...view,
-    box: { ...boxOdds(prices), openedToday },
+    box: { ...boxOdds(prices, view.items.filter(i => i.owned).map(i => i.id)), openedToday },
     result: {
       openId,
       item,

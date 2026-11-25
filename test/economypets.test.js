@@ -12,7 +12,7 @@ import {
   weekOf, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook, SHINY_FIVE_FROM, SHINY_ALL_FROM
 } from '../api/_economypets.js';
 import { CATALOGUE, SLOTS, itemById, buyId, planBuy, wornFrom, clubLooksFrom } from '../api/_economyshop.js';
-import { BOX_TIERS } from '../api/_economybox.js';
+import { boxTiers } from '../api/_economybox.js';
 import { weekOf as progressWeekOf } from '../api/_progress.js';
 import { module } from './helpers/app.js';
 
@@ -50,9 +50,9 @@ test('pet catalogue: 12 fixed-price pets in CATALOGUE under slot pet, valid buy 
   assert.equal(isPetId('frame-court'), false);
   assert.equal(petById('pet-dragon'), null);
 
-  // Pets are fixed-price only (never in random mystery box tiers).
-  const boxIds = new Set(BOX_TIERS.flatMap(t => t.items));
-  for (const p of PETS) assert.equal(boxIds.has(p.id), false, `${p.id} must not be in mystery box tiers`);
+  // Pets are fixed-price only (the box draws them only in its own pet and legendary groups, never Mythic).
+  const boxIds = new Set(boxTiers().flatMap(t => t.items.map(i => i.id)));
+  for (const p of PETS) assert.equal(boxIds.has(p.id), p.rarity !== 'mythic', `${p.id} is a box prize unless Mythic`);
 
   // Purchase plans through the shared shop flow: idempotent buy:pet-* id, never below zero.
   const frog = petById('pet-frog');
