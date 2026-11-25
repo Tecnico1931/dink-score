@@ -1523,7 +1523,7 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
   const grant = (name, id, n) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, $2, $3, 'earn', $4, 'test') ON CONFLICT DO NOTHING`, [cf.code, name.toLowerCase(), id, n]);
   const join = async name => { cfTok[name] = ok(await cfPost(playersApi, { action: 'claim', name, ownerToken: cf.owner })).playerToken; };
-  await join('Noa'); await join('Oli'); await join('Pia');
+  await join('Noa'); await join('Oli'); await join('Pia'); await join('Rae');
   // Off by default, organizer-only, boolean-only, audited as a setting row.
   assert.equal((await cfGet()).club.mysteryBox, false, 'a new club has mysteryBox off');
   assert.equal((await cfPost(club, { action: 'set-mystery-box', on: true })).status, 403);
@@ -1532,6 +1532,7 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   // Both switches off -> refused.
   assert.equal((await cfPost(playersApi, { action: 'rewards-box-odds' })).status, 403);
   assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'box_off_0001' })).status, 403);
+  assert.equal((await post('Noa', { action: 'rewards-spin' })).status, 403, 'the spin is off with the box');
   // Rewards on, mysteryBox off -> refused, and catalog omits box.
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   assert.equal((await cfPost(playersApi, { action: 'rewards-box-odds' })).status, 403);
@@ -1549,6 +1550,22 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   assert.deepEqual(odds, boxOdds(), 'odds endpoint equals the server draw table');
   const cat = ok(await post('Noa', { action: 'rewards-catalog' }));
   assert.deepEqual(cat.box, { ...boxOdds(), openedToday: 0 });
+  // Daily spin (WI-15): same gate as the box, one win per UTC day, replay returns the same win, never touches the streak.
+  const { SPIN_SEGMENTS } = await import(pathToFileURL(path.join(root, 'api', '_economyspin.js')).href);
+  assert.equal(cat.spin.spunToday, false);
+  assert.deepEqual(cat.spin.segments, [...SPIN_SEGMENTS]);
+  assert.equal((await post('Rae', { action: 'rewards-spin', playerToken: 'f'.repeat(48) })).status, 403);
+  const spin1 = ok(await post('Rae', { action: 'rewards-spin' }));
+  assert.ok(SPIN_SEGMENTS.includes(spin1.spinResult.value));
+  assert.equal(spin1.spinResult.replayed, false);
+  assert.equal(spin1.dinks, spin1.spinResult.value, 'the win is the balance');
+  assert.equal(spin1.spin.spunToday, true);
+  assert.equal(spin1.spin.wonToday, spin1.spinResult.value);
+  const spin2 = ok(await post('Rae', { action: 'rewards-spin' }));
+  assert.equal(spin2.dinks, spin1.dinks, 'a second spin the same day pays nothing');
+  assert.deepEqual(spin2.spinResult, { ...spin1.spinResult, replayed: true });
+  assert.equal(ok(await post('Rae', { action: 'rewards-get' })).streak, 0, 'the spin never fakes a play streak');
+  assert.match(ok(await post('Rae', { action: 'rewards-activity' })).entries[0].text, /Daily spin/);
   // Bad auth and bad openId refused.
   assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'box_auth_01', playerToken: 'f'.repeat(48) })).status, 403);
   assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'bad' })).status, 400);

@@ -15,6 +15,7 @@ export function describe(e) {
   if (e.kind === 'earn') {
     if (r === 'day') return 'Earned for a play day';
     if (r === 'day+streak') return 'Earned for a play day, with a streak bonus';
+    if (r === 'spin') return 'Daily spin';
     if (r.startsWith('boxref:')) return `Mystery box refund: you already had ${nameOf(r.slice(7))}`;
     if (r.startsWith('pass:owned:')) return `Season pass tier reward: you already had ${nameOf(r.slice(11))}`;
     if (tierOf(r)) return `Season pass tier ${tierOf(r)}`;

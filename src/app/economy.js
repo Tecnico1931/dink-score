@@ -6,7 +6,7 @@
 // rank or a pairing.
 const RW_BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
 // The rules card quotes these numbers; test/economyrules.test.js pins each to the server constant it copies (DAY_PAY, BOX_*, PASS_TIERS).
-const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_PASS_TIERS = 10;
+const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 10;
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
@@ -252,8 +252,9 @@ const Rewards = {
   rulesHTML() {
     if (!rwShown()) return '';
     const lad = RW_BONUS.map(([d, b]) => `+${b} on day ${d}`).join(', '), top = RW_BONUS[RW_BONUS.length - 1];
+    const spin = rwBoxOn() ? `<li><b>Daily spin:</b> one free spin a day (UTC) wins ${RW_SPIN.min} to ${RW_SPIN.max} Dinks. It is drawn on the server and the chances are shown on the card. It never depends on a score.</li>` : '';
     const box = rwBoxOn() ? `<li><b>Mystery box:</b> opens a random item you don't own yet for ${rwDinks(RW_BOX.cost)}, up to ${RW_BOX.limit} a day. If you already own it, ${rwDinks(RW_BOX.refund)} come back. The odds are shown before you open one.</li>` : '';
-    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${RW_DAY_PAY}</b> for the first game you play each day. A logged result counts the same as one scored live.</li><li><b>Daily streak:</b> play on days in a row for a bonus: ${lad}, then +${top[1]} every ${top[0]}th day after that. Miss a day and the streak starts again.</li><li>Only games saved from your own linked name count. Winning, losing or the score never changes what you earn.</li>${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} rewards that unlock as you play games this season. Games count, never results.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
+    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${RW_DAY_PAY}</b> for the first game you play each day. A logged result counts the same as one scored live.</li><li><b>Daily streak:</b> play on days in a row for a bonus: ${lad}, then +${top[1]} every ${top[0]}th day after that. Miss a day and the streak starts again.</li><li>Only games saved from your own linked name count. Winning, losing or the score never changes what you earn.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} rewards that unlock as you play games this season. Games count, never results.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
   },
   // The "You" rows (shown only where the club has rewards on): the way into the Shop and Season pass, and the one switch on this phone.
   youRowHTML() {
