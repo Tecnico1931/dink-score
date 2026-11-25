@@ -93,7 +93,7 @@ try {
   await page.getByRole('button', { name: 'You', exact: true }).click(); // the avatar opens the You sheet; display settings are one row in it
   const you = page.getByRole('dialog', { name: 'You', exact: true });
   await you.getByRole('button', { name: /Display and sound/ }).click();
-  const settings = page.getByRole('dialog', { name: 'Settings' });
+  const settings = page.getByRole('dialog', { name: 'Display and sound' });
   await settings.waitFor();
   await settings.getByRole('button', { name: 'Dark', exact: true }).click();
   await settings.getByRole('button', { name: 'Done' }).click();
