@@ -150,13 +150,13 @@ for (const [mode, opt] of states) {
         { id: 'paddle-heat', slot: 'paddle', name: 'Summer Heat paddle', price: 8, season: 'summer', seasonal: true, owned: true, available: false });
       const looks = { ana: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog', petStage: 2, petShiny: true }, ben: { frame: 'frame-court', paddle: 'paddle-blue', pet: 'pet-yorkie', petStage: 3, petShiny: false } };
       const pass = {
-        season: { id: '2026-Q4', name: 'Fall 2026', start: 0, end: 1 }, games: 6, dinks: 12, worn: shop.worn, share: true, claimable: 2,
+        season: { id: '2026-Q4', name: 'Fall 2026', start: 0, end: 1 }, xp: 380, maxXp: 1000, tierXp: 125, level: 3, dinks: 12, worn: shop.worn, share: true, claimable: 2,
         tiers: [
-          { tier: 1, games: 1, dinks: 2, payoutDinks: 2, item: null, unlocked: true, claimed: true },
-          { tier: 2, games: 3, dinks: 3, payoutDinks: 3, item: null, unlocked: true, claimed: false },
-          { tier: 3, games: 5, dinks: 2, payoutDinks: 2, item: { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6, owned: false }, unlocked: true, claimed: false },
-          { tier: 4, games: 8, dinks: 4, payoutDinks: 4, item: null, unlocked: false, claimed: false },
-          { tier: 6, games: 15, dinks: 2, payoutDinks: 2, item: { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6, owned: false }, unlocked: false, claimed: false }
+          { tier: 1, xp: 125, dinks: 2, payoutDinks: 2, item: null, unlocked: true, claimed: true },
+          { tier: 2, xp: 250, dinks: 3, payoutDinks: 3, item: null, unlocked: true, claimed: false },
+          { tier: 3, xp: 375, dinks: 2, payoutDinks: 2, item: { id: 'frame-court', slot: 'frame', name: 'Court green ring', price: 6, owned: false }, unlocked: true, claimed: false },
+          { tier: 4, xp: 500, dinks: 4, payoutDinks: 4, item: null, unlocked: false, claimed: false },
+          { tier: 6, xp: 750, dinks: 2, payoutDinks: 2, item: { id: 'paddle-court', slot: 'paddle', name: 'Court green paddle', price: 6, owned: false }, unlocked: false, claimed: false }
         ]
       };
       rwSave(rwClean({ dinks: 12, streak: 1, best: 7, last: rwDayKey(Date.now()), worn: shop.worn, pet: wornPet }), club.code);
