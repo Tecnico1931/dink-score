@@ -143,19 +143,6 @@ function rwPetRotationCopy(shinyWeek) {
     : `Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+). Free shiny coat rotates every Monday (UTC): ${order}.`;
 }
 
-// Companion block inside the "Your Dink" card on the Play tab (hidden automatically whenever rewards are off or hidden).
-function rwPetCardHTML(st) {
-  if (!st || !st.worn || !st.worn.pet) return '';
-  const key = rwPetNormId(st.worn.pet);
-  if (!key) return '';
-  const p = st.pet && rwPetNormId(st.pet.id) === key
-    ? st.pet
-    : { id: key, stage: 1, stageLabel: 'Rookie', playDays: 0, nextStageDays: 5, shiny: false };
-  const name = rwPetName(key);
-  const stageLine = rwPetStageLine(p);
-  return `<div class="rw-card-pet">${rwPetBadgeHTML(key, { stage: p.stage, shiny: !!p.shiny, decorative: false, size: 44 })}<div class="rw-card-pet-txt"><b>${esc(name)}${p.shiny ? ' · Shiny coat' : ''}</b><small>${esc(stageLine)}</small></div></div>`;
-}
-
 // Dedicated "Court pets" section for the Shop sheet: court-green spotlight header, owned pet picker with growth progress,
 // one-tap weekly Shiny coat toggle (shown ONLY during the pet's featured week), and Adopt list for unowned pets.
 function rwPetsSectionHTML(c, s) {

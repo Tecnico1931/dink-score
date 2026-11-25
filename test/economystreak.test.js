@@ -58,9 +58,10 @@ test('with the club switch off, or the device switch on, nothing is drawn and no
   const make = (club, hide) => new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', mod + `; return { Rewards, get s() { return rwCur(); } };`)(
     { get: (k, f) => (k === 'pb.rewardsHide' ? hide : f), set() {} }, club, String, () => {}, { addEventListener() {} }, () => 'Ana', () => 'tok', null, () => {});
   const off = make({ rewards: false }, false), none = make(null, false), hidden = make({ rewards: true }, true), on = make({ rewards: true }, false);
-  for (const x of [off, none]) { assert.equal(x.s.dinks, 0); assert.equal(x.Rewards.cardHTML() + x.Rewards.flameHTML() + x.Rewards.youRowHTML(), ''); }
-  assert.equal(hidden.Rewards.cardHTML(), ''); assert.match(hidden.Rewards.youRowHTML(), /Show rewards and streak/);
-  assert.match(on.Rewards.cardHTML(), /Your Dink[\s\S]*can't be bought with real money or cashed out/);
+  for (const x of [off, none]) { assert.equal(x.s.dinks, 0); assert.equal(x.Rewards.tileHTML() + x.Rewards.flameHTML() + x.Rewards.youRowHTML(), ''); }
+  assert.equal(hidden.Rewards.tileHTML(), ''); assert.match(hidden.Rewards.youRowHTML(), /Show rewards and streak/);
+  assert.match(on.Rewards.tileHTML(), /<button type="button" class="tile rw-tile" data-rw="store"><span class="t-k">Your Dinks<\/span>[\s\S]*No streak yet[\s\S]*<span class="t-big">0<\/span>/);
+  assert.ok(!('cardHTML' in on.Rewards), 'no second Dinks card');
   assert.match(on.Rewards.youRowHTML(), /Hide rewards and streak/);
 });
 
@@ -70,7 +71,6 @@ test('calm and play-money rules: no purchase, no randomness, no animation or sou
   const html = read('dink-score.html');
   const css = html.slice(html.indexOf('.card.rw-card {'), html.indexOf('.me-btn.frame-crown::before'));
   assert.ok(!/animation|transition|@keyframes/.test(css));
-  assert.match(css, /\.rw-hide \{[^}]*min-height: 44px/);
 });
 
 test('the phone only asks the server: no call while off, hidden-or-not it shows the synced value, a legacy local balance is replaced', async () => {

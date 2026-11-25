@@ -191,7 +191,7 @@ test('the shop sheet lists only what is unowned to buy and what is owned to wear
 test('hidden on this phone: the sheet shows nothing to buy and no look is applied; shown: the worn ids become two attributes', () => {
   const hidden = phone({ hide: true });
   assert.ok(!/data-rw-buy|data-rw-wear/.test(hidden.x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: items([]) } })));
-  assert.equal(hidden.x.Rewards.cardHTML(), '');
+  assert.equal(hidden.x.Rewards.tileHTML(), '');
   const shown = phone();
   shown.kv['pb.rewards'] = { 'club-a': { dinks: 3, streak: 1, last: '', worn: { frame: 'frame-double', paddle: 'paddle-stripe' } } };
   shown.x.rwApplyLook();
@@ -202,11 +202,12 @@ test('hidden on this phone: the sheet shows nothing to buy and no look is applie
   assert.deepEqual(off.root.attrs, {}, 'a club with rewards off draws no look');
 });
 
-test('the card offers the Shop only to a phone linked to a name; opening it asks the server, a buy sends the item id and never a price', async () => {
+test('the Your Dinks tile opens the Shop; the Shop also holds Dinks activity; opening it asks the server, a buy sends the item id and never a price', async () => {
   const { x, calls, listeners, kv } = phone();
-  assert.match(x.Rewards.cardHTML(), /data-rw="store">Shop</);
+  assert.match(x.Rewards.tileHTML(), /data-rw="store"/);
   await x.Rewards.openStore();
   assert.deepEqual(calls[0], { action: 'rewards-catalog', name: 'Ana', playerToken: 'tok' });
+  assert.match(x.Rewards.storeHTML(x.sheet), /data-rw="activity">Dinks activity</, 'the ledger is reached from the Shop now the Home card is gone');
   assert.equal(x.sheet.view, 'rwstore'); assert.equal(x.sheet.store.dinks, 20);
   const click = ds => listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
   x.sheet.store = { ...x.sheet.store, dinks: 99 }; // enough for the 45-Dink Cobalt ring
