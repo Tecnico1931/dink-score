@@ -9,6 +9,14 @@ const rwPassRewardText = t => {
 };
 const rwPassMaxXp = p => (p && p.maxXp > 0 ? p.maxXp : 1);
 
+// The Season pass card on top of the shop (under the wallet, after Daily spin and Mystery box): season name, what is ready, one way into the full pass.
+// Reads only the shop answer and the ready count already on the phone; the tiers load when it is opened.
+function rwPassCardHTML(c, s) {
+  const se = s && s.season, n = typeof rwReadyN === 'function' ? rwReadyN() : 0;
+  const line = n > 0 ? `${n} ${n === 1 ? 'reward is' : 'rewards are'} ready to claim.` : 'Free XP track: 8 tiers, earned by playing this season.';
+  return `<h3 class="rw-h">Season pass</h3><section class="rw-passcard" aria-label="Season pass"><div class="rw-pass-top"><b class="rw-box-title">${esc(se && se.name ? se.name : 'This season')}</b>${rwReadyTag(n) || '<span class="rw-pass-free">Free track</span>'}</div><p class="rw-box-rates">${esc(line)}</p><button type="button" class="btn ${n > 0 ? 'btn-court' : 'btn-soft'} block" data-rw="pass"${c.busy ? ' disabled' : ''}>${n > 0 ? 'Claim rewards' : 'View season pass'}</button></section>`;
+}
+
 Object.assign(Rewards, {
   passHTML(c) {
     const p = c.pass, done = '<div class="btns"><button type="button" class="btn btn-soft" data-rw="store">Shop</button><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>';
