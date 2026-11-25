@@ -3916,6 +3916,7 @@ const RW_LADDER = [5, 8, 10, 12, 15, 20, 25], RW_MILES = [[30, 100], [100, 250]]
 // The rules card quotes these numbers; test/economyrules.test.js pins each to the server constant it copies (LADDER, EARN, CHALLENGE_PAY, BOX_*, PASS_TIERS).
 const RW_EARN = { play: 2, win: 10, beat: 3, hot: 5, hotFrom: 3, cap: 300 }, RW_CHAL = [10, 10, 15];
 const RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 8, RW_XP = { game: 10, win: 15, cap: 300, tier: 125 };
+const RW_PET_DAYS = [5, 15];
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
@@ -4218,7 +4219,20 @@ const Rewards = {
     const lad = RW_LADDER.map(n => `+${n}`).join(', '), top = RW_LADDER[RW_LADDER.length - 1], miles = RW_MILES.map(([d, b]) => `+${b} more on day ${d}`).join(' and '), E = RW_EARN;
     const spin = rwBoxOn() ? `<li><b>Daily spin:</b> one free spin a day (UTC) wins ${RW_SPIN.min} to ${RW_SPIN.max} Dinks. It is drawn on the server and the chances are shown on the card. It never depends on a score.</li>` : '';
     const box = rwBoxOn() ? `<li><b>Mystery box:</b> opens a random item you don't own yet for ${rwDinks(RW_BOX.cost)}, up to ${RW_BOX.limit} a day. If you already own it, ${rwDinks(RW_BOX.refund)} come back. The odds are shown before you open one.</li>` : '';
-    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${E.play}</b> for every game you play, <b>+${E.win}</b> for a win, <b>+${E.beat}</b> when you beat the forecast (even in a loss) and <b>+${E.hot}</b> for each win once you have won ${E.hotFrom} in a row. A logged result counts the same as one scored live.</li><li>Only games sent from a club player's own phone earn more than the +${E.play}.</li><li>Games pay at most ${E.cap} Dinks a day. If a game is edited or deleted, the Dinks it paid are adjusted the next time your phone syncs.</li><li><b>Weekly challenges:</b> finish the week's three challenges for +${RW_CHAL[0]}, +${RW_CHAL[1]} and +${RW_CHAL[2]}.</li><li><b>Daily streak:</b> play on days in a row for ${lad} on days 1 to 7, then +${top} a day, ${miles}. Miss a day and the streak starts again.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
+    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${E.play}</b> for every game you play, <b>+${E.win}</b> for a win, <b>+${E.beat}</b> when you beat the forecast (even in a loss) and <b>+${E.hot}</b> for each win once you have won ${E.hotFrom} in a row. A logged result counts the same as one scored live.</li><li>Only games sent from a club player's own phone earn more than the +${E.play}.</li><li>Games pay at most ${E.cap} Dinks a day. If a game is edited or deleted, the Dinks it paid are adjusted the next time your phone syncs.</li><li><b>Weekly challenges:</b> finish the week's three challenges for +${RW_CHAL[0]}, +${RW_CHAL[1]} and +${RW_CHAL[2]}.</li><li><b>Daily streak:</b> play on days in a row for ${lad} on days 1 to 7, then +${top} a day, ${miles}. Miss a day and the streak starts again.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li><b>Pets:</b> adopt one in the shop. It grows from Rookie to Club after ${RW_PET_DAYS[0]} days you have played since adopting it, then to Veteran after ${RW_PET_DAYS[1]}. A free shiny coat rotates every Monday (UTC).</li><li><b>Shop shelves:</b> rings, pets, titles, name styles, court themes, win celebrations and victory sounds, plus Mythic and Legendary shelves and limited-time shelves such as Christmas. Once you own an item you keep it.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
+  },
+  // What's new: this release's rewards items, written from the same constants as the rules card. Nothing where rewards are off or hidden.
+  newsItems() {
+    if (!rwShown()) return [];
+    const E = RW_EARN, box = rwBoxOn() ? ['🎡', 'Daily spin and mystery box', `Spin free once a day on the Play tab for ${RW_SPIN.min} to ${RW_SPIN.max} Dinks. A mystery box costs ${RW_BOX.cost} Dinks, up to ${RW_BOX.limit} a day, and the odds show before you open one.`] : null;
+    return [
+      ['🪙', 'Dinks for every game', `Each game pays +${E.play} Dinks, +${E.win} for a win and +${E.beat} when you beat the forecast, up to ${E.cap} a day. Dinks are free play money and never change a rating.`],
+      ['⭐', 'XP, levels and season pass', `Games give XP that fills your level, 1 to 25, and a free ${RW_PASS_TIERS}-tier season pass that pays 25 Dinks a tier. The Rules tab has the numbers.`],
+      ['🛍️', 'The Shop tab', 'Spend Dinks on rings, pets, titles, name styles, court themes, win celebrations and victory sounds. Mythic and Legendary shelves hold the rarest looks.'],
+      box,
+      ['🐾', 'Pets', `Adopt a pet. It grows to Club after ${RW_PET_DAYS[0]} days you play and to Veteran after ${RW_PET_DAYS[1]}. A free shiny coat rotates every Monday.`],
+      ['🎄', 'Christmas shelf', 'Candy cane and Twinkle lights rings are in the shop until 25 December (UTC). Once you own one, it is yours to keep.']
+    ].filter(Boolean);
   },
   // The "You" rows (shown only where the club has rewards on): the way into the Shop and Season pass, and the one switch on this phone.
   youRowHTML() {
@@ -9941,7 +9955,7 @@ function tourSteps() {
   return steps;
 }
 /* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
-const NEWS = { id: '2026-11-23', title: "What's new", items: [
+const NEWS = { id: '2026-11-25', title: "What's new", items: [
   ['🎨', 'Court themes', 'Match your home court — pick Court Green, Court Blue, Clay Red, Indoor Violet, Sunset Orange or Club Slate in You → Display and sound.'],
   ['🔔', 'Bell and inbox', 'The bell in the header lists game nights to answer, games to confirm, live events and league results. It is worked out on your phone, so nothing extra is shared.'],
   ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, events and courts, or league. New game night invites and league results now send one too.'],
@@ -9953,6 +9967,8 @@ const NEWS = { id: '2026-11-23', title: "What's new", items: [
   ['🔑', 'Passkey sign-in', 'Sign in with a passkey to bring your clubs and player names to a new phone. It is optional, and there is no password to remember.'],
   ['⌚', 'Apple Watch', 'Score from your wrist with the Dink Score watch app, which you install on the watch. Scan its QR or enter a game code to link it, or tap Link a watch on a live game.']
 ] };
+// Rewards items come from Rewards.newsItems() (only where rewards show), ahead of these.
+const newsItems = () => [...(typeof Rewards !== 'undefined' && Rewards.newsItems ? Rewards.newsItems() : []), ...NEWS.items];
 // Someone opening the app for the first time gets the tour instead, so they never see old news.
 if (!store.get('pb.tutorialSeen', false)) store.set('pb.newsSeen', NEWS.id);
 let newsOpen = store.get('pb.newsSeen', '') !== NEWS.id, newsFrom = null;
@@ -9978,11 +9994,11 @@ function renderTour() {
     newsFrom = document.activeElement;
     root.innerHTML = `<div class="tour-bg"><div class="tour news" role="dialog" aria-modal="true" aria-labelledby="news-h">
       <div class="tour-body"><span class="count">New in Dink Score</span><h2 id="news-h">${NEWS.title}</h2>
-        <div class="news-list">${NEWS.items.map(([icon, t, body]) => `<div class="news-item"><span class="news-ic" aria-hidden="true">${icon}</span><div><b>${t}</b><p>${body}</p></div></div>`).join('')}</div></div>
+        <div class="news-list">${newsItems().map(([icon, t, body]) => `<div class="news-item"><span class="news-ic" aria-hidden="true">${icon}</span><div><b>${t}</b><p>${body}</p></div></div>`).join('')}</div></div>
       <div class="tour-foot"><button class="btn btn-ball" data-news="done" id="news-ok" style="flex:1">Got it</button></div>
     </div></div>`;
     const btn = $('#news-ok'); if (btn) { try { btn.focus({ preventScroll: true }); } catch {} }
-    announce(`${NEWS.title}. ${NEWS.items.length} updates. Press Got it to close.`);
+    announce(`${NEWS.title}. ${newsItems().length} updates. Press Got it to close.`);
     return;
   }
   if (tourStep === null) { root.innerHTML = ''; return; }

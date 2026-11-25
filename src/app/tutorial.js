@@ -27,7 +27,7 @@ function tourSteps() {
   return steps;
 }
 /* ---------- what's new: shown once per phone after an update. Change NEWS.id (and the items) to show a new one. ---------- */
-const NEWS = { id: '2026-11-23', title: "What's new", items: [
+const NEWS = { id: '2026-11-25', title: "What's new", items: [
   ['🎨', 'Court themes', 'Match your home court — pick Court Green, Court Blue, Clay Red, Indoor Violet, Sunset Orange or Club Slate in You → Display and sound.'],
   ['🔔', 'Bell and inbox', 'The bell in the header lists game nights to answer, games to confirm, live events and league results. It is worked out on your phone, so nothing extra is shared.'],
   ['📣', 'Pick your alerts', 'Choose which push alerts you get: game nights, events and courts, or league. New game night invites and league results now send one too.'],
@@ -39,6 +39,8 @@ const NEWS = { id: '2026-11-23', title: "What's new", items: [
   ['🔑', 'Passkey sign-in', 'Sign in with a passkey to bring your clubs and player names to a new phone. It is optional, and there is no password to remember.'],
   ['⌚', 'Apple Watch', 'Score from your wrist with the Dink Score watch app, which you install on the watch. Scan its QR or enter a game code to link it, or tap Link a watch on a live game.']
 ] };
+// Rewards items come from Rewards.newsItems() (only where rewards show), ahead of these.
+const newsItems = () => [...(typeof Rewards !== 'undefined' && Rewards.newsItems ? Rewards.newsItems() : []), ...NEWS.items];
 // Someone opening the app for the first time gets the tour instead, so they never see old news.
 if (!store.get('pb.tutorialSeen', false)) store.set('pb.newsSeen', NEWS.id);
 let newsOpen = store.get('pb.newsSeen', '') !== NEWS.id, newsFrom = null;
@@ -64,11 +66,11 @@ function renderTour() {
     newsFrom = document.activeElement;
     root.innerHTML = `<div class="tour-bg"><div class="tour news" role="dialog" aria-modal="true" aria-labelledby="news-h">
       <div class="tour-body"><span class="count">New in Dink Score</span><h2 id="news-h">${NEWS.title}</h2>
-        <div class="news-list">${NEWS.items.map(([icon, t, body]) => `<div class="news-item"><span class="news-ic" aria-hidden="true">${icon}</span><div><b>${t}</b><p>${body}</p></div></div>`).join('')}</div></div>
+        <div class="news-list">${newsItems().map(([icon, t, body]) => `<div class="news-item"><span class="news-ic" aria-hidden="true">${icon}</span><div><b>${t}</b><p>${body}</p></div></div>`).join('')}</div></div>
       <div class="tour-foot"><button class="btn btn-ball" data-news="done" id="news-ok" style="flex:1">Got it</button></div>
     </div></div>`;
     const btn = $('#news-ok'); if (btn) { try { btn.focus({ preventScroll: true }); } catch {} }
-    announce(`${NEWS.title}. ${NEWS.items.length} updates. Press Got it to close.`);
+    announce(`${NEWS.title}. ${newsItems().length} updates. Press Got it to close.`);
     return;
   }
   if (tourStep === null) { root.innerHTML = ''; return; }
