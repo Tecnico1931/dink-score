@@ -8,21 +8,23 @@ import * as E from '../api/_economy.js';
 
 const src = fs.readFileSync(new URL('../src/app/economy.js', import.meta.url), 'utf8');
 const pure = src.slice(0, src.indexOf('let rwState'));
-const { rwStreak, rwNext, rwBonusFor, rwClean, rwDayKey, RW_BONUS } = new Function(pure + '; return { rwStreak, rwNext, rwBonusFor, rwClean, rwDayKey, RW_BONUS };')();
+const { rwStreak, rwNext, rwDayPay, rwClean, rwDayKey, RW_LADDER, RW_MILES } = new Function(pure + '; return { rwStreak, rwNext, rwDayPay, rwClean, rwDayKey, RW_LADDER, RW_MILES };')();
 const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 
 const d = n => rwDayKey(new Date(2026, 0, n)); // made-up days: January 2026
 test("the phone's bonus table and calendar-day maths are the server's", () => {
-  assert.deepEqual(RW_BONUS, E.BONUS);
-  for (let day = 1; day <= 130; day++) assert.equal(rwBonusFor(day), E.bonusFor(day), 'day ' + day);
+  assert.deepEqual(RW_LADDER, E.LADDER); assert.deepEqual(RW_MILES, E.MILESTONES);
+  for (let day = 0; day <= 130; day++) assert.equal(rwDayPay(day), E.dayPay(day), 'day ' + day);
   assert.equal(rwDayKey(new Date(2026, 2, 29)), '2026-03-29');
 });
 
-test('after day 30 the day-30 bonus repeats every 30th day only', () => {
-  assert.equal(rwBonusFor(31), 0); assert.equal(rwBonusFor(59), 0); assert.equal(rwBonusFor(60), 25); assert.equal(rwBonusFor(90), 25);
-  assert.deepEqual(rwNext(30), { day: 60, bonus: 25, in: 30 });
-  assert.deepEqual(rwNext(0), { day: 3, bonus: 2, in: 3 });
-  assert.deepEqual(rwNext(7), { day: 14, bonus: 10, in: 7 });
+test('the next streak day pays the ladder, the last rung after day 7, and the milestones on days 30 and 100', () => {
+  assert.deepEqual(rwNext(0), { day: 1, pay: 5 });
+  assert.deepEqual(rwNext(1), { day: 2, pay: 8 });
+  assert.deepEqual(rwNext(6), { day: 7, pay: 25 });
+  assert.deepEqual(rwNext(20), { day: 21, pay: 25 });
+  assert.deepEqual(rwNext(29), { day: 30, pay: 125 });
+  assert.deepEqual(rwNext(99), { day: 100, pay: 275 });
 });
 
 test('the streak shown is 0 once yesterday and today were both missed, and counts through today if not yet played', () => {

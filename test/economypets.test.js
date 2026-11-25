@@ -13,7 +13,6 @@ import {
 } from '../api/_economypets.js';
 import { CATALOGUE, SLOTS, itemById, buyId, planBuy, wornFrom, clubLooksFrom } from '../api/_economyshop.js';
 import { BOX_TIERS } from '../api/_economybox.js';
-import { DAY_PAY, BONUS } from '../api/_economy.js';
 import { weekOf as progressWeekOf } from '../api/_progress.js';
 import { module } from './helpers/app.js';
 

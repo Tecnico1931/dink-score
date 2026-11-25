@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { module } from './helpers/app.js';
-import { DAY_PAY, bonusFor, totals, ledgerBalance } from '../api/_economy.js';
+import { dayPay, totals, ledgerBalance } from '../api/_economy.js';
 
 const dayKey = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const phone = ({ club = { code: 'club-a', rewards: true }, name = 'Ana', hide = false, state = null, catalog = { dinks: 7, earned: 10, spent: 3, worn: { frame: '', paddle: '' }, share: false, items: [] } } = {}) => {
@@ -30,8 +30,8 @@ test('Shop header: balance, earned/spent, streak week and Inventory count come f
   const p = phone({ state: { streak: 3, best: 5, dinks: 7, last: today } });
   const html = p.x.Rewards.storeHTML({ store: { dinks: 7, earned: 10, spent: 3, worn: {}, items: [{ id: 'frame-court', slot: 'frame', name: 'Court', price: 6, owned: true }, { id: 'frame-ink', slot: 'frame', name: 'Ink', price: 6, owned: false }] }, msg: '', error: '' });
   assert.match(html, /<p class="rw-tally">10 earned, 3 spent<\/p>/);
-  assert.match(html, /Day 3 streak<\/b><small>Tomorrow: day 4, \+1<\/small><\/span><b class="rw-best">Best 5<\/b>/);
-  assert.match(html, /rw-dayc got"><span class="rw-dot" aria-hidden="true">✓<\/span><span class="vh">Day 3: \+3, done/);
+  assert.match(html, /Day 3 streak<\/b><small>Tomorrow: day 4, \+12<\/small><\/span><b class="rw-best">Best 5<\/b>/);
+  assert.match(html, /rw-dayc got"><span class="rw-dot" aria-hidden="true">✓<\/span><span class="vh">Day 3: \+10, done/);
   assert.match(html, /rw-dayc next"><span class="rw-dot" aria-hidden="true">4<\/span>/);
   assert.match(html, /<span class="rw-count">1<span class="vh"> item<\/span>/);
   assert.match(html, /class="badge you">You</);
@@ -40,11 +40,11 @@ test('Shop header: balance, earned/spent, streak week and Inventory count come f
   for (const [day, from] of [[3, 1], [9, 8]]) {
     const q = phone({ state: { streak: day, best: day, dinks: 0, last: today } });
     const h = q.x.Rewards.storeHTML({ store: { dinks: 0, worn: {}, items: [] }, msg: '', error: '' });
-    for (let n = from; n < from + 7; n++) assert.ok(h.includes(`<span class="vh">Day ${n}: +${DAY_PAY + bonusFor(n)}`), `day ${n} pays ${DAY_PAY + bonusFor(n)}`);
+    for (let n = from; n < from + 7; n++) assert.ok(h.includes(`<span class="vh">Day ${n}: +${dayPay(n)}`), `day ${n} pays ${dayPay(n)}`);
   }
   // No streak yet: day 1 is the next one, nothing is checked.
   const fresh = phone().x.Rewards.storeHTML({ store: { dinks: 0, worn: {}, items: [] }, msg: '', error: '' });
-  assert.match(fresh, /No streak yet<\/b><small>Play today to start: day 1, \+1/);
+  assert.match(fresh, /No streak yet<\/b><small>Play today to start: day 1, \+5/);
   assert.ok(!/rw-dayc got/.test(fresh));
   assert.ok(!/earned,/.test(fresh), 'an older server answer without totals draws no tally');
 });

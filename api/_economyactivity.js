@@ -16,12 +16,15 @@ export function describe(e) {
     if (r === 'day') return 'Earned for a play day';
     if (r === 'day+streak') return 'Earned for a play day, with a streak bonus';
     if (r === 'spin') return 'Daily spin';
+    if (r === 'game') return 'Earned from games';
+    if (r === 'challenge') return 'Weekly challenge reward';
     if (r.startsWith('boxref:')) return `Mystery box refund: you already had ${nameOf(r.slice(7))}`;
     if (r.startsWith('pass:owned:')) return `Season pass tier reward: you already had ${nameOf(r.slice(11))}`;
     if (tierOf(r)) return `Season pass tier ${tierOf(r)}`;
     if (r.startsWith('pass:')) return `Season pass tier reward: ${nameOf(r.slice(5))}`;
     return 'Earned Dinks';
   }
+  if (r === 'game-adj') return 'Taken back: a game was edited or removed';
   if (r.startsWith('shop:')) return `Bought ${nameOf(r.slice(5))}`;
   if (r.startsWith('box:')) return `Opened a mystery box: ${nameOf(r.slice(4))}`;
   return 'Spent Dinks';

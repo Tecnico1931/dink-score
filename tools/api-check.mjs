@@ -1273,29 +1273,47 @@ await step('rewards ledger: server-derived from the games a linked phone saved, 
   const sync = (name, extra = {}) => cfPost(playersApi, { action: 'rewards-sync', name, playerToken: cfTok[name], tz: 0, ...extra });
   const rwNow = Date.now();
   const days = async (id, back) => { await pg.query(`UPDATE games SET data = jsonb_set(data, '{receivedAt}', to_jsonb($1::bigint)) WHERE club = $2 AND id = $3`, [rwNow - back * 864e5, cf.code, id]); };
-  const rows = async name => (await pg.query(`SELECT id, kind, amount, streak FROM reward_ledger WHERE club = $1 AND name_key = $2 ORDER BY day`, [cf.code, name.toLowerCase()])).rows;
+  const rows = async name => (await pg.query(`SELECT id, kind, amount, streak FROM reward_ledger WHERE club = $1 AND name_key = $2 ORDER BY day, id`, [cf.code, name.toLowerCase()])).rows;
+  const dayRows = async name => (await rows(name)).filter(x => x.id.startsWith('day:')); // the daily streak rows
+  const sum = xs => xs.reduce((n, x) => n + x.amount, 0);
   assert.equal((await sync('Ann')).status, 403, 'rewards off for the club: no reward calls');
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) assert.equal((await sync('Ann', bad)).status, 403);
-  // Ann saved conf-1 from her own phone today: 1 Dink, day 1. Saying more in the request changes nothing, and a replay adds nothing.
+  // Ann saved conf-1 from her own phone today: day 1 of a streak pays 5, and her games pay on top. Saying more in the request changes nothing, and a replay adds nothing.
   let r = ok(await sync('Ann', { dinks: 999, streak: 50, amount: 500, gained: 99 }));
-  assert.deepEqual([r.dinks, r.streak, r.gained], [1, 1, 1]);
-  r = ok(await sync('Ann')); assert.deepEqual([r.dinks, r.gained, r.entries.length], [1, 0, 1]);
-  assert.deepEqual(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Ann', playerToken: cfTok.Ann })).dinks, 1);
-  // A game the organizer's phone saved for Eve is not Eve's own, and Eve saved none: nothing earned.
+  assert.deepEqual([r.streak, (await dayRows('Ann')).map(x => x.amount)], [1, [5]]);
+  assert.deepEqual([r.dinks, r.gained], [sum(await rows('Ann')), sum(await rows('Ann'))], 'the balance is the ledger, whatever the request says');
+  const annNow = r.dinks;
+  r = ok(await sync('Ann')); assert.deepEqual([r.dinks, r.gained, r.entries.length], [annNow, 0, (await rows('Ann')).length]);
+  assert.deepEqual(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Ann', playerToken: cfTok.Ann })).dinks, annNow);
+  // A game the organizer's phone saved for Eve is not Eve's own phone: no streak day for her (her games still pay the +2 for playing).
   ok(await cfPost(games, { games: [cfGame('conf-eve', { teams: [['Eve', 'Dee'], ['Cat', 'Bo']] })], ownerToken: cf.owner }));
-  assert.equal(ok(await sync('Eve')).dinks, 0);
-  // Bo saves a game on each of 3 days (the server's own arrival time, moved here by hand): a 3-day streak = 1 + 1 + (1 + 2).
+  await sync('Eve');
+  assert.equal((await dayRows('Eve')).length, 0, 'no streak from a game her own phone did not send');
+  // Bo saves a game on each of 3 days (the server's own arrival time, moved here by hand): a 3-day streak pays 5 + 8 + 10.
   for (const [id, back] of [['bo-1', 2], ['bo-2', 1], ['bo-3', 0]]) { ok(await cfPost(games, { games: [cfGame(id, { score: [11, back + 1] })], playerName: 'Bo', playerToken: cfTok.Bo })); await days(id, back); }
-  r = ok(await sync('Bo')); assert.deepEqual([r.dinks, r.streak, r.best, r.gained], [5, 3, 3, 5]);
-  assert.deepEqual((await rows('Bo')).map(x => [x.kind, x.amount, x.streak]), [['earn', 1, 1], ['earn', 1, 2], ['earn', 3, 3]]);
-  // A game that arrives "in the past" (clock set back, or a backdated log) lands before the last paid day and adds nothing; older than 14 days too.
+  r = ok(await sync('Bo')); assert.deepEqual([r.streak, r.best, r.dinks, r.gained], [3, 3, sum(await rows('Bo')), sum(await rows('Bo'))]);
+  assert.deepEqual((await dayRows('Bo')).map(x => [x.kind, x.amount, x.streak]), [['earn', 5, 1], ['earn', 8, 2], ['earn', 10, 3]]);
+  assert.ok((await rows('Bo')).some(x => x.id.startsWith('play:')), 'and the games pay per game as well');
+  // A game that arrives "in the past" (clock set back, or a backdated log) lands before the last paid day and adds no streak day; older than 14 days adds nothing at all.
   ok(await cfPost(games, { games: [cfGame('bo-4', { logged: true, score: [11, 8], endedAt: now - 40 * 864e5, startedAt: now - 40 * 864e5 }), cfGame('bo-5', { score: [11, 9] })], playerName: 'Bo', playerToken: cfTok.Bo }));
   await days('bo-4', 40); await days('bo-5', 5);
-  r = ok(await sync('Bo')); assert.deepEqual([r.dinks, r.gained], [5, 0]);
-  // Append-only: a deleted game does not take earned Dinks back, and the table refuses a bad row.
+  const boBefore = new Set((await rows('Bo')).map(x => x.id));
+  await sync('Bo');
+  assert.equal((await dayRows('Bo')).length, 3, 'no streak day for the past games');
+  const added = (await rows('Bo')).filter(x => !boBefore.has(x.id));
+  const dayOf = back => new Date(rwNow - back * 864e5).toISOString().slice(0, 10);
+  assert.ok(added.some(x => x.id === 'play:' + dayOf(5)), 'the game 5 days back pays its own day');
+  assert.ok(added.every(x => x.id.startsWith('play:') && !x.id.includes(dayOf(40))), 'the one 40 days back pays nothing; the later days only move because a win now sits before them in the run (+5 each)');
+  // Append-only, and a deleted game takes back what it paid (never the streak day): the ledger gets a take-back row, the table refuses a bad row.
+  const boRows = (await rows('Bo')).length, boDinks = ok(await sync('Bo')).dinks;
   ok(await call(games, 'DELETE', { query: `?code=${cf.code}&id=bo-3`, headers: { 'x-club-owner': cf.owner } }));
-  assert.equal(ok(await sync('Bo')).dinks, 5);
+  r = ok(await sync('Bo'));
+  assert.ok(r.dinks < boDinks, `the deleted game pays nothing now: ${boDinks} -> ${r.dinks}`);
+  // (ratings are replayed without the game, so a later forecast bonus can move by 3 too: the rows are appended, never rewritten)
+  assert.ok((await rows('Bo')).length > boRows && (await rows('Bo')).length <= boRows + 3, 'new rows only: nothing was rewritten or removed');
+  assert.equal((await dayRows('Bo')).length, 3, 'the streak day stays');
+  assert.ok((await rows('Bo')).some(x => x.kind === 'spend' && x.amount < 0));
   await assert.rejects(() => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'bo', 'bad-1', 'earn', -3, 'x')`, [cf.code]));
   // Nothing of it reaches the club payload or another player's view.
   assert.ok(!/reward_ledger|day:20|rewardsLedger/.test(JSON.stringify(await cfGet())));
@@ -1303,18 +1321,24 @@ await step('rewards ledger: server-derived from the games a linked phone saved, 
   const fresh = async (name, score) => {
     cfTok[name] = ok(await cfPost(playersApi, { action: 'claim', name, ownerToken: cf.owner })).playerToken;
     ok(await cfPost(games, { games: [cfGame('rw-' + name.toLowerCase(), { teams: [[name, 'Dee'], ['Cat', 'Eve']], score })], playerName: name, playerToken: cfTok[name] }));
-    assert.equal(ok(await sync(name)).dinks, 1);
+    const got = ok(await sync(name));
+    const mine = await rows(name), play = mine.find(x => x.id.startsWith('play:'));
+    assert.deepEqual([(await dayRows(name)).map(x => x.amount), got.dinks === sum(mine), [12, 15].includes(play.amount)], [[5], true, true], 'the streak day 5 and a verified win: +2 +10 (+3 when it beat the forecast)');
   };
   await fresh('Rex', [11, 3]); await fresh('Fay', [11, 4]); await fresh('Gus', [11, 5]);
   // A rename moves the ledger to the new name (the phone keeps its link); a merge keeps every row of both, even where the day id matched.
   ok(await cfPost(playersApi, { action: 'rename', name: 'Rex', newName: 'Remy', ownerToken: cf.owner }));
-  assert.equal((await rows('Rex')).length, 0); assert.equal((await rows('Remy')).length, 1);
-  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Remy', playerToken: cfTok.Rex })).dinks, 1);
+  assert.equal((await rows('Rex')).length, 0); assert.ok((await rows('Remy')).some(x => x.id.startsWith('day:')) && (await rows('Remy')).some(x => x.id.startsWith('play:')), 'the streak day and the game day moved with the name');
+  const remyDinks = sum(await rows('Remy')), fayDinks = sum(await rows('Fay')), bothRows = (await rows('Remy')).length + (await rows('Fay')).length;
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Remy', playerToken: cfTok.Rex })).dinks, remyDinks);
   ok(await cfPost(playersApi, { action: 'release', name: 'Fay', ownerToken: cf.owner })); // a merge keeps one phone link, so the kept player is freed first
   ok(await cfPost(playersApi, { action: 'merge', name: 'Remy', into: 'Fay', ownerToken: cf.owner }));
   assert.equal((await rows('Remy')).length, 0);
-  assert.deepEqual([(await rows('Fay')).length, (await rows('Fay')).reduce((n, x) => n + x.amount, 0)], [2, 2]);
-  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Fay', playerToken: cfTok.Rex })).dinks, 2);
+  assert.deepEqual([(await rows('Fay')).length, sum(await rows('Fay'))], [bothRows, remyDinks + fayDinks], 'every row of both kept, a clashing id moved under m:<name>:');
+  assert.equal(ok(await cfPost(playersApi, { action: 'rewards-get', name: 'Fay', playerToken: cfTok.Rex })).dinks, remyDinks + fayDinks);
+  // The merged player's games are the same games, so the next sync does not pay them again (any change is a small forecast adjustment, never a second pay).
+  const merged = ok(await sync('Fay', { playerToken: cfTok.Rex }));
+  assert.ok(Math.abs(merged.dinks - (remyDinks + fayDinks)) <= 6, 'merged Dinks stay about the same: ' + merged.dinks + ' vs ' + (remyDinks + fayDinks));
   // Anonymise removes the player's ledger.
   ok(await cfPost(playersApi, { action: 'anonymise', name: 'Gus', ownerToken: cf.owner }));
   assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'gus'`, [cf.code])).rows[0].n, 0);
@@ -1324,6 +1348,7 @@ await step('rewards ledger: server-derived from the games a linked phone saved, 
 await step('rewards: the creating phone earns for its own claimed name only; a game it saves for others, a forged claim and a replay earn nothing more', async () => {
   const sync = (name, extra = {}) => cfPost(playersApi, { action: 'rewards-sync', name, playerToken: cfTok[name], tz: 0, ...extra });
   const stamp = async id => (await pg.query(`SELECT data->>'scoredBy' AS by, data->>'scoredByPlayer' AS pl FROM games WHERE club = $1 AND id = $2`, [cf.code, id])).rows[0];
+  const streakDays = async name => (await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id LIKE 'day:%'`, [cf.code, name.toLowerCase()])).rows[0].n;
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   const crt = 'Cora'; // the creator's own player name
   cfTok[crt] = ok(await cfPost(playersApi, { action: 'claim', name: crt, ownerToken: cf.owner })).playerToken;
@@ -1332,22 +1357,92 @@ await step('rewards: the creating phone earns for its own claimed name only; a g
   ok(await cfPost(games, { games: [cfGame('crt-other', { teams: [['Eve', 'Dee'], ['Cat', 'Bo']], score: [11, 7] })], ownerToken: cf.owner, playerName: crt, playerToken: cfTok[crt] }));
   assert.deepEqual(await stamp('crt-other'), { by: 'organizer', pl: 'cora' });
   assert.equal(ok(await sync(crt)).dinks, 0, 'a game the creator saved for other people earns the creator nothing');
-  assert.equal(ok(await sync('Eve')).dinks, 0, 'and nothing for the players in it');
+  await sync('Eve');
+  assert.equal(await streakDays('Eve'), 0, 'and no streak day for the players in it (their own phones did not send it)');
   // A forged claim: the creator token with a player name and a wrong token carries no player key and earns nobody anything.
   ok(await cfPost(games, { games: [cfGame('crt-forge', { teams: [['Cora', 'Dee'], ['Cat', 'Bo']], score: [11, 10] })], ownerToken: cf.owner, playerName: crt, playerToken: 'f'.repeat(48) }));
   assert.deepEqual(await stamp('crt-forge'), { by: 'organizer', pl: null });
-  assert.equal(ok(await sync(crt)).dinks, 0, 'a claim that does not verify earns nothing');
+  assert.deepEqual([ok(await sync(crt)).dinks, await streakDays(crt)], [2, 0], 'a claim that does not verify earns only the +2 for playing, and no streak day');
   // The creator plays and saves from their own phone: they earn, once.
+  const forgeDinks = 2;
   ok(await cfPost(games, { games: [cfGame('crt-own', { teams: [['Cora', 'Dee'], ['Cat', 'Bo']], score: [11, 2] })], ownerToken: cf.owner, playerName: crt, playerToken: cfTok[crt] }));
-  let r = ok(await sync(crt)); assert.deepEqual([r.dinks, r.gained, r.streak], [1, 1, 1]);
-  r = ok(await sync(crt)); assert.deepEqual([r.dinks, r.gained], [1, 0]);
-  assert.equal(ok(await sync('Dee')).dinks, 0, 'a teammate of the creator is not paid for it');
+  let r = ok(await sync(crt));
+  assert.deepEqual([r.streak, await streakDays(crt)], [1, 1]);
+  const part = async (name, p) => (await pg.query(`SELECT coalesce(sum(amount), 0)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id LIKE $3`, [cf.code, name.toLowerCase(), p + '%'])).rows[0].n;
+  assert.deepEqual([await part(crt, 'day:'), [14, 17].includes(await part(crt, 'play:'))], [5, true], 'the day 5, the unverified game 2, and the verified win 12 or 15');
+  assert.equal(r.gained, r.dinks - forgeDinks, 'only what is new comes back as gained (the weekly challenges are paid too)');
+  const corraDinks = r.dinks;
+  r = ok(await sync(crt)); assert.deepEqual([r.dinks, r.gained], [corraDinks, 0]);
+  await sync('Dee');
+  assert.equal(await streakDays('Dee'), 0, 'a teammate of the creator gets no streak day for it');
   // An edit that keeps the result keeps the creator key.
   ok(await cfPost(games, { edit: cfGame('crt-own', { teams: [['Cora', 'Dee'], ['Cat', 'Bo']], score: [11, 2], startedAt: now - 3800000 }), ownerToken: cf.owner }));
   assert.deepEqual(await stamp('crt-own'), { by: 'organizer', pl: 'cora' });
-  // Games stored before this fix (organizer, no player key) stay unpaid: nothing is rewritten.
+  // A game the creating phone saved with no player key (an organizer game) is worth only the +2 to the players in it: the Dinks it paid on top are taken back, the streak day stays.
   await pg.query(`UPDATE games SET data = data - 'scoredByPlayer' WHERE club = $1 AND id = 'crt-own'`, [cf.code]);
-  assert.equal(ok(await sync(crt)).dinks, 1, 'an old row neither pays again nor takes anything back');
+  r = ok(await sync(crt));
+  assert.deepEqual([await part(crt, 'day:'), await part(crt, 'play:'), await streakDays(crt)], [5, 2 + 2, 1]);
+  assert.equal(ok(await sync(crt)).dinks, r.dinks, 'and a second sync changes nothing');
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+});
+await step('rewards per game (WI-17): +2 play and +10 win from a club player\'s own phone, an unverified game only +2, edits and deletes take back what a game paid, 300 a day, challenges paid once', async () => {
+  const sync = name => cfPost(playersApi, { action: 'rewards-sync', name, playerToken: cfTok[name], tz: 0 });
+  const part = async (name, p) => (await pg.query(`SELECT coalesce(sum(amount), 0)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id LIKE $3`, [cf.code, name.toLowerCase(), p + '%'])).rows[0].n;
+  const count = async name => (await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = $2`, [cf.code, name.toLowerCase()])).rows[0].n;
+  const del = id => call(games, 'DELETE', { query: `?code=${cf.code}&id=${id}`, headers: { 'x-club-owner': cf.owner } });
+  ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
+  for (const n of ['Ula', 'Vic', 'Wes', 'Xan']) cfTok[n] = ok(await cfPost(playersApi, { action: 'claim', name: n, ownerToken: cf.owner })).playerToken;
+  const mine = (id, extra = {}) => cfGame(id, { teams: [['Ula', 'Pat'], ['Quin', 'Rob']], score: [11, 5], ...extra });
+  // Ula wins her first game from her own phone: the streak day 5, then 2 for playing + 10 for the win + 3 (a win from an even start beats the forecast).
+  ok(await cfPost(games, { games: [mine('pg-1')], playerName: 'Ula', playerToken: cfTok.Ula }));
+  let r = ok(await sync('Ula'));
+  assert.deepEqual([await part('Ula', 'day:'), await part('Ula', 'play:')], [5, 15]);
+  assert.equal(r.dinks, (await pg.query(`SELECT sum(amount)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'ula'`, [cf.code])).rows[0].n, 'the balance is the ledger');
+  // A weekly challenge she finished pays once, +10, +10 or +15 by its place among the week\'s three.
+  const { challengesFor, weekOf } = await import(pathToFileURL(path.join(root, 'api', '_progress.js')).href);
+  const week = weekOf(Date.now()).id, order = challengesFor(week).map(c => c.id);
+  const chal = async () => (await pg.query(`SELECT id, amount FROM reward_ledger WHERE club = $1 AND name_key = 'ula' AND id LIKE 'chal:%' ORDER BY id`, [cf.code])).rows;
+  for (const c of await chal()) assert.equal(c.amount, [10, 10, 15][order.indexOf(c.id.split(':')[2])], c.id);
+  const sofar = await count('Ula');
+  assert.equal(ok(await sync('Ula')).gained, 0); assert.equal(await count('Ula'), sofar, 'a replay adds nothing');
+  // The organizer edits the result to a loss: the win\'s 13 comes back as a take-back row (the old rows stay).
+  const edit = score => cfPost(games, { edit: mine('pg-1', { score }), ownerToken: cf.owner });
+  ok(await edit([5, 11]));
+  r = ok(await sync('Ula'));
+  assert.deepEqual([await part('Ula', 'play:'), r.gained], [2, 0]);
+  assert.ok((await pg.query(`SELECT id, kind, amount, reason FROM reward_ledger WHERE club = $1 AND name_key = 'ula' AND id LIKE 'play:%' ORDER BY id`, [cf.code])).rows.some(x => x.kind === 'spend' && x.amount === -13 && x.reason === 'game-adj'));
+  const act = ok(await cfPost(playersApi, { action: 'rewards-activity', name: 'Ula', playerToken: cfTok.Ula }));
+  assert.ok(act.entries.some(e => /^Taken back/.test(e.text) && e.amount === -13) && act.entries.some(e => e.text === 'Earned from games'), 'in plain words');
+  ok(await edit([11, 5])); ok(await sync('Ula'));
+  assert.equal(await part('Ula', 'play:'), 15, 'edited back: the 13 is paid again, as one more row');
+  // Deleted: the game pays nothing and the streak day stays. Restored: it pays again.
+  ok(await del('pg-1')); ok(await sync('Ula'));
+  assert.deepEqual([await part('Ula', 'play:'), await part('Ula', 'day:')], [0, 5]);
+  ok(await cfPost(games, { restore: 'pg-1', ownerToken: cf.owner })); ok(await sync('Ula'));
+  assert.equal(await part('Ula', 'play:'), 15);
+  // 300 a day: 24 more wins the same day pay up to the cap and no further; removing one while still over the cap adjusts nothing.
+  const more = Array.from({ length: 24 }, (_, i) => mine('pg-c' + i, { teams: [['Ula', ['Pat', 'Quin', 'Rob', 'Sam'][i % 4]], [['Tom', 'Uri'][i % 2], 'Vee']], score: [11, i % 10], endedAt: now - 3000000 + i * 60000, startedAt: now - 3100000 + i * 60000 }));
+  ok(await cfPost(games, { games: more, playerName: 'Ula', playerToken: cfTok.Ula }));
+  ok(await sync('Ula'));
+  assert.equal(await part('Ula', 'play:'), 300, 'capped at 300 for the day');
+  const atCap = await count('Ula');
+  ok(await del('pg-c0')); r = ok(await sync('Ula'));
+  assert.deepEqual([await part('Ula', 'play:'), await count('Ula')], [300, atCap], 'still over the cap without that game: nothing changes');
+  for (let i = 1; i < 22; i++) ok(await del('pg-c' + i));
+  ok(await sync('Ula'));
+  const left = await part('Ula', 'play:');
+  assert.ok(left > 15 && left < 300, 'with most of the games gone the day is worth less than the cap: ' + left);
+  assert.equal(ok(await sync('Ula')).gained, 0, 'and a second sync changes nothing');
+  // Only a club player\'s own phone earns more than the +2: an organizer-saved game pays Vic 2 and no streak day.
+  ok(await cfPost(games, { games: [cfGame('pg-v', { teams: [['Vic', 'Pat'], ['Quin', 'Rob']], score: [11, 9] })], ownerToken: cf.owner }));
+  ok(await sync('Vic'));
+  assert.deepEqual([await part('Vic', 'play:'), await part('Vic', 'day:')], [2, 0]);
+  // Another club player\'s phone sent a game for Xan: it counts as verified for Xan (full pay), but the streak day is only for the phone that sent it.
+  ok(await cfPost(games, { games: [cfGame('pg-w', { teams: [['Xan', 'Pat'], ['Quin', 'Rob']], score: [11, 9] })], playerName: 'Wes', playerToken: cfTok.Wes }));
+  ok(await sync('Xan'));
+  assert.ok([12, 15].includes(await part('Xan', 'play:')) && await part('Xan', 'day:') === 0, 'a win from a verified game: 2 + 10, and +3 if it beat the forecast');
+  assert.equal(ok(await sync('Wes')).dinks, 0, 'the sender who is not in the game earns nothing from it');
+  assert.ok(!/play:|reward_ledger/.test(JSON.stringify(await cfGet())), 'none of it reaches the club payload');
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
 });
 await step('rewards shop: server-side prices, spends through the ledger, never below zero, double buy and replay charge once, wear one per slot, follows a rename or merge, gone on anonymise', async () => {
@@ -1507,13 +1602,14 @@ await step('rewards event shelf: Christmas sells only inside its dates at one pr
   await pg.query(`INSERT INTO roster (club, name_key, name) VALUES ($1, 'eve', 'Eve') ON CONFLICT DO NOTHING`, [cf.code]);
   await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'eve', 'event-test', 'earn', 500, 'test') ON CONFLICT DO NOTHING`, [cf.code]);
   const on = Date.parse('2026-12-10T10:00:00Z'), after = Date.parse('2026-12-26T00:00:00Z');
+  const evePre = (await pg.query(`SELECT coalesce(sum(amount), 0)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'eve'`, [cf.code])).rows[0].n; // 500 plus whatever Eve's games earned
   const v0 = await shopView(sql, cf.code, 'eve', on);
   assert.equal(v0.event.id, 'christmas'); assert.ok(v0.event.endsOn === '2026-12-25' && /25 December/.test(v0.event.note));
   assert.deepEqual(v0.items.filter(i => i.event).map(i => [i.id, i.rarity, i.available]), [['frame-candy', 'rare', true], ['frame-twinkle', 'rare', true]]);
   assert.equal((await shopView(sql, cf.code, 'eve', after)).event, null); assert.ok(!(await shopView(sql, cf.code, 'eve', after)).items.some(i => i.event));
   await assert.rejects(buyItem(sql, cf.code, 'eve', 'frame-candy', after), e => e.status === 409 && /Christmas/.test(e.message));
   const b = await buyItem(sql, cf.code, 'eve', 'frame-candy', on);
-  assert.equal(b.bought, true); assert.equal(b.dinks, 350);
+  assert.equal(b.bought, true); assert.equal(b.dinks, evePre - 150);
   assert.equal((await buyItem(sql, cf.code, 'eve', 'frame-candy', on)).bought, false, 'a repeat charges nothing');
   const later = await shopView(sql, cf.code, 'eve', after);
   assert.ok(later.items.find(i => i.id === 'frame-candy').owned && !later.items.find(i => i.id === 'frame-candy').available, 'owned stays listed after the window');
