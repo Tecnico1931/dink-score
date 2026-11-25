@@ -112,7 +112,7 @@ Object.assign(Rewards, {
     const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
     const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
-    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
+    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
     const wear = slots.map(([slot, label]) => {
       const own = mine.filter(i => i.slot === slot);
