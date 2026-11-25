@@ -31,7 +31,7 @@ test('odds are 82 / 17 / 1, the pool is every unowned non-Mythic catalogue item,
   const [regular, pet, legendary] = full;
   assert.ok(regular.items.every(i => i.slot !== 'pet' && i.rarity !== 'legendary'));
   assert.ok(pet.items.length === 10 && pet.items.every(i => i.slot === 'pet' && i.rarity !== 'legendary' && i.rarity !== 'mythic'));
-  assert.ok(legendary.items.length === 11 && legendary.items.every(i => i.rarity === 'legendary'));
+  assert.ok(legendary.items.length === 15 && legendary.items.every(i => i.rarity === 'legendary'));
   assert.ok(flat.every(id => CATALOGUE.find(i => i.id === id).rarity !== 'mythic'), 'no Mythic');
   assert.ok(CATALOGUE.filter(i => i.rarity === 'mythic').every(i => !boxEligible(i)));
   // Pass, event and seasonal items are not in CATALOGUE, so they can never be drawn.
