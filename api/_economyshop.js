@@ -64,7 +64,7 @@ export function planBuy(ledger, owned, id, now = Date.now(), prices = null) {
   const item = base && priced(base, prices);
   if (!item) throw Object.assign(new Error('That item isn\'t in the shop.'), { status: 400 });
   if (owned.includes(item.id)) return { item, already: true };
-  if (!isAvailable(item, now)) throw Object.assign(new Error(closedMessage(item)), { status: 409 });
+  if (!isAvailable(item, now)) throw Object.assign(new Error(closedMessage(item, now)), { status: 409 });
   try { return { item, entry: spendEntry(ledger, { id: buyId(item), amount: item.price, reason: 'shop:' + item.id }) }; }
   catch (e) {
     if (/Not enough/.test(e.message)) throw Object.assign(new Error(`Not enough Dinks yet: ${item.name} costs ${item.price} and you have ${ledgerBalance(ledger)}.`), { status: 409 });

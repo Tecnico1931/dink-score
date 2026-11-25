@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SEASONS, SEASONAL, seasonFor, isAvailable, closedMessage } from '../api/_economyseason.js';
+import { SEASONS, SEASONAL, seasonFor, isAvailable, closedMessage, eventClosedMessage } from '../api/_economyseason.js';
 import { CATALOGUE, itemById, planBuy, clubLooksFrom } from '../api/_economyshop.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -119,7 +119,7 @@ test('the phone draws the season from the server and has no timer, no random and
 });
 
 // ---------- Events (WI-12) ----------
-import { EVENTS, EVENT_ITEMS, eventFor } from '../api/_economyseason.js';
+import { EVENTS, EVENT_ITEMS, SCHEDULE, eventFor, scheduleProblems } from '../api/_economyseason.js';
 import { SLOTS } from '../api/_economyshop.js';
 
 test('events: a fixed, cosmetic, rarity-labelled list outside CATALOGUE, in existing slots, on a plain look name', () => {
@@ -134,18 +134,19 @@ test('events: a fixed, cosmetic, rarity-labelled list outside CATALOGUE, in exis
   assert.equal(new Set(EVENT_ITEMS.map(i => i.id)).size, EVENT_ITEMS.length);
 });
 
-test('eventFor: Christmas runs 24 Nov to the end of 25 Dec in UTC, every year, with an end date and no countdown', () => {
+test('eventFor: Christmas runs 24 Nov to the end of 25 Dec 2026 in UTC as one run over two seasons, with an end date and no countdown', () => {
   const id = s => (eventFor(at(s)) || {}).id || null;
   assert.equal(id('2026-11-23T23:59:59Z'), null);
   assert.equal(id('2026-11-24T00:00:00Z'), 'christmas');
   assert.equal(id('2026-12-25T23:59:59Z'), 'christmas');
   assert.equal(id('2026-12-26T00:00:00Z'), null);
-  assert.equal(id('2027-12-01T12:00:00Z'), 'christmas');
+  assert.equal(id('2027-12-01T12:00:00Z'), null, 'not scheduled for 2027: no auto-rollover');
   assert.equal(id('2028-06-01T12:00:00Z'), null);
   const e = eventFor(at('2026-12-01T00:00:00Z'));
   assert.equal(e.startsOn, '2026-11-24'); assert.equal(e.endsOn, '2026-12-25');
   assert.equal(e.dates, '24 November to 25 December (UTC)');
-  assert.ok(/end of Christmas Day \(25 December, UTC\).*yours to keep/.test(e.note));
+  assert.ok(/end of 25 December \(UTC\).*yours to keep/.test(e.note));
+  assert.equal(eventFor(at('2026-11-26T00:00:00Z')).endsOn, '2026-12-25', 'the autumn and winter windows read as one run');
   assert.ok(!/hurry|last chance|limited|only \d|ends in|countdown|don'?t miss|running out|\d+ (days?|hours?) left/i.test(e.note + closedMessage(EVENT_ITEMS[0])));
 });
 
@@ -153,7 +154,7 @@ test('planBuy: an event item is bought only inside its window at one fixed price
   const it = EVENT_ITEMS[0], big = [{ id: 'day:2026-01-01', kind: 'earn', amount: 5000, reason: 'day', day: null, streak: 1 }];
   assert.equal(planBuy(big, [], it.id, at('2026-12-10T10:00:00Z')).entry.amount, -it.price);
   for (const when of ['2026-11-23T10:00:00Z', '2026-12-26T00:00:00Z', '2027-03-01T10:00:00Z']) {
-    assert.throws(() => planBuy(big, [], it.id, at(when)), e => e.status === 409 && /Christmas/.test(e.message) && /yours/.test(e.message), when);
+    assert.throws(() => planBuy(big, [], it.id, at(when)), e => e.status === 409 && /Christmas/.test(e.message) && /yours/.test(e.message) && !/every year/.test(e.message), when);
   }
   assert.deepEqual(planBuy(big, [it.id], it.id, at('2027-03-01T10:00:00Z')), { item: it, already: true });
   assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: it.slot, item: it.id }], at('2027-03-01T00:00:00Z')), { ana: { [it.slot]: it.id } });
@@ -167,4 +168,69 @@ test('the event shelf is drawn from the server, with no timer and no hard-coded 
   const html = fs.readFileSync(path.join(root, 'dink-score.html'), 'utf8');
   for (const i of EVENT_ITEMS.filter(x => x.slot === 'frame')) assert.ok(html.includes(`[data-rw-frame="${i.id.replace(/^[a-z]+-/, '')}"]`), i.id + ' has a look');
   assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/.test(html.slice(html.indexOf('/* Event shelf'), html.indexOf('/* Paddle colourways'))), 'tokens only');
+});
+
+// ---------- Events repeat inside a season; each new season is scheduled again (no auto-rollover) ----------
+const W = (season, from, to, event = 'christmas') => ({ season, event, from, to });
+const id = (s, sched) => (eventFor(at(s), sched) || {}).id || null;
+
+test('the shipped schedule is valid: every window inside its own season key, no overlaps', () => {
+  assert.deepEqual(scheduleProblems(), []);
+  assert.ok(SCHEDULE.length >= 1 && SCHEDULE.every(r => /^[a-z]+-\d{4}$/.test(r.season)));
+});
+
+test('scheduleProblems catches an unknown event, bad or reversed dates, a window outside its season and overlaps', () => {
+  const bad = rows => scheduleProblems(rows).join('|');
+  assert.match(bad([W('winter-2026', '2026-12-01', '2026-12-05', 'easter')]), /unknown event/);
+  assert.match(bad([W('winter-2026', '2026-12-31', '2027-02-30')]), /bad date/);
+  assert.match(bad([W('winter-2026', '2026-12-10', '2026-12-05')]), /ends before/);
+  assert.match(bad([W('winter-2026', '2027-03-01', '2027-03-05')]), /not inside winter-2026/);
+  assert.match(bad([W('winter-2026', '2026-11-28', '2026-12-05')]), /not inside winter-2026/, 'a window may not straddle two seasons');
+  assert.match(bad([W('winter-2026', '2026-12-01', '2026-12-10'), W('winter-2026', '2026-12-10', '2026-12-12')]), /overlaps/);
+  assert.deepEqual(scheduleProblems([W('winter-2026', '2026-12-01', '2026-12-10'), W('winter-2026', '2027-01-05', '2027-01-07')]), []);
+});
+
+test('an event can run in several windows inside one season, with the gap shut and each end shown as a date', () => {
+  const two = [W('winter-2026', '2026-12-01', '2026-12-10'), W('winter-2026', '2027-01-05', '2027-01-07')];
+  assert.deepEqual(scheduleProblems(two), []);
+  for (const [when, want] of [['2026-11-30T23:59:59Z', null], ['2026-12-01T00:00:00Z', 'christmas'], ['2026-12-10T23:59:59Z', 'christmas'], ['2026-12-11T00:00:00Z', null],
+    ['2026-12-31T12:00:00Z', null], ['2027-01-05T00:00:00Z', 'christmas'], ['2027-01-07T23:59:59Z', 'christmas'], ['2027-01-08T00:00:00Z', null]]) assert.equal(id(when, two), want, when);
+  assert.equal(eventFor(at('2026-12-05T00:00:00Z'), two).endsOn, '2026-12-10');
+  assert.equal(eventFor(at('2027-01-06T00:00:00Z'), two).endsOn, '2027-01-07');
+  assert.match(eventFor(at('2027-01-06T00:00:00Z'), two).note, /end of 7 January \(UTC\)/);
+  // the shop can buy in both windows and is shut between them; the refusal names the next window of this season
+  const it = EVENT_ITEMS[0], big = [{ id: 'day:2026-01-01', kind: 'earn', amount: 5000, reason: 'day', day: null, streak: 1 }];
+  assert.match(eventClosedMessage(it, at('2026-12-20T00:00:00Z'), two), /next on from 5 January to 7 January \(UTC\).*yours/);
+  assert.match(eventClosedMessage(it, at('2027-01-20T00:00:00Z'), two), /not on right now.*yours/, 'no later window: not scheduled');
+  assert.ok(big.length);
+});
+
+test('a new season has no scheduled events until they are scheduled again (no auto-rollover)', () => {
+  const sched = [W('winter-2026', '2026-12-01', '2026-12-10'), W('winter-2026', '2027-01-05', '2027-01-07')];
+  assert.equal(id('2026-12-05T00:00:00Z', sched), 'christmas');
+  // the same month-days a year on, the next winter, the following spring: nothing carried over
+  for (const when of ['2027-12-05T00:00:00Z', '2028-01-06T00:00:00Z', '2027-03-15T00:00:00Z', '2027-09-15T00:00:00Z']) assert.equal(id(when, sched), null, when);
+  // a row only counts while its own season key is the current one, even if its dates were hand-edited to fall in another season
+  assert.equal(id('2027-03-15T00:00:00Z', [W('winter-2026', '2027-03-10', '2027-03-20')]), null);
+  // scheduling the next season again switches it back on, for that season only
+  const again = [...sched, W('winter-2027', '2027-12-01', '2027-12-10')];
+  assert.equal(id('2027-12-05T00:00:00Z', again), 'christmas');
+  assert.equal(id('2028-01-06T00:00:00Z', again), null);
+  assert.equal(eventFor(at('2027-12-05T00:00:00Z'), again).season, 'winter-2027');
+  assert.equal(seasonFor(at('2027-01-06T00:00:00Z')).key, 'winter-2026');
+  // the shipped schedule: Christmas 2026 is on, the following winter is empty
+  assert.equal(id('2026-12-10T00:00:00Z'), 'christmas');
+  assert.equal(id('2027-12-10T00:00:00Z'), null);
+  assert.equal(id('2028-01-06T00:00:00Z'), null);
+});
+
+test('items bought in a window stay owned and wearable after it ends and after the season changes', () => {
+  const it = EVENT_ITEMS[0], big = [{ id: 'day:2026-01-01', kind: 'earn', amount: 5000, reason: 'day', day: null, streak: 1 }];
+  const bought = planBuy(big, [], it.id, at('2026-12-10T10:00:00Z'));
+  assert.equal(bought.entry.amount, -it.price);
+  for (const when of ['2026-12-26T00:00:00Z', '2027-03-01T10:00:00Z', '2027-12-10T10:00:00Z']) {
+    assert.deepEqual(planBuy(big, [it.id], it.id, at(when)), { item: it, already: true }, 'owned: no second charge, no refusal');
+    assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: it.slot, item: it.id }], at(when)), { ana: { [it.slot]: it.id } }, 'still visible to the club');
+    assert.throws(() => planBuy(big, [], it.id, at(when)), e => e.status === 409, 'a new buy is refused');
+  }
 });
