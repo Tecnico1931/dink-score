@@ -88,24 +88,84 @@ test('the shop never reaches scoring, rating or club-code paths, and the page so
 });
 
 // The phone side: draws what the server sends, hides with the one-tap switch, never trusts a stored or answered id.
-import { module } from './helpers/app.js';
-const phone = ({ hide = false, on = true, name = 'Ana', looksReply = { looks: {} } } = {}) => {
+import { module, page } from './helpers/app.js';
+const phone = ({ hide = false, on = true, box = false, spinFree = null, name = 'Ana', looksReply = { looks: {} } } = {}) => {
   const calls = [], kv = { 'pb.rewardsHide': hide }, listeners = [], root = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } };
   const env = { clubSheet: null, renders: 0, announced: [] };
-  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, rwItemCard, rwCur, rwClean, rwCleanLooks, rwApplyLook, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
+  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, rwItemCard, rwCur, rwClean, rwCleanLooks, rwApplyLook, rwSpinLearn, rwSpinNow, rwSpinNext, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
   const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', 'renderClub', 'initials', 'iconSvg', 'skel', 'avatarInner', 'teamLabel',
     'let clubSheet = null;' + code)(
-    { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } }, { code: 'club-a', rewards: on }, String, m => env.announced.push(m),
+    { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } }, { code: 'club-a', rewards: on, mysteryBox: box }, String, m => env.announced.push(m),
     { documentElement: root, addEventListener: (t, f) => listeners.push(f), querySelector: () => null }, () => name, () => (name ? 'tok' : null),
     async b => {
       calls.push(b);
       if (b.action === 'rewards-looks') return looksReply;
+      if (spinFree !== null && b.action === 'rewards-catalog') return { dinks: 20, worn: { frame: '', paddle: '' }, share: false, items: items([]), spin: { segments: [5], chances: [], max: 5, spunToday: !spinFree, wonToday: 0 } };
+      if (b.action === 'rewards-spin') return { dinks: 25, worn: { frame: '', paddle: '' }, share: false, items: items([]), spin: { segments: [5], chances: [], max: 5, spunToday: true, wonToday: 5 }, spinResult: { value: 5 } };
       if (b.action === 'rewards-share') return { dinks: 14, worn: { frame: 'frame-court', paddle: '' }, share: !!b.share, items: items(['frame-court']) };
       return b.action === 'rewards-buy' ? { dinks: 14, worn: { frame: '', paddle: '' }, share: false, items: items(['frame-court']) } : { dinks: 20, worn: { frame: '', paddle: '' }, share: false, items: items([]) };
     },
     () => env.renders++, () => {}, s => s.slice(0, 2), () => '<svg></svg>', () => '<div class="skel-wrap"></div>', n => n.slice(0, 2), ps => ps.join(' & '));
   return { x, calls, kv, root, env, listeners };
 };
+// The daily spin on the Play tab: one state shared with the shop's wheel and the Shop tab dot (api/players.js rewards-sync carries it).
+test('Play spin tile: Spin when free, Spun today with the win when used, one state for the Shop dot', () => {
+  const { x } = phone({ box: true });
+  assert.equal(x.Rewards.spinTileHTML(), '', 'nothing before the server has said');
+  x.rwSpinLearn({ spunToday: false, wonToday: 0 });
+  let tile = x.Rewards.spinTileHTML();
+  assert.match(tile, /data-rw="spin"/); assert.match(tile, /<b>Daily spin: Spin<\/b>/); assert.ok(!/ done/.test(tile));
+  x.rwSpinLearn({ spunToday: true, wonToday: 15 });
+  tile = x.Rewards.spinTileHTML();
+  assert.match(tile, /<b>Daily spin: Spun today, \+15<\/b>/); assert.match(tile, /Next spin (today|tomorrow) at /); assert.match(tile, / done/);
+  assert.deepEqual(x.rwSpinNow(), { spun: true, won: 15 });
+  x.rwSpinLearn(undefined);
+  assert.equal(x.rwSpinNow(), null, 'an answer with no spin (box turned off) clears it');
+});
+
+test('Play spin tile and Shop dot are gone with rewards hidden or off, the box off, or no linked name', () => {
+  for (const opts of [{ box: true, hide: true }, { box: true, on: false }, { box: false }, { box: true, name: '' }]) {
+    const { x } = phone(opts);
+    x.rwSpinLearn({ spunToday: false, wonToday: 0 });
+    assert.equal(x.Rewards.spinTileHTML(), '', JSON.stringify(opts));
+    assert.equal(x.rwSpinNow(), null, JSON.stringify(opts));
+  }
+});
+
+test('a spin state from an earlier UTC day means ready again; the next spin is a clock time, not a countdown', () => {
+  const { x } = phone({ box: true });
+  x.rwSpinLearn({ spunToday: true, wonToday: 5 });
+  const real = Date.now; Date.now = () => real() + 36 * 3600e3;
+  try { assert.deepEqual(x.rwSpinNow(), { spun: false, won: 0 }); } finally { Date.now = real; }
+  assert.ok(!/\d+ ?(h|hours?|min)\b.*left|countdown/i.test(x.rwSpinNext()));
+  assert.match(x.rwSpinNext(new Date(Date.UTC(2026, 2, 5, 12))), /^(today|tomorrow) at /);
+});
+
+test('tapping the tile opens the shop and spins once through rewards-spin; an already used spin just opens it, and the tile follows', async () => {
+  const free = phone({ box: true, spinFree: true });
+  await free.x.Rewards.openStore({ spin: true });
+  assert.deepEqual(free.calls.map(c => c.action), ['rewards-catalog', 'rewards-spin']);
+  assert.match(free.x.Rewards.spinTileHTML(), /Spun today, \+5/, 'the tile reads the state the spin just set');
+  const used = phone({ box: true, spinFree: false });
+  await used.x.Rewards.openStore({ spin: true });
+  assert.deepEqual(used.calls.map(c => c.action), ['rewards-catalog'], 'no second spin');
+  const plain = phone({ box: true, spinFree: true });
+  await plain.x.Rewards.openStore();
+  assert.deepEqual(plain.calls.map(c => c.action), ['rewards-catalog'], 'the shop itself never spins on open');
+});
+
+test('wiring: the tile opens the shop and spins through the existing rewards-spin action; the Shop tab dot is a still dot named in its label', () => {
+  const eco = module('economy'), shop = module('economyshop'), pg = page();
+  assert.match(eco, /a === 'spin'\) \{ Rewards\.openStore\(\{ spin: true \}\)/);
+  assert.match(shop, /async openStore\(opts\)[\s\S]*?rwStoreAct\(\{ action: 'rewards-spin' \}/);
+  assert.match(eco, /b\.dataset\.dot = '1'/); assert.match(eco, /Shop\$\{dot \? '<span class="vh">, daily spin ready/);
+  assert.match(pg, /tiles\.push\(Rewards\.spinTileHTML\(\)\)/);
+  const css = pg.slice(pg.indexOf('.tabs button[data-dot]::after'), pg.indexOf('.tabs button[data-dot]::after') + 400);
+  assert.ok(!/animation|transition/.test(css.split('\n')[0]), 'the dot is still');
+  assert.match(pg.slice(pg.indexOf('.tile.rw-spintile {')).split('\n')[0], /min-height: 64px/, 'a 44 px+ target');
+  assert.match(fs.readFileSync(new URL('../api/players.js', import.meta.url), 'utf8'), /rewards-get' \|\| body\.action === 'rewards-sync'[\s\S]*?club\.mystery_box \? [\s\S]*?spinStatus/);
+});
+
 const items = owned => CATALOGUE.map(i => ({ ...i, owned: owned.includes(i.id) }));
 
 test('the shop sheet lists only what is unowned to buy and what is owned to wear, with fixed prices up front', () => {

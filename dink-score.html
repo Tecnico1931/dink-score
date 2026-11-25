@@ -243,6 +243,12 @@ button { cursor: pointer; }
 .rw-fine { margin: 0; font-size: 12px; color: var(--on-court-muted); }
 .rw-hide { align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1.5px solid transparent; border-radius: 999px; background: var(--court-pill); color: var(--on-court); font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
 .rw-hide:active { filter: brightness(.9); }
+/* Daily spin tile on Play: full width, one short row, a 44 px+ target. Ready = the court colours (like the rewards card); used = a calm surface tile. */
+.tile.rw-spintile { flex-direction: row; align-items: center; gap: 14px; min-height: 64px; padding: 12px 16px; font: inherit; cursor: pointer; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); }
+.tile.rw-spintile.done { color: var(--ink); background: var(--surface); }
+.rw-spin-ico { flex: none; width: 36px; height: 36px; color: var(--ball); } .rw-spintile.done .rw-spin-ico { color: var(--muted); }
+.rw-spintxt { display: grid; gap: 2px; min-width: 0; } .rw-spintxt b { font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; } .rw-spintxt small { font-size: 13px; line-height: 1.3; color: var(--on-court-muted); overflow-wrap: anywhere; } .rw-spintile.done small { color: var(--muted); }
+:root[data-outdoor] .tile.rw-spintile { border: 2px solid var(--ink); }
 .rw-hide[data-rw="hide"] { background: none; border-color: color-mix(in srgb, var(--on-court) 45%, transparent); color: var(--on-court-muted); font-weight: 500; } /* quieter than the three ways in */
 .rw-acts { display: flex; flex-wrap: nowrap; gap: 6px; } .rw-acts .rw-hide { min-width: 44px; flex: 0 1 auto; padding: 0 11px; font-size: 13px; white-space: nowrap; }
 @media (max-width: 300px) { .rw-acts { flex-wrap: wrap; } } /* one row (short labels, full names in aria-label); only a very narrow screen wraps */
@@ -809,6 +815,8 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 /* Floating pill, spacing and look taken from the captain's reference app (dink-score.vercel.app): pill, soft grey highlight, accent icon and label on the active tab. */
 .tabs button { border: 0; background: transparent; padding: 7px 2px 6px; border-radius: 999px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; letter-spacing: -.1px; color: var(--ink); transition: background .15s, color .15s; min-width: 0; }
 .tabs button[hidden] { display: none; }
+.tabs button[data-dot] { position: relative; }
+.tabs button[data-dot]::after { content: ""; position: absolute; top: 5px; left: calc(50% + 8px); width: 10px; height: 10px; border-radius: 50%; background: var(--down); box-shadow: 0 0 0 2px var(--bg); } /* daily spin ready: a still dot, no motion */
 .tabs button svg { width: 26px; height: 26px; flex: none; }
 .tabs button[aria-current="page"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--accent-text); }
 @media (prefers-reduced-motion: reduce) { .tabs button { transition: none; } }
@@ -3253,6 +3261,7 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
+  tiles.push(Rewards.spinTileHTML()); // above the fold on a 360 px phone: the free spin is seen every day
   tiles.push(`<button class="tile newg" data-act="new-open"><span class="plus">${BALL_IMG('', 22)}</span><span class="t-name">New game</span><span class="t-k">Score one live</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
   const top = leaderStats(games, setup.mode)[0];

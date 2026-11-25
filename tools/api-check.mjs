@@ -1541,6 +1541,7 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   assert.equal((await cfPost(playersApi, { action: 'rewards-box-odds' })).status, 403);
   assert.equal((await post('Noa', { action: 'rewards-box-open', openId: 'box_off_0002' })).status, 403);
   assert.equal('box' in ok(await post('Noa', { action: 'rewards-catalog' })), false);
+  assert.equal('spin' in ok(await post('Noa', { action: 'rewards-sync' })), false, 'no spin status while the box and spin are off');
   // MysteryBox on, rewards off -> still refused!
   ok(await cfPost(club, { action: 'set-mystery-box', on: true, pin: cf.pin }));
   assert.equal((await cfGet()).club.mysteryBox, true);
@@ -1564,6 +1565,7 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   assert.equal(spin1.dinks, spin1.spinResult.value, 'the win is the balance');
   assert.equal(spin1.spin.spunToday, true);
   assert.equal(spin1.spin.wonToday, spin1.spinResult.value);
+  assert.deepEqual(ok(await post('Rae', { action: 'rewards-sync' })).spin, { spunToday: true, wonToday: spin1.spinResult.value }, 'the sync carries today\'s spin for the Play tile');
   const spin2 = ok(await post('Rae', { action: 'rewards-spin' }));
   assert.equal(spin2.dinks, spin1.dinks, 'a second spin the same day pays nothing');
   assert.deepEqual(spin2.spinResult, { ...spin1.spinResult, replayed: true });
