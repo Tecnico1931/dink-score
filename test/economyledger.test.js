@@ -11,28 +11,30 @@ const apply = (ledger, rows) => ledger.concat(rows);
 const daily = days => days.reduce((l, d) => apply(l, sync(l, [d], d)), []);
 const jan = n => `2026-01-${String(n).padStart(2, '0')}`;
 
-test('the first game pays 1 Dink and starts day 1; more games the same day add nothing', () => {
+test('the first game pays the day-1 rung (5) and starts day 1; more games the same day add nothing', () => {
   const a = sync([], [jan(5), jan(5)], jan(5));
-  assert.deepEqual(a, [{ id: 'day:2026-01-05', kind: 'earn', amount: 1, reason: 'day', day: jan(5), streak: 1 }]);
+  assert.deepEqual(a, [{ id: 'day:2026-01-05', kind: 'earn', amount: 5, reason: 'day', day: jan(5), streak: 1 }]);
   assert.deepEqual(sync(a, [jan(5)], jan(5)), [], 'a second sync the same day adds nothing');
 });
 
-test('consecutive days pay the bonuses on days 3, 7, 14 and 30; the streak restarts after a gap; every 30th day pays again', () => {
+test('consecutive days pay the ladder 5, 8, 10, 12, 15, 20, 25 then 25, plus 100 on day 30; the streak restarts after a gap', () => {
   const l = daily(Array.from({ length: 30 }, (_, i) => jan(1 + i > 31 ? 31 : 1 + i)));
-  assert.deepEqual([3, 7, 14, 30].map(x => l[x - 1].amount), [3, 6, 11, 26]);
-  assert.equal(l[1].amount, 1);
-  assert.equal(E.ledgerBalance(l), 30 + 2 + 5 + 10 + 25);
+  assert.deepEqual(l.slice(0, 9).map(e => e.amount), [5, 8, 10, 12, 15, 20, 25, 25, 25]);
+  assert.equal(l[29].amount, 125, 'day 30 pays the 25 and the 100');
+  assert.equal(l[29].reason, 'day+streak');
+  assert.equal(E.ledgerBalance(l), 95 + 22 * 25 + 125);
   assert.equal(E.summary(l, 0, T(jan(30))).streak, 30);
   const gap = daily([jan(1), jan(2), jan(3), jan(5)]);
   assert.deepEqual(gap.map(e => e.streak), [1, 2, 3, 1]);
-  assert.deepEqual(E.summary(gap, 0, T(jan(5))), { dinks: 1 + 1 + 3 + 1, streak: 1, best: 3, last: jan(5) });
+  assert.deepEqual(E.summary(gap, 0, T(jan(5))), { dinks: 5 + 8 + 10 + 5, streak: 1, best: 3, last: jan(5) });
   assert.equal(E.summary(gap, 0, T(jan(7))).streak, 0, 'two missed days: the shown streak is 0');
-  assert.equal(E.bonusFor(60), 25); assert.equal(E.bonusFor(59), 0);
+  assert.deepEqual([1, 7, 8, 29, 30, 31, 60, 99, 100, 101].map(E.dayPay), [5, 25, 25, 25, 125, 25, 25, 25, 275, 25]);
+  assert.equal(E.dayPay(0), 0);
 });
 
 test('a phone that syncs late still gets every day it saved a game, in order, with the right streak', () => {
   const l = sync([], [jan(3), jan(1), jan(2)], jan(3));
-  assert.deepEqual(l.map(e => [e.day, e.streak, e.amount]), [[jan(1), 1, 1], [jan(2), 2, 1], [jan(3), 3, 3]]);
+  assert.deepEqual(l.map(e => [e.day, e.streak, e.amount]), [[jan(1), 1, 5], [jan(2), 2, 8], [jan(3), 3, 10]]);
 });
 
 test('a clock set back or a backdated log adds nothing: only days after the last paid one count, and never a future day', () => {
@@ -48,7 +50,7 @@ test('the first sync pays at most the last 14 days: an old history is not back-p
   const rows = E.deriveEarnings({ ledger: [], receivedAt: old.map(T), tz: 0, now: T(old[59]) + 36e5 });
   assert.equal(rows.length, E.LOOKBACK_DAYS + 1, 'today and the 14 days before it');
   assert.equal(rows[0].streak, 1, 'the paid run starts at 1, not at the real run length');
-  assert.ok(E.ledgerBalance(rows) <= 15 + 2 + 5 + 10, 'the most a first sync can pay');
+  assert.ok(E.ledgerBalance(rows) <= 295, 'the most a first sync can pay: day 1 to 15 of a streak');
   assert.ok(!E.deriveEarnings.toString().includes('pb.rewards') && E.deriveEarnings.length === 1, 'the input is saved-game times and a ledger, nothing from the phone but its time zone');
 });
 
@@ -68,18 +70,18 @@ test('ids are the idempotency key: replaying the same rows or a second device de
 });
 
 test('the balance is the sum of the ledger, and a spend never takes it below zero (spending is not built yet, the rule is)', () => {
-  const l = daily([jan(1), jan(2), jan(3)]); // 1 + 1 + 3
-  assert.equal(E.ledgerBalance(l), 5);
+  const l = daily([jan(1), jan(2), jan(3)]); // 5 + 8 + 10
+  assert.equal(E.ledgerBalance(l), 23);
   const s = E.spendEntry(l, { id: 'spend:test-1', amount: 4, reason: 'test' });
   assert.deepEqual(s, { id: 'spend:test-1', kind: 'spend', amount: -4, reason: 'test', day: null, streak: null });
   assert.ok(E.validEntry(s));
   const after = apply(l, [s]);
-  assert.equal(E.ledgerBalance(after), 1);
+  assert.equal(E.ledgerBalance(after), 19);
   assert.equal(E.spendEntry(after, { id: 'spend:test-1', amount: 4 }), null, 'the same id twice is recorded once');
-  assert.throws(() => E.spendEntry(after, { id: 'spend:test-2', amount: 2 }), /Not enough/);
+  assert.throws(() => E.spendEntry(after, { id: 'spend:test-2', amount: 20 }), /Not enough/);
   assert.throws(() => E.spendEntry(after, { id: 'spend:test-3', amount: -5 }), /positive/);
   assert.throws(() => E.spendEntry(after, { id: '', amount: 1 }), /id/);
-  assert.equal(E.summary(after, 0, T(jan(3))).dinks, 1, 'spending leaves the streak alone');
+  assert.equal(E.summary(after, 0, T(jan(3))).dinks, 19, 'spending leaves the streak alone');
 });
 
 test('a row that is not an earn above zero or a spend below zero is refused', () => {

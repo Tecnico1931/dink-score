@@ -11,8 +11,10 @@
 // balance is only ever the sum. Rows are never edited or deleted, except that a rename/merge moves them to the new name and anonymise or
 // deleting the club removes them. spendEntry() is the one place the rule "never below zero" lives.
 
-export const BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
-export const DAY_PAY = 1;                                   // Dinks for the first game of each new local day
+// The daily streak (WI-17, upstream parity): the first game a day sent from your own phone pays what the streak day is worth. Day 1 to 7 pay the
+// ladder, every day after the 7th pays the last rung, and two milestone days pay extra on top. A missed day restarts the streak at day 1.
+export const LADDER = [5, 8, 10, 12, 15, 20, 25];
+export const MILESTONES = [[30, 100], [100, 250]];            // streak day -> extra Dinks on exactly that day
 export const LOOKBACK_DAYS = 14;                            // a first sync pays at most this many past days, so an old history is never back-paid
 export const MAX_BALANCE = 1e6;
 export const RECENT = 20;                                   // ledger rows sent back to the phone
@@ -23,7 +25,8 @@ export const dayNum = k => { const [y, m, d] = k.split('-').map(Number); return 
 // neighbouring days, never create one (a game exists only because the server received it).
 export const cleanTz = v => { const n = Math.trunc(Number(v)); return Number.isFinite(n) ? Math.max(-720, Math.min(840, n)) : 0; };
 export const dayKey = (ms, tz = 0) => new Date(ms + cleanTz(tz) * 60000).toISOString().slice(0, 10);
-export const bonusFor = day => { const hit = BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? BONUS[BONUS.length - 1][1] : 0; };
+export const bonusFor = day => { const hit = MILESTONES.find(m => m[0] === day); return hit ? hit[1] : 0; };
+export const dayPay = day => (day >= 1 ? LADDER[Math.min(day, LADDER.length) - 1] + bonusFor(day) : 0);
 
 // The newest earn row by day: where the streak stands.
 const lastEarn = ledger => ledger.reduce((a, e) => (e.kind === 'earn' && e.day && (!a || e.day > a.day) ? e : a), null);
@@ -40,15 +43,15 @@ export function deriveEarnings({ ledger = [], receivedAt = [], tz = 0, now }) {
   let prev = last ? { day: last.day, streak: last.streak || 1 } : null;
   for (const day of days) {
     const streak = prev && dayNum(day) - dayNum(prev.day) === 1 ? prev.streak + 1 : 1;
-    const bonus = bonusFor(streak);
-    out.push({ id: 'day:' + day, kind: 'earn', amount: DAY_PAY + bonus, reason: bonus ? 'day+streak' : 'day', day, streak });
+    out.push({ id: 'day:' + day, kind: 'earn', amount: dayPay(streak), reason: bonusFor(streak) ? 'day+streak' : 'day', day, streak });
     prev = { day, streak };
   }
   return out;
 }
 
 // What the Shop header shows beside the balance: all Dinks ever earned and all spent (balance = earned - spent, before the 1e6 cap).
-export const totals = ledger => ledger.reduce((t, e) => { const n = Number.isFinite(e.amount) ? e.amount : 0; if (n > 0) t.earned += n; else t.spent -= n; return t; }, { earned: 0, spent: 0 });
+// A 'game-adj' row takes back Dinks a game paid before it was edited or deleted, so it lowers what was earned rather than counting as spent.
+export const totals = ledger => ledger.reduce((t, e) => { const n = Number.isFinite(e.amount) ? e.amount : 0; if (n > 0 || e.reason === 'game-adj') t.earned += n; else t.spent -= n; return t; }, { earned: 0, spent: 0 });
 
 export const ledgerBalance = ledger => Math.min(MAX_BALANCE, ledger.reduce((n, e) => n + (Number.isFinite(e.amount) ? e.amount : 0), 0));
 
@@ -76,11 +79,17 @@ export const validEntry = e => !!e && typeof e.id === 'string' && /^[A-Za-z0-9:_
 
 export const PACE_DAYS = 30;     // how far back "your usual pace" looks (Shop saving goal)
 export const PACE_MIN_DAYS = 3;  // fewer play days than this is too little to call a pace
-// Dinks earned per play day over the last PACE_DAYS: only the rows paid for playing (a play day, with or without its streak bonus), so
-// a box refund or a pass reward never skews it. null until there are PACE_MIN_DAYS play days to go on.
+// Dinks earned per play day over the last PACE_DAYS: only the rows paid for playing (a play day with its streak pay, and the day's game earnings with
+// their adjustments), so a box refund, a spin or a pass reward never skews it. null until there are PACE_MIN_DAYS play days to go on.
+// The UTC day a game-earnings row belongs to (`play:<day>` or `play:<day>:<n>`), also when a merge moved the row under `m:<name key>:`; else null.
+export const gameRowDay = id => (/(?:^|:)play:(\d{4}-\d{2}-\d{2})(?::\d+)?$/.exec(String(id)) || [])[1] || null;
 export function paceFrom(ledger, now) {
-  const floor = dayNum(dayKey(now, 0)) - PACE_DAYS;
-  const days = ledger.filter(e => e.kind === 'earn' && (e.reason === 'day' || e.reason === 'day+streak') && e.day && dayNum(e.day) >= floor);
+  const floor = dayNum(dayKey(now, 0)) - PACE_DAYS, per = new Map();
+  for (const e of ledger) {
+    const d = e.reason === 'day' || e.reason === 'day+streak' ? e.day : e.reason === 'game' || e.reason === 'game-adj' ? gameRowDay(e.id) : null;
+    if (d && dayNum(d) >= floor) per.set(d, (per.get(d) || 0) + e.amount);
+  }
+  const days = [...per.values()].filter(n => n > 0);
   if (days.length < PACE_MIN_DAYS) return null;
-  return Math.round(days.reduce((n, e) => n + e.amount, 0) / days.length * 100) / 100;
+  return Math.round(days.reduce((n, v) => n + v, 0) / days.length * 100) / 100;
 }

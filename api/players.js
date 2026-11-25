@@ -184,7 +184,7 @@ export default handler(async (req, res) => {
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
     const [rw, { worn, pet }, share] = await Promise.all([
-      rewardsFor(sql, code, player.name, { tz: body.tz, sync: body.action === 'rewards-sync' }),
+      rewardsFor(sql, code, player.name, { tz: body.tz, sync: body.action === 'rewards-sync', club }),
       wornSummaryOf(sql, code, player.name_key),
       shareOf(sql, code, player.name_key)
     ]);

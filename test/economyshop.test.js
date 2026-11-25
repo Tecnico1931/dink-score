@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { CATALOGUE, RARITIES, SLOTS, itemById, planBuy, wornFrom, buyId, clubLooksFrom } from '../api/_economyshop.js';
-import { DAY_PAY, BONUS, ledgerBalance } from '../api/_economy.js';
+import { LADDER, ledgerBalance } from '../api/_economy.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const earn = n => ({ id: 'day:2026-01-' + String(n).padStart(2, '0'), kind: 'earn', amount: n, reason: 'day', day: null, streak: 1 });
@@ -26,7 +26,7 @@ test('the catalogue is fixed-price and cosmetic-only', () => {
   assert.deepEqual(['frame-ball', 'frame-blue', 'frame-court', 'frame-sunset', 'frame-double', 'frame-pickle', 'frame-ice', 'frame-lava'].map(id => [ring(id).name, ring(id).price]),
     [['Optic ring', 45], ['Cobalt ring', 45], ['Forest ring', 45], ['Sunset ring', 90], ['Prism ring', 135], ['Pickle ring', 45], ['Ice ring', 60], ['Lava ring', 90]]);
   assert.equal(ring('frame-double').rarity, 'rare', 'Prism is the rare ring');
-  assert.ok(Math.min(...CATALOGUE.map(i => i.price)) <= 10 && DAY_PAY >= 1 && BONUS.length > 0, 'the cheapest paddle is still within a week of daily play');
+  assert.ok(Math.min(...CATALOGUE.map(i => i.price)) <= LADDER.reduce((a, b) => a + b), 'the cheapest paddle is still within a week of daily play');
 });
 
 test('planBuy: a club price (Manage shop) replaces the catalogue price for that club only; none means the catalogue', () => {
