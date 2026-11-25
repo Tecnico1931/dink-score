@@ -64,11 +64,8 @@ function launchConfetti(winner) {
   confettiTimer = setTimeout(clearConfetti, 1100);
 }
 function playCelebrationSound() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(() => {});
+  // The shared, iOS-safe context from economysound.js (unlocked inside the tap, silent-switch bypass, waits until running).
+  rwAudioRun(ctx => {
     const now = ctx.currentTime;
     [[523.25, 0], [659.25, .09], [783.99, .18]].forEach(([freq, at]) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain();
@@ -81,8 +78,7 @@ function playCelebrationSound() {
       osc.start(now + at);
       osc.stop(now + at + .28);
     });
-    setTimeout(() => { try { ctx.close(); } catch {} }, 650);
-  } catch {}
+  });
 }
 function celebrateWin(beforeWinner, winner) {
   if (!live || !live.open) return;
@@ -92,4 +88,10 @@ function celebrateWin(beforeWinner, winner) {
   else if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
   if (Celebration.shouldSound(opts) && !(typeof rwPlayWinSound === 'function' && rwPlayWinSound())) playCelebrationSound(); // a worn victory sound replaces the default chime
 }
+// A win is not itself a tap, and iOS refuses to start audio outside one. So while this phone has Win celebration on and Sound on (the player's own
+// opt-in), the first tap that finds the shared context not running unlocks it, and the win sound then plays. Off by default: no context before that.
+// (touchend and click, not pointerdown: iOS only counts those as a gesture for audio.)
+['touchend', 'click'].forEach(t => document.addEventListener(t, () => {
+  if (celebration.on && !celebration.muted && typeof rwAudioUnlock === 'function' && !(rwAudioCtx && rwAudioCtx.state === 'running')) rwAudioUnlock();
+}, true));
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];

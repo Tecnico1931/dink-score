@@ -17,20 +17,23 @@ test('the seven sounds are sold at the upstream prices, never in the box, never 
 });
 
 // A fake Web Audio that counts what is created.
-const audio = () => {
-  const log = { ctx: 0, started: 0, closed: 0 };
-  const node = () => ({ connect: n => n, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, value: 0 }, Q: { value: 0 }, start() { log.started++; }, stop() {} });
-  class Ctx { constructor() { log.ctx++; this.currentTime = 0; this.sampleRate = 100; this.state = 'running'; this.destination = {}; }
+const audio = (state = 'running') => {
+  const log = { ctx: 0, started: 0, closed: 0, resumed: 0, disconnected: 0, silent: 0, silentPaused: 0 };
+  const node = () => ({ connect: n => n, disconnect() { log.disconnected++; }, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {}, value: 0 }, Q: { value: 0 }, start() { log.started++; }, stop() {} });
+  class Ctx { constructor() { log.ctx++; this.currentTime = 0; this.sampleRate = 100; this.state = state; this.destination = {}; }
+    resume() { log.resumed++; return log.holdResume ? new Promise(r => { log.release = () => { this.state = 'running'; r(); }; }) : (this.state = 'running', Promise.resolve()); }
     createGain() { return node(); } createOscillator() { return node(); } createBufferSource() { return node(); } createBiquadFilter() { return node(); }
     createBuffer(c, n) { return { getChannelData: () => new Float32Array(n) }; } close() { log.closed++; } }
   return { log, Ctx };
 };
-const phone = ({ worn = '', shown = true } = {}) => {
-  const a = audio(), listeners = [], announced = [];
-  const win = { AudioContext: a.Ctx };
-  const x = new Function('window', 'document', 'esc', 'announce', 'rwShown', 'rwCur', 'rwSecHead', 'rwShelf', module('economysound') + ';return { rwSoundPlay, rwPlayWinSound, rwSoundsSectionHTML, RW_SOUNDS };')(
-    win, { addEventListener: (t, f) => listeners.push(f) }, String, m => announced.push(m), () => shown, () => ({ worn: { sound: worn } }), (t, n) => `<h3>${t}</h3><p>${n}</p>`, (c, s, items) => items.map(i => i.id).join());
-  return { ...x, a, announced, tap: id => listeners.forEach(f => f({ target: { closest: () => ({ dataset: { rwSound: id }, getAttribute: () => 'Play ' + id }) } })) };
+const phone = ({ worn = '', shown = true, state = 'running', audioSession = false, hold = false } = {}) => {
+  const a = audio(state), listeners = [], announced = [];
+  a.log.holdResume = hold;
+  class Audio { constructor(src) { a.log.silent = 0; a.log.src = src; } play() { a.log.silent++; return Promise.resolve(); } pause() { a.log.silentPaused++; } }
+  const win = { AudioContext: a.Ctx, Audio, navigator: audioSession ? { audioSession: {} } : {} };
+  const x = new Function('window', 'document', 'esc', 'announce', 'rwShown', 'rwCur', 'rwSecHead', 'rwShelf', 'btoa', module('economysound') + ';return { rwSoundPlay, rwPlayWinSound, rwSoundsSectionHTML, rwAudioUnlock, rwAudioRun, RW_SOUNDS };')(
+    win, { addEventListener: (t, f) => listeners.push(f) }, String, m => announced.push(m), () => shown, () => ({ worn: { sound: worn } }), (t, n) => `<h3>${t}</h3><p>${n}</p>`, (c, s, items) => items.map(i => i.id).join(), btoa);
+  return { ...x, a, announced, win, tap: id => listeners.forEach(f => f({ target: { closest: () => ({ dataset: { rwSound: id }, getAttribute: () => 'Play ' + id }) } })) };
 };
 
 test('no audio context exists until a tap or an enabled win', () => {
@@ -52,9 +55,36 @@ test('a worn sound replaces the default chime at a win; none worn or rewards hid
   assert.equal(hidden.a.log.ctx, 0, 'hidden rewards: no sound and no context');
 });
 
-test('a second play closes the first context', () => {
+test('a second play reuses the one context and cuts the first sound off', () => {
   const p = phone(); p.tap('sound-bell'); p.tap('sound-drum');
-  assert.equal(p.a.log.ctx, 2); assert.equal(p.a.log.closed, 1);
+  assert.equal(p.a.log.ctx, 1, 'iOS caps live contexts, so there is one'); assert.equal(p.a.log.closed, 0); assert.equal(p.a.log.disconnected, 1);
+});
+
+// iOS Safari/PWA: the unlock helper (shared by the Shop preview and the win sound).
+test('a suspended or interrupted context is resumed inside the tap, and notes wait until it runs', async () => {
+  for (const state of ['suspended', 'interrupted']) {
+    const p = phone({ state, hold: true });
+    assert.equal(p.rwSoundPlay('sound-bell'), true);
+    assert.equal(p.a.log.resumed >= 1, true, state + ': resume() is called synchronously in the tap');
+    assert.equal(p.a.log.started, 1, state + ': only the one-sample unlock buffer started, no notes while the clock is frozen');
+    p.a.log.release(); await new Promise(r => setImmediate(r));
+    assert.ok(p.a.log.started >= 4, state + ': the notes are scheduled once it is running');
+  }
+});
+
+test('the ringer switch is bypassed: audioSession playback where it exists, else a silent clip', () => {
+  const a = phone({ audioSession: true }); a.tap('sound-bell');
+  assert.equal(a.win.navigator.audioSession.type, 'playback'); assert.equal(a.a.log.silent, 0, 'no clip needed');
+  const b = phone(); b.tap('sound-bell');
+  assert.equal(b.a.log.silent, 1, 'the silent clip plays'); assert.match(b.a.log.src, /^data:audio\/wav;base64,UklGR/);
+});
+
+test('the win sound and the preview share one unlocked context; a failure never throws', () => {
+  const p = phone({ worn: 'sound-bell' });
+  p.tap('sound-horn'); assert.equal(p.rwPlayWinSound(), true); assert.equal(p.rwAudioRun(() => {}), true);
+  assert.equal(p.a.log.ctx, 1);
+  const none = new Function('window', 'document', 'btoa', module('economysound') + ';return rwAudioRun(() => {});')({}, { addEventListener() {} }, btoa);
+  assert.equal(none, false, 'no Web Audio: false, no throw');
 });
 
 test('the shelf lists the sounds with the setting note', () => {

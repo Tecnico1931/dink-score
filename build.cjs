@@ -154,6 +154,7 @@ const csp = [
   "font-src 'self'",                                               // fonts are self-hosted in /fonts
   "img-src 'self' data: blob: https:",                             // photo avatars (data:), the photo picker (blob:), and imported team logos (any https image: the viewer's browser contacts the logo's website)
   "connect-src 'self'",
+  "media-src 'self' data:",                                        // the silent clip that lets Web Audio play with the iPhone ringer switch off
   "manifest-src 'self'",
   "worker-src 'self'",
   "object-src 'none'",

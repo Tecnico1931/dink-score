@@ -2687,11 +2687,8 @@ function launchConfetti(winner) {
   confettiTimer = setTimeout(clearConfetti, 1100);
 }
 function playCelebrationSound() {
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(() => {});
+  // The shared, iOS-safe context from economysound.js (unlocked inside the tap, silent-switch bypass, waits until running).
+  rwAudioRun(ctx => {
     const now = ctx.currentTime;
     [[523.25, 0], [659.25, .09], [783.99, .18]].forEach(([freq, at]) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain();
@@ -2704,8 +2701,7 @@ function playCelebrationSound() {
       osc.start(now + at);
       osc.stop(now + at + .28);
     });
-    setTimeout(() => { try { ctx.close(); } catch {} }, 650);
-  } catch {}
+  });
 }
 function celebrateWin(beforeWinner, winner) {
   if (!live || !live.open) return;
@@ -2715,6 +2711,12 @@ function celebrateWin(beforeWinner, winner) {
   else if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
   if (Celebration.shouldSound(opts) && !(typeof rwPlayWinSound === 'function' && rwPlayWinSound())) playCelebrationSound(); // a worn victory sound replaces the default chime
 }
+// A win is not itself a tap, and iOS refuses to start audio outside one. So while this phone has Win celebration on and Sound on (the player's own
+// opt-in), the first tap that finds the shared context not running unlocks it, and the win sound then plays. Off by default: no context before that.
+// (touchend and click, not pointerdown: iOS only counts those as a gesture for audio.)
+['touchend', 'click'].forEach(t => document.addEventListener(t, () => {
+  if (celebration.on && !celebration.muted && typeof rwAudioUnlock === 'function' && !(rwAudioCtx && rwAudioCtx.state === 'running')) rwAudioUnlock();
+}, true));
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];
 const TEAM_NAME = ['Blue', 'Green'];
 const DAY = 864e5;
@@ -4868,7 +4870,7 @@ document.addEventListener('click', e => {
 //   - a tap on a play button is the consent, so the preview works even when the win sound is muted;
 //   - a win plays the worn sound only through rwPlayWinSound(), which celebrateWin calls after Celebration.shouldSound says the device
 //     has Win celebration on and Sound on; the default chime plays when nothing is worn.
-// No AudioContext exists until one of those two happens, and nothing plays while rewards are hidden on this phone.
+// No AudioContext exists until one of those two happens (rwAudioUnlock below makes the one shared context), and nothing plays while rewards are hidden on this phone.
 // One step: a tone { f, to?, at, dur, vol, type } or a noise burst { noise: bandpass Hz, q, at, dur, vol, rise? }. Times in seconds.
 const RW_SOUNDS = {
   'sound-bell': { dur: 1.5, steps: [{ f: 880, at: 0, dur: 1.4, vol: .12 }, { f: 1320, at: 0, dur: 1, vol: .05 }, { f: 2217, at: 0, dur: .6, vol: .04 }] },
@@ -4882,7 +4884,46 @@ const RW_SOUNDS = {
   'sound-whistle': { dur: 1, steps: [{ f: 2700, to: 2900, at: 0, dur: .2, vol: .07 }, { f: 2900, at: .26, dur: .6, vol: .07 }] }, // the pass-only Ref's whistle
   'sound-crowd': { dur: 2, steps: [{ noise: 900, q: .5, at: 0, dur: 1.9, vol: .16, rise: .6 }, { noise: 2400, q: .7, at: .15, dur: 1.5, vol: .05, rise: .5 }] }
 };
-let rwSoundCtx = null, rwSoundTimer = 0;
+// iOS Safari/PWA rules this block follows: the context is made and resumed synchronously inside the tap (a later resume is refused); one context
+// is kept for the page (iOS caps how many live at once and a closed one cannot be reopened); notes are scheduled only once it reports 'running'
+// (a suspended or 'interrupted' context has a frozen clock, so notes queued at its time 0 are late when it wakes); and the ringer switch, which
+// mutes Web Audio, is bypassed by setting the page's audio session to 'playback' (iOS 16.4+) or, failing that, by playing a silent <audio> clip.
+let rwAudioCtx = null, rwSilentEl = null, rwSilentTimer = 0, rwSoundMaster = null, rwSoundTimer = 0;
+function rwSilentSrc() {
+  const n = 800, b = new Uint8Array(44 + n), v = new DataView(b.buffer), s = (o, t) => { for (let i = 0; i < t.length; i++) b[o + i] = t.charCodeAt(i); };
+  s(0, 'RIFF'); v.setUint32(4, 36 + n, true); s(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); s(36, 'data'); v.setUint32(40, n, true);
+  b.fill(128, 44); // 8-bit silence
+  let bin = ''; for (const x of b) bin += String.fromCharCode(x);
+  return 'data:audio/wav;base64,' + btoa(bin);
+}
+// Call inside a tap or click. Returns the shared AudioContext (resume already requested) or null when this browser has no Web Audio.
+function rwAudioUnlock() {
+  try {
+    const nav = window.navigator;
+    if (nav && nav.audioSession) { try { nav.audioSession.type = 'playback'; } catch {} }
+    else if (window.Audio) {
+      try { if (!rwSilentEl) { rwSilentEl = new window.Audio(rwSilentSrc()); rwSilentEl.loop = true; } const p = rwSilentEl.play(); if (p && p.catch) p.catch(() => {}); clearTimeout(rwSilentTimer); rwSilentTimer = setTimeout(() => { try { rwSilentEl.pause(); } catch {} }, 4000); } catch {}
+    }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    const fresh = !rwAudioCtx || rwAudioCtx.state === 'closed';
+    if (fresh) rwAudioCtx = new Ctx();
+    const ctx = rwAudioCtx;
+    if (ctx.state !== 'running' && ctx.resume) { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } // 'suspended' or iOS 'interrupted'
+    if (fresh) { try { const s = ctx.createBufferSource(); s.buffer = ctx.createBuffer(1, 1, 22050); s.connect(ctx.destination); s.start(0); } catch {} } // the classic one-sample iOS unlock
+    return ctx;
+  } catch { return null; }
+}
+// Unlock inside the tap, then run fn(ctx) as soon as the context is running (at once when it already is). Returns true when a context exists.
+function rwAudioRun(fn) {
+  const ctx = rwAudioUnlock();
+  if (!ctx) return false;
+  const go = () => { try { fn(ctx); } catch {} };
+  if (ctx.state === 'running') go();
+  else if (ctx.resume) { let p; try { p = ctx.resume(); } catch {} Promise.resolve(p).then(() => { if (ctx.state === 'running') go(); }, () => {}); }
+  return true;
+}
 // Fixed noise, so a sound is the same every time.
 function rwNoiseBuffer(ctx) {
   const len = ctx.sampleRate, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
@@ -4892,18 +4933,15 @@ function rwNoiseBuffer(ctx) {
 }
 function rwStopSound() {
   clearTimeout(rwSoundTimer);
-  if (rwSoundCtx) { try { rwSoundCtx.close(); } catch {} rwSoundCtx = null; }
+  if (rwSoundMaster) { try { rwSoundMaster.disconnect(); } catch {} rwSoundMaster = null; }
 }
 // Play one sound by id. Returns true when it started. Only called from a tap or an enabled win.
 function rwSoundPlay(id) {
   const snd = RW_SOUNDS[id];
   if (!snd) return false;
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return false;
-    rwStopSound();
-    const ctx = rwSoundCtx = new Ctx();
-    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(() => {});
+  rwStopSound();
+  return rwAudioRun(ctx => {
+    const master = rwSoundMaster = ctx.createGain(); master.connect(ctx.destination);
     const t0 = ctx.currentTime, noiseBuf = snd.steps.some(s => s.noise) ? rwNoiseBuffer(ctx) : null;
     for (const s of snd.steps) {
       const at = t0 + s.at, end = at + s.dur, gain = ctx.createGain(), src = s.noise ? ctx.createBufferSource() : ctx.createOscillator();
@@ -4920,12 +4958,11 @@ function rwSoundPlay(id) {
       gain.gain.setValueAtTime(.0001, at);
       gain.gain.exponentialRampToValueAtTime(s.vol, peak);
       gain.gain.exponentialRampToValueAtTime(.0001, end);
-      gain.connect(ctx.destination);
+      gain.connect(master);
       src.start(at); src.stop(end + .02);
     }
     rwSoundTimer = setTimeout(rwStopSound, (snd.dur + .3) * 1000);
-    return true;
-  } catch { return false; }
+  });
 }
 // The sound worn on this phone, or '' (rewards hidden, off, or none worn).
 const rwWornSound = () => {
