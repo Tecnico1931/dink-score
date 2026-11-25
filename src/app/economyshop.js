@@ -3,8 +3,10 @@
 // rewards-catalog|buy|wear|share|box-odds|box-open); this phone draws what it is told and never sets a price or draws a random item.
 // Cosmetic only: a ring around your picture and a colour on your paddle thumbnails. Nothing here animates or makes a sound, and it never
 // reads or changes a score, a rating, a rank or a pairing. Opened from the Your Dink card (so the one-tap hide removes it too).
-const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails']];
-const rwSwatch = it => it.slot === 'frame'
+const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails'], ['sound', 'Victory sound']];
+const rwSwatch = it => it.slot === 'sound' && typeof RW_NOTE_SVG === 'string'
+  ? `<span class="rw-sw snd" aria-hidden="true">${RW_NOTE_SVG}</span>`
+  : it.slot === 'frame'
   ? `<span class="rw-sw" data-rw-frame="${esc(rwLook(it.id))}" aria-hidden="true">${esc(initials(myName() || '?'))}</span>`
   : it.slot === 'pet'
     ? (typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 36 }) : `<span class="rw-sw" aria-hidden="true">${esc(initials(it.name))}</span>`)
@@ -45,6 +47,7 @@ function rwEventHTML(c, s) {
 // A button you can't afford yet reads "N more", stays focusable and says the shortfall out loud (aria-label + rwShort on press).
 const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
 function rwCardPreview(it) {
+  if (it.slot === 'sound' && typeof rwSoundPlayBtn === 'function') return rwSoundPlayBtn(it);
   return it.slot === 'pet' && typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 44 }) : rwSwatch(it);
 }
 function rwCardButton(c, s, it, o) {
@@ -104,7 +107,7 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
     const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
-    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && (!hasPetsUi || i.slot !== 'pet'));
+    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet'));
     const wear = slots.map(([slot, label]) => {
       const own = mine.filter(i => i.slot === slot);
       if (!own.length) return '';
@@ -121,7 +124,7 @@ Object.assign(Rewards, {
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
@@ -259,5 +262,5 @@ document.addEventListener('click', e => {
   }
   const [slot, id] = t.dataset.rwWear.split(':');
   const it = c.store.items.find(i => i.id === id);
-  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : slot === 'paddle' ? 'Paddle thumbnails back to plain.' : 'No court pet worn.'), `[data-rw-wear="${slot}:${id}"]`);
+  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : slot === 'paddle' ? 'Paddle thumbnails back to plain.' : slot === 'sound' ? 'No victory sound worn.' : 'No court pet worn.'), `[data-rw-wear="${slot}:${id}"]`);
 });

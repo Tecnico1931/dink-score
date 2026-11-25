@@ -87,6 +87,6 @@ function celebrateWin(beforeWinner, winner) {
   const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const opts = { on: celebration.on, beforeWinner, winner, reducedMotion, muted: celebration.muted };
   if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
-  if (Celebration.shouldSound(opts)) playCelebrationSound();
+  if (Celebration.shouldSound(opts) && !(typeof rwPlayWinSound === 'function' && rwPlayWinSound())) playCelebrationSound(); // a worn victory sound replaces the default chime
 }
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];

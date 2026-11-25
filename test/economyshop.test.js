@@ -10,18 +10,19 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const earn = n => ({ id: 'day:2026-01-' + String(n).padStart(2, '0'), kind: 'earn', amount: n, reason: 'day', day: null, streak: 1 });
 
 test('the catalogue is small, fixed-price, cosmetic-only and affordable', () => {
-  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 16);
+  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 24);
   assert.equal(new Set(CATALOGUE.map(i => i.id)).size, CATALOGUE.length, 'ids are unique');
   // Only these keys: nothing here can carry a rule, a score effect or a random draw.
   for (const i of CATALOGUE) {
     assert.deepEqual(Object.keys(i).sort(), ['id', 'name', 'price', 'rarity', 'slot']);
     assert.ok(SLOTS.includes(i.slot) && i.id.startsWith(i.slot + '-'));
-    assert.ok(Number.isInteger(i.price) && i.price >= 1 && i.price <= 30);
+    assert.ok(Number.isInteger(i.price) && i.price >= 1 && i.price <= (i.slot === 'sound' ? 150 : 30)); // victory sounds carry upstream's prices (60-150), by captain decision (WI-10)
     assert.match(buyId(i), /^[a-z0-9:_-]{4,64}$/, 'the ledger id is valid for spendEntry');
   }
   // A daily player (1 Dink a day plus the day-3 and day-7 streak bonuses) pays for any one item within a week or two.
   const week = 7 * DAY_PAY + BONUS[0][1] + BONUS[1][1];
-  assert.ok(Math.max(...CATALOGUE.map(i => i.price)) <= 2 * week, 'the dearest item is within two weeks of play');
+  const cheap = CATALOGUE.filter(i => i.slot !== 'sound');
+  assert.ok(Math.max(...cheap.map(i => i.price)) <= 2 * week, 'the dearest ring, paddle or pet is within two weeks of play');
   assert.ok(Math.min(...CATALOGUE.map(i => i.price)) <= week, 'a first item is within a week');
 });
 
@@ -56,8 +57,8 @@ test('planBuy: price comes from the catalogue, never below zero, a repeat charge
 });
 
 test('wornFrom gives one item per slot, and none when nothing is worn', () => {
-  assert.deepEqual(wornFrom([]), { frame: '', paddle: '', pet: '' });
-  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }, { id: 'frame-blue', slot: 'frame', worn: false }, { id: 'paddle-ink', slot: 'paddle', worn: false }]), { frame: 'frame-ink', paddle: '', pet: '' });
+  assert.deepEqual(wornFrom([]), { frame: '', paddle: '', pet: '', sound: '' });
+  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }, { id: 'frame-blue', slot: 'frame', worn: false }, { id: 'paddle-ink', slot: 'paddle', worn: false }]), { frame: 'frame-ink', paddle: '', pet: '', sound: '' });
 });
 
 test('clubLooksFrom allow-lists only catalogue item ids in their own slot and leaks nothing else', () => {
@@ -214,7 +215,7 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
 });
 test('WI-1: every item has a rarity, the rare tier is badged, and every shelf draws the same card', () => {
   for (const i of CATALOGUE) assert.ok(RARITIES.includes(i.rarity), `${i.id} has a known rarity`);
-  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie']);
+  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie', 'sound-drum', 'sound-crowd']);
   const { x } = phone();
   const html = x.Rewards.storeHTML({ store: { dinks: 10, worn: { frame: 'frame-court' }, items: items(['frame-court']), season: null }, msg: '', error: '', busy: false });
   const cards = html.match(/<div class="rw-card"[\s\S]*?<\/button><\/div>/g) || [];
@@ -239,7 +240,7 @@ test('slots are data-driven: six known, unknown rejected, sound never reaches th
   assert.deepEqual(SLOTS, SLOT_META.map(s => s.id));
   for (const s of SLOT_META) assert.ok(s.label && s.note && typeof s.club === 'boolean', s.id);
   await assert.rejects(wearItem(null, 'c', 'k', 'theme', ''), e => e.status === 400 && /Pick frame, paddle, pet, title, style or sound/.test(e.message));
-  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }]), { frame: 'frame-ink', paddle: '', pet: '' }); // newer slots appear once the shop sells in them
+  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }]), { frame: 'frame-ink', paddle: '', pet: '', sound: '' }); // a slot appears once the shop sells in it (title and style: WI-9)
   // a title or style row with an unknown id is dropped; a known-slot row only passes through when its catalogue item exists
   assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'title', item: 'title-nope' }, { name_key: 'ana', slot: 'sound', item: 'sound-nope' }]), {});
 });

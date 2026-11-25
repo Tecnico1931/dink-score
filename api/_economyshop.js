@@ -39,7 +39,13 @@ export const CATALOGUE = [
   { id: 'paddle-ink', slot: 'paddle', name: 'Ink paddle', price: 8, rarity: 'common' },
   { id: 'paddle-stripe', slot: 'paddle', name: 'Striped paddle', price: 15, rarity: 'rare' },
   { id: 'paddle-ball', slot: 'paddle', name: 'Ball paddle', price: 25, rarity: 'common' },
-  ...PETS
+  ...PETS,
+  // Victory sounds (WI-10): short tones the phone makes itself (src/app/economysound.js, no audio files); prices as upstream. Never in the box or the pass.
+  { id: 'sound-bell', slot: 'sound', name: 'Bell ding', price: 60, rarity: 'common' },
+  { id: 'sound-horn', slot: 'sound', name: 'Air horn', price: 90, rarity: 'common' },
+  { id: 'sound-8bit', slot: 'sound', name: '8-bit win', price: 105, rarity: 'common' },
+  { id: 'sound-drum', slot: 'sound', name: 'Drum roll', price: 135, rarity: 'rare' },
+  { id: 'sound-crowd', slot: 'sound', name: 'Crowd roar', price: 150, rarity: 'rare' }
 ];
 // Seasonal cosmetics (_economyseason.js) are looked up here too, so an owned one stays owned, wearable and visible after its window closes;
 // they are NOT in CATALOGUE, which keeps them out of the mystery box and the pass. Only buying is limited to the season.
