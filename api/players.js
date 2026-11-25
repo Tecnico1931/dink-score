@@ -188,7 +188,9 @@ export default handler(async (req, res) => {
       wornSummaryOf(sql, code, player.name_key),
       shareOf(sql, code, player.name_key)
     ]);
-    return send(res, 200, { ...rw, worn, pet, share });
+    // Today's daily spin (used or not) so the Play tab card and the nav dot need no catalogue call; nothing where the box and spin are off.
+    const spin = club.mystery_box ? (({ spunToday, wonToday }) => ({ spunToday, wonToday }))(await spinStatus(sql, code, player.name_key)) : undefined;
+    return send(res, 200, { ...rw, worn, pet, share, ...(spin ? { spin } : {}) });
   }
 
   if (body.action === 'rewards-activity') {

@@ -116,7 +116,7 @@ function rwSpinHTML(c, s) {
   const won = Number(sp.wonToday) || 0, hit = sp.spunToday ? sp.segments.indexOf(won) : -1;
   const odds = (sp.chances || []).map(x => `${x.chance}% for ${x.value}`).join(' · ');
   const res = sp.spunToday ? `<p class="rw-spin-res" role="status"><b>Won today: +${won} ${won === 1 ? 'Dink' : 'Dinks'}.</b> Your next free spin is tomorrow.</p>` : '';
-  return `<h3 class="rw-h">Daily spin</h3><section class="rw-spin" aria-label="Daily spin"><div class="rw-spin-main">${rwWheelSVG(sp.segments, hit)}<div><b class="rw-box-title">Daily spin</b><p class="rw-box-rates">Free Dinks once a day, up to ${esc(sp.max)}.</p></div></div>
+  return `<h3 class="rw-h" id="rw-spin-h" tabindex="-1">Daily spin</h3><section class="rw-spin" aria-label="Daily spin"><div class="rw-spin-main">${rwWheelSVG(sp.segments, hit)}<div><b class="rw-box-title">Daily spin</b><p class="rw-box-rates">Free Dinks once a day, up to ${esc(sp.max)}.</p></div></div>
     <p class="rw-box-fine">Chances: ${esc(odds)}. The draw is made on the server. Free play money only, and it never changes a game, a rating, a rank or who plays.</p>${res}
     <button type="button" class="btn btn-court block" data-rw-spin="1" ${c.busy || sp.spunToday ? 'disabled' : ''}>${sp.spunToday ? 'Spun today' : 'Spin'}</button></section>`;
 }
@@ -240,18 +240,25 @@ Object.assign(Rewards, {
     renderClub();
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
-  async openStore() {
+  // { spin: true } (the Play tab tile): once the shop is loaded, take the free spin if it is unused, then put the focus on the wheel's heading.
+  async openStore(opts) {
     if (!rwShown() || !myName() || !myToken()) return;
     const c = clubSheet = { view: 'rwstore', store: null, msg: '', error: '', busy: false, boxResult: null, pendingOpenId: '' };
     renderClub();
     try { const d = await playerCall({ action: 'rewards-catalog', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.store = d; rwStoreSynced(d); }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "The shop couldn't load."; }
     renderClub();
+    if (opts && opts.spin && c.store && c.store.spin && typeof rwBoxOn === 'function' && rwBoxOn()) {
+      if (!c.store.spin.spunToday) await rwStoreAct({ action: 'rewards-spin' }, rwSpinSay, '#rw-spin-h');
+      else { const h = document.querySelector('#rw-spin-h'); if (h) h.focus(); }
+    }
   }
 });
 
 // The card, the ring, the paddle colour, the court pet and the club looks map follow the server's answer.
+const rwSpinSay = d => (d.spinResult ? `Daily spin: +${d.spinResult.value} ${d.spinResult.value === 1 ? 'Dink' : 'Dinks'}. Your next free spin is ${rwSpinNext()}.` : 'Daily spin done.');
 function rwStoreSynced(d) {
+  rwSpinLearn(d && d.spin); // the shop's wheel and the Play tile read one state
   const cur = rwCur();
   if (d && d.items) rwGoalItem(d); // a goal that is now owned (bought, or granted by a pass tier or a box) is cleared
   const nextPet = d && 'pet' in d ? d.pet : (d && d.worn && d.worn.pet && cur.pet && cur.pet.id === d.worn.pet ? cur.pet : null);
@@ -308,7 +315,7 @@ document.addEventListener('click', e => {
   if (t.dataset.rwSpin) {
     const sp = c.store.spin;
     if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !sp || sp.spunToday || c.busy) return;
-    rwStoreAct({ action: 'rewards-spin' }, d => (d.spinResult ? `Daily spin: +${d.spinResult.value} ${d.spinResult.value === 1 ? 'Dink' : 'Dinks'}. Your next free spin is tomorrow.` : 'Daily spin done.'), '#club-h');
+    rwStoreAct({ action: 'rewards-spin' }, rwSpinSay, '#club-h');
     return;
   }
   if (t.dataset.rwBoxOpen) {

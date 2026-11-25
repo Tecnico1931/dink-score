@@ -78,6 +78,24 @@ const rwCur = () => { const c = club && club.code; if (c !== rwCode) { rwCode = 
 const rwHidden = () => !!store.get('pb.rewardsHide', false);
 const rwClubOn = () => !!(club && club.rewards);
 const rwBoxOn = () => rwClubOn() && !!(club && club.mysteryBox);
+// Daily spin: one in-memory state for the Play card, the Shop tab dot and the shop's own wheel. Learned from the sync, shop and spin answers (the
+// server's UTC day is the truth). rwSpinNow() is null where there is nothing to show; a state from an earlier UTC day only ever means "ready again".
+const rwSpin = { code: null, day: '', spun: false, won: 0 };
+const rwUtcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+function rwSpinLearn(sp, code = club && club.code) {
+  if (!sp || typeof sp.spunToday !== 'boolean') { if (rwSpin.code === code) rwSpin.code = null; return; }
+  Object.assign(rwSpin, { code, day: rwUtcDay(), spun: sp.spunToday, won: Math.max(0, Math.floor(Number(sp.wonToday) || 0)) });
+}
+const rwSpinNow = () => {
+  if (!rwShown() || !rwBoxOn() || !myName() || !myToken() || !club || rwSpin.code !== club.code) return null;
+  return rwSpin.day === rwUtcDay() ? { spun: rwSpin.spun, won: rwSpin.won } : { spun: false, won: 0 };
+};
+// "tomorrow 10:00 am" or "7:00 pm": the next UTC midnight on this phone's clock, written once, never a ticking countdown.
+function rwSpinNext(now = new Date()) {
+  const t = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const clock = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return t.toDateString() === now.toDateString() ? `today at ${clock}` : `tomorrow at ${clock}`;
+}
 const rwShown = () => rwClubOn() && !rwHidden();
 // Keep the synced state (and this phone's worn items) in one place. The worn ring and paddle colour are two attributes on <html> that the
 // stylesheet draws, set only while rewards are shown here, so the one-tap hide and a club with rewards off remove them.
@@ -156,7 +174,10 @@ const Rewards = {
       const d = await playerCall({ action: 'rewards-sync', name: myName(), playerToken: myToken(), tz: -new Date().getTimezoneOffset() });
       if (!club || club.code !== code || !d || typeof d.dinks !== 'number') return;
       const next = rwClean(d), changed = JSON.stringify(next) !== JSON.stringify(rwCur());
+      const spinBefore = JSON.stringify(rwSpin);
       rwSave(next, code);
+      rwSpinLearn(d.spin, code);
+      if (spinBefore !== JSON.stringify(rwSpin) && !changed && !rwHidden()) render();
       if (d.gained > 0 && !rwHidden()) announce(`${rwDinks(d.gained)} added. Day ${next.streak} of your streak.`);
       if (changed && !rwHidden()) render();
       Rewards.syncReady(true);
@@ -251,6 +272,20 @@ const Rewards = {
       nav.insertBefore(b, nav.querySelector('[data-tab="history"]'));
     }
     b.hidden = false;
+    const dot = !!rwSpinNow() && !rwSpinNow().spun; // a still dot (no motion) while the free spin is unused; the name says why
+    if (!!b.dataset.dot !== dot) { // redraw only when it flips; the name carries the reason for screen readers
+      if (dot) b.dataset.dot = '1'; else delete b.dataset.dot;
+      b.innerHTML = `${rwBagSvg}Shop${dot ? '<span class="vh">, daily spin ready</span>' : ''}`;
+    }
+  },
+  // The Play tab tile for the daily spin. Gone where rewards are off or hidden, the box and spin are off, or no name is linked to this phone.
+  spinTileHTML() {
+    const s = rwSpinNow();
+    if (!s) return '';
+    const wheel = '<svg class="rw-spin-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></svg>';
+    const head = s.spun ? `Daily spin: Spun today, +${s.won}` : 'Daily spin: Spin';
+    const sub = s.spun ? `Next spin ${rwSpinNext()}` : 'Free Dinks, once a day';
+    return `<button type="button" class="tile wide rw-spintile${s.spun ? ' done' : ''}" data-rw="spin">${wheel}<span class="rw-spintxt"><b>${esc(head)}</b><small>${esc(sub)}</small></span></button>`;
   },
   // The small flame on the avatar: the streak when it is 2 or more days.
   flameHTML() {
@@ -307,6 +342,7 @@ document.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.rw;
   if (a === 'shopnav') { Rewards.openShop(); return; }
+  if (a === 'spin') { Rewards.openStore({ spin: true }); return; }
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
   if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }

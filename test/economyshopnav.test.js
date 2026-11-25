@@ -9,7 +9,7 @@ const phone = ({ club = { code: 'club-a', rewards: true }, name = 'Ana', hide = 
   const kv = { 'pb.rewardsHide': hide, ...(state ? { 'pb.rewards': { 'club-a': state } } : {}) }, calls = [], listeners = [], env = { renders: 0, focused: null };
   const nav = { kids: [{ dataset: { tab: 'history' } }], querySelector(sel) { return sel.includes('shopnav') ? this.kids.find(k => k.dataset.rw === 'shopnav') || null : sel.includes('history') ? this.kids.find(k => k.dataset.tab === 'history') : null; }, insertBefore(b, ref) { this.kids.splice(ref ? this.kids.indexOf(ref) : this.kids.length, 0, b); } };
   const doc = { documentElement: { setAttribute() {}, removeAttribute() {} }, addEventListener: (t, f) => listeners.push(f), createElement: () => ({ dataset: {}, hidden: false }), querySelector: sel => (sel === '#tabs nav' ? nav : { focus() { env.focused = sel; } }) };
-  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
+  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, rwSpinLearn, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
   const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', 'renderClub', 'initials', 'iconSvg', 'skel', 'avatarInner', 'teamLabel',
     'let clubSheet = null;' + code)(
     { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } }, club, String, () => {}, doc, () => name, () => (name ? 'tok' : null),
@@ -83,6 +83,19 @@ test('Shop button: between Leaders and Record, where rewards are shown or for a 
   const hidden = phone({ hide: true }); hidden.x.Rewards.navSync();
   assert.ok(!shopBtn(hidden), 'hidden on this phone: no button');
   assert.equal(hidden.calls.length, 0, 'drawing the button never calls the server');
+});
+
+test('Shop button shows a still dot while the daily spin is unused, and says so in its name; no dot once spun, or with the spin off', () => {
+  const p = phone({ club: { code: 'club-a', rewards: true, mysteryBox: true } });
+  p.x.Rewards.navSync();
+  assert.ok(!shopBtn(p).dataset.dot, 'no dot until the server says the spin is free');
+  p.x.rwSpinLearn({ spunToday: false, wonToday: 0 }); p.x.Rewards.navSync();
+  assert.ok(shopBtn(p).dataset.dot);
+  assert.match(shopBtn(p).innerHTML, /Shop<span class="vh">, daily spin ready<\/span>$/);
+  p.x.rwSpinLearn({ spunToday: true, wonToday: 10 }); p.x.Rewards.navSync();
+  assert.ok(!shopBtn(p).dataset.dot); assert.match(shopBtn(p).innerHTML, />?Shop$/);
+  const off = phone(); off.x.rwSpinLearn({ spunToday: false, wonToday: 0 }); off.x.Rewards.navSync();
+  assert.ok(!shopBtn(off).dataset.dot, 'the box and spin are off for this club');
 });
 
 test('Shop button opens the shop, or says what is missing: no club, no linked name', async () => {

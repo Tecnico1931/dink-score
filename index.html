@@ -269,6 +269,12 @@ button { cursor: pointer; }
 .rw-fine { margin: 0; font-size: 12px; color: var(--on-court-muted); }
 .rw-hide { align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1.5px solid transparent; border-radius: 999px; background: var(--court-pill); color: var(--on-court); font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
 .rw-hide:active { filter: brightness(.9); }
+/* Daily spin tile on Play: full width, one short row, a 44 px+ target. Ready = the court colours (like the rewards card); used = a calm surface tile. */
+.tile.rw-spintile { flex-direction: row; align-items: center; gap: 14px; min-height: 64px; padding: 12px 16px; font: inherit; cursor: pointer; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); }
+.tile.rw-spintile.done { color: var(--ink); background: var(--surface); }
+.rw-spin-ico { flex: none; width: 36px; height: 36px; color: var(--ball); } .rw-spintile.done .rw-spin-ico { color: var(--muted); }
+.rw-spintxt { display: grid; gap: 2px; min-width: 0; } .rw-spintxt b { font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; } .rw-spintxt small { font-size: 13px; line-height: 1.3; color: var(--on-court-muted); overflow-wrap: anywhere; } .rw-spintile.done small { color: var(--muted); }
+:root[data-outdoor] .tile.rw-spintile { border: 2px solid var(--ink); }
 .rw-hide[data-rw="hide"] { background: none; border-color: color-mix(in srgb, var(--on-court) 45%, transparent); color: var(--on-court-muted); font-weight: 500; } /* quieter than the three ways in */
 .rw-acts { display: flex; flex-wrap: nowrap; gap: 6px; } .rw-acts .rw-hide { min-width: 44px; flex: 0 1 auto; padding: 0 11px; font-size: 13px; white-space: nowrap; }
 @media (max-width: 300px) { .rw-acts { flex-wrap: wrap; } } /* one row (short labels, full names in aria-label); only a very narrow screen wraps */
@@ -835,6 +841,8 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 /* Floating pill, spacing and look taken from the captain's reference app (dink-score.vercel.app): pill, soft grey highlight, accent icon and label on the active tab. */
 .tabs button { border: 0; background: transparent; padding: 7px 2px 6px; border-radius: 999px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; letter-spacing: -.1px; color: var(--ink); transition: background .15s, color .15s; min-width: 0; }
 .tabs button[hidden] { display: none; }
+.tabs button[data-dot] { position: relative; }
+.tabs button[data-dot]::after { content: ""; position: absolute; top: 5px; left: calc(50% + 8px); width: 10px; height: 10px; border-radius: 50%; background: var(--down); box-shadow: 0 0 0 2px var(--bg); } /* daily spin ready: a still dot, no motion */
 .tabs button svg { width: 26px; height: 26px; flex: none; }
 .tabs button[aria-current="page"] { background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--accent-text); }
 @media (prefers-reduced-motion: reduce) { .tabs button { transition: none; } }
@@ -3954,6 +3962,24 @@ const rwCur = () => { const c = club && club.code; if (c !== rwCode) { rwCode = 
 const rwHidden = () => !!store.get('pb.rewardsHide', false);
 const rwClubOn = () => !!(club && club.rewards);
 const rwBoxOn = () => rwClubOn() && !!(club && club.mysteryBox);
+// Daily spin: one in-memory state for the Play card, the Shop tab dot and the shop's own wheel. Learned from the sync, shop and spin answers (the
+// server's UTC day is the truth). rwSpinNow() is null where there is nothing to show; a state from an earlier UTC day only ever means "ready again".
+const rwSpin = { code: null, day: '', spun: false, won: 0 };
+const rwUtcDay = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
+function rwSpinLearn(sp, code = club && club.code) {
+  if (!sp || typeof sp.spunToday !== 'boolean') { if (rwSpin.code === code) rwSpin.code = null; return; }
+  Object.assign(rwSpin, { code, day: rwUtcDay(), spun: sp.spunToday, won: Math.max(0, Math.floor(Number(sp.wonToday) || 0)) });
+}
+const rwSpinNow = () => {
+  if (!rwShown() || !rwBoxOn() || !myName() || !myToken() || !club || rwSpin.code !== club.code) return null;
+  return rwSpin.day === rwUtcDay() ? { spun: rwSpin.spun, won: rwSpin.won } : { spun: false, won: 0 };
+};
+// "tomorrow 10:00 am" or "7:00 pm": the next UTC midnight on this phone's clock, written once, never a ticking countdown.
+function rwSpinNext(now = new Date()) {
+  const t = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  const clock = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return t.toDateString() === now.toDateString() ? `today at ${clock}` : `tomorrow at ${clock}`;
+}
 const rwShown = () => rwClubOn() && !rwHidden();
 // Keep the synced state (and this phone's worn items) in one place. The worn ring and paddle colour are two attributes on <html> that the
 // stylesheet draws, set only while rewards are shown here, so the one-tap hide and a club with rewards off remove them.
@@ -4032,7 +4058,10 @@ const Rewards = {
       const d = await playerCall({ action: 'rewards-sync', name: myName(), playerToken: myToken(), tz: -new Date().getTimezoneOffset() });
       if (!club || club.code !== code || !d || typeof d.dinks !== 'number') return;
       const next = rwClean(d), changed = JSON.stringify(next) !== JSON.stringify(rwCur());
+      const spinBefore = JSON.stringify(rwSpin);
       rwSave(next, code);
+      rwSpinLearn(d.spin, code);
+      if (spinBefore !== JSON.stringify(rwSpin) && !changed && !rwHidden()) render();
       if (d.gained > 0 && !rwHidden()) announce(`${rwDinks(d.gained)} added. Day ${next.streak} of your streak.`);
       if (changed && !rwHidden()) render();
       Rewards.syncReady(true);
@@ -4127,6 +4156,20 @@ const Rewards = {
       nav.insertBefore(b, nav.querySelector('[data-tab="history"]'));
     }
     b.hidden = false;
+    const dot = !!rwSpinNow() && !rwSpinNow().spun; // a still dot (no motion) while the free spin is unused; the name says why
+    if (!!b.dataset.dot !== dot) { // redraw only when it flips; the name carries the reason for screen readers
+      if (dot) b.dataset.dot = '1'; else delete b.dataset.dot;
+      b.innerHTML = `${rwBagSvg}Shop${dot ? '<span class="vh">, daily spin ready</span>' : ''}`;
+    }
+  },
+  // The Play tab tile for the daily spin. Gone where rewards are off or hidden, the box and spin are off, or no name is linked to this phone.
+  spinTileHTML() {
+    const s = rwSpinNow();
+    if (!s) return '';
+    const wheel = '<svg class="rw-spin-ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.4"/><circle cx="12" cy="12" r="2.6" fill="currentColor"/></svg>';
+    const head = s.spun ? `Daily spin: Spun today, +${s.won}` : 'Daily spin: Spin';
+    const sub = s.spun ? `Next spin ${rwSpinNext()}` : 'Free Dinks, once a day';
+    return `<button type="button" class="tile wide rw-spintile${s.spun ? ' done' : ''}" data-rw="spin">${wheel}<span class="rw-spintxt"><b>${esc(head)}</b><small>${esc(sub)}</small></span></button>`;
   },
   // The small flame on the avatar: the streak when it is 2 or more days.
   flameHTML() {
@@ -4183,6 +4226,7 @@ document.addEventListener('click', e => {
   if (!b) return;
   const a = b.dataset.rw;
   if (a === 'shopnav') { Rewards.openShop(); return; }
+  if (a === 'spin') { Rewards.openStore({ spin: true }); return; }
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
   if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
@@ -4528,7 +4572,7 @@ function rwSpinHTML(c, s) {
   const won = Number(sp.wonToday) || 0, hit = sp.spunToday ? sp.segments.indexOf(won) : -1;
   const odds = (sp.chances || []).map(x => `${x.chance}% for ${x.value}`).join(' · ');
   const res = sp.spunToday ? `<p class="rw-spin-res" role="status"><b>Won today: +${won} ${won === 1 ? 'Dink' : 'Dinks'}.</b> Your next free spin is tomorrow.</p>` : '';
-  return `<h3 class="rw-h">Daily spin</h3><section class="rw-spin" aria-label="Daily spin"><div class="rw-spin-main">${rwWheelSVG(sp.segments, hit)}<div><b class="rw-box-title">Daily spin</b><p class="rw-box-rates">Free Dinks once a day, up to ${esc(sp.max)}.</p></div></div>
+  return `<h3 class="rw-h" id="rw-spin-h" tabindex="-1">Daily spin</h3><section class="rw-spin" aria-label="Daily spin"><div class="rw-spin-main">${rwWheelSVG(sp.segments, hit)}<div><b class="rw-box-title">Daily spin</b><p class="rw-box-rates">Free Dinks once a day, up to ${esc(sp.max)}.</p></div></div>
     <p class="rw-box-fine">Chances: ${esc(odds)}. The draw is made on the server. Free play money only, and it never changes a game, a rating, a rank or who plays.</p>${res}
     <button type="button" class="btn btn-court block" data-rw-spin="1" ${c.busy || sp.spunToday ? 'disabled' : ''}>${sp.spunToday ? 'Spun today' : 'Spin'}</button></section>`;
 }
@@ -4652,18 +4696,25 @@ Object.assign(Rewards, {
     renderClub();
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
-  async openStore() {
+  // { spin: true } (the Play tab tile): once the shop is loaded, take the free spin if it is unused, then put the focus on the wheel's heading.
+  async openStore(opts) {
     if (!rwShown() || !myName() || !myToken()) return;
     const c = clubSheet = { view: 'rwstore', store: null, msg: '', error: '', busy: false, boxResult: null, pendingOpenId: '' };
     renderClub();
     try { const d = await playerCall({ action: 'rewards-catalog', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.store = d; rwStoreSynced(d); }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "The shop couldn't load."; }
     renderClub();
+    if (opts && opts.spin && c.store && c.store.spin && typeof rwBoxOn === 'function' && rwBoxOn()) {
+      if (!c.store.spin.spunToday) await rwStoreAct({ action: 'rewards-spin' }, rwSpinSay, '#rw-spin-h');
+      else { const h = document.querySelector('#rw-spin-h'); if (h) h.focus(); }
+    }
   }
 });
 
 // The card, the ring, the paddle colour, the court pet and the club looks map follow the server's answer.
+const rwSpinSay = d => (d.spinResult ? `Daily spin: +${d.spinResult.value} ${d.spinResult.value === 1 ? 'Dink' : 'Dinks'}. Your next free spin is ${rwSpinNext()}.` : 'Daily spin done.');
 function rwStoreSynced(d) {
+  rwSpinLearn(d && d.spin); // the shop's wheel and the Play tile read one state
   const cur = rwCur();
   if (d && d.items) rwGoalItem(d); // a goal that is now owned (bought, or granted by a pass tier or a box) is cleared
   const nextPet = d && 'pet' in d ? d.pet : (d && d.worn && d.worn.pet && cur.pet && cur.pet.id === d.worn.pet ? cur.pet : null);
@@ -4720,7 +4771,7 @@ document.addEventListener('click', e => {
   if (t.dataset.rwSpin) {
     const sp = c.store.spin;
     if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !sp || sp.spunToday || c.busy) return;
-    rwStoreAct({ action: 'rewards-spin' }, d => (d.spinResult ? `Daily spin: +${d.spinResult.value} ${d.spinResult.value === 1 ? 'Dink' : 'Dinks'}. Your next free spin is tomorrow.` : 'Daily spin done.'), '#club-h');
+    rwStoreAct({ action: 'rewards-spin' }, rwSpinSay, '#club-h');
     return;
   }
   if (t.dataset.rwBoxOpen) {
@@ -5885,6 +5936,7 @@ function homeTiles(games) {
     tiles.push(`<div class="tile live wide"><span class="t-k">Paused game</span><span class="t-big">${s.score[0]}–${s.score[1]}</span>
       <span class="t-name">${esc(teamLabel(s.cfg.teams[0]))} vs ${esc(teamLabel(s.cfg.teams[1]))}</span><button class="go" data-act="resume">Resume</button></div>`);
   }
+  tiles.push(Rewards.spinTileHTML()); // above the fold on a 360 px phone: the free spin is seen every day
   tiles.push(`<button class="tile newg" data-act="new-open"><span class="plus">${BALL_IMG('', 22)}</span><span class="t-name">New game</span><span class="t-k">Score one live</span></button>`);
   tiles.push(`<button class="tile log" data-act="log-open"><span class="plus">+</span><span class="t-name">Log a result</span><span class="t-k">For games on other courts</span></button>`);
   const top = leaderStats(games, setup.mode)[0];
