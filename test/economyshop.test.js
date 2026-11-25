@@ -265,9 +265,9 @@ test('WI-9/13: sixteen titles and nine name styles at the upstream prices, in th
   assert.ok(TITLES.every(t => t.slot === 'title') && STYLES.every(s => s.slot === 'style' && ['rare', 'legendary', 'mythic'].includes(s.rarity)));
   const src = fs.readFileSync(path.join(root, 'src/app/economy.js'), 'utf8');
   const titles = new Function('return ' + /const RW_TITLES = (\{[^}]*\});/.exec(src)[1])();
-  assert.deepEqual(titles, Object.fromEntries(TITLES.map(t => [t.id.slice(6), t.name])), 'RW_TITLES mirrors the server titles');
+  assert.deepEqual(Object.fromEntries(Object.entries(titles).filter(([k]) => TITLES.some(t => t.id === 'title-' + k))), Object.fromEntries(TITLES.map(t => [t.id.slice(6), t.name])), 'RW_TITLES mirrors the server titles (pass-only titles are pinned in economypass.test.js)');
   const styles = new Function('return ' + /const RW_STYLES = (\[[^\]]*\]);/.exec(src)[1])();
-  assert.deepEqual(styles, STYLES.map(s => s.id.slice(6)), 'RW_STYLES mirrors the server styles');
+  assert.deepEqual(styles.filter(k => STYLES.some(s => s.id === 'style-' + k)), STYLES.map(s => s.id.slice(6)), 'RW_STYLES mirrors the server styles');
   // A title or style is an opt-in club look like a ring; the box never draws one.
   assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'title', item: 'title-kitchen' }, { name_key: 'ana', slot: 'style', item: 'style-gold' }, { name_key: 'ana', slot: 'style', item: 'title-kitchen' }]), { ana: { title: 'title-kitchen', style: 'style-gold' } });
 });

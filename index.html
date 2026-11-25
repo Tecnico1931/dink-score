@@ -281,6 +281,8 @@ button { cursor: pointer; }
 [data-rw-frame="pickle"] { --rw-c: color-mix(in srgb, var(--green) 65%, var(--ink)); --rw-ring: 0 0 0 4px var(--rw-c), 0 0 0 6px color-mix(in srgb, var(--green) 50%, var(--ball)); --rw-ring-sm: 0 0 0 3.5px var(--rw-c), 0 0 0 5px color-mix(in srgb, var(--green) 50%, var(--ball)); }
 [data-rw-frame="ice"] { --rw-c: color-mix(in srgb, var(--blue) 50%, var(--surface)); --rw-ring: 0 0 0 3px var(--rw-c), 0 0 9px 5px color-mix(in srgb, var(--blue) 45%, transparent); --rw-ring-sm: 0 0 0 2.5px var(--rw-c), 0 0 7px 4px color-mix(in srgb, var(--blue) 45%, transparent); }
 [data-rw-frame="lava"] { --rw-c: color-mix(in srgb, var(--down) 70%, var(--ball)); --rw-ring: 0 0 0 4px var(--down), 0 0 0 6px var(--ink), 0 0 0 8px var(--rw-c); --rw-ring-sm: 0 0 0 3.5px var(--down), 0 0 0 5px var(--ink), 0 0 0 6.5px var(--rw-c); }
+[data-rw-frame="season"] { --rw-ring: 0 0 0 3px var(--surface), 0 0 0 5px var(--green), 0 0 0 7px var(--surface), 0 0 0 9px var(--green); --rw-ring-sm: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--green), 0 0 0 5.5px var(--surface), 0 0 0 7px var(--green); --rw-c: var(--green); }
+[data-rw-frame="trophy"] { --rw-ring: 0 0 0 4px var(--ball), 0 0 0 6px var(--surface), 0 0 0 8px var(--green); --rw-ring-sm: 0 0 0 3.5px var(--ball), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--green); --rw-c: var(--ball); }
 /* Seasonal looks (api/_economyseason.js): only the app's own tokens, mixed with color-mix where a tint is needed. */
 [data-rw-frame="spring"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--ball); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--ball); --rw-c: var(--green); }
 [data-rw-frame="heat"] { --rw-ring: 0 0 0 5px var(--down); --rw-ring-sm: 0 0 0 4px var(--down); --rw-c: var(--down); }
@@ -382,6 +384,12 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-nm[data-rw-style="pickle"] { color: color-mix(in srgb, var(--green) 70%, var(--ink)); }
 .rw-nm[data-rw-style="ice"] { color: color-mix(in srgb, var(--blue-text) 75%, var(--ink)); text-shadow: 0 0 4px color-mix(in srgb, var(--blue) 30%, transparent); }
 .rw-nm[data-rw-style="neon"] { color: color-mix(in srgb, color-mix(in srgb, var(--down) 50%, var(--blue-text)) 75%, var(--ink)); text-shadow: 0 0 5px color-mix(in srgb, var(--down) 35%, transparent); }
+.rw-nm[data-rw-style="courtline"] { text-decoration: underline; text-decoration-color: var(--green); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.rw-level { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: center; margin: 0 0 12px; padding: 14px 16px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.rw-level .rw-lv { grid-row: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 18px; }
+.rw-level div { display: flex; flex-direction: column; min-width: 0; }
+.rw-level small { font-size: 14px; color: var(--muted); }
+.rw-level p { grid-column: 1 / -1; margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 :root[data-outdoor] .rw-nm { text-shadow: none; }
 .rw-badges { min-height: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .rw-badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1; }
@@ -3874,7 +3882,7 @@ function inboxGo(go) {
 // rank or a pairing.
 const RW_BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
 // The rules card quotes these numbers; test/economyrules.test.js pins each to the server constant it copies (DAY_PAY, BOX_*, PASS_TIERS).
-const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 10;
+const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 8, RW_XP = { game: 10, win: 15, cap: 300, tier: 125 };
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
@@ -3890,8 +3898,8 @@ const RW_EXTRA_SLOTS = ['title', 'style'];
 // A court theme and a win celebration are never in a club look either; they are only worn on this phone (economycelebrate.js).
 const RW_OWN_SLOTS = ['sound', 'theme', 'celebrate'];
 // Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
-const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss' };
-const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged'];
+const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss', grinder: 'The Grinder', closer: 'The Closer', rallyking: 'Rally Machine' };
+const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged', 'courtline'];
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
 // {title, style} ids that are set and well formed, nothing else.
 const rwExtras = v => Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwSlotId(s, v && v[s])]).filter(e => e[1]));
@@ -3980,6 +3988,15 @@ function rwSetReady(n, code = club && club.code) {
   rwRedrawClub();
   if (typeof clubSheet !== 'undefined' && clubSheet && !/^rw/.test(clubSheet.view) && typeof renderClub === 'function') renderClub();
 }
+// Your level (XP over all games your phone saved), learned from the pass answer for the profile level card. Yours only: the server never sends it
+// for anyone else, and it is held in memory only.
+const rwLevel = { code: null, v: null };
+function rwSetLevel(l, code = club && club.code) {
+  const v = l && Number.isInteger(l.level) && Number.isInteger(l.xp) && Number.isInteger(l.toNext) && Number.isInteger(l.max) ? { level: l.level, xp: l.xp, toNext: l.toNext, max: l.max } : null;
+  const changed = rwLevel.code !== code || JSON.stringify(rwLevel.v) !== JSON.stringify(v);
+  rwLevel.code = code; rwLevel.v = v;
+  if (changed && club && club.code === code && rwShown() && typeof renderProfile === 'function') renderProfile();
+}
 let rwBusy = false, rwAt = 0, rwLooksBusy = false, rwLooksAt = 0, rwLooksCode = null;
 const rwLooksByClub = Object.create(null);
 const rwClubLooks = () => (club && club.code && rwLooksByClub[club.code]) || null;
@@ -4028,7 +4045,7 @@ const Rewards = {
     rwReady.busy = true;
     try {
       const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() });
-      if (club && club.code === code && d && Array.isArray(d.tiers)) rwSetReady(d.tiers.filter(t => t.unlocked && !t.claimed).length, code);
+      if (club && club.code === code && d && Array.isArray(d.tiers)) { rwSetLevel(d.level, code); rwSetReady(d.tiers.filter(t => t.unlocked && !t.claimed).length, code); }
     } catch { /* offline or off: keep the last value */ } finally { rwReady.busy = false; }
   },
   // Fetch the club's opt-in worn looks (allow-listed item ids only; never balance, streak or history). Skipped when rewards are off or hidden.
@@ -4062,6 +4079,14 @@ const Rewards = {
   titleHTML(name) {
     const l = Rewards.lookOf(name), t = l && Object.hasOwn(RW_TITLES, l.title) ? RW_TITLES[l.title] : '';
     return t ? `<span class="rw-title">${esc(t)}</span>` : '';
+  },
+  // The level card at the top of your own Stats tab (WI-14): Level N of 25, total XP, and what is left to the next level. Own profile only.
+  levelCardHTML(name) {
+    if (!rwShown() || !isMe(name)) return '';
+    const l = club && rwLevel.code === club.code ? rwLevel.v : null;
+    if (!l) { Rewards.syncReady(); return ''; }
+    const next = l.level >= l.max ? 'You are at the top level.' : `${l.toNext} XP to level ${l.level + 1}.`;
+    return `<section class="rw-level" aria-label="Your level"><span class="rw-lv" aria-hidden="true">${l.level}</span><div><b>Level ${l.level} of ${l.max}</b><small>${l.xp} XP all time</small></div><p>${next} Games sent from a club player's phone give ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} a day.</p></section>`;
   },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
@@ -4133,7 +4158,7 @@ const Rewards = {
     const lad = RW_BONUS.map(([d, b]) => `+${b} on day ${d}`).join(', '), top = RW_BONUS[RW_BONUS.length - 1];
     const spin = rwBoxOn() ? `<li><b>Daily spin:</b> one free spin a day (UTC) wins ${RW_SPIN.min} to ${RW_SPIN.max} Dinks. It is drawn on the server and the chances are shown on the card. It never depends on a score.</li>` : '';
     const box = rwBoxOn() ? `<li><b>Mystery box:</b> opens a random item you don't own yet for ${rwDinks(RW_BOX.cost)}, up to ${RW_BOX.limit} a day. If you already own it, ${rwDinks(RW_BOX.refund)} come back. The odds are shown before you open one.</li>` : '';
-    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${RW_DAY_PAY}</b> for the first game you play each day. A logged result counts the same as one scored live.</li><li><b>Daily streak:</b> play on days in a row for a bonus: ${lad}, then +${top[1]} every ${top[0]}th day after that. Miss a day and the streak starts again.</li><li>Only games saved from your own linked name count. Winning, losing or the score never changes what you earn.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} rewards that unlock as you play games this season. Games count, never results.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
+    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${RW_DAY_PAY}</b> for the first game you play each day. A logged result counts the same as one scored live.</li><li><b>Daily streak:</b> play on days in a row for a bonus: ${lad}, then +${top[1]} every ${top[0]}th day after that. Miss a day and the streak starts again.</li><li>Only games saved from your own linked name count. Winning, losing or the score never changes the Dinks you earn.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
   },
   // The "You" rows (shown only where the club has rewards on): the way into the Shop and Season pass, and the one switch on this phone.
   youRowHTML() {
@@ -4576,13 +4601,13 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     if (c.inv) return rwInventoryHTML(c, s, head, done);
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
-    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && i.slot !== 'theme' && i.slot !== 'celebrate' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
+    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && !i.pass && i.slot !== 'sound' && i.slot !== 'theme' && i.slot !== 'celebrate' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
-    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event && !rwIsTop(i)); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
+    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event && !i.pass && !rwIsTop(i)); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
-    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || rwIsTop(i));
+    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || i.pass || rwIsTop(i));
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
     const box = rwSpinHTML(c, s) + rwBoxHTML(c, s);
     return `${head}${rwShopHeadHTML(c, s)}
@@ -4762,6 +4787,7 @@ const RW_SOUNDS = {
   // WI-13: the two top sounds. Fanfare: four brass-like notes up a major chord. Ascension: a slow rise that ends on a bright chord.
   'sound-fanfare': { dur: 1.6, steps: [[523.25, 0, .14], [659.25, .16, .14], [783.99, .32, .14], [1046.5, .5, 1]].flatMap(([f, at, dur]) => [{ f, at, dur, vol: .05, type: 'sawtooth' }, { f: f * 1.5, at, dur, vol: .025, type: 'sawtooth' }]) },
   'sound-ascension': { dur: 3.2, steps: [{ f: 220, to: 1760, at: 0, dur: 1.8, vol: .07 }, { f: 330, to: 2637, at: 0, dur: 1.8, vol: .03 }].concat([1046.5, 1318.5, 1568, 2093].map((f, i) => ({ f, at: 1.8 + i * .03, dur: 1.3, vol: .05 - i * .008 }))) },
+  'sound-whistle': { dur: 1, steps: [{ f: 2700, to: 2900, at: 0, dur: .2, vol: .07 }, { f: 2900, at: .26, dur: .6, vol: .07 }] }, // the pass-only Ref's whistle
   'sound-crowd': { dur: 2, steps: [{ noise: 900, q: .5, at: 0, dur: 1.9, vol: .16, rise: .6 }, { noise: 2400, q: .7, at: .15, dur: 1.5, vol: .05, rise: .5 }] }
 };
 let rwSoundCtx = null, rwSoundTimer = 0;
@@ -4900,16 +4926,16 @@ function rwWinFx() {
   rwFxTimer = setTimeout(rwFxClear, 1500); // longest piece: 250 ms delay + 1.1 s motion
   return true;
 }
-/* ---------- rewards season pass: free play track per club season (L16 slice 5; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
-// Progress and tiers are derived on the server (api/_economypass.js, players.js rewards-pass|rewards-pass-claim) from games saved by this
-// player's verified phone in the current club season. Free only: no paid tier, no real money, no countdown pressure, no randomness, no motion
-// or sound, and never reads or changes a score, rating, rank or pairing. Reachable from the Your Dink card (so the one-tap hide removes it).
+/* ---------- rewards season pass: free XP track per club season (L16 slice 5, XP in WI-14; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
+// Progress and tiers are derived on the server (api/_economypass.js, players.js rewards-pass|rewards-pass-claim) from the XP of games saved by this
+// player's verified phone in the current club season. Free only: no paid tier, no real money, no countdown, no randomness, no motion
+// or sound, and never changes a score, rating, rank or pairing. Reachable from the Your Dink card (so the one-tap hide removes it).
 const rwPassRewardText = t => {
   if (t.item && t.item.owned && !t.claimed) return `+${rwDinks(t.payoutDinks)}`;
   if (t.item) return `${t.item.name} + ${rwDinks(t.dinks)}`;
   return `+${rwDinks(t.dinks)}`;
 };
-const rwPassMaxGames = p => (p && Array.isArray(p.tiers) && p.tiers.length ? p.tiers[p.tiers.length - 1].games : 1);
+const rwPassMaxXp = p => (p && p.maxXp > 0 ? p.maxXp : 1);
 
 Object.assign(Rewards, {
   passHTML(c) {
@@ -4917,28 +4943,29 @@ Object.assign(Rewards, {
     const head = '<h2 id="club-h" tabindex="-1">Season pass</h2>';
     if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p><div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>`;
     if (!p) return `${head}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="pass">Try again</button>` : skel(3)}<div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>`;
-    const maxG = rwPassMaxGames(p), pct = Math.min(100, Math.round((Math.min(p.games, maxG) / maxG) * 100));
+    const maxG = rwPassMaxXp(p), pct = Math.min(100, Math.round((Math.min(p.xp, maxG) / maxG) * 100));
+    const nextT = p.tiers.find(t => !t.unlocked), toNext = nextT ? nextT.xp - p.xp : 0;
     const summary = `<section class="rw-pass-head" aria-label="Season pass progress">
       <div class="rw-pass-top"><span class="rw-pass-season">${esc(p.season.name)}</span><span class="rw-pass-free">Free track</span></div>
       <div class="rw-top">
-        <span class="rw-day"><span><b>${p.games}</b><small>${p.games === 1 ? 'Game this season' : 'Games this season'}</small></span></span>
+        <span class="rw-day"><span><b>${p.xp}</b><small>/ ${maxG} season XP</small></span></span>
         <span class="rw-bal"><b>${p.dinks}</b><small>${p.dinks === 1 ? 'Dink' : 'Dinks'}</small></span>
       </div>
-      <div class="rw-bar" role="progressbar" aria-label="Season pass progress" aria-valuemin="0" aria-valuemax="${maxG}" aria-valuenow="${Math.min(p.games, maxG)}"><span style="width:${pct}%"></span></div>
-      <p class="rw-fine">Free reward track filled by games you save this season. No paid tier, no real money, and it never changes a game, a rating or a rank.</p>
+      <div class="rw-bar" role="progressbar" aria-label="Season pass progress" aria-valuemin="0" aria-valuemax="${maxG}" aria-valuenow="${Math.min(p.xp, maxG)}"><span style="width:${pct}%"></span></div>
+      <p class="rw-fine">${nextT ? `${toNext} XP to tier ${nextT.tier}. ` : 'Every tier is unlocked. '}Season XP is the same XP as your level, from this season's games. These items can't be bought, and they're yours to keep in your inventory. No paid tier, no real money, and it never changes a game, a rating or a rank.</p>
     </section>`;
     const rows = p.tiers.map(t => {
       const stateCls = t.claimed ? ' is-done' : t.unlocked ? ' is-ready' : '';
       const sw = t.item ? rwSwatch(t.item) : '';
       const label = rwPassRewardText(t);
       const ownedNote = t.item && t.item.owned && !t.claimed ? `You already own ${t.item.name} — Dinks instead. ` : '';
-      const need = !t.unlocked ? ` · ${t.games - p.games} more` : '';
-      const sub = `${ownedNote}${t.games} ${t.games === 1 ? 'game' : 'games'}${need}`;
+      const need = !t.unlocked ? ` · ${t.xp - p.xp} more` : '';
+      const sub = `${ownedNote}${t.xp} XP${need}`;
       const right = t.claimed
         ? '<span class="rw-pill is-done">Claimed</span>'
         : t.unlocked
           ? `<button type="button" class="btn btn-ink rw-claim" data-rw-claim="${t.tier}" aria-label="Claim tier ${t.tier}: ${esc(label)}" ${c.busy ? 'disabled' : ''}>Claim</button>`
-          : `<span class="rw-pill">${p.games}/${t.games}</span>`;
+          : `<span class="rw-pill">${Math.min(p.xp, t.xp)}/${t.xp}</span>`;
       return `<li class="rw-ptier${stateCls}"><span class="rw-tnum">Tier ${t.tier}</span>${sw}<span class="rw-name"><b>${esc(label)}</b><small>${esc(sub)}</small></span>${right}</li>`;
     }).join('');
     return `${head}${summary}
@@ -4949,7 +4976,7 @@ Object.assign(Rewards, {
     if (!rwShown() || !myName() || !myToken()) return;
     const c = clubSheet = { view: 'rwpass', pass: null, msg: '', error: '', busy: false };
     renderClub();
-    try { const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.pass = d; rwSetReady(d.claimable); rwStoreSynced(d); }
+    try { const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.pass = d; rwSetLevel(d.level); rwSetReady(d.claimable); rwStoreSynced(d); }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "The season pass couldn't load."; }
     renderClub();
   }
@@ -4963,7 +4990,7 @@ async function rwPassClaim(tier) {
   try {
     const d = await playerCall({ action: 'rewards-pass-claim', name: myName(), playerToken: myToken(), tier, seasonId: c.pass.season.id });
     if (clubSheet !== c) return;
-    c.pass = d; rwSetReady(d.claimable);
+    c.pass = d; rwSetLevel(d.level); rwSetReady(d.claimable);
     if (!d.claimed) c.msg = `Tier ${tier} was already claimed.`;
     else if (d.granted) c.msg = `Tier ${tier} claimed: ${d.granted.name} and +${rwDinks(d.gained)}. Wear it in the Shop.`;
     else if (itemBefore && itemBefore.item && itemBefore.item.owned) c.msg = `Tier ${tier} claimed: +${rwDinks(d.gained)} (you already own ${itemBefore.item.name}).`;
@@ -9143,7 +9170,8 @@ function renderProfile() {
   const tab = hasTabs && profile.tab === 'paddles' ? 'paddles' : 'stats';
   const tabs = hasTabs ? `<div class="seg" role="tablist" aria-label="Profile sections">${[['stats', 'Stats'], ['paddles', 'Paddles']].map(([v, l]) => `<button type="button" role="tab" id="pf-tab-${v}" data-ptab="${v}" aria-selected="${v === tab}" aria-controls="pf-panel" tabindex="${v === tab ? 0 : -1}">${l}</button>`).join('')}</div>` : '';
   const panel = tab === 'paddles' ? paddlesProfileHTML(pr.name, rated)
-    : `${selfDuprHTML(pr.name)}
+    : `${typeof Rewards !== 'undefined' ? Rewards.levelCardHTML(pr.name) : ''}
+    ${selfDuprHTML(pr.name)}
     ${dssoProfileHTML(pr.name)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}
