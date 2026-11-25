@@ -343,6 +343,22 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-badge[data-rarity="rare"] { background: var(--rare-bg); color: var(--rare-fg); } .rw-badge[data-rarity="legendary"] { background: var(--legendary-bg); color: var(--legendary-fg); }
 .rw-badge[data-rarity="mythic"] { background: var(--mythic-bg); color: var(--mythic-fg); } .rw-badge[data-rarity="shiny"] { background: var(--shiny-bg); color: var(--shiny-fg); }
 :root[data-outdoor] .rw-badge { border: 1.5px solid var(--ink); }
+/* WI-13: Legendary and Mythic. Items use only the app's tokens (rings, name styles) and stay still. A Legendary card has a gradient BORDER on the normal surface;
+   a Mythic card is a flat dark surface with a gradient border. Its fixed colours are pinned in test/contrast.test.js; in outdoor mode both fall back to a plain ink border. */
+[data-rw-frame="rainbow"] { --rw-c: var(--ball); --rw-ring: 0 0 0 2.5px var(--down), 0 0 0 5px var(--ball), 0 0 0 7.5px var(--green), 0 0 0 10px var(--blue); --rw-ring-sm: 0 0 0 2px var(--down), 0 0 0 4px var(--ball), 0 0 0 6px var(--green), 0 0 0 8px var(--blue); }
+[data-rw-frame="orbit"] { --rw-c: var(--ball); --rw-ring: 0 0 0 3px var(--ink), 0 0 0 5px var(--surface), 0 0 0 7px var(--ball); --rw-ring-sm: 0 0 0 2.5px var(--ink), 0 0 0 4px var(--surface), 0 0 0 5.5px var(--ball); }
+[data-rw-frame="crown"] { --rw-c: color-mix(in srgb, var(--ball) 70%, var(--down)); --rw-ring: 0 0 0 3px var(--rw-c), 0 0 0 5px var(--surface), 0 0 0 7px var(--rw-c), 0 0 10px 6px color-mix(in srgb, var(--rw-c) 40%, transparent); --rw-ring-sm: 0 0 0 2.5px var(--rw-c), 0 0 0 4px var(--surface), 0 0 0 5.5px var(--rw-c), 0 0 8px 5px color-mix(in srgb, var(--rw-c) 40%, transparent); }
+[data-rw-frame="horizon"] { --rw-c: var(--ball); --rw-ring: 0 0 0 3px var(--ink), 0 0 0 5px var(--ball), 0 0 14px 8px color-mix(in srgb, var(--blue) 50%, transparent); --rw-ring-sm: 0 0 0 2.5px var(--ink), 0 0 0 4px var(--ball), 0 0 10px 6px color-mix(in srgb, var(--blue) 50%, transparent); }
+.rw-nm[data-rw-style="holo"] { color: color-mix(in srgb, color-mix(in srgb, var(--blue-text) 50%, var(--green)) 75%, var(--ink)); text-shadow: 0 0 5px color-mix(in srgb, var(--down) 30%, transparent); }
+.rw-nm[data-rw-style="molten"] { color: color-mix(in srgb, color-mix(in srgb, var(--ball) 50%, var(--down)) 45%, var(--ink)); text-shadow: 0 0 5px color-mix(in srgb, var(--down) 35%, transparent); }
+.rw-nm[data-rw-style="starforged"] { color: color-mix(in srgb, var(--blue-text) 40%, var(--ink)); text-shadow: 0 0 4px color-mix(in srgb, var(--blue) 45%, transparent), 0 0 9px color-mix(in srgb, var(--down) 30%, transparent); }
+.rw-card[data-rw-top] { border: 2px solid transparent; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(135deg, var(--blue), var(--green), var(--ball), var(--down)) border-box; }
+:root:not([data-outdoor]) .rw-card[data-rw-top="mythic"] { --ink: #FFFFFF; --bg: #130F22; --surface: #130F22; --surface-2: #1E1836; --muted: #C4BDE0; --line: #3A3160; background: linear-gradient(#130F22, #130F22) padding-box, linear-gradient(135deg, #8E6BFF, #E8478B, #FFB347) border-box; color: #FFFFFF; }
+:root:not([data-outdoor]) .rw-card[data-rw-top="mythic"] .rw-cost { color: #FFD58A; }
+:root[data-outdoor] .rw-card[data-rw-top] { border-color: var(--ink); background: var(--surface); }
+.rw-held { font-size: 13px; line-height: 1.3; color: var(--muted); }
+.rw-got { display: grid; gap: 2px; margin: 8px 0; padding: 12px 14px; border-radius: 18px; background: var(--surface-2); border: 1.5px solid var(--line); } .rw-got span { font-size: 14px; color: var(--muted); } :root[data-outdoor] .rw-got { border-color: var(--ink); }
+.rw-pet[data-pet="pet-supernova"] { --pet-bg: #1B1530; --pet-1: #8E6BFF; --pet-2: #FFD58A; --pet-3: #1B1530; --pet-eye: #FFFFFF; }
 .rw-cname { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; } .rw-cost { font-size: 13px; color: var(--muted); }
 .rw-card .btn { width: 100%; min-height: 44px; margin-top: auto; }
 .rw-item .btn[data-rw-short], .rw-box .btn[data-rw-short], .rw-card .btn[data-rw-short] { opacity: .55; } :root[data-outdoor] .rw-item .btn[data-rw-short], :root[data-outdoor] .rw-box .btn[data-rw-short], :root[data-outdoor] .rw-card .btn[data-rw-short] { opacity: 1; text-decoration: line-through; } /* can't afford it yet: muted, still focusable, says why when pressed */
@@ -3804,8 +3820,8 @@ const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').
 // A sound is never in a club look: it stays on its owner's phone.
 const RW_EXTRA_SLOTS = ['title', 'style'];
 // Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
-const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post' };
-const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon'];
+const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss' };
+const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged'];
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
 // {title, style} ids that are set and well formed, nothing else.
 const rwExtras = v => Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwSlotId(s, v && v[s])]).filter(e => e[1]));
@@ -4071,7 +4087,8 @@ document.addEventListener('click', e => {
 // Clean-room geometric inline SVGs on a unified 64x64 viewBox using CSS custom properties only (--pet-1, --pet-2, --pet-3, --pet-eye, --pet-bg; the Yorkie adds --pet-steel, --pet-black, --pet-tan, --pet-gold),
 // so every pet follows the app's court-green/lime light, dark and outdoor tokens automatically with zero raster files, zero remote URLs,
 // and zero motion or sound. Growth stages (Rookie 0-4, Club 5-14, Veteran 15+) and weekly shiny rotation come solely from the server.
-const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon'];
+const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon', 'pet-supernova'];
+const RW_PET_NO_SHINY = ['pet-supernova']; // the Mythic pet has no weekly shiny coat
 const RW_PET_NAMES = {
   'pet-frog': 'Court Frog',
   'pet-duck': 'Dink duck',
@@ -4083,7 +4100,8 @@ const RW_PET_NAMES = {
   'pet-bat': 'Paddle bat',
   'pet-turtle': 'Court turtle',
   'pet-fox': 'Smash fox',
-  'pet-netdragon': 'Net dragon'
+  'pet-netdragon': 'Net dragon',
+  'pet-supernova': 'Supernova dragon'
 };
 const RW_PET_STAGE_LABELS = { 1: 'Rookie', 2: 'Club', 3: 'Veteran' };
 const RW_PET_STAR_SVG = '<g data-pet-star="1"><circle cx="54" cy="10" r="7.5" fill="var(--pet-1)"/><polygon points="54,4.5 55.6,8.4 59.5,10 55.6,11.6 54,15.5 52.4,11.6 48.5,10 52.4,8.4" fill="var(--pet-2)"/></g>';
@@ -4142,6 +4160,9 @@ Object.assign(RW_PET_ART, {
   'pet-netdragon': rwPetGrow('<polygon points="20,38 5,26 7,46" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2" stroke-linejoin="round"/><polygon points="44,38 59,26 57,46" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2" stroke-linejoin="round"/><path d="M43 52c9 3 13-4 10-10" fill="none" stroke="var(--pet-1)" stroke-width="4.6" stroke-linecap="round"/><ellipse cx="32" cy="46" rx="12" ry="10.5" fill="var(--pet-1)"/><ellipse cx="32" cy="48" rx="7.4" ry="7" fill="var(--pet-2)"/><path d="M26 45.5h12M26 49h12M26 52.5h12M29 42v13M35 42v13" stroke="var(--pet-3)" stroke-width="1.1"/><polygon points="22,24 17,8 29,17" fill="var(--pet-2)"/><polygon points="42,24 47,8 35,17" fill="var(--pet-2)"/><circle cx="32" cy="28" r="11.6" fill="var(--pet-1)"/><circle cx="26.6" cy="26" r="3.4" fill="var(--pet-eye)"/><circle cx="37.4" cy="26" r="3.4" fill="var(--pet-eye)"/><circle cx="27" cy="26" r="1.8" fill="var(--pet-3)"/><circle cx="37.8" cy="26" r="1.8" fill="var(--pet-3)"/>',
     '<rect x="22" y="19.5" width="20" height="3.4" rx="1.7" fill="var(--pet-2)"/>', -4)
 });
+// Supernova dragon (WI-13, Mythic): the Net dragon's body on its own cosmic palette (CSS, data-pet="pet-supernova") with a bright core on the belly and a spark.
+const RW_PET_NOVA = '<circle cx="32" cy="44" r="3.4" fill="var(--pet-3)"/><path d="M32 38v12M26 44h12" stroke="var(--pet-3)" stroke-width="1.4" stroke-linecap="round"/><path d="M10 14l1.5 3.5L15 19l-3.5 1.5L10 24l-1.5-3.5L5 19l3.5-1.5z" fill="var(--pet-2)"/>';
+RW_PET_ART['pet-supernova'] = Object.fromEntries([1, 2, 3].map(n => [n, RW_PET_ART['pet-netdragon'][n] + RW_PET_NOVA]));
 
 const rwPetNormId = id => {
   const s = String(id || '');
@@ -4197,7 +4218,7 @@ function rwPetStageLine(pet) {
 
 // Plain-words shiny rotation explanation, one pet a week in turn over every pet (zero FOMO, deterministic Monday 00:00 UTC cadence).
 function rwPetRotationCopy(shinyWeek) {
-  const order = RW_PET_ORDER.map(id => RW_PET_NAMES[id]).join(' → ');
+  const order = RW_PET_ORDER.filter(id => !RW_PET_NO_SHINY.includes(id)).map(id => RW_PET_NAMES[id]).join(' → ');
   const cur = shinyWeek && rwPetName(shinyWeek.petId);
   return cur
     ? `Each pet gets a free shiny coat in turn, rotating every Monday (UTC): ${order}.`
@@ -4224,7 +4245,7 @@ function rwPetsSectionHTML(c, s) {
   const pets = s.items.filter(i => i.slot === 'pet');
   if (!pets.length) return '';
   const owned = pets.filter(i => i.owned);
-  const unowned = pets.filter(i => !i.owned);
+  const unowned = pets.filter(i => !i.owned && i.rarity !== 'legendary' && i.rarity !== 'mythic'); // those two sit on the Legendary and Mythic shelves
   const wornPet = (s.worn && s.worn.pet) || '';
   const sw = s.shinyWeek && rwPetNormId(s.shinyWeek.petId) ? s.shinyWeek : null;
   const featuredOwned = owned.find(p => p.featuredShiny) || null;
@@ -4334,6 +4355,7 @@ function rwEventHTML(c, s) {
 // One item card for every shelf: preview well, badge row (always there, so buttons line up), name, price, one full-width button.
 // A button you can't afford yet reads "N more", stays focusable and says the shortfall out loud (aria-label + rwShort on press).
 const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
+const rwIsTop = it => it.rarity === 'legendary' || it.rarity === 'mythic'; // these two live on their own shelves, Mythic first
 function rwCardPreview(it) {
   if (it.slot === 'sound' && typeof rwSoundPlayBtn === 'function') return rwSoundPlayBtn(it);
   if (it.slot === 'title') return `<span class="rw-ttl">${esc(it.name)}</span>`;
@@ -4354,9 +4376,24 @@ function rwItemCard(c, s, it, o = {}) {
   const badges = [];
   if (RW_RARITY[it.rarity]) badges.push(`<span class="rw-badge" data-rarity="${esc(it.rarity)}">${RW_RARITY[it.rarity]}</span>`);
   if (it.featuredShiny && !it.owned) badges.push('<span class="rw-badge" data-rarity="shiny"><span aria-hidden="true">\u2605 </span>Shiny week</span>');
-  return `<div class="rw-card" data-rw-card="${esc(it.id)}"><div class="rw-well">${rwCardPreview(it)}</div><div class="rw-badges">${badges.join('')}</div><b class="rw-cname">${esc(it.name)}</b><small class="rw-cost">${rwDinks(it.price)}</small>${rwCardButton(c, s, it, o)}</div>`;
+  const top = rwIsTop(it) ? ` data-rw-top="${it.rarity}"` : '';
+  // A Mythic card says how many players in this club own it: a count, never a name.
+  const held = it.rarity === 'mythic' && Number.isFinite(it.owners) ? `<small class="rw-held">${it.owners === 0 ? 'Nobody here has one yet' : it.owners === 1 ? '1 player here has this' : `${it.owners} players here have this`}</small>` : '';
+  return `<div class="rw-card" data-rw-card="${esc(it.id)}"${top}><div class="rw-well">${rwCardPreview(it)}</div><div class="rw-badges">${badges.join('')}</div><b class="rw-cname">${esc(it.name)}</b><small class="rw-cost">${rwDinks(it.price)}</small>${held}${rwCardButton(c, s, it, o)}</div>`;
 }
 const rwShelf = (c, s, items, o) => `<div class="rw-grid">${items.map(i => rwItemCard(c, s, i, o)).join('')}</div>`;
+// The Mythic and Legendary shelves (WI-13), Mythic first. Same card as every shelf; "Only N exist" counts the Mythic items the shop sells. An item
+// you just bought gets a quiet confirmation card (no takeover, no motion).
+function rwGotHTML(c, s) {
+  const myth = (s.items || []).filter(i => i.rarity === 'mythic' && !i.seasonal && !i.event);
+  const got = c.got && (s.items || []).find(i => i.id === c.got && i.owned && rwIsTop(i));
+  return got ? `<div class="rw-got" role="status" data-rarity="${got.rarity}"><b>${esc(got.name)} is yours.</b><span>${got.rarity === 'mythic' ? `One of ${myth.length} Mythic items in the shop.` : 'A Legendary item.'} Choose it in your Inventory.</span></div>` : '';
+}
+function rwTopShelvesHTML(c, s) {
+  const pick = r => (s.items || []).filter(i => i.rarity === r && !i.seasonal && !i.event);
+  const myth = pick('mythic'), leg = pick('legendary');
+  return `${myth.length ? `${rwSecHead('Mythic', `The best things in the shop, and the rarest. Only ${myth.length} exist.`)}${rwShelf(c, s, myth)}` : ''}${leg.length ? `${rwSecHead('Legendary', 'Special looks, priced higher.')}${rwShelf(c, s, leg)}` : ''}`;
+}
 // Section header: title on the left, one muted line on the right.
 const rwSecHead = (title, note) => `<div class="rw-sec"><h3 class="rw-h">${esc(title)}</h3>${note ? `<p class="rw-sec-note">${esc(note)}</p>` : ''}</div>`;
 let rwBoxSeq = 0;
@@ -4458,20 +4495,20 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     if (c.inv) return rwInventoryHTML(c, s, head, done);
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
-    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
+    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
-    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
+    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event && !rwIsTop(i)); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
-    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event);
+    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || rwIsTop(i));
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
     const box = rwSpinHTML(c, s) + rwBoxHTML(c, s);
     return `${head}${rwShopHeadHTML(c, s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
-      ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
+      ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${seasonSec}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${rwTopShelvesHTML(c, s)}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
@@ -4532,7 +4569,7 @@ function rwStoreSynced(d) {
 async function rwStoreAct(body, say, focus) {
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store || c.busy) return;
-  c.busy = true; c.error = ''; c.msg = ''; renderClub();
+  c.busy = true; c.error = ''; c.msg = ''; c.got = ''; renderClub();
   try {
     const d = await playerCall(Object.assign({ name: myName(), playerToken: myToken() }, body));
     if (clubSheet !== c) return;
@@ -4621,7 +4658,7 @@ document.addEventListener('click', e => {
     if (!it || it.owned) return;
     // The server decides; this only saves a trip when the balance obviously doesn't reach.
     if (c.store.dinks < it.price) { c.error = rwShort(it.name, it.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
-    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it in your Inventory.`), '#club-h');
+    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (c.got = rwIsTop(it) ? it.id : '', it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it in your Inventory.`), '#club-h');
     return;
   }
   const [slot, id] = t.dataset.rwWear.split(':');
@@ -4641,6 +4678,9 @@ const RW_SOUNDS = {
   'sound-horn': { dur: 1.1, steps: [{ f: 233, at: 0, dur: .38, vol: .07, type: 'sawtooth' }, { f: 311, at: 0, dur: .38, vol: .06, type: 'sawtooth' }, { f: 233, at: .46, dur: .55, vol: .07, type: 'sawtooth' }, { f: 311, at: .46, dur: .55, vol: .06, type: 'sawtooth' }] },
   'sound-8bit': { dur: 1, steps: [[523.25, 0], [659.25, .1], [783.99, .2], [1046.5, .3]].map(([f, at]) => ({ f, at, dur: .1, vol: .05, type: 'square' })).concat([{ f: 1046.5, at: .4, dur: .5, vol: .05, type: 'square' }, { f: 1318.5, at: .4, dur: .5, vol: .03, type: 'square' }]) },
   'sound-drum': { dur: 1.5, steps: Array.from({ length: 16 }, (_, i) => ({ noise: 220, q: 1.2, at: i * .06, dur: .05, vol: .05 + i * .004 })).concat([{ noise: 140, q: .8, at: 1.02, dur: .35, vol: .16 }, { f: 90, to: 50, at: 1.02, dur: .35, vol: .18 }]) },
+  // WI-13: the two top sounds. Fanfare: four brass-like notes up a major chord. Ascension: a slow rise that ends on a bright chord.
+  'sound-fanfare': { dur: 1.6, steps: [[523.25, 0, .14], [659.25, .16, .14], [783.99, .32, .14], [1046.5, .5, 1]].flatMap(([f, at, dur]) => [{ f, at, dur, vol: .05, type: 'sawtooth' }, { f: f * 1.5, at, dur, vol: .025, type: 'sawtooth' }]) },
+  'sound-ascension': { dur: 3.2, steps: [{ f: 220, to: 1760, at: 0, dur: 1.8, vol: .07 }, { f: 330, to: 2637, at: 0, dur: 1.8, vol: .03 }].concat([1046.5, 1318.5, 1568, 2093].map((f, i) => ({ f, at: 1.8 + i * .03, dur: 1.3, vol: .05 - i * .008 }))) },
   'sound-crowd': { dur: 2, steps: [{ noise: 900, q: .5, at: 0, dur: 1.9, vol: .16, rise: .6 }, { noise: 2400, q: .7, at: .15, dur: 1.5, vol: .05, rise: .5 }] }
 };
 let rwSoundCtx = null, rwSoundTimer = 0;
@@ -4702,7 +4742,7 @@ const RW_NOTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="fals
 const rwSoundPlayBtn = it => `<button type="button" class="rw-play" data-rw-sound="${esc(it.id)}" aria-label="Play ${esc(it.name)}">${RW_PLAY_SVG}</button>`;
 // The "Victory sounds" shelf: the same card as every other shelf, with a play button in the preview well.
 function rwSoundsSectionHTML(c, s) {
-  const items = (s.items || []).filter(i => i.slot === 'sound');
+  const items = (s.items || []).filter(i => i.slot === 'sound' && i.rarity !== 'legendary' && i.rarity !== 'mythic');
   if (!items.length) return '';
   return `${rwSecHead('Victory sounds', 'Plays on the scoring phone when your team wins. Tap to hear it.')}${rwShelf(c, s, items)}<p class="rw-box-fine">A win plays it only when Win celebration is on and Celebration sound is on in Settings. Off until you turn it on, per device.</p>`;
 }

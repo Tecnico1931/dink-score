@@ -27,21 +27,21 @@ const earnDay = (day, id = 'day:' + day) => ({ id, kind: 'earn', amount: 1, reas
 const spendRow = (id, amount, day = null) => ({ id, kind: 'spend', amount: -amount, reason: 'shop', day, streak: null });
 const nullDayEarn = (id, amount) => ({ id, kind: 'earn', amount, reason: 'pass:tier-1', day: null, streak: null });
 
-test('pet catalogue: 11 fixed-price pets in CATALOGUE under slot pet, valid buy ids, excluded from random box draws', () => {
-  assert.equal(PETS.length, 11);
+test('pet catalogue: 12 fixed-price pets in CATALOGUE under slot pet, valid buy ids, excluded from random box draws', () => {
+  assert.equal(PETS.length, 12);
   // The first five are the original pets and never move (the shiny rotation and owned rows key on them); WI-11 only appended.
-  assert.deepEqual(PETS.map(p => p.id), ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon']);
+  assert.deepEqual(PETS.map(p => p.id), ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon', 'pet-supernova']);
   assert.deepEqual(petById('pet-yorkie'), { id: 'pet-yorkie', slot: 'pet', name: 'Yorkie', price: 400, rarity: 'rare' });
   // Upstream's names, prices and rarities (WI-11; the captain chose parity over the old 1-a-day scale).
   assert.deepEqual(PETS.filter(p => p.id !== 'pet-frog' && p.id !== 'pet-yorkie').map(p => [p.name, p.price, p.rarity]), [
     ['Dink duck', 200, 'common'], ['Kitchen cat', 500, 'rare'], ['Lob owl', 450, 'rare'], ['Pickle pup', 200, 'common'], ['Ball blob', 300, 'rare'],
-    ['Paddle bat', 400, 'rare'], ['Court turtle', 250, 'common'], ['Smash fox', 600, 'rare'], ['Net dragon', 800, 'legendary']]);
+    ['Paddle bat', 400, 'rare'], ['Court turtle', 250, 'common'], ['Smash fox', 600, 'rare'], ['Net dragon', 800, 'legendary'], ['Supernova dragon', 4800, 'mythic']]);
   assert.ok(SLOTS.includes('pet'));
   for (const p of PETS) {
     assert.deepEqual(Object.keys(p).sort(), ['id', 'name', 'price', 'rarity', 'slot']);
     assert.equal(p.slot, 'pet');
     assert.ok(p.id.startsWith('pet-'));
-    assert.ok(Number.isInteger(p.price) && p.price >= 1 && p.price <= 1000);
+    assert.ok(Number.isInteger(p.price) && p.price >= 1 && p.price <= 5000);
     assert.deepEqual(itemById(p.id), p, 'pet lives in the single CATALOGUE constant');
     assert.deepEqual(petById(p.id), p);
     assert.equal(isPetId(p.id), true);
@@ -206,7 +206,7 @@ test('weekOf and shinyWeekFor: deterministic 4-week rotation across Monday, 52-w
 });
 
 test('shiny rotation: the 4-pet cycle is untouched before the cutover week, the 5-pet cycle runs from it, fixed clocks across year and DST', () => {
-  const OLD = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl'], NEW = PETS.map(p => p.id);
+  const OLD = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl'], NEW = PETS.filter(p => p.rarity !== 'mythic').map(p => p.id); // the Mythic pet is outside the weekly rotation
   const cutover = Date.UTC(2026, 11, 21); // Mon 2026-12-21 00:00 UTC
   assert.equal(SHINY_FIVE_FROM, 2972);
   assert.equal(weekOf(cutover).index, SHINY_FIVE_FROM, 'the cutover is Monday 2026-12-21');
@@ -247,7 +247,7 @@ test('shiny rotation: the 4-pet cycle is untouched before the cutover week, the 
   assert.equal(shinyWeekFor(cutover).petId, 'pet-frog');
   // Across 2027 DST changes (US 2027-03-14, EU 2027-03-28, EU 2027-10-31, US 2027-11-07) the cycle keeps exact 11-week spacing.
   for (const d of [Date.UTC(2027, 2, 14, 7), Date.UTC(2027, 2, 28, 1), Date.UTC(2027, 9, 31, 1), Date.UTC(2027, 10, 7, 6)]) {
-    const w = shinyWeekFor(d), later = shinyWeekFor(d + PETS.length * WEEK_MS), next = shinyWeekFor(d + WEEK_MS);
+    const w = shinyWeekFor(d), later = shinyWeekFor(d + PETS.filter(q => q.rarity !== 'mythic').length * WEEK_MS), next = shinyWeekFor(d + WEEK_MS);
     assert.equal(w.petId, later.petId);
     assert.notEqual(w.petId, next.petId);
     assert.equal(w.end - w.start, WEEK_MS);
@@ -380,7 +380,7 @@ test('SVG art module: all pets x 3 stages + shiny return valid, safe, tokenised,
       for (const shiny of [false, true]) {
         const svg = petsMod.rwPetSvg(pet.id, { stage, shiny });
         assert.ok(svg.startsWith('<svg viewBox="0 0 64 64"') && svg.endsWith('</svg>'), `${pet.id} stage ${stage} valid svg wrapper`);
-        assert.ok(Buffer.byteLength(svg, 'utf8') <= 1650, `${pet.id} stage ${stage} shiny=${shiny} stays compact (${Buffer.byteLength(svg, 'utf8')} B)`);
+        assert.ok(Buffer.byteLength(svg, 'utf8') <= (pet.id === 'pet-supernova' ? 1900 : 1650), `${pet.id} stage ${stage} shiny=${shiny} stays compact (${Buffer.byteLength(svg, 'utf8')} B)`);
 
         // Accessible name on non-decorative SVG; aria-hidden on decorative SVG.
         const expectedName = `${pet.name}, ${stageLabel}${shiny ? ', shiny coat' : ''}`;
@@ -496,7 +496,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.ok(!/days? left/i.test(html), 'no countdown');
   assert.ok(!/rw-hero-lock/.test(html), 'an owner sees the toggle, not the locked state');
   assert.match(html, /data-rw="pets"[^>]*>Pet collection: see how every pet grows</);
-  assert.ok(html.includes(PETS.map(p => p.name).join(' → ')), 'the rotation lists every pet, in order');
+  assert.ok(html.includes(PETS.filter(p => p.rarity !== 'mythic').map(p => p.name).join(' → ')), 'the rotation lists every pet, in order');
   assert.match(html, /Lob owl → Yorkie → Pickle pup/);
   assert.match(html, /in turn, rotating every Monday/);
   assert.match(html, /data-rw-buy="pet-yorkie"[^>]*>150 more</);

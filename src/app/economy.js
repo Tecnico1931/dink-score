@@ -20,8 +20,8 @@ const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').
 // A sound is never in a club look: it stays on its owner's phone.
 const RW_EXTRA_SLOTS = ['title', 'style'];
 // Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
-const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post' };
-const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon'];
+const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss' };
+const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged'];
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
 // {title, style} ids that are set and well formed, nothing else.
 const rwExtras = v => Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwSlotId(s, v && v[s])]).filter(e => e[1]));
