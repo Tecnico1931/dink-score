@@ -304,6 +304,18 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-well .rw-sw { margin: 0; }
 .rw-play { width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--ink); color: var(--bg); cursor: pointer; }
 .rw-sw.snd { background: var(--surface-2); color: var(--ink); } .rw-sw.snd svg { width: 70%; height: 70%; }
+/* Titles (a line under a name) and name styles (a colour on the name). Styles mix a token hue into --ink, so text stays >= 4.5:1 on --surface, --surface-2 and --bg
+   in every theme and palette (pinned in test/contrast.test.js); the soft glow is dropped in outdoor mode and nothing animates. */
+.rw-ttl { padding: 0 10px; font-weight: 700; font-size: 14px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+.rw-title { display: block; font-size: 12px; font-weight: 600; color: var(--muted); line-height: 1.3; } h2 .rw-title { font-size: 13px; margin-top: 2px; }
+.rw-nm { font-weight: 800; }
+.rw-nm[data-rw-style="gold"] { color: color-mix(in srgb, var(--ball) 40%, var(--ink)); }
+.rw-nm[data-rw-style="glowing"] { color: var(--ink); text-shadow: 0 0 5px color-mix(in srgb, var(--ball) 45%, transparent); }
+.rw-nm[data-rw-style="flame"] { color: color-mix(in srgb, var(--down) 75%, var(--ink)); }
+.rw-nm[data-rw-style="pickle"] { color: color-mix(in srgb, var(--green) 70%, var(--ink)); }
+.rw-nm[data-rw-style="ice"] { color: color-mix(in srgb, var(--blue-text) 75%, var(--ink)); text-shadow: 0 0 4px color-mix(in srgb, var(--blue) 30%, transparent); }
+.rw-nm[data-rw-style="neon"] { color: color-mix(in srgb, color-mix(in srgb, var(--down) 50%, var(--blue-text)) 75%, var(--ink)); text-shadow: 0 0 5px color-mix(in srgb, var(--down) 35%, transparent); }
+:root[data-outdoor] .rw-nm { text-shadow: none; }
 .rw-badges { min-height: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .rw-badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1; }
 .rw-badge[data-rarity="rare"] { background: var(--rare-bg); color: var(--rare-fg); } .rw-badge[data-rarity="legendary"] { background: var(--legendary-bg); color: var(--legendary-fg); }
@@ -3766,6 +3778,9 @@ const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').
 // Slots the server knows (mirror of SLOT_META in api/_economyshop.js). frame, paddle and pet are always present in a look; the newer ones only when set.
 // A sound is never in a club look: it stays on its owner's phone.
 const RW_EXTRA_SLOTS = ['title', 'style'];
+// Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
+const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post' };
+const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon'];
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
 // {title, style} ids that are set and well formed, nothing else.
 const rwExtras = v => Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwSlotId(s, v && v[s])]).filter(e => e[1]));
@@ -3913,6 +3928,16 @@ const Rewards = {
     const extra = Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwLook(hit[s])]).filter(e => e[1]));
     if (!frame && !paddle && !pet && !Object.keys(extra).length) return null;
     return pet ? { frame, paddle, ...extra, pet, petStage: hit.petStage === 2 || hit.petStage === 3 ? hit.petStage : 1, petShiny: !!hit.petShiny } : { frame, paddle, ...extra };
+  },
+  // A name as text, drawn in the worn name style when this phone may show one (the style is a stylesheet colour, never an image or a rule).
+  nameHTML(name) {
+    const l = Rewards.lookOf(name);
+    return l && RW_STYLES.includes(l.style) ? `<span class="rw-nm" data-rw-style="${l.style}">${esc(name)}</span>` : esc(name);
+  },
+  // The worn title as a small line under the name, or nothing.
+  titleHTML(name) {
+    const l = Rewards.lookOf(name), t = l && Object.hasOwn(RW_TITLES, l.title) ? RW_TITLES[l.title] : '';
+    return t ? `<span class="rw-title">${esc(t)}</span>` : '';
   },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
@@ -4190,9 +4215,10 @@ function rwPetCollectionHTML(c) {
 // rewards-catalog|buy|wear|share|box-odds|box-open); this phone draws what it is told and never sets a price or draws a random item.
 // Cosmetic only: a ring around your picture and a colour on your paddle thumbnails. Nothing here animates or makes a sound, and it never
 // reads or changes a score, a rating, a rank or a pairing. Opened from the Your Dink card (so the one-tap hide removes it too).
-const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails'], ['sound', 'Victory sound']];
-const rwSwatch = it => it.slot === 'sound' && typeof RW_NOTE_SVG === 'string'
-  ? `<span class="rw-sw snd" aria-hidden="true">${RW_NOTE_SVG}</span>`
+const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails'], ['title', 'Title under your name'], ['style', 'Name style'], ['sound', 'Victory sound']];
+const rwSwatch = it => it.slot === 'title' ? ''
+  : it.slot === 'style' ? `<span class="rw-nm" data-rw-style="${esc(rwLook(it.id))}" aria-hidden="true">Aa</span>`
+  : it.slot === 'sound' && typeof RW_NOTE_SVG === 'string' ? `<span class="rw-sw snd" aria-hidden="true">${RW_NOTE_SVG}</span>`
   : it.slot === 'frame'
   ? `<span class="rw-sw" data-rw-frame="${esc(rwLook(it.id))}" aria-hidden="true">${esc(initials(myName() || '?'))}</span>`
   : it.slot === 'pet'
@@ -4235,6 +4261,8 @@ function rwEventHTML(c, s) {
 const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
 function rwCardPreview(it) {
   if (it.slot === 'sound' && typeof rwSoundPlayBtn === 'function') return rwSoundPlayBtn(it);
+  if (it.slot === 'title') return `<span class="rw-ttl">${esc(it.name)}</span>`;
+  if (it.slot === 'style') return `<span class="rw-nm" data-rw-style="${esc(rwLook(it.id))}">Your name</span>`;
   return it.slot === 'pet' && typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 44 }) : rwSwatch(it);
 }
 function rwCardButton(c, s, it, o) {
@@ -4294,7 +4322,10 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
     const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
-    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet'));
+    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
+    // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
+    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
+    const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
     const wear = slots.map(([slot, label]) => {
       const own = mine.filter(i => i.slot === slot);
       if (!own.length) return '';
@@ -4305,13 +4336,13 @@ Object.assign(Rewards, {
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal || i.event);
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
-    const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour and court pet — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour and court pet on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
+    const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour, court pet, title and name style — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour, court pet, title and name style on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     const box = rwBoxHTML(c, s);
     return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> ${s.dinks === 1 ? 'Dink' : 'Dinks'}</p>
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
@@ -4449,7 +4480,7 @@ document.addEventListener('click', e => {
   }
   const [slot, id] = t.dataset.rwWear.split(':');
   const it = c.store.items.find(i => i.id === id);
-  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : slot === 'paddle' ? 'Paddle thumbnails back to plain.' : slot === 'sound' ? 'No victory sound worn.' : 'No court pet worn.'), `[data-rw-wear="${slot}:${id}"]`);
+  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : slot === 'paddle' ? 'Paddle thumbnails back to plain.' : slot === 'title' ? 'No title under your name.' : slot === 'style' ? 'Your name is plain again.' : slot === 'sound' ? 'No victory sound worn.' : 'No court pet worn.'), `[data-rw-wear="${slot}:${id}"]`);
 });
 /* ---------- rewards: victory sounds (WI-10; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
 // Five short sounds the phone makes itself with Web Audio (no audio files, no new hosts). Which one you own and wear is the server's
@@ -5719,10 +5750,11 @@ function leadersView() {
   const avatarColor = ['var(--ink)', 'var(--blue)', 'var(--green)'];
   const scopeKey = season ? 'season' : 'all';
   const podiumHTML = `<section class="podium" style="--n:${podium.length}">${order.map(i => { const p = podium[i]; return `<div class="step s${i + 1}" style="--c:${avatarColor[i]}">
-      <button type="button" class="step-main" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(p.name) : ''}>${avatarInner(p.name)}</span><span class="pl-name">${esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(p.name) : ''}</span><span class="pl-rating">${r2(p.rating)}</span></button>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}
+      <button type="button" class="step-main" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(p.name) : ''}>${avatarInner(p.name)}</span><span class="pl-name">${typeof Rewards !== 'undefined' ? Rewards.nameHTML(p.name) : esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(p.name) : ''}</span><span class="pl-rating">${r2(p.rating)}</span></button>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}
       <button type="button" class="block" data-player="${esc(p.name)}" tabindex="-1" aria-hidden="true">${i + 1}</button></div>`; }).join('')}</section>`;
   const list = `<section class="rows">${rows.map((p, i) => `<div class="prow"><button type="button" class="prow-main" data-player="${esc(p.name)}"><span class="rank">${i + 1}</span><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(p.name) : ''}>${avatarInner(p.name)}</span>
-      <span class="pinfo"><span class="pname">${esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(p.name) : ''}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (DR.isProvisional(p) ? '<span class="badge prov">Provisional</span>' : '')}${streakBadgeHTML(season ? p.streak : ((progressOf(p.name) || {}).streak || 0), season ? ' this season' : '')}</span>
+      <span class="pinfo"><span class="pname">${typeof Rewards !== 'undefined' ? Rewards.nameHTML(p.name) : esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(p.name) : ''}${youTag(p.name)}${season ? (p.games < season.minGames ? `<span class="badge prov">${season.minGames - p.games} more to qualify</span>` : '') : (DR.isProvisional(p) ? '<span class="badge prov">Provisional</span>' : '')}${streakBadgeHTML(season ? p.streak : ((progressOf(p.name) || {}).streak || 0), season ? ' this season' : '')}</span>
+        ${typeof Rewards !== 'undefined' ? Rewards.titleHTML(p.name) : ''}
         <span class="pstats"><span>${p.wins}–${p.games - p.wins}</span>${duprChip(p.name)}<span>${p.diff > 0 ? '+' : ''}${p.diff} pts</span><span class="rel" title="Reliability"><i><b style="width:${p.rel}%"></b></i>${p.rel}%</span></span></span></button>
       <span class="pr"><span class="rating">${r2(p.rating)}</span>${deltaBtnHTML(p.name, p.delta, ratingMode, scopeKey)}</span></div>`).join('')}</section>`;
   const by = (f, label, fmt) => { const top = [...rows].sort((a, b) => f(b) - f(a))[0]; return top && f(top) > 0 ? `<button data-player="${esc(top.name)}"><span class="aw-k">${label}</span><span class="aw-name">${esc(top.name)}</span><span class="aw-v">${fmt(top)}</span></button>` : ''; };
@@ -7707,7 +7739,8 @@ function membersHTML(c) {
   const list = rows.map(({ p, n, last }) => {
     const when = last ? new Date(last).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
     return `<li class="mem-row"><button class="mem-who" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s profile"><span class="avatar-mini"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(p.name) : ''}>${avatarInner(p.name)}</span>
-      <span class="mem-text"><span class="mem-name">${esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(p.name) : ''}${youTag(p.name)}${streakBadgeHTML((progressOf(p.name) || {}).streak || 0)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${p.role === 'organizer' ? ' <span class="badge on">Organizer</span>' : ''}${blocked[p.name.toLowerCase()] ? ' <span class="badge prov">Blocked</span>' : ''}${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
+      <span class="mem-text"><span class="mem-name">${typeof Rewards !== 'undefined' ? Rewards.nameHTML(p.name) : esc(p.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(p.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(p.name) : ''}${youTag(p.name)}${streakBadgeHTML((progressOf(p.name) || {}).streak || 0)} <span class="badge ${p.claimed ? 'on' : 'prov'}">${p.claimed ? 'Linked' : 'Guest'}</span>${p.role === 'organizer' ? ' <span class="badge on">Organizer</span>' : ''}${blocked[p.name.toLowerCase()] ? ' <span class="badge prov">Blocked</span>' : ''}${dc ? ` <span class="badge ${duprLinked(p.name) ? 'on' : 'prov'}">${duprLinked(p.name) ? 'DUPR connected' : 'No DUPR'}</span>` : ''}</span>
+      ${typeof Rewards !== 'undefined' ? Rewards.titleHTML(p.name) : ''}
       <span class="mem-meta">${n ? `${n} game${n === 1 ? '' : 's'}, last played ${esc(when)}` : 'No games yet'}</span></span></button>
       <span class="mem-acts"><button class="link" data-rename="${esc(p.name)}">Rename</button>${rows.length > 1 ? `<button class="link" data-merge="${esc(p.name)}">Merge into…</button>` : ''}${p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `${isCoOrganizer() ? '' : `<button class="link" data-role="${esc(p.name)}" data-to="${p.role === 'organizer' ? 'player' : 'organizer'}">${p.role === 'organizer' ? 'Make regular member' : 'Make organizer'}</button>`}<button class="link" data-remove="${esc(p.name)}">${clubSheet.confirmRemove === p.name ? 'Tap again to remove' : 'Remove'}</button>` : ''}${blocked[p.name.toLowerCase()] ? `<button class="link" data-unblock="${esc(p.name)}">Unblock</button>` : p.claimed && !isMe(p.name) && (p.role !== 'organizer' || !isCoOrganizer()) ? `<button class="link" data-remove-block="${esc(p.name)}">${clubSheet.confirmRemove === '!' + p.name ? 'Tap again to remove and block' : 'Remove and block'}</button>` : ''}${dc ? `<button class="link" data-player="${esc(p.name)}" aria-label="Open ${esc(p.name)}'s DUPR">DUPR</button>` : ''}${p.claimed ? `<button class="link" data-release="${esc(p.name)}">Release</button>` : ''}${p.avatar ? `<button class="link" data-clear-avatar="${esc(p.name)}">Remove picture</button>` : ''}<button class="link" data-anon="${esc(p.name)}">Anonymise</button></span></li>`;
   }).join('');
@@ -8780,7 +8813,7 @@ function renderProfile() {
     ${body}
     ${club && games ? achievementsHTML(pr.name) : ''}`;
   const changed = setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pf-h"><span class="grip"></span>
-    <div class="pf-head"><span class="av"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(pr.name) : ''}>${avatarInner(pr.name)}</span><h2 id="pf-h" tabindex="-1">${esc(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(pr.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(pr.name) : ''}${youTag(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.chipHTML(pr.name) : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
+    <div class="pf-head"><span class="av"${typeof Rewards !== 'undefined' ? Rewards.frameAttr(pr.name) : ''}>${avatarInner(pr.name)}</span><h2 id="pf-h" tabindex="-1">${typeof Rewards !== 'undefined' ? Rewards.nameHTML(pr.name) : esc(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.paddleBadgeHTML(pr.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.petBadgeHTML(pr.name) : ''}${youTag(pr.name)}${typeof Rewards !== 'undefined' ? Rewards.chipHTML(pr.name) : ''}${typeof Rewards !== 'undefined' ? Rewards.titleHTML(pr.name) : ''}</h2><button type="button" class="x" data-act="profile-close" aria-label="Close">✕</button></div>
     ${club && isMe(pr.name) ? '<button class="link" data-act="av-open" style="align-self:flex-start">Change your picture</button>' : ''}
     ${club && !isMe(pr.name) && avatarOf(pr.name) && (club.hasPin ? hasOrganizer() : isCreator()) ? `<button class="link armed" data-clear-avatar="${esc(pr.name)}" style="align-self:flex-start">Remove this picture (organizer)</button>` : ''}
     ${tabs}

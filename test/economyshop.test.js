@@ -9,20 +9,21 @@ import { DAY_PAY, BONUS, ledgerBalance } from '../api/_economy.js';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const earn = n => ({ id: 'day:2026-01-' + String(n).padStart(2, '0'), kind: 'earn', amount: n, reason: 'day', day: null, streak: 1 });
 
-test('the catalogue is small, fixed-price, cosmetic-only and affordable', () => {
-  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 24);
+// Rings, paddles and pets are the cheap starter shelf (a week or two of daily play); titles and name styles (WI-9) carry the upstream prices and are checked in economyitems.test.js.
+const STARTER = CATALOGUE.filter(i => ['frame', 'paddle', 'pet'].includes(i.slot));
+test('the catalogue is fixed-price, cosmetic-only and the starter shelf is affordable', () => {
+  assert.ok(STARTER.length >= 10 && STARTER.length <= 16);
   assert.equal(new Set(CATALOGUE.map(i => i.id)).size, CATALOGUE.length, 'ids are unique');
   // Only these keys: nothing here can carry a rule, a score effect or a random draw.
   for (const i of CATALOGUE) {
     assert.deepEqual(Object.keys(i).sort(), ['id', 'name', 'price', 'rarity', 'slot']);
     assert.ok(SLOTS.includes(i.slot) && i.id.startsWith(i.slot + '-'));
-    assert.ok(Number.isInteger(i.price) && i.price >= 1 && i.price <= (i.slot === 'sound' ? 150 : 30)); // victory sounds carry upstream's prices (60-150), by captain decision (WI-10)
+    assert.ok(Number.isInteger(i.price) && i.price >= 1 && i.price <= (STARTER.includes(i) ? 30 : 200));
     assert.match(buyId(i), /^[a-z0-9:_-]{4,64}$/, 'the ledger id is valid for spendEntry');
   }
   // A daily player (1 Dink a day plus the day-3 and day-7 streak bonuses) pays for any one item within a week or two.
   const week = 7 * DAY_PAY + BONUS[0][1] + BONUS[1][1];
-  const cheap = CATALOGUE.filter(i => i.slot !== 'sound');
-  assert.ok(Math.max(...cheap.map(i => i.price)) <= 2 * week, 'the dearest ring, paddle or pet is within two weeks of play');
+  assert.ok(Math.max(...STARTER.map(i => i.price)) <= 2 * week, 'the dearest starter item is within two weeks of play');
   assert.ok(Math.min(...CATALOGUE.map(i => i.price)) <= week, 'a first item is within a week');
 });
 
@@ -57,8 +58,8 @@ test('planBuy: price comes from the catalogue, never below zero, a repeat charge
 });
 
 test('wornFrom gives one item per slot, and none when nothing is worn', () => {
-  assert.deepEqual(wornFrom([]), { frame: '', paddle: '', pet: '', sound: '' });
-  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }, { id: 'frame-blue', slot: 'frame', worn: false }, { id: 'paddle-ink', slot: 'paddle', worn: false }]), { frame: 'frame-ink', paddle: '', pet: '', sound: '' });
+  assert.deepEqual(wornFrom([]), { frame: '', paddle: '', pet: '', title: '', style: '', sound: '' });
+  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }, { id: 'frame-blue', slot: 'frame', worn: false }, { id: 'paddle-ink', slot: 'paddle', worn: false }]), { frame: 'frame-ink', paddle: '', pet: '', title: '', style: '', sound: '' });
 });
 
 test('clubLooksFrom allow-lists only catalogue item ids in their own slot and leaks nothing else', () => {
@@ -209,13 +210,13 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
   assert.match(buy, /data-rw-short="1"/);
   assert.ok(!/ disabled/.test(buy), 'not natively disabled: it stays focusable and announces the shortfall when pressed');
   assert.match(buy, /aria-label="Get Team blue ring for 8 Dinks\. You need 7 more"/);
-  const rich = x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: items([]), box }, msg: '', error: '', busy: false });
+  const rich = x.Rewards.storeHTML({ store: { dinks: 5000, worn: {}, items: items([]), box }, msg: '', error: '', busy: false });
   assert.ok(!/data-rw-short/.test(rich), 'affordable buttons are drawn as normal');
   assert.match(x.Rewards.storeHTML({ store: { dinks: 50, worn: {}, items: [{ id: 'frame-blue', slot: 'frame', name: 'Blue', price: 1, owned: false }] }, msg: '', error: '', busy: false }), /<small class="rw-cost">1 Dink<\/small>/);
 });
 test('WI-1: every item has a rarity, the rare tier is badged, and every shelf draws the same card', () => {
   for (const i of CATALOGUE) assert.ok(RARITIES.includes(i.rarity), `${i.id} has a known rarity`);
-  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie', 'sound-drum', 'sound-crowd']);
+  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie', 'sound-drum', 'sound-crowd', 'title-erne', 'title-post', 'style-gold', 'style-glowing', 'style-flame', 'style-pickle', 'style-ice', 'style-neon']);
   const { x } = phone();
   const html = x.Rewards.storeHTML({ store: { dinks: 10, worn: { frame: 'frame-court' }, items: items(['frame-court']), season: null }, msg: '', error: '', busy: false });
   const cards = html.match(/<div class="rw-card"[\s\S]*?<\/button><\/div>/g) || [];
@@ -240,7 +241,48 @@ test('slots are data-driven: six known, unknown rejected, sound never reaches th
   assert.deepEqual(SLOTS, SLOT_META.map(s => s.id));
   for (const s of SLOT_META) assert.ok(s.label && s.note && typeof s.club === 'boolean', s.id);
   await assert.rejects(wearItem(null, 'c', 'k', 'theme', ''), e => e.status === 400 && /Pick frame, paddle, pet, title, style or sound/.test(e.message));
-  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }]), { frame: 'frame-ink', paddle: '', pet: '', sound: '' }); // a slot appears once the shop sells in it (title and style: WI-9)
+  assert.deepEqual(wornFrom([{ id: 'frame-ink', slot: 'frame', worn: true }]), { frame: 'frame-ink', paddle: '', pet: '', title: '', style: '', sound: '' }); // a slot appears once the shop sells in it 
   // a title or style row with an unknown id is dropped; a known-slot row only passes through when its catalogue item exists
   assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'title', item: 'title-nope' }, { name_key: 'ana', slot: 'sound', item: 'sound-nope' }]), {});
+});
+
+// ---- WI-9: titles and name styles (upstream prices; ids and names pinned to the phone's mirror) ----
+test('WI-9: eleven titles and six name styles at the upstream prices, in the right slots, with the phone mirror in step', async () => {
+  const { TITLES, STYLES } = await import('../api/_economyitems.js');
+  assert.deepEqual(TITLES.map(t => [t.name, t.price]), [['Kitchen King', 75], ['Dink Master', 75], ['Banger', 60], ['Lob Legend', 90], ['Third-Shot Wizard', 105], ['Erne Artist', 120], ['Soft Hands', 60], ['Net Ninja', 75], ['Drop Shot Doctor', 90], ['Speed-Up Specialist', 105], ['Around the Post', 135]]);
+  assert.deepEqual(STYLES.map(s => [s.name, s.price]), [['Gold name', 120], ['Glowing name', 150], ['Flame name', 180], ['Pickle name', 120], ['Ice name', 135], ['Neon sign name', 165]]);
+  for (const i of [...TITLES, ...STYLES]) {
+    assert.equal(itemById(i.id), i, `${i.id} is in the one CATALOGUE`);
+    assert.match(i.id, new RegExp(`^${i.slot}-[a-z]{3,12}$`), 'id passes the phone allow-list');
+  }
+  assert.ok(TITLES.every(t => t.slot === 'title') && STYLES.every(s => s.slot === 'style' && s.rarity === 'rare'));
+  const src = fs.readFileSync(path.join(root, 'src/app/economy.js'), 'utf8');
+  const titles = new Function('return ' + /const RW_TITLES = (\{[^}]*\});/.exec(src)[1])();
+  assert.deepEqual(titles, Object.fromEntries(TITLES.map(t => [t.id.slice(6), t.name])), 'RW_TITLES mirrors the server titles');
+  const styles = new Function('return ' + /const RW_STYLES = (\[[^\]]*\]);/.exec(src)[1])();
+  assert.deepEqual(styles, STYLES.map(s => s.id.slice(6)), 'RW_STYLES mirrors the server styles');
+  // A title or style is an opt-in club look like a ring; the box never draws one.
+  assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'title', item: 'title-kitchen' }, { name_key: 'ana', slot: 'style', item: 'style-gold' }, { name_key: 'ana', slot: 'style', item: 'title-kitchen' }]), { ana: { title: 'title-kitchen', style: 'style-gold' } });
+});
+
+test('WI-9: the shop shows Titles and Name styles shelves, and a worn title and style draw under and on the name', async () => {
+  const looksReply = { looks: { ana: { frame: '', paddle: '', title: 'title-kitchen', style: 'style-gold' }, ben: { title: 'title-<x>', style: 'style-nope' } } };
+  const { x } = phone({ looksReply });
+  const html = x.Rewards.storeHTML({ store: { dinks: 80, worn: {}, items: items([]), season: null }, msg: '', error: '', busy: false });
+  assert.match(html, /<h3 class="rw-h">Titles<\/h3><p class="rw-sec-note">Shown under your name\.<\/p>/);
+  assert.match(html, /<h3 class="rw-h">Name styles<\/h3><p class="rw-sec-note">How your name looks on the leaderboard\.<\/p>/);
+  assert.match(html, /data-rw-card="title-erne"[\s\S]*?<span class="rw-badge" data-rarity="rare">Rare<\/span>/);
+  assert.match(html, /data-rw-card="style-gold"[\s\S]*?data-rw-style="gold"/);
+  assert.match(html, /data-rw-buy="title-banger"[^>]*>Get</, 'affordable at 80');
+  assert.match(html, /data-rw-buy="style-flame"[^>]*>100 more</, 'upstream price 180, 80 in hand');
+  await x.Rewards.syncLooks(true);
+  assert.match(x.Rewards.nameHTML('Ana'), /^<span class="rw-nm" data-rw-style="gold">Ana<\/span>$/);
+  assert.equal(x.Rewards.titleHTML('Ana'), '<span class="rw-title">Kitchen King</span>');
+  assert.equal(x.Rewards.nameHTML('Ben'), 'Ben', 'an unknown style is plain text');
+  assert.equal(x.Rewards.titleHTML('Ben'), '');
+  assert.equal(x.Rewards.nameHTML('Cal'), 'Cal');
+  const off = phone({ on: false, looksReply });
+  await off.x.Rewards.syncLooks(true);
+  assert.equal(off.x.Rewards.nameHTML('Ana'), 'Ana');
+  assert.equal(off.x.Rewards.titleHTML('Ana'), '');
 });

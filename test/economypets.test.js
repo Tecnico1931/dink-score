@@ -288,7 +288,7 @@ test('Variant A shiny state and clubLooksFrom allow-list: active only in feature
   assert.equal(cleanPetLook({ slot: 'frame', item: 'frame-court' }, wk0), null);
   assert.equal(cleanPetLook(null, wk0), null);
   assert.deepEqual(wornFrom([{ id: featured, slot: 'pet', worn: true }, { id: 'frame-court', slot: 'frame', worn: true }]), {
-    frame: 'frame-court', paddle: '', pet: featured, sound: ''
+    frame: 'frame-court', paddle: '', pet: featured, title: '', style: '', sound: ''
   });
 });
 

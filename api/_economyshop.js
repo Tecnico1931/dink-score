@@ -11,6 +11,7 @@ import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry, paceFrom } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
 import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
+import { TITLES, STYLES } from './_economyitems.js';
 
 // One place that says which slots exist. `club`: a worn item in the slot may be shown to the club (opt-in look); a sound is only ever heard on the
 // player's own phone. Order = the order the shop lists them. Adding a slot here (plus its items) is all the server needs: wear, buy and the club
@@ -20,7 +21,7 @@ export const SLOT_META = Object.freeze([
   { id: 'paddle', label: 'Paddles', note: 'Paddle thumbnails.', club: true },
   { id: 'pet', label: 'Pets', note: 'A companion that grows as you play.', club: true },
   { id: 'title', label: 'Titles', note: 'Shown under your name.', club: true },
-  { id: 'style', label: 'Name styles', note: 'How your name is drawn.', club: true },
+  { id: 'style', label: 'Name styles', note: 'How your name looks on the leaderboard.', club: true },
   { id: 'sound', label: 'Victory sounds', note: 'Plays on your phone when you win, if you turn sound on.', club: false }
 ].map(Object.freeze));
 export const SLOTS = SLOT_META.map(s => s.id);
@@ -45,7 +46,9 @@ export const CATALOGUE = [
   { id: 'sound-horn', slot: 'sound', name: 'Air horn', price: 90, rarity: 'common' },
   { id: 'sound-8bit', slot: 'sound', name: '8-bit win', price: 105, rarity: 'common' },
   { id: 'sound-drum', slot: 'sound', name: 'Drum roll', price: 135, rarity: 'rare' },
-  { id: 'sound-crowd', slot: 'sound', name: 'Crowd roar', price: 150, rarity: 'rare' }
+  { id: 'sound-crowd', slot: 'sound', name: 'Crowd roar', price: 150, rarity: 'rare' },
+  ...TITLES,
+  ...STYLES
 ];
 // Seasonal cosmetics (_economyseason.js) are looked up here too, so an owned one stays owned, wearable and visible after its window closes;
 // they are NOT in CATALOGUE, which keeps them out of the mystery box and the pass. Only buying is limited to the season.

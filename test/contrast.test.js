@@ -319,3 +319,28 @@ test('DisplayPrefs: normalizes and resolves Match phone, Light, Dark, Outdoor an
     });
   }
 });
+
+test('WI-9: every name style stays >= 4.5:1 on cards, soft cards and the page in every theme and palette', () => {
+  const mix = (a, pa, b) => a.map((v, i) => v * pa + b[i] * (1 - pa)); // CSS color-mix(in srgb, a pa, b)
+  const styles = {
+    gold: t => mix(t.ball, 0.4, t.ink),
+    glowing: t => t.ink,
+    flame: t => mix(t.down, 0.75, t.ink),
+    pickle: t => mix(t.green, 0.7, t.ink),
+    ice: t => mix(t['blue-text'], 0.75, t.ink),
+    neon: t => mix(mix(t.down, 0.5, t['blue-text']), 0.75, t.ink)
+  };
+  // The stylesheet must still say exactly this (the maths above is a copy of it).
+  const css = html.split('</style>')[0];
+  for (const [id, mixSrc] of [['gold', 'color-mix(in srgb, var(--ball) 40%, var(--ink))'], ['flame', 'color-mix(in srgb, var(--down) 75%, var(--ink))'], ['pickle', 'color-mix(in srgb, var(--green) 70%, var(--ink))'], ['ice', 'color-mix(in srgb, var(--blue-text) 75%, var(--ink))'], ['neon', 'color-mix(in srgb, color-mix(in srgb, var(--down) 50%, var(--blue-text)) 75%, var(--ink))']]) {
+    assert.ok(css.includes(`.rw-nm[data-rw-style="${id}"] { color: ${mixSrc};`), `${id} colour rule`);
+  }
+  assert.match(css, /\.rw-nm\[data-rw-style="glowing"\] \{ color: var\(--ink\);/);
+  assert.match(css, /:root\[data-outdoor\] \.rw-nm \{ text-shadow: none; \}/);
+  for (const [pid, modes] of Object.entries(palettes)) for (const [mode, t] of Object.entries(modes)) for (const [name, fn] of Object.entries(styles)) {
+    const c = fn(t);
+    for (const [bgName, bg] of [['surface', t.surface], ['surface-2', t['surface-2']], ['bg', t.bg]]) {
+      assert.ok(ratio(c, bg) >= 4.5, `${name} name on ${bgName} in ${pid}/${mode}: ${ratio(c, bg).toFixed(2)}`);
+    }
+  }
+});
