@@ -148,7 +148,7 @@ function rwStreakHTML() {
   const cells = rwTrack(day, done).map(t => `<li class="rw-dayc${t.got ? ' got' : ''}${t.next ? ' next' : ''}"><span class="rw-dot" aria-hidden="true">${t.got ? '✓' : t.n}</span><span class="vh">Day ${t.n}: +${t.pay}${t.got ? ', done' : t.next ? ', next' : ''}</span><b aria-hidden="true">+${t.pay}</b></li>`).join('');
   return `<section class="rw-streak" aria-label="Daily streak"><div class="rw-streak-top"><span class="rw-streak-fl">${rwFlame}</span><span class="rw-streak-tx"><b>${day ? `Day ${day} streak` : 'No streak yet'}</b><small>${esc(sub)}</small></span><b class="rw-best">Best ${st.best}</b></div><ol class="rw-track">${cells}</ol></section>`;
 }
-const rwEarnChips = () => [`<b>+${RW_DAY_PAY}</b> for your first game each day`].concat(RW_BONUS.map(([d, b]) => `<b>+${b}</b> more on a ${d} day streak`)).map(t => `<li>${t}</li>`).join('');
+const rwEarnChips = () => [`<b>+${RW_EARN.win}</b> for a win`, `<b>+${RW_EARN.play}</b> for playing`, `<b>+${RW_EARN.beat}</b> for beating the forecast`, `<b>+${RW_EARN.hot}</b> per win in a ${RW_EARN.hotFrom}+ win streak`].map(t => `<li>${t}</li>`).join('');
 function rwShopHeadHTML(c, s) {
   const n = myName() || '', frame = rwLook(rwCur().worn.frame), mine = s.items.filter(i => i.owned).length;
   const tally = typeof s.earned === 'number' && typeof s.spent === 'number' ? `<p class="rw-tally">${s.earned} earned, ${s.spent} spent</p>` : '';
@@ -157,7 +157,7 @@ function rwShopHeadHTML(c, s) {
     ${rwStreakHTML()}
     <button type="button" class="rw-inv" data-rw="inv">${rwBagSvg}<span>Inventory</span><span class="rw-count">${mine}<span class="vh"> ${mine === 1 ? 'item' : 'items'}</span></span></button>
     <ul class="rw-earn" aria-label="How Dinks are earned">${rwEarnChips()}</ul>
-    <p class="note">Dinks come from games saved under your own name, one day at a time. Winning, losing or the score never changes what you earn.</p>`;
+    <p class="note">Games sent from a club player's own phone earn the most, up to ${RW_EARN.cap} Dinks a day. Edited or deleted games adjust what they paid.</p>`;
 }
 // Inventory: what you own and what you wear. Pickers, the ring, paddle colour and court pet, and the one switch that shows your look to the club.
 function rwInventoryHTML(c, s, head, done) {

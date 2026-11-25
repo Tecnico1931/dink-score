@@ -4,9 +4,10 @@
 // append-only ledger (api/_economy.js, players.js rewards-sync), worked out from the games this phone's linked name saved; this phone only
 // keeps the last synced value (localStorage pb.rewards, by club) so the card works offline. It never reads or changes a score, a rating, a
 // rank or a pairing.
-const RW_BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
-// The rules card quotes these numbers; test/economyrules.test.js pins each to the server constant it copies (DAY_PAY, BOX_*, PASS_TIERS).
-const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 8, RW_XP = { game: 10, win: 15, cap: 300, tier: 125 };
+const RW_LADDER = [5, 8, 10, 12, 15, 20, 25], RW_MILES = [[30, 100], [100, 250]]; // what streak day 1..7 pays (every later day pays the last), and the extra on exactly day 30 and day 100
+// The rules card quotes these numbers; test/economyrules.test.js pins each to the server constant it copies (LADDER, EARN, CHALLENGE_PAY, BOX_*, PASS_TIERS).
+const RW_EARN = { play: 2, win: 10, beat: 3, hot: 5, hotFrom: 3, cap: 300 }, RW_CHAL = [10, 10, 15];
+const RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 8, RW_XP = { game: 10, win: 15, cap: 300, tier: 125 };
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
@@ -62,14 +63,14 @@ const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Ma
   if (pet) out.pet = pet;
   return out; };
 const rwBagSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/></svg>';
-const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
+const rwBonusFor = day => { const hit = RW_MILES.find(m => m[0] === day); return hit ? hit[1] : 0; };
 // What day `n` of a streak pays, and the 7 days of the week the streak is in (for the Shop track): checked up to the streak, `next` is the one to play.
-const rwDayPay = n => RW_DAY_PAY + rwBonusFor(n);
+const rwDayPay = n => (n >= 1 ? RW_LADDER[Math.min(n, RW_LADDER.length) - 1] + rwBonusFor(n) : 0);
 const rwTrack = (day, done) => { const first = Math.floor((Math.max(1, done ? day : day + 1) - 1) / 7) * 7 + 1; return Array.from({ length: 7 }, (_, i) => ({ n: first + i, pay: rwDayPay(first + i), got: first + i <= day, next: first + i === day + 1 })); };
 // The streak as it stands on `today`: a run that missed yesterday and today is broken (0). Playing today or yesterday keeps it.
 const rwStreak = (s, today) => (s.last && rwDayNum(today) - rwDayNum(s.last) <= 1 ? s.streak : 0);
 // The next bonus ahead of `day`: { day, bonus, in } (days to go).
-const rwNext = day => { let d = day + 1; while (!rwBonusFor(d)) d++; return { day: d, bonus: rwBonusFor(d), in: d - day }; };
+const rwNext = day => ({ day: day + 1, pay: rwDayPay(day + 1) });
 // The last synced value per club. Slice 1 kept one flat state here (counted on this phone, so not trusted): it shows only until this club's
 // first sync, which replaces it with the server's ledger.
 const rwAll = () => { const a = store.get('pb.rewards', {}); return a && typeof a === 'object' && !('dinks' in a) && !('streak' in a) ? a : { _legacy: a }; };
@@ -306,7 +307,7 @@ const Rewards = {
   cardHTML() {
     if (!rwShown()) return '';
     const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = rwNext(day);
-    const line = !myName() || !myToken() ? 'Pick your name in the club to start earning Dinks.' : done ? `Played today. ${nx.in === 1 ? 'Play tomorrow' : `Play ${nx.in} days in a row`} for +${nx.bonus} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
+    const line = !myName() || !myToken() ? 'Pick your name in the club to start earning Dinks.' : done ? `Played today. Play tomorrow for +${nx.pay} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
     const pet = typeof rwPetCardHTML === 'function' ? rwPetCardHTML(st) : '', ready = rwReadyN();
     return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>${st.dinks === 1 ? 'Dink' : 'Dinks'}</small></span></div>${pet}<p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? `<button type="button" class="rw-hide" data-rw="pass" aria-label="Season pass${ready ? `, ${ready} ready to claim` : ''}">Pass${rwReadyTag(ready)}</button><button type="button" class="rw-hide" data-rw="store">Shop</button><button type="button" class="rw-hide" data-rw="activity" aria-label="Dinks activity">Activity</button>` : ''}<button type="button" class="rw-hide" data-rw="hide" aria-label="Hide this">Hide</button></div></section>`;
   },
@@ -314,10 +315,10 @@ const Rewards = {
   rulesJump() { return rwShown() ? [['rules-earning', 'Earning']] : []; },
   rulesHTML() {
     if (!rwShown()) return '';
-    const lad = RW_BONUS.map(([d, b]) => `+${b} on day ${d}`).join(', '), top = RW_BONUS[RW_BONUS.length - 1];
+    const lad = RW_LADDER.map(n => `+${n}`).join(', '), top = RW_LADDER[RW_LADDER.length - 1], miles = RW_MILES.map(([d, b]) => `+${b} more on day ${d}`).join(' and '), E = RW_EARN;
     const spin = rwBoxOn() ? `<li><b>Daily spin:</b> one free spin a day (UTC) wins ${RW_SPIN.min} to ${RW_SPIN.max} Dinks. It is drawn on the server and the chances are shown on the card. It never depends on a score.</li>` : '';
     const box = rwBoxOn() ? `<li><b>Mystery box:</b> opens a random item you don't own yet for ${rwDinks(RW_BOX.cost)}, up to ${RW_BOX.limit} a day. If you already own it, ${rwDinks(RW_BOX.refund)} come back. The odds are shown before you open one.</li>` : '';
-    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${RW_DAY_PAY}</b> for the first game you play each day. A logged result counts the same as one scored live.</li><li><b>Daily streak:</b> play on days in a row for a bonus: ${lad}, then +${top[1]} every ${top[0]}th day after that. Miss a day and the streak starts again.</li><li>Only games saved from your own linked name count. Winning, losing or the score never changes the Dinks you earn.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
+    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${E.play}</b> for every game you play, <b>+${E.win}</b> for a win, <b>+${E.beat}</b> when you beat the forecast (even in a loss) and <b>+${E.hot}</b> for each win once you have won ${E.hotFrom} in a row. A logged result counts the same as one scored live.</li><li>Only games sent from a club player's own phone earn more than the +${E.play}.</li><li>Games pay at most ${E.cap} Dinks a day. If a game is edited or deleted, the Dinks it paid are adjusted the next time your phone syncs.</li><li><b>Weekly challenges:</b> finish the week's three challenges for +${RW_CHAL[0]}, +${RW_CHAL[1]} and +${RW_CHAL[2]}.</li><li><b>Daily streak:</b> play on days in a row for ${lad} on days 1 to 7, then +${top} a day, ${miles}. Miss a day and the streak starts again.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
   },
   // The "You" rows (shown only where the club has rewards on): the way into the Shop and Season pass, and the one switch on this phone.
   youRowHTML() {
