@@ -24,9 +24,9 @@ function renderSettings() {
       : display.theme === 'dark' ? 'Always dark on this device.' : 'Always light on this device.';
   const soundNote = celebration.on
     ? (celebration.muted ? 'Chime is muted. Confetti still shows unless reduced motion is on.' : 'Plays a brief chime when a live game ends.')
-    : 'Applies when win celebration is on. Mute to keep this device silent.';
+    : 'Turn Win celebration on to use sound.';
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-h"><span class="grip"></span>
-    <div class="sheet-head"><h2 id="settings-h" tabindex="-1">Settings</h2><button type="button" class="x" data-act="settings-close" aria-label="Close">✕</button></div>
+    <div class="sheet-head"><h2 id="settings-h" tabindex="-1">Display and sound</h2><button type="button" class="x" data-act="settings-close" aria-label="Close">✕</button></div>
     <div class="field" style="margin:0"><span class="lab" id="set-app-l">Appearance</span>
       ${seg('data-theme-pick', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], display.theme).replace('role="group"', 'role="group" aria-labelledby="set-app-l"')}
       <p class="note">${themeNote}</p></div>
@@ -43,7 +43,7 @@ function renderSettings() {
       ${seg('data-celebration', [['0', 'Off'], ['1', 'On']], String(celebration.on)).replace('role="group"', 'role="group" aria-labelledby="disp-c"')}
       <p class="note">Optional confetti and a short chime when a live game ends. Confetti stays off when reduced motion is on.</p></div>
     <div class="field" style="margin:0"><span class="lab" id="disp-s">Celebration sound</span>
-      ${seg('data-celebration-sound', [['0', 'Sound on'], ['1', 'Muted']], String(celebration.muted)).replace('role="group"', 'role="group" aria-labelledby="disp-s"')}
+      ${seg('data-celebration-sound', [['0', 'Sound on'], ['1', 'Muted']], String(celebration.muted)).replace('role="group"', 'role="group" aria-labelledby="disp-s"').replaceAll('<button type="button"', celebration.on ? '<button type="button"' : '<button type="button" disabled')}
       <p class="note">${soundNote}</p></div>
     <p class="note">Saved on this device only. Nothing is sent to the club.</p>
     <div class="btns"><button type="button" class="btn btn-soft" data-act="settings-close">Done</button></div></div></div>`, 'settings');

@@ -564,6 +564,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 .lab { font-size: 13px; font-weight: 500; color: var(--muted); }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--surface-2); border-radius: 14px; padding: 4px; gap: 4px; }
 .seg button { min-width: 0; border: 0; background: transparent; border-radius: 10px; padding: 10px 6px; font-weight: 600; font-size: 15px; line-height: 1.2; color: var(--muted); transition: background .15s, color .15s; }
+.seg button:disabled { opacity: .5; cursor: not-allowed; }
 .seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(14 23 38 / .14); }
 .seg.sm button { padding: 7px 10px; font-size: 14px; }
 .seg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
@@ -782,7 +783,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 }
 .rules-jump a:active { background: var(--surface-2); }
 .rule[id], .rules button, .rules a { scroll-margin-top: calc(68px + env(safe-area-inset-top, 0px)); }
-.rule h3:focus:not(:focus-visible) { outline: none; }
+.rule h3:focus:not(:focus-visible), h2[tabindex="-1"]:focus:not(:focus-visible) { outline: none; } /* a tap that moves focus to a sheet title draws no box; keyboard focus keeps its ring */
 .rule-goto { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .rule-goto:first-of-type { border-top: 0; padding-top: 0; }
 .rule-goto:last-of-type { padding-bottom: 0; }
@@ -1077,7 +1078,7 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .deleted { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .deleted li { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
 .deleted li span { min-width: 0; overflow-wrap: anywhere; }
-.field-input { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; }
+.field-input { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; font-family: inherit; color: var(--ink); }
 .org-card { background: var(--surface-2); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .org-head { display: flex; justify-content: space-between; align-items: center; }
 .org-card p { font-size: 14px; }
@@ -1540,12 +1541,13 @@ a.btn { text-decoration: none; }
 .dsp-brand { font-family: var(--display); font-weight: 800; letter-spacing: .35em; font-size: 2.4vmin; color: var(--ball); }
 .dsp-name { font-family: var(--display); font-weight: 800; font-size: 8.5vmin; line-height: 1.02; margin: 0; }
 .dsp-sub { font-size: 3vmin; color: var(--dsp-muted); margin: 0; }
-.dsp-qr { background: #fff; border-radius: 3vmin; padding: 3vmin; width: min(56vh, 78vw); box-shadow: 0 20px 60px rgb(0 0 0 / .45); }
+.dsp-qr { background: #fff; border-radius: 3vmin; padding: 3vmin; width: min(44vh, 78vw); box-shadow: 0 20px 60px rgb(0 0 0 / .45); }
 .dsp-qr svg { display: block; width: 100%; height: auto; }
 .dsp-code-lab { font-size: 2.2vmin; letter-spacing: .3em; text-transform: uppercase; color: var(--dsp-muted); }
 .dsp-code { font-family: var(--display); font-weight: 800; font-size: 7vmin; letter-spacing: .18em; color: var(--ball); margin-top: -1.6vmin; }
 .dsp-exit { color: var(--dsp-dim); font-size: 1.8vmin; text-decoration: none; margin-top: 2vmin; }
 html.dsp-lock, html.dsp-lock body { overflow: hidden; }
+html.dsp-lock #app, html.dsp-lock #tabs { display: none; } /* the app behind the sign is out of the accessibility tree and tab order; other screens toggle inert, display: none cannot be undone by them */
 .watch-field { display: flex; gap: 10px; align-items: baseline; padding: 4px 0; }
 .watch-field span { color: var(--muted); min-width: 58px; }
 .watch-field small { color: var(--muted); }
@@ -3064,8 +3066,11 @@ function renderClub() {
   } else {
     body = clubHomeHTML(c);
   }
+  // The title shares the row with the close button, like the Inbox, Settings and Log sheets; a view that does not open with its h2 keeps the old empty row.
+  const lead = body.match(/^\s*(<h2\b[^>]*>[\s\S]*?<\/h2>)/);
+  if (lead) body = body.slice(lead[0].length);
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
-    <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
+    <div class="sheet-head">${lead ? lead[1] : '<span></span>'}<button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
   if (c.view === 'watch-link') watchReattach(); // a redraw replaced the camera's <video>
 }
 // Changes the server refused. Each can be retried, fixed (a game's score), exported, or, only when the person says so, discarded.
@@ -3449,7 +3454,12 @@ function historyView() {
   const totalRallies = games.reduce((s, g) => s + (g.rallies || 0), 0);
   const timed = games.filter(g => !g.logged);
   const totalMin = timed.reduce((s, g) => s + minutes(g), 0);
-  return head + onPhone + dupesHTML() + `<section class="totals"><div><b>${games.length}</b><span>Games</span></div><div><b>${totalRallies}</b><span>Rallies scored</span></div><div><b>${totalMin}</b><span>Minutes</span></div></section>
+  // Rallies and minutes only exist for games scored live; a club that only logs results sees games, players and points instead of two zeros.
+  const stat = (n, l) => `<div><b>${n}</b><span>${l}</span></div>`;
+  const totals = totalRallies > 0
+    ? stat(games.length, 'Games') + stat(totalRallies, 'Rallies scored') + stat(totalMin, 'Minutes')
+    : stat(games.length, 'Games') + stat(new Set(games.flatMap(g => g.teams.flat()).filter(n => !isDefaultName(n)).map(n => n.trim().toLowerCase())).size, 'Players') + stat(games.reduce((t, g) => t + Number(g.score[0]) + Number(g.score[1]), 0), 'Points');
+  return head + onPhone + dupesHTML() + `<section class="totals">${totals}</section>
     <section><ul class="games">${games.map(gameItem).join('')}</ul></section>`;
 }
 
@@ -3625,7 +3635,7 @@ function renderCourt() {
   if (s.winner !== null) {
     const w = s.winner;
     sheet = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="win-h"><span class="grip"></span>
-      <div class="sheet-head"><h2 class="winner-line" id="win-h">${esc(teamLabel(cfg.teams[w]))} ${cfg.teams[w].length > 1 ? 'win' : 'wins'}</h2><button class="btn btn-ball share-pill" data-act="share-live">${ICON.share}Share</button></div>
+      <div class="sheet-head"><h2 class="winner-line" id="win-h">${esc(teamLabel(cfg.teams[w]))} ${cfg.teams[w].length > 1 ? 'win' : 'wins'}</h2><button class="btn btn-soft share-pill" data-act="share-live">${ICON.share}Share</button></div>
       ${resultBlock(cfg.teams, s.score, w)}
       <div class="facts"><div><b>${s.rallies}</b><small>Rallies</small></div><div><b>${minutes(s)} min</b><small>Duration</small></div><div><b>${cfg.scoring === 'rally' ? 'Rally' : 'Side-out'}</b><small>To ${cfg.target}</small></div></div>
       ${ratingPreview(s)}
@@ -3679,13 +3689,34 @@ document.addEventListener('pointerdown', e => {
 });
 
 let askedWhoami = false;
+// Game Over with only default names: let the scorer name the players before saving, so the game rates.
+function nameBlock() {
+  if (live.event || live.shared) return `<p class="expect">Add player names next time to track Dink Ratings.</p>`;
+  const n = live.naming;
+  if (!n) return `<div style="display:flex;flex-direction:column;gap:8px"><p class="expect">Add player names to track Dink Ratings.</p><button type="button" class="btn btn-soft" data-act="name-open">Add player names</button></div>`;
+  const cfg = live.state.cfg;
+  const ins = cfg.teams.map((t, ti) => t.map((p, i) => `<input class="field-input" id="gn-${ti}-${i}" data-gname="${ti}-${i}" list="roster-list" maxlength="40" autocomplete="off" placeholder="${esc(p)}" value="${esc(n[ti + '-' + i] || '')}" aria-label="${TEAM_NAME[ti]} team, player ${i + 1}">`).join('')).join('');
+  return `<div class="gn-names" role="group" aria-labelledby="gn-l" style="display:flex;flex-direction:column;gap:8px"><p class="expect" id="gn-l">Type a name for each player you want rated.</p>${ins}${n._err ? `<p class="err" role="alert">${esc(n._err)}</p>` : ''}
+    <div class="btns"><button type="button" class="btn btn-ink" data-act="name-save">Save names</button><button type="button" class="btn btn-soft" data-act="name-cancel">Cancel</button></div></div>`;
+}
+function saveGameNames() {
+  const n = live.naming, cfg = live.state.cfg;
+  const names = cfg.teams.map((t, ti) => t.map((p, i) => (n[ti + '-' + i] || '').trim().replace(/\s+/g, ' ') || p));
+  const flat = names.flat();
+  if (!flat.some(x => !isDefaultName(x))) { n._err = 'Type at least one name.'; renderCourt(); const f = $('#gn-0-0'); if (f) f.focus(); return; }
+  if (new Set(flat.map(x => x.toLowerCase())).size < flat.length) { n._err = 'Each player needs a different name.'; renderCourt(); const f = $('#gn-0-0'); if (f) f.focus(); return; }
+  cfg.teams = names; live.naming = null;
+  addToRoster(flat.filter(x => !isDefaultName(x)));
+  persistLive(); renderCourt(); announce('Names saved. Dink Rating changes are shown.');
+  const h = $('#overlay .sheet h2'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+}
 function ratingPreview(s) {
   const rec = Object.assign(record(s), { id: '__pending' });
   const { changes } = DR.compute([...ratedGames(), rec]);
   const c = changes.__pending;
   if (!c) return '';
   const named = c.list.filter(x => !isDefaultName(x.name));
-  if (!named.length) return `<p class="expect">Add player names next time to track Dink Ratings.</p>`;
+  if (!named.length) return nameBlock();
   const fav = c.expected >= 0.5 ? 0 : 1;
   const pf = fav === 0 ? c.expected : 1 - c.expected;
   const target = s.cfg.target;
@@ -6947,9 +6978,9 @@ function renderSettings() {
       : display.theme === 'dark' ? 'Always dark on this device.' : 'Always light on this device.';
   const soundNote = celebration.on
     ? (celebration.muted ? 'Chime is muted. Confetti still shows unless reduced motion is on.' : 'Plays a brief chime when a live game ends.')
-    : 'Applies when win celebration is on. Mute to keep this device silent.';
+    : 'Turn Win celebration on to use sound.';
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settings-h"><span class="grip"></span>
-    <div class="sheet-head"><h2 id="settings-h" tabindex="-1">Settings</h2><button type="button" class="x" data-act="settings-close" aria-label="Close">✕</button></div>
+    <div class="sheet-head"><h2 id="settings-h" tabindex="-1">Display and sound</h2><button type="button" class="x" data-act="settings-close" aria-label="Close">✕</button></div>
     <div class="field" style="margin:0"><span class="lab" id="set-app-l">Appearance</span>
       ${seg('data-theme-pick', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], display.theme).replace('role="group"', 'role="group" aria-labelledby="set-app-l"')}
       <p class="note">${themeNote}</p></div>
@@ -6966,7 +6997,7 @@ function renderSettings() {
       ${seg('data-celebration', [['0', 'Off'], ['1', 'On']], String(celebration.on)).replace('role="group"', 'role="group" aria-labelledby="disp-c"')}
       <p class="note">Optional confetti and a short chime when a live game ends. Confetti stays off when reduced motion is on.</p></div>
     <div class="field" style="margin:0"><span class="lab" id="disp-s">Celebration sound</span>
-      ${seg('data-celebration-sound', [['0', 'Sound on'], ['1', 'Muted']], String(celebration.muted)).replace('role="group"', 'role="group" aria-labelledby="disp-s"')}
+      ${seg('data-celebration-sound', [['0', 'Sound on'], ['1', 'Muted']], String(celebration.muted)).replace('role="group"', 'role="group" aria-labelledby="disp-s"').replaceAll('<button type="button"', celebration.on ? '<button type="button"' : '<button type="button" disabled')}
       <p class="note">${soundNote}</p></div>
     <p class="note">Saved on this device only. Nothing is sent to the club.</p>
     <div class="btns"><button type="button" class="btn btn-soft" data-act="settings-close">Done</button></div></div></div>`, 'settings');
@@ -8945,7 +8976,10 @@ document.addEventListener('click', e => {
   if (act === 'roster-edit') { rosterEdit = !rosterEdit; render(); }
   if (act === 'start') beginGame();
   if (act === 'resume') { live.open = true; persistLive(); keepAwake(true); render(); }
-  if (act === 'undo' && live) { clearConfetti(); if (isShared()) { serverUnrally(); return; } if (live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); } }
+  if (act === 'undo' && live) { clearConfetti(); live.naming = null; if (isShared()) { serverUnrally(); return; } if (live.stack.length) { Scoring.undo(live); live.toast = null; persistLive(); renderCourt(); } }
+  if (act === 'name-open' && live) { live.naming = {}; renderCourt(); const f = $('#gn-0-0'); if (f) f.focus(); return; }
+  if (act === 'name-cancel' && live) { live.naming = null; renderCourt(); const b = $('#overlay [data-act="name-open"]'); if (b) b.focus(); return; }
+  if (act === 'name-save' && live && live.naming) { saveGameNames(); return; }
   if (act === 'end') { live.confirmEnd = true; renderCourt(); }
   if (act === 'keep') { live.confirmEnd = false; renderCourt(); }
   if (act === 'minimize') { clearConfetti(); live.confirmEnd = false; live.open = false; persistLive(); keepAwake(false); render(); }
@@ -8982,6 +9016,7 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   const d = e.target.dataset || {};
+  if (d.gname && live && live.naming) { live.naming[d.gname] = e.target.value; return; }
   if (d.clIn && clubSheet && clubSheet.view === 'clublinks') { clubSheet.invite = e.target.value; return; }
   if (d.seIn && clubSheet && clubSheet.view === 'season-end') { clubSheet.name = e.target.value; return; }
   if (d.gnIn && clubSheet && clubSheet.view === 'night-form' && clubSheet.draft) { clubSheet.draft[d.gnIn] = e.target.value; return; }
