@@ -11,7 +11,7 @@ import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry, paceFrom, totals } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
 import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
-import { TITLES, STYLES } from './_economyitems.js';
+import { TITLES, STYLES, TOP_FRAMES, TOP_SOUNDS, TOP_RARITIES } from './_economyitems.js';
 
 // One place that says which slots exist. `club`: a worn item in the slot may be shown to the club (opt-in look); a sound is only ever heard on the
 // player's own phone. Order = the order the shop lists them. Adding a slot here (plus its items) is all the server needs: wear, buy and the club
@@ -53,6 +53,8 @@ export const CATALOGUE = [
   { id: 'sound-8bit', slot: 'sound', name: '8-bit win', price: 105, rarity: 'common' },
   { id: 'sound-drum', slot: 'sound', name: 'Drum roll', price: 135, rarity: 'rare' },
   { id: 'sound-crowd', slot: 'sound', name: 'Crowd roar', price: 150, rarity: 'rare' },
+  ...TOP_SOUNDS,
+  ...TOP_FRAMES,
   ...TITLES,
   ...STYLES
 ];
@@ -86,6 +88,15 @@ export function planBuy(ledger, owned, id, now = Date.now(), prices = null) {
     throw e;
   }
 }
+
+// Mythic items: how many players in this club own each (a number per item, never a name). Drawn as "Nobody here has one yet" on the card.
+export async function loadOwnerCounts(sql, code) {
+  const rows = await sql`SELECT ri.item, count(*)::int AS n FROM reward_items ri
+    JOIN roster r ON r.club = ri.club AND r.name_key = ri.name_key
+    WHERE ri.club = ${code} AND r.blocked_at IS NULL GROUP BY ri.item`;
+  return Object.fromEntries(rows.map(r => [r.item, Number(r.n)]));
+}
+export const isTop = item => TOP_RARITIES.includes(item.rarity);
 
 export async function loadItems(sql, code, key) {
   return (await sql`SELECT item, slot, worn, shiny, at FROM reward_items WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, item ASC`)
@@ -157,7 +168,7 @@ export async function setShare(sql, code, key, on, now = Date.now()) {
 
 // The shop as the phone shows it: the catalogue with the owned flag, the balance, what is worn, pet stage/weekly shiny state, and whether the club sees it. Prices come from the catalogue only.
 export async function shopView(sql, code, key, now = Date.now()) {
-  const [items, ledger, share, prices] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key), loadPrices(sql, code)]);
+  const [items, ledger, share, prices, owners] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key), loadPrices(sql, code), loadOwnerCounts(sql, code)]);
   const ownedById = new Map(items.map(i => [i.id, i]));
   const shinyWeek = shinyWeekFor(now);
   const season = seasonFor(now);
@@ -167,7 +178,7 @@ export async function shopView(sql, code, key, now = Date.now()) {
   const event = eventFor(now);
   const eventItems = EVENT_ITEMS.filter(i => (event && i.event === event.id) || ownedById.has(i.id)).map(i => ({ ...priced(i, prices), owned: ownedById.has(i.id), available: !!event && i.event === event.id }));
   const viewItems = CATALOGUE.map(base => {
-    const i = priced(base, prices);
+    const i = base.rarity === 'mythic' ? { ...priced(base, prices), owners: owners[base.id] || 0 } : priced(base, prices);
     const row = ownedById.get(i.id);
     if (i.slot !== 'pet') return { ...i, owned: !!row };
     const featuredShiny = shinyWeek.petId === i.id;

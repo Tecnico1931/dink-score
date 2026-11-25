@@ -47,6 +47,7 @@ function rwEventHTML(c, s) {
 // One item card for every shelf: preview well, badge row (always there, so buttons line up), name, price, one full-width button.
 // A button you can't afford yet reads "N more", stays focusable and says the shortfall out loud (aria-label + rwShort on press).
 const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
+const rwIsTop = it => it.rarity === 'legendary' || it.rarity === 'mythic'; // these two live on their own shelves, Mythic first
 function rwCardPreview(it) {
   if (it.slot === 'sound' && typeof rwSoundPlayBtn === 'function') return rwSoundPlayBtn(it);
   if (it.slot === 'title') return `<span class="rw-ttl">${esc(it.name)}</span>`;
@@ -67,9 +68,24 @@ function rwItemCard(c, s, it, o = {}) {
   const badges = [];
   if (RW_RARITY[it.rarity]) badges.push(`<span class="rw-badge" data-rarity="${esc(it.rarity)}">${RW_RARITY[it.rarity]}</span>`);
   if (it.featuredShiny && !it.owned) badges.push('<span class="rw-badge" data-rarity="shiny"><span aria-hidden="true">\u2605 </span>Shiny week</span>');
-  return `<div class="rw-card" data-rw-card="${esc(it.id)}"><div class="rw-well">${rwCardPreview(it)}</div><div class="rw-badges">${badges.join('')}</div><b class="rw-cname">${esc(it.name)}</b><small class="rw-cost">${rwDinks(it.price)}</small>${rwCardButton(c, s, it, o)}</div>`;
+  const top = rwIsTop(it) ? ` data-rw-top="${it.rarity}"` : '';
+  // A Mythic card says how many players in this club own it: a count, never a name.
+  const held = it.rarity === 'mythic' && Number.isFinite(it.owners) ? `<small class="rw-held">${it.owners === 0 ? 'Nobody here has one yet' : it.owners === 1 ? '1 player here has this' : `${it.owners} players here have this`}</small>` : '';
+  return `<div class="rw-card" data-rw-card="${esc(it.id)}"${top}><div class="rw-well">${rwCardPreview(it)}</div><div class="rw-badges">${badges.join('')}</div><b class="rw-cname">${esc(it.name)}</b><small class="rw-cost">${rwDinks(it.price)}</small>${held}${rwCardButton(c, s, it, o)}</div>`;
 }
 const rwShelf = (c, s, items, o) => `<div class="rw-grid">${items.map(i => rwItemCard(c, s, i, o)).join('')}</div>`;
+// The Mythic and Legendary shelves (WI-13), Mythic first. Same card as every shelf; "Only N exist" counts the Mythic items the shop sells. An item
+// you just bought gets a quiet confirmation card (no takeover, no motion).
+function rwGotHTML(c, s) {
+  const myth = (s.items || []).filter(i => i.rarity === 'mythic' && !i.seasonal && !i.event);
+  const got = c.got && (s.items || []).find(i => i.id === c.got && i.owned && rwIsTop(i));
+  return got ? `<div class="rw-got" role="status" data-rarity="${got.rarity}"><b>${esc(got.name)} is yours.</b><span>${got.rarity === 'mythic' ? `One of ${myth.length} Mythic items in the shop.` : 'A Legendary item.'} Choose it in your Inventory.</span></div>` : '';
+}
+function rwTopShelvesHTML(c, s) {
+  const pick = r => (s.items || []).filter(i => i.rarity === r && !i.seasonal && !i.event);
+  const myth = pick('mythic'), leg = pick('legendary');
+  return `${myth.length ? `${rwSecHead('Mythic', `The best things in the shop, and the rarest. Only ${myth.length} exist.`)}${rwShelf(c, s, myth)}` : ''}${leg.length ? `${rwSecHead('Legendary', 'Special looks, priced higher.')}${rwShelf(c, s, leg)}` : ''}`;
+}
 // Section header: title on the left, one muted line on the right.
 const rwSecHead = (title, note) => `<div class="rw-sec"><h3 class="rw-h">${esc(title)}</h3>${note ? `<p class="rw-sec-note">${esc(note)}</p>` : ''}</div>`;
 let rwBoxSeq = 0;
@@ -171,20 +187,20 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     if (c.inv) return rwInventoryHTML(c, s, head, done);
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
-    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
+    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
-    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
+    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event && !rwIsTop(i)); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
-    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event);
+    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || rwIsTop(i));
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
     const box = rwSpinHTML(c, s) + rwBoxHTML(c, s);
     return `${head}${rwShopHeadHTML(c, s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
-      ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
+      ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${seasonSec}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${rwTopShelvesHTML(c, s)}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
@@ -245,7 +261,7 @@ function rwStoreSynced(d) {
 async function rwStoreAct(body, say, focus) {
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store || c.busy) return;
-  c.busy = true; c.error = ''; c.msg = ''; renderClub();
+  c.busy = true; c.error = ''; c.msg = ''; c.got = ''; renderClub();
   try {
     const d = await playerCall(Object.assign({ name: myName(), playerToken: myToken() }, body));
     if (clubSheet !== c) return;
@@ -334,7 +350,7 @@ document.addEventListener('click', e => {
     if (!it || it.owned) return;
     // The server decides; this only saves a trip when the balance obviously doesn't reach.
     if (c.store.dinks < it.price) { c.error = rwShort(it.name, it.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
-    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it in your Inventory.`), '#club-h');
+    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (c.got = rwIsTop(it) ? it.id : '', it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it in your Inventory.`), '#club-h');
     return;
   }
   const [slot, id] = t.dataset.rwWear.split(':');

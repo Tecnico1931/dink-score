@@ -328,7 +328,10 @@ test('WI-9: every name style stays >= 4.5:1 on cards, soft cards and the page in
     flame: t => mix(t.down, 0.75, t.ink),
     pickle: t => mix(t.green, 0.7, t.ink),
     ice: t => mix(t['blue-text'], 0.75, t.ink),
-    neon: t => mix(mix(t.down, 0.5, t['blue-text']), 0.75, t.ink)
+    neon: t => mix(mix(t.down, 0.5, t['blue-text']), 0.75, t.ink),
+    holo: t => mix(mix(t['blue-text'], 0.5, t.green), 0.75, t.ink),
+    molten: t => mix(mix(t.ball, 0.5, t.down), 0.45, t.ink),
+    starforged: t => mix(t['blue-text'], 0.4, t.ink)
   };
   // The stylesheet must still say exactly this (the maths above is a copy of it).
   const css = html.split('</style>')[0];
@@ -343,4 +346,20 @@ test('WI-9: every name style stays >= 4.5:1 on cards, soft cards and the page in
       assert.ok(ratio(c, bg) >= 4.5, `${name} name on ${bgName} in ${pid}/${mode}: ${ratio(c, bg).toFixed(2)}`);
     }
   }
+});
+
+// WI-13: the new name styles say what the maths above copies, and the dark Mythic card keeps readable text and a visible button in light and dark themes.
+test('WI-13: Legendary and Mythic name styles and the Mythic card colours', () => {
+  const css = html.split('</style>')[0];
+  for (const rule of [
+    '.rw-nm[data-rw-style="holo"] { color: color-mix(in srgb, color-mix(in srgb, var(--blue-text) 50%, var(--green)) 75%, var(--ink));',
+    '.rw-nm[data-rw-style="molten"] { color: color-mix(in srgb, color-mix(in srgb, var(--ball) 50%, var(--down)) 45%, var(--ink));',
+    '.rw-nm[data-rw-style="starforged"] { color: color-mix(in srgb, var(--blue-text) 40%, var(--ink));'
+  ]) assert.ok(css.includes(rule), rule);
+  const rule = /:root:not\(\[data-outdoor\]\) \.rw-card\[data-rw-top="mythic"\] \{([^}]*)\}/.exec(css)[1];
+  const tok = n => hexRgb(new RegExp(`--${n}: (#[0-9A-Fa-f]{6})`).exec(rule)[1]);
+  for (const [fg, bg, min, what] of [[tok('ink'), tok('surface'), 7, 'name on the card'], [tok('muted'), tok('surface'), 7, 'muted text on the card'], [tok('ink'), tok('surface-2'), 7, 'preview text on the well'], [tok('muted'), tok('surface-2'), 4.5, 'muted on the well'], [hexRgb('#FFD58A'), tok('surface'), 7, 'price on the card']]) {
+    assert.ok(ratio(fg, bg) >= min, `Mythic card: ${what} ${ratio(fg, bg).toFixed(2)}`);
+  }
+  assert.ok(ratio(tok('bg'), tok('ink')) >= 7, 'the buy button (ink face, bg text) is readable on the dark card');
 });

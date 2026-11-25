@@ -24,9 +24,9 @@ test('odds table sums to 100 percent, covers every cosmetic catalogue item once,
 
   const flat = BOX_TIERS.flatMap(t => t.items);
   assert.equal(new Set(flat).size, flat.length, 'no item listed twice across tiers');
-  // WI-11: the four newest rings (Sunset, Pickle, Ice, Lava) are fixed-price only like the pets, so the box odds stay exactly as they were.
+  // WI-11: the four newest rings (Sunset, Pickle, Ice, Lava) are fixed-price only like the pets (and every Legendary and Mythic item, WI-13), so the box odds stay exactly as they were.
   const fixedOnly = new Set(['frame-sunset', 'frame-pickle', 'frame-ice', 'frame-lava']);
-  const boxEligible = CATALOGUE.filter(i => (i.slot === 'frame' || i.slot === 'paddle') && !fixedOnly.has(i.id)).map(i => i.id).sort();
+  const boxEligible = CATALOGUE.filter(i => (i.slot === 'frame' || i.slot === 'paddle') && !fixedOnly.has(i.id) && i.rarity !== 'legendary' && i.rarity !== 'mythic').map(i => i.id).sort();
   assert.deepEqual(flat.slice().sort(), boxEligible, 'box covers the original ring and paddle shop catalogue (pets, victory sounds, titles, name styles and the newest rings are fixed-price only)');
 
   const odds = boxOdds();

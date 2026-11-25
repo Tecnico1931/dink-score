@@ -28,7 +28,9 @@ export const PETS = Object.freeze([
   Object.freeze({ id: 'pet-bat', slot: 'pet', name: 'Paddle bat', price: 400, rarity: 'rare' }),
   Object.freeze({ id: 'pet-turtle', slot: 'pet', name: 'Court turtle', price: 250, rarity: 'common' }),
   Object.freeze({ id: 'pet-fox', slot: 'pet', name: 'Smash fox', price: 600, rarity: 'rare' }),
-  Object.freeze({ id: 'pet-netdragon', slot: 'pet', name: 'Net dragon', price: 800, rarity: 'legendary' })
+  Object.freeze({ id: 'pet-netdragon', slot: 'pet', name: 'Net dragon', price: 800, rarity: 'legendary' }),
+  // WI-13: a Mythic pet. Appended last and kept out of the weekly shiny rotation (ROTATION below), so no scheduled week changes.
+  Object.freeze({ id: 'pet-supernova', slot: 'pet', name: 'Supernova dragon', price: 4800, rarity: 'mythic' })
 ]);
 
 // Three growth stages fed purely by distinct verified play days since adoption.
@@ -101,12 +103,13 @@ export const SHINY_FIVE_FROM = 2972;
 export const SHINY_ALL_FROM = 2977;
 const LEGACY_CYCLE = 4;
 const FIVE_PETS = PETS.slice(0, 5);
+const ROTATION = PETS.filter(p => p.rarity !== 'mythic'); // the Mythic pet has no weekly shiny coat
 const mod = (n, m) => ((n % m) + m) % m;
 export function shinyWeekFor(ts) {
   const wk = weekOf(ts);
   const pet = wk.index < SHINY_FIVE_FROM ? PETS[mod(wk.index, LEGACY_CYCLE)]
     : wk.index < SHINY_ALL_FROM ? FIVE_PETS[mod(wk.index - SHINY_FIVE_FROM, FIVE_PETS.length)]
-      : PETS[mod(wk.index - SHINY_ALL_FROM, PETS.length)];
+      : ROTATION[mod(wk.index - SHINY_ALL_FROM, ROTATION.length)];
   return { weekId: wk.id, start: wk.start, end: wk.end, petId: pet.id, petName: pet.name };
 }
 

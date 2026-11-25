@@ -11,6 +11,9 @@ const RW_SOUNDS = {
   'sound-horn': { dur: 1.1, steps: [{ f: 233, at: 0, dur: .38, vol: .07, type: 'sawtooth' }, { f: 311, at: 0, dur: .38, vol: .06, type: 'sawtooth' }, { f: 233, at: .46, dur: .55, vol: .07, type: 'sawtooth' }, { f: 311, at: .46, dur: .55, vol: .06, type: 'sawtooth' }] },
   'sound-8bit': { dur: 1, steps: [[523.25, 0], [659.25, .1], [783.99, .2], [1046.5, .3]].map(([f, at]) => ({ f, at, dur: .1, vol: .05, type: 'square' })).concat([{ f: 1046.5, at: .4, dur: .5, vol: .05, type: 'square' }, { f: 1318.5, at: .4, dur: .5, vol: .03, type: 'square' }]) },
   'sound-drum': { dur: 1.5, steps: Array.from({ length: 16 }, (_, i) => ({ noise: 220, q: 1.2, at: i * .06, dur: .05, vol: .05 + i * .004 })).concat([{ noise: 140, q: .8, at: 1.02, dur: .35, vol: .16 }, { f: 90, to: 50, at: 1.02, dur: .35, vol: .18 }]) },
+  // WI-13: the two top sounds. Fanfare: four brass-like notes up a major chord. Ascension: a slow rise that ends on a bright chord.
+  'sound-fanfare': { dur: 1.6, steps: [[523.25, 0, .14], [659.25, .16, .14], [783.99, .32, .14], [1046.5, .5, 1]].flatMap(([f, at, dur]) => [{ f, at, dur, vol: .05, type: 'sawtooth' }, { f: f * 1.5, at, dur, vol: .025, type: 'sawtooth' }]) },
+  'sound-ascension': { dur: 3.2, steps: [{ f: 220, to: 1760, at: 0, dur: 1.8, vol: .07 }, { f: 330, to: 2637, at: 0, dur: 1.8, vol: .03 }].concat([1046.5, 1318.5, 1568, 2093].map((f, i) => ({ f, at: 1.8 + i * .03, dur: 1.3, vol: .05 - i * .008 }))) },
   'sound-crowd': { dur: 2, steps: [{ noise: 900, q: .5, at: 0, dur: 1.9, vol: .16, rise: .6 }, { noise: 2400, q: .7, at: .15, dur: 1.5, vol: .05, rise: .5 }] }
 };
 let rwSoundCtx = null, rwSoundTimer = 0;
@@ -72,7 +75,7 @@ const RW_NOTE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="fals
 const rwSoundPlayBtn = it => `<button type="button" class="rw-play" data-rw-sound="${esc(it.id)}" aria-label="Play ${esc(it.name)}">${RW_PLAY_SVG}</button>`;
 // The "Victory sounds" shelf: the same card as every other shelf, with a play button in the preview well.
 function rwSoundsSectionHTML(c, s) {
-  const items = (s.items || []).filter(i => i.slot === 'sound');
+  const items = (s.items || []).filter(i => i.slot === 'sound' && i.rarity !== 'legendary' && i.rarity !== 'mythic');
   if (!items.length) return '';
   return `${rwSecHead('Victory sounds', 'Plays on the scoring phone when your team wins. Tap to hear it.')}${rwShelf(c, s, items)}<p class="rw-box-fine">A win plays it only when Win celebration is on and Celebration sound is on in Settings. Off until you turn it on, per device.</p>`;
 }

@@ -2,7 +2,8 @@
 // Clean-room geometric inline SVGs on a unified 64x64 viewBox using CSS custom properties only (--pet-1, --pet-2, --pet-3, --pet-eye, --pet-bg; the Yorkie adds --pet-steel, --pet-black, --pet-tan, --pet-gold),
 // so every pet follows the app's court-green/lime light, dark and outdoor tokens automatically with zero raster files, zero remote URLs,
 // and zero motion or sound. Growth stages (Rookie 0-4, Club 5-14, Veteran 15+) and weekly shiny rotation come solely from the server.
-const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon'];
+const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon', 'pet-supernova'];
+const RW_PET_NO_SHINY = ['pet-supernova']; // the Mythic pet has no weekly shiny coat
 const RW_PET_NAMES = {
   'pet-frog': 'Court Frog',
   'pet-duck': 'Dink duck',
@@ -14,7 +15,8 @@ const RW_PET_NAMES = {
   'pet-bat': 'Paddle bat',
   'pet-turtle': 'Court turtle',
   'pet-fox': 'Smash fox',
-  'pet-netdragon': 'Net dragon'
+  'pet-netdragon': 'Net dragon',
+  'pet-supernova': 'Supernova dragon'
 };
 const RW_PET_STAGE_LABELS = { 1: 'Rookie', 2: 'Club', 3: 'Veteran' };
 const RW_PET_STAR_SVG = '<g data-pet-star="1"><circle cx="54" cy="10" r="7.5" fill="var(--pet-1)"/><polygon points="54,4.5 55.6,8.4 59.5,10 55.6,11.6 54,15.5 52.4,11.6 48.5,10 52.4,8.4" fill="var(--pet-2)"/></g>';
@@ -73,6 +75,9 @@ Object.assign(RW_PET_ART, {
   'pet-netdragon': rwPetGrow('<polygon points="20,38 5,26 7,46" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2" stroke-linejoin="round"/><polygon points="44,38 59,26 57,46" fill="var(--pet-2)" stroke="var(--pet-1)" stroke-width="2" stroke-linejoin="round"/><path d="M43 52c9 3 13-4 10-10" fill="none" stroke="var(--pet-1)" stroke-width="4.6" stroke-linecap="round"/><ellipse cx="32" cy="46" rx="12" ry="10.5" fill="var(--pet-1)"/><ellipse cx="32" cy="48" rx="7.4" ry="7" fill="var(--pet-2)"/><path d="M26 45.5h12M26 49h12M26 52.5h12M29 42v13M35 42v13" stroke="var(--pet-3)" stroke-width="1.1"/><polygon points="22,24 17,8 29,17" fill="var(--pet-2)"/><polygon points="42,24 47,8 35,17" fill="var(--pet-2)"/><circle cx="32" cy="28" r="11.6" fill="var(--pet-1)"/><circle cx="26.6" cy="26" r="3.4" fill="var(--pet-eye)"/><circle cx="37.4" cy="26" r="3.4" fill="var(--pet-eye)"/><circle cx="27" cy="26" r="1.8" fill="var(--pet-3)"/><circle cx="37.8" cy="26" r="1.8" fill="var(--pet-3)"/>',
     '<rect x="22" y="19.5" width="20" height="3.4" rx="1.7" fill="var(--pet-2)"/>', -4)
 });
+// Supernova dragon (WI-13, Mythic): the Net dragon's body on its own cosmic palette (CSS, data-pet="pet-supernova") with a bright core on the belly and a spark.
+const RW_PET_NOVA = '<circle cx="32" cy="44" r="3.4" fill="var(--pet-3)"/><path d="M32 38v12M26 44h12" stroke="var(--pet-3)" stroke-width="1.4" stroke-linecap="round"/><path d="M10 14l1.5 3.5L15 19l-3.5 1.5L10 24l-1.5-3.5L5 19l3.5-1.5z" fill="var(--pet-2)"/>';
+RW_PET_ART['pet-supernova'] = Object.fromEntries([1, 2, 3].map(n => [n, RW_PET_ART['pet-netdragon'][n] + RW_PET_NOVA]));
 
 const rwPetNormId = id => {
   const s = String(id || '');
@@ -128,7 +133,7 @@ function rwPetStageLine(pet) {
 
 // Plain-words shiny rotation explanation, one pet a week in turn over every pet (zero FOMO, deterministic Monday 00:00 UTC cadence).
 function rwPetRotationCopy(shinyWeek) {
-  const order = RW_PET_ORDER.map(id => RW_PET_NAMES[id]).join(' → ');
+  const order = RW_PET_ORDER.filter(id => !RW_PET_NO_SHINY.includes(id)).map(id => RW_PET_NAMES[id]).join(' → ');
   const cur = shinyWeek && rwPetName(shinyWeek.petId);
   return cur
     ? `Each pet gets a free shiny coat in turn, rotating every Monday (UTC): ${order}.`
@@ -155,7 +160,7 @@ function rwPetsSectionHTML(c, s) {
   const pets = s.items.filter(i => i.slot === 'pet');
   if (!pets.length) return '';
   const owned = pets.filter(i => i.owned);
-  const unowned = pets.filter(i => !i.owned);
+  const unowned = pets.filter(i => !i.owned && i.rarity !== 'legendary' && i.rarity !== 'mythic'); // those two sit on the Legendary and Mythic shelves
   const wornPet = (s.worn && s.worn.pet) || '';
   const sw = s.shinyWeek && rwPetNormId(s.shinyWeek.petId) ? s.shinyWeek : null;
   const featuredOwned = owned.find(p => p.featuredShiny) || null;

@@ -317,6 +317,22 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-badge[data-rarity="rare"] { background: var(--rare-bg); color: var(--rare-fg); } .rw-badge[data-rarity="legendary"] { background: var(--legendary-bg); color: var(--legendary-fg); }
 .rw-badge[data-rarity="mythic"] { background: var(--mythic-bg); color: var(--mythic-fg); } .rw-badge[data-rarity="shiny"] { background: var(--shiny-bg); color: var(--shiny-fg); }
 :root[data-outdoor] .rw-badge { border: 1.5px solid var(--ink); }
+/* WI-13: Legendary and Mythic. Items use only the app's tokens (rings, name styles) and stay still. A Legendary card has a gradient BORDER on the normal surface;
+   a Mythic card is a flat dark surface with a gradient border. Its fixed colours are pinned in test/contrast.test.js; in outdoor mode both fall back to a plain ink border. */
+[data-rw-frame="rainbow"] { --rw-c: var(--ball); --rw-ring: 0 0 0 2.5px var(--down), 0 0 0 5px var(--ball), 0 0 0 7.5px var(--green), 0 0 0 10px var(--blue); --rw-ring-sm: 0 0 0 2px var(--down), 0 0 0 4px var(--ball), 0 0 0 6px var(--green), 0 0 0 8px var(--blue); }
+[data-rw-frame="orbit"] { --rw-c: var(--ball); --rw-ring: 0 0 0 3px var(--ink), 0 0 0 5px var(--surface), 0 0 0 7px var(--ball); --rw-ring-sm: 0 0 0 2.5px var(--ink), 0 0 0 4px var(--surface), 0 0 0 5.5px var(--ball); }
+[data-rw-frame="crown"] { --rw-c: color-mix(in srgb, var(--ball) 70%, var(--down)); --rw-ring: 0 0 0 3px var(--rw-c), 0 0 0 5px var(--surface), 0 0 0 7px var(--rw-c), 0 0 10px 6px color-mix(in srgb, var(--rw-c) 40%, transparent); --rw-ring-sm: 0 0 0 2.5px var(--rw-c), 0 0 0 4px var(--surface), 0 0 0 5.5px var(--rw-c), 0 0 8px 5px color-mix(in srgb, var(--rw-c) 40%, transparent); }
+[data-rw-frame="horizon"] { --rw-c: var(--ball); --rw-ring: 0 0 0 3px var(--ink), 0 0 0 5px var(--ball), 0 0 14px 8px color-mix(in srgb, var(--blue) 50%, transparent); --rw-ring-sm: 0 0 0 2.5px var(--ink), 0 0 0 4px var(--ball), 0 0 10px 6px color-mix(in srgb, var(--blue) 50%, transparent); }
+.rw-nm[data-rw-style="holo"] { color: color-mix(in srgb, color-mix(in srgb, var(--blue-text) 50%, var(--green)) 75%, var(--ink)); text-shadow: 0 0 5px color-mix(in srgb, var(--down) 30%, transparent); }
+.rw-nm[data-rw-style="molten"] { color: color-mix(in srgb, color-mix(in srgb, var(--ball) 50%, var(--down)) 45%, var(--ink)); text-shadow: 0 0 5px color-mix(in srgb, var(--down) 35%, transparent); }
+.rw-nm[data-rw-style="starforged"] { color: color-mix(in srgb, var(--blue-text) 40%, var(--ink)); text-shadow: 0 0 4px color-mix(in srgb, var(--blue) 45%, transparent), 0 0 9px color-mix(in srgb, var(--down) 30%, transparent); }
+.rw-card[data-rw-top] { border: 2px solid transparent; background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(135deg, var(--blue), var(--green), var(--ball), var(--down)) border-box; }
+:root:not([data-outdoor]) .rw-card[data-rw-top="mythic"] { --ink: #FFFFFF; --bg: #130F22; --surface: #130F22; --surface-2: #1E1836; --muted: #C4BDE0; --line: #3A3160; background: linear-gradient(#130F22, #130F22) padding-box, linear-gradient(135deg, #8E6BFF, #E8478B, #FFB347) border-box; color: #FFFFFF; }
+:root:not([data-outdoor]) .rw-card[data-rw-top="mythic"] .rw-cost { color: #FFD58A; }
+:root[data-outdoor] .rw-card[data-rw-top] { border-color: var(--ink); background: var(--surface); }
+.rw-held { font-size: 13px; line-height: 1.3; color: var(--muted); }
+.rw-got { display: grid; gap: 2px; margin: 8px 0; padding: 12px 14px; border-radius: 18px; background: var(--surface-2); border: 1.5px solid var(--line); } .rw-got span { font-size: 14px; color: var(--muted); } :root[data-outdoor] .rw-got { border-color: var(--ink); }
+.rw-pet[data-pet="pet-supernova"] { --pet-bg: #1B1530; --pet-1: #8E6BFF; --pet-2: #FFD58A; --pet-3: #1B1530; --pet-eye: #FFFFFF; }
 .rw-cname { font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; } .rw-cost { font-size: 13px; color: var(--muted); }
 .rw-card .btn { width: 100%; min-height: 44px; margin-top: auto; }
 .rw-item .btn[data-rw-short], .rw-box .btn[data-rw-short], .rw-card .btn[data-rw-short] { opacity: .55; } :root[data-outdoor] .rw-item .btn[data-rw-short], :root[data-outdoor] .rw-box .btn[data-rw-short], :root[data-outdoor] .rw-card .btn[data-rw-short] { opacity: 1; text-decoration: line-through; } /* can't afford it yet: muted, still focusable, says why when pressed */
