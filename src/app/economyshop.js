@@ -65,20 +65,26 @@ const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.random
   ? crypto.randomUUID().replace(/-/g, '')
   : 'b' + Date.now().toString(36) + '_' + (++rwBoxSeq).toString(36) + '00000000').slice(0, 32);
 
+// Gift art for the box card: flat tokenised shapes, no motion.
+const RW_BOX_ART = '<svg class="rw-gift" viewBox="0 0 64 64" width="64" height="64" focusable="false" aria-hidden="true"><rect x="10" y="26" width="44" height="30" rx="4" fill="var(--court)"/><rect x="7" y="20" width="50" height="11" rx="4" fill="var(--court-2)"/><rect x="28" y="20" width="8" height="36" fill="var(--ball)"/><path d="M32 20c-4-9-14-9-13-3 1 5 9 3 13 3zm0 0c4-9 14-9 13-3-1 5-9 3-13 3z" fill="var(--ball)" stroke="var(--court-2)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+// The odds in one sentence, straight from the server's tiers: "50% common · 30% uncommon · ...".
+const rwBoxOddsLine = b => `A random look from the shop. ${(b.tiers || []).map(t => `${t.chance}% ${String(t.label || '').toLowerCase()}`).join(' · ')}.`;
 function rwBoxHTML(c, s) {
   if (typeof rwBoxOn !== 'function' || !rwBoxOn() || !s.box || !Array.isArray(s.box.tiers) || !s.box.tiers.length) return '';
   const b = s.box, opened = Number(b.openedToday) || 0, limit = Number(b.dailyLimit) || 3, atLimit = opened >= limit;
   const need = Math.max(0, b.price - s.dinks), r = c.boxResult;
   const tiers = b.tiers.map(t => `<li class="rw-tier"><div class="rw-tier-top"><b>${esc(t.label)}</b><span class="rw-pct num">${t.chance}% (${t.chance} in 100)</span></div><p class="rw-tier-items">${esc((t.items || []).map(i => i.name).join(', '))}</p></li>`).join('');
   const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${rwDinks(r.refund)} returned to your balance.` : 'Added to What you wear.'}</small></span></div>` : '';
-  const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : `Open mystery box (${rwDinks(b.price)})`;
+  const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : need > 0 ? `${need} more Dinks` : `Open mystery box (${rwDinks(b.price)})`;
+  const btnAria = !atLimit && need > 0 ? ` aria-label="Open mystery box for ${rwDinks(b.price)}. You need ${need} more"` : '';
   return `<h3 class="rw-h">Mystery box</h3><section class="rw-box" aria-label="Mystery box">
+    <div class="rw-box-main">${RW_BOX_ART}<div><b class="rw-box-title">Mystery box</b><p class="rw-box-rates">${esc(rwBoxOddsLine(b))}</p></div></div>
     <div class="rw-box-top"><span class="rw-box-cost"><b class="num">${b.price}</b> ${b.price === 1 ? 'Dink' : 'Dinks'}</span><span class="rw-box-cap">${opened} of ${limit} opened today</span></div>
     <p class="rw-box-note">Grants one cosmetic look from the shop, chosen at random on the server. Free play money only — never bought with real money, and never changes a game, a rating, a rank or who plays.</p>
     <div class="rw-rates"><p class="rw-rates-h">Odds before you open</p><ul class="rw-tier-list">${tiers}</ul>
     <p class="rw-box-fine">Duplicate refund: if you already own the item drawn, ${rwDinks(b.duplicateRefund)} are returned to your balance right away. Limit: ${limit} per day (UTC). No pity timer, countdown or streak bonus.</p></div>
     ${res}
-    <button type="button" class="btn btn-court block" data-rw-box-open="1"${atLimit ? '' : rwShortAttrs(need)} ${c.busy || atLimit ? 'disabled' : ''}>${esc(btnLabel)}</button>
+    <button type="button" class="btn btn-court block" data-rw-box-open="1"${btnAria}${atLimit ? '' : rwShortAttrs(need)} ${c.busy || atLimit ? 'disabled' : ''}>${esc(btnLabel)}</button>
     ${!atLimit && need > 0 ? `<p class="rw-box-fine">You need ${rwDinks(need)} more to open a mystery box.</p>` : ''}
   </section>`;
 }
@@ -109,6 +115,15 @@ Object.assign(Rewards, {
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
       ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+  },
+  // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
+  petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
+  openPets() {
+    const prev = clubSheet;
+    if (!rwShown() || !prev || prev.view !== 'rwstore' || !prev.store) return;
+    clubSheet = { view: 'rwpets', store: prev.store };
+    renderClub();
+    const h = document.querySelector('#club-h'); if (h) h.focus();
   },
   // "Dinks activity": your own recent ledger rows in plain words (the server's words), newest first, with the balance after each.
   activityHTML(c) {
@@ -184,10 +199,11 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   if (t.dataset.rw === 'activity') { Rewards.openActivity(); return; }
+  if (t.dataset.rw === 'pets') { Rewards.openPets(); return; }
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store) return;
   if (t.dataset.rwBoxOpen) {

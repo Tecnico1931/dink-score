@@ -153,7 +153,7 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
   let failOnce = true;
   const p = phone({
     replyFn: async b => {
-      if (b.action === 'rewards-catalog') return { dinks: 20, worn: { frame: '', paddle: '' }, share: false, items: CATALOGUE.map(i => ({ ...i, owned: false })), box: { ...boxOdds(), openedToday: 0 } };
+      if (b.action === 'rewards-catalog') return { dinks: BOX_PRICE + 20, worn: { frame: '', paddle: '' }, share: false, items: CATALOGUE.map(i => ({ ...i, owned: false })), box: { ...boxOdds(), openedToday: 0 } };
       if (b.action === 'rewards-box-open') {
         if (failOnce) { failOnce = false; throw Object.assign(new Error("Can't reach the server."), { offline: true }); }
         return {
@@ -174,7 +174,12 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
   assert.match(html, /Rare[\s\S]*15% \(15 in 100\)/);
   assert.match(html, /Duplicate refund: if you already own the item drawn, 4 Dinks are returned/);
   assert.match(html, /0 of 3 opened today/);
-  assert.match(html, /Open mystery box \(7 Dinks\)/);
+  assert.match(html, new RegExp(`Open mystery box \\(${BOX_PRICE} Dinks\\)`));
+  // Card: gift art, the odds in one sentence built from the server tiers, and no shortfall label while the balance reaches.
+  assert.match(html, /class="rw-gift"/);
+  assert.match(html, /A random look from the shop\. 50% common · 30% uncommon · 15% rare · 5% epic\./);
+  assert.ok(!/more Dinks/.test(html));
+  assert.equal(BOX_PRICE, 300, 'upstream box price');
 
   const click = ds => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
   // First click hits offline error -> pendingOpenId is kept for idempotent retry.
@@ -198,5 +203,8 @@ test('Shop UI shows plain-words odds before opening, announces results, handles 
   p.x.sheet.store.dinks = 3;
   click({ rwBoxOpen: '1' });
   assert.equal(p.calls.length, countBefore);
-  assert.match(p.x.sheet.error, /Not enough Dinks yet: a mystery box costs 7 and you have 3\./);
+  assert.match(p.x.sheet.error, new RegExp(`Not enough Dinks yet: a mystery box costs ${BOX_PRICE} and you have 3\\.`));
+  // The button reads "N more Dinks" (muted, still focusable, shortfall spoken) when the balance doesn't reach.
+  const low = p.x.Rewards.storeHTML(p.x.sheet);
+  assert.match(low, new RegExp(`data-rw-box-open="1" aria-label="Open mystery box for ${BOX_PRICE} Dinks\\. You need ${BOX_PRICE - 3} more" aria-disabled="true" data-rw-short="1"[^>]*>${BOX_PRICE - 3} more Dinks<`));
 });

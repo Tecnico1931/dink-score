@@ -1554,13 +1554,14 @@ await step('rewards mystery box: off means refused, odds match server table, ins
   assert.equal(replay1.dinks, first.dinks);
   assert.equal(replay1.box.openedToday, 1);
   // Duplicate refund: Oli already owns every catalogue item, so any draw is a duplicate and refunds BOX_DUPLICATE_REFUND.
-  await grant('Oli', 'test:oli-fund', 40);
+  const oliFund = BOX_PRICE * (BOX_DAILY_LIMIT + 1);
+  await grant('Oli', 'test:oli-fund', oliFund);
   for (const it of CATALOGUE) await pg.query(`INSERT INTO reward_items (club, name_key, item, slot) VALUES ($1, 'oli', $2, $3) ON CONFLICT DO NOTHING`, [cf.code, it.id, it.slot]);
   const dup = ok(await post('Oli', { action: 'rewards-box-open', openId: 'box_dup_0001' }));
   assert.equal(dup.result.duplicate, true);
   assert.equal(dup.result.refund, BOX_DUPLICATE_REFUND);
   assert.equal(dup.result.replayed, false);
-  assert.equal(dup.dinks, 40 - BOX_PRICE + BOX_DUPLICATE_REFUND);
+  assert.equal(dup.dinks, oliFund - BOX_PRICE + BOX_DUPLICATE_REFUND);
   assert.equal(dup.box.openedToday, 1);
   // Refund row keeps day=null so it never fakes a daily streak.
   assert.equal(ok(await post('Oli', { action: 'rewards-get' })).streak, 0, 'duplicate refund never touches daily streak');
