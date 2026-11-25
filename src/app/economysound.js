@@ -14,6 +14,7 @@ const RW_SOUNDS = {
   // WI-13: the two top sounds. Fanfare: four brass-like notes up a major chord. Ascension: a slow rise that ends on a bright chord.
   'sound-fanfare': { dur: 1.6, steps: [[523.25, 0, .14], [659.25, .16, .14], [783.99, .32, .14], [1046.5, .5, 1]].flatMap(([f, at, dur]) => [{ f, at, dur, vol: .05, type: 'sawtooth' }, { f: f * 1.5, at, dur, vol: .025, type: 'sawtooth' }]) },
   'sound-ascension': { dur: 3.2, steps: [{ f: 220, to: 1760, at: 0, dur: 1.8, vol: .07 }, { f: 330, to: 2637, at: 0, dur: 1.8, vol: .03 }].concat([1046.5, 1318.5, 1568, 2093].map((f, i) => ({ f, at: 1.8 + i * .03, dur: 1.3, vol: .05 - i * .008 }))) },
+  'sound-bells': { dur: 1.5, steps: [2093, 2637, 3136, 2349, 2793, 3520, 2637, 3136].map((f, i) => ({ f, at: i * .09, dur: .5, vol: .04 })).concat([{ f: 1319, at: 0, dur: 1, vol: .05 }]) }, // Christmas shelf
   'sound-whistle': { dur: 1, steps: [{ f: 2700, to: 2900, at: 0, dur: .2, vol: .07 }, { f: 2900, at: .26, dur: .6, vol: .07 }] }, // the pass-only Ref's whistle
   'sound-crowd': { dur: 2, steps: [{ noise: 900, q: .5, at: 0, dur: 1.9, vol: .16, rise: .6 }, { noise: 2400, q: .7, at: .15, dur: 1.5, vol: .05, rise: .5 }] }
 };

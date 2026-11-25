@@ -126,7 +126,7 @@ test('events: a fixed, cosmetic, rarity-labelled list outside CATALOGUE, in exis
   assert.ok(EVENTS.length >= 1);
   for (const i of EVENT_ITEMS) {
     assert.ok(SLOTS.includes(i.slot));
-    assert.match(i.id, /^[a-z]{3,8}-[a-z]{3,12}$/);
+    assert.match(i.id, /^[a-z]{3,9}-[a-z]{3,12}$/);
     assert.ok(Number.isInteger(i.price) && i.price >= 1 && ['common', 'rare', 'legendary', 'mythic'].includes(i.rarity));
     assert.ok(!CATALOGUE.some(c => c.id === i.id) && !SEASONAL.some(c => c.id === i.id));
     assert.equal(itemById(i.id), i);

@@ -81,8 +81,16 @@ export const EVENTS = Object.freeze([
   Object.freeze({
     id: 'christmas', name: 'Christmas',
     items: Object.freeze([
+      Object.freeze({ id: 'title-santa', slot: 'title', name: 'Santa\'s Little Dinker', price: 150, rarity: 'rare' }),
+      Object.freeze({ id: 'title-jingle', slot: 'title', name: 'Jingle Baller', price: 180, rarity: 'rare' }),
       Object.freeze({ id: 'frame-candy', slot: 'frame', name: 'Candy cane ring', price: 150, rarity: 'rare' }),
-      Object.freeze({ id: 'frame-twinkle', slot: 'frame', name: 'Twinkle lights ring', price: 300, rarity: 'rare' })
+      Object.freeze({ id: 'frame-twinkle', slot: 'frame', name: 'Twinkle lights ring', price: 300, rarity: 'rare' }),
+      Object.freeze({ id: 'style-candy', slot: 'style', name: 'Candy cane', price: 270, rarity: 'rare' }),
+      Object.freeze({ id: 'style-tinsel', slot: 'style', name: 'Tinsel', price: 330, rarity: 'rare' }),
+      Object.freeze({ id: 'theme-snow', slot: 'theme', name: 'Snowy court', price: 360, rarity: 'rare' }),
+      Object.freeze({ id: 'celebrate-snowfall', slot: 'celebrate', name: 'Snowfall', price: 300, rarity: 'rare' }),
+      Object.freeze({ id: 'sound-bells', slot: 'sound', name: 'Sleigh bells', price: 240, rarity: 'rare' }),
+      Object.freeze({ id: 'celebrate-gifts', slot: 'celebrate', name: 'Present drop', price: 1200, rarity: 'legendary' })
     ].map(i => Object.freeze({ ...i, event: 'christmas' })))
   })
 ]);
