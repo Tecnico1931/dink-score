@@ -2972,6 +2972,53 @@ await step('the public league link: organizer makes it, a spectator sees only al
   assert.equal((await lg('league-share', { id: ladder.id })).status, 404);
 });
 
+await step('league playoffs: organizer starts them, results reach the record once, a fix follows the game, the season table never moves', async () => {
+  const pc = ok(await call(club, 'POST', { body: { name: 'Playoff check club' } }), 201), pcode = pc.club.code, pown = { ownerToken: pc.ownerToken };
+  const lg = (action, extra = {}, creds = pown) => call(events, 'POST', { body: { code: pcode, action, ...extra, ...creds } });
+  const four = ['Ann', 'Bo', 'Cat', 'Dev'];
+  const league = ok(await lg('league-create', { league: { kind: 'league', name: 'Playoff league', mode: 'singles', players: four, target: 11 } }), 201).league;
+  assert.equal((await lg('league-playoffs-start', { id: league.id })).status, 409, 'the season has to be finished first');
+  let cur = league;
+  for (const w of league.weeks) for (const x of w.matches) cur = ok(await lg('league-result', { id: league.id, matchId: x.id, score: [11, 5], endedAt: Date.now() })).league;
+  assert.equal(cur.status, 'done');
+  assert.equal(cur.playoffs, undefined);
+  const table = JSON.stringify(cur.tables);
+  assert.equal((await lg('league-playoffs-start', { id: league.id, top: 2 }, {})).status, 403, 'organizers only');
+  assert.equal((await lg('league-playoffs-start', { id: league.id, top: 9 })).status, 400);
+  const po = ok(await lg('league-playoffs-start', { id: league.id, top: 4 })).league.playoffs;
+  assert.equal(po.field.length, 4);
+  assert.deepEqual(po.rounds.map(r => r.title), ['Semifinals', 'Final']);
+  assert.equal((await lg('league-playoffs-start', { id: league.id })).status, 409, 'only once');
+  const semi = po.bracket.matches.find(m => m.id === 'W1-0');
+  assert.ok(semi.ready && semi.teams.every(Array.isArray));
+  const gamesOf = async () => ok(await call(club, 'GET', { query: '?code=' + pcode })).games.filter(g => g.id.includes('-po-'));
+  // a result: once in the record, a retry changes nothing, a different score needs the organizer's fix
+  const res = { id: league.id, matchId: 'W1-0', playoff: true, score: [11, 7], endedAt: Date.now() };
+  const after = ok(await lg('league-result', res)).league;
+  assert.equal(after.playoffs.bracket.matches.find(m => m.id === 'W1-0').status, 'done');
+  ok(await lg('league-result', res));
+  let g = await gamesOf();
+  assert.equal(g.length, 1);
+  assert.equal(g[0].id, `${league.id}-po-W1-0`);
+  assert.deepEqual(g[0].score, [11, 7]);
+  assert.equal((await lg('league-result', { ...res, score: [3, 11] })).status, 409);
+  assert.equal((await lg('league-result', { id: league.id, matchId: 'W2-0', playoff: true, score: [11, 2] })).status, 409, 'the final waits for the semifinals');
+  assert.equal((await lg('league-result', { ...res, matchId: 'W1-1' }, {})).status, 403, 'a stranger cannot enter it');
+  ok(await lg('league-result', { id: league.id, matchId: 'W1-1', playoff: true, score: [11, 9], endedAt: Date.now() }));
+  // a fix moves the saved game too
+  assert.equal((await lg('league-playoffs-fix', { id: league.id, matchId: 'W1-0', score: [7, 11] }, {})).status, 403);
+  const fixed = ok(await lg('league-playoffs-fix', { id: league.id, matchId: 'W1-0', score: [7, 11] })).league;
+  assert.deepEqual(fixed.playoffs.bracket.matches.find(m => m.id === 'W1-0').score, [7, 11]);
+  g = await gamesOf();
+  assert.equal(g.length, 2);
+  assert.deepEqual(g.find(x => x.id.endsWith('W1-0')).score, [7, 11]);
+  const crowned = ok(await lg('league-result', { id: league.id, matchId: 'W2-0', playoff: true, score: [11, 4], endedAt: Date.now() })).league;
+  assert.ok(Array.isArray(crowned.playoffs.champion));
+  assert.equal((await gamesOf()).length, 3);
+  assert.equal(JSON.stringify(crowned.tables), table, 'playoff games never change the season table');
+  assert.equal(ok(await call(events, 'GET', { query: `?code=${pcode}&league=${league.id}` })).league.playoffs.champion.length, 1, 'a fresh read has the bracket too');
+});
+
 // ---- Apple Watch linking and scoring (api/_watch.js and _livecore.js, reached through api/live.js) ----
 {
   const { randomBytes } = await import('node:crypto');

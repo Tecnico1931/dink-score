@@ -4,7 +4,7 @@
 // Names only sit inside `members` arrays, so rename and anonymise (_rename.js, players.js) reach them like the entries.
 // A playoff match is an extra game in the club record, with the id from playoffGame() (<leagueId>-po-<matchId>), written once like a league match:
 // the regular season tables never see it, so standings and ratings count nothing twice.
-import { build, advance, correct, champion, isReady } from './_bracket.js';
+import { build, advance, correct, champion, isReady, rounds } from './_bracket.js';
 import { divisionTable } from './_league.js';
 
 const bad = (msg, status = 400) => Object.assign(new Error(msg), { status });
@@ -69,5 +69,6 @@ export function playoffView(L) {
   const P = clone(L.playoffs);
   const name = s => (s === null ? null : s === -1 ? 'bye' : P.field[s].members);
   P.bracket.matches.forEach(m => { m.teams = m.slots.map(name); m.ready = isReady(m); });
+  P.rounds = rounds(P.bracket).map(r => ({ key: r.key, title: r.title, ids: r.matches.map(m => m.id) })); // the display groups, so the phone never needs the bracket code
   return P;
 }

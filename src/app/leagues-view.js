@@ -4,7 +4,7 @@
 let lgScreen = null; // null, or { view: 'list' | 'new' | 'detail', list, id, league, form, entry, ch, plan (week form), rs (move form), ff (forfeit choice), error, busy }
 const lgCall = body => api('events', { method: 'POST', body: JSON.stringify(Object.assign({ code: club.code }, body, senderCreds(), adminCreds())) });
 const lgName = names => names.join(' & ');
-const lgQueued = id => lgScreen && lgScreen.league && clubOps().find(o => o.type === 'league-result' && o.leagueId === lgScreen.league.id && (o.matchId || o.key) === id);
+const lgQueued = (id, po) => lgScreen && lgScreen.league && clubOps().find(o => o.type === 'league-result' && o.leagueId === lgScreen.league.id && !!o.playoff === !!po && (o.matchId || o.key) === id);
 const lgKey = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), b => (b % 36).toString(36)).join('');
 const LG_TB_LABEL = { diff: 'Point difference', pf: 'Points for', h2h: 'Head-to-head' };
 const LG_TB_SHORT = { diff: '+/−', pf: 'points for', h2h: 'head-to-head' };
@@ -124,6 +124,30 @@ function lgMatchHTML(s, L, m, org) {
   return `<li class="game ev-game${done ? ' done' : ''}"><div class="lines">${line(0)}${line(1)}</div>
     <div class="meta">${L.divisions.length > 1 ? `<span class="tag">${esc(L.divisions[m.division].label)}</span>` : ''}${slot}${m.forfeit ? '<span class="tag">Forfeit</span>' : done ? '<span class="tag">Final</span>' : ''}</div>${actions ? `<div class="ev-actions">${actions}</div>` : ''}${entry ? lgScoreForm(entry, m.teams, 'entry', entry.fix ? 'Save the fix' : 'Save score') : ''}${rs ? lgMoveForm(rs) : ''}${ff ? lgForfeitChoice(m) : ''}</li>`;
 }
+// The playoffs of a finished league: for an organizer a start card (how many per division), then the bracket as rounds, a match each, entered like a season match.
+function lgPoMatchHTML(s, L, m, org) {
+  const done = m.status === 'done', name = t => (m.teams[t] === null ? 'To be decided' : lgName(m.teams[t]));
+  const line = t => `<div class="line ${done && m.winner === t ? 'win' : ''}" style="--c:${TEAM_COLOR[t]}"><span class="tick"></span><span class="who">${esc(name(t))}</span><span class="pts">${done ? m.score[t] : ''}</span></div>`;
+  const entry = s.entry && s.entry.po && s.entry.m === m.id ? s.entry : null, q = !done && lgQueued(m.id, true);
+  const can = m.ready && (org || L.resultsBy === 'club' || m.teams.flat().some(isMe)), id = `data-m="${esc(m.id)}"`;
+  const actions = q ? `<span class="tag">Waiting to send ${q.score[0]}–${q.score[1]}</span>` : entry ? '' : (can ? `<button class="btn btn-soft ev-small" data-lg="po-enter" ${id}>Enter score</button>` : '') + (done && org ? `<button class="link" data-lg="po-fix" ${id}>Fix score</button>` : '');
+  return `<li class="game ev-game${done ? ' done' : ''}"><div class="lines">${line(0)}${line(1)}</div>${done ? '<div class="meta"><span class="tag">Final</span></div>' : ''}${actions ? `<div class="ev-actions">${actions}</div>` : ''}${entry ? lgScoreForm(entry, m.teams, 'entry', entry.fix ? 'Save the fix' : 'Save score') : ''}</li>`;
+}
+function lgPlayoffsHTML(s, L, org) {
+  const P = L.playoffs;
+  if (!P) {
+    if (L.kind !== 'league' || L.status !== 'done' || !org) return '';
+    const top = s.poTop === undefined ? 2 : s.poTop;
+    return `<section class="ev-card" aria-labelledby="lg-po"><h3 id="lg-po">Playoffs</h3>
+      ${evStepper('poTop', 'Qualifiers from each division', top, 1, 8).replaceAll('data-ev="step"', 'data-lg="step"')}
+      <p class="note">The best ${top} of each division meet in a knockout. Division winners are seeded first, then the runners-up. Playoff games are saved to the club record but never change the season table.</p>
+      <div class="ev-actions"><button class="btn btn-ink ev-small" data-lg="po-start" ${s.busy ? 'disabled' : ''}>Start the playoffs</button></div></section>`;
+  }
+  const byId = Object.fromEntries(P.bracket.matches.map(m => [m.id, m]));
+  const rounds = P.rounds.map(r => ({ title: r.title, ms: r.ids.map(i => byId[i]).filter(m => m && m.status !== 'bye' && m.status !== 'skipped') })).filter(r => r.ms.length);
+  const champ = P.champion ? `<p class="note"><b>Champion:</b> ${esc(lgName(P.champion))}${P.champion.some(isMe) ? ' <span class="badge you">You</span>' : ''}</p>` : '';
+  return `<section class="ev-sec" aria-labelledby="lg-po"><h3 id="lg-po">Playoffs</h3>${champ}${rounds.map(r => `<h4 class="lg-po-round">${esc(r.title)}</h4><ul class="games">${r.ms.map(m => lgPoMatchHTML(s, L, m, org)).join('')}</ul>`).join('')}</section>`;
+}
 // Day, time and court wording shared by the match lines, the week header and the forms (the date is a calendar date typed by the organizer, never shifted by a time zone).
 const lgDay = d => { const p = /^(\d{4})-(\d\d)-(\d\d)$/.exec(d || ''); return p ? new Date(+p[1], +p[2] - 1, +p[3]).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }) : ''; };
 const lgSlot = x => [lgDay(x.date) && (x.moved ? 'Moved to ' : '') + lgDay(x.date) + (x.time ? ' ' + x.time : ''), x.court ? 'Court ' + x.court : ''].filter(Boolean);
@@ -213,7 +237,7 @@ function lgLeagueHTML(s, L) {
   return `${s.error ? `<p class="err" role="alert">${esc(s.error)}</p>` : ''}
     <p class="note">${esc(L.season)} · ${L.mode === 'doubles' ? 'Doubles' : 'Singles'}, ${L.scoring === 'rally' ? 'rally scoring' : 'side-out'} to ${L.target} · ${L.status === 'done' ? 'Season finished' : `Week ${L.current} of ${L.weeks.length}`}${extras}</p>${champs}
     ${L.status === 'live' && wk ? `<section class="ev-sec" aria-labelledby="lg-now"><h3 id="lg-now">${esc(wk.title)}</h3>${lgWeekHTML(s, L, wk, org)}<ul class="games">${wk.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></section>` : ''}
-    ${tables}
+    ${tables}${lgPlayoffsHTML(s, L, org)}
     <section class="ev-sec" aria-labelledby="lg-all"><h3 id="lg-all">All weeks</h3>${L.weeks.map(w => `<details class="ev-more"><summary>${esc(w.title)}${w.matches.every(m => m.status === 'done') ? ' · done' : lgDay(w.date) ? ' · ' + esc(lgDay(w.date)) : ''}</summary>${lgWeekHTML(s, L, w, org, w.n === L.current && L.status === 'live')}<ul class="games">${w.matches.map(m => lgMatchHTML(s, L, m, org)).join('')}</ul></details>`).join('')}</section>
     ${lgHistoryHTML(L)}${lgOrgHTML(s, L)}`;
 }
