@@ -197,12 +197,13 @@ Object.assign(Rewards, {
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || i.pass || rwIsTop(i));
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
-    const box = rwSpinHTML(c, s) + rwBoxHTML(c, s);
+    // Order as upstream: spin, box and the pass card right under the wallet; Mythic and Legendary above the slot shelves.
+    const box = rwSpinHTML(c, s) + rwBoxHTML(c, s) + (typeof rwPassCardHTML === 'function' ? rwPassCardHTML(c, s) : '');
     return `${head}${rwShopHeadHTML(c, s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${rwGoalHTML(c, s)}${seasonSec}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwLooksSectionsHTML === 'function' ? rwLooksSectionsHTML(c, s) : ''}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${rwTopShelvesHTML(c, s)}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${box}${rwGoalHTML(c, s)}${seasonSec}${rwTopShelvesHTML(c, s)}
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwLooksSectionsHTML === 'function' ? rwLooksSectionsHTML(c, s) : ''}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },

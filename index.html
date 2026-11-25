@@ -452,6 +452,7 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-box-cost { font-size: 14px; } .rw-box-cost b { font-size: 26px; line-height: 1; }
 .rw-box-cap { font-size: 13px; color: var(--muted); }
 .rw-spin { display: grid; gap: 10px; padding: 14px; border-radius: 16px; border: 1.5px solid var(--court-ring); background: var(--surface-2); margin-bottom: 12px; }
+.rw-passcard { display: grid; gap: 10px; padding: 14px; border-radius: 16px; border: 1.5px solid var(--court-ring); background: var(--surface-2); margin-bottom: 12px; } .rw-passcard .rw-pass-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rw-spin-main { display: flex; align-items: center; gap: 14px; } .rw-wheel { flex: none; width: 96px; height: 96px; }
 .rw-spin-res { margin: 0; font-size: 14px; }
 .rw-box-note, .rw-box-fine { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; }
@@ -4691,12 +4692,13 @@ Object.assign(Rewards, {
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || i.pass || rwIsTop(i));
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
-    const box = rwSpinHTML(c, s) + rwBoxHTML(c, s);
+    // Order as upstream: spin, box and the pass card right under the wallet; Mythic and Legendary above the slot shelves.
+    const box = rwSpinHTML(c, s) + rwBoxHTML(c, s) + (typeof rwPassCardHTML === 'function' ? rwPassCardHTML(c, s) : '');
     return `${head}${rwShopHeadHTML(c, s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${rwGoalHTML(c, s)}${seasonSec}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwLooksSectionsHTML === 'function' ? rwLooksSectionsHTML(c, s) : ''}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${rwTopShelvesHTML(c, s)}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${box}${rwGoalHTML(c, s)}${seasonSec}${rwTopShelvesHTML(c, s)}
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwLooksSectionsHTML === 'function' ? rwLooksSectionsHTML(c, s) : ''}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
@@ -5032,6 +5034,14 @@ const rwPassRewardText = t => {
   return `+${rwDinks(t.dinks)}`;
 };
 const rwPassMaxXp = p => (p && p.maxXp > 0 ? p.maxXp : 1);
+
+// The Season pass card on top of the shop (under the wallet, after Daily spin and Mystery box): season name, what is ready, one way into the full pass.
+// Reads only the shop answer and the ready count already on the phone; the tiers load when it is opened.
+function rwPassCardHTML(c, s) {
+  const se = s && s.season, n = typeof rwReadyN === 'function' ? rwReadyN() : 0;
+  const line = n > 0 ? `${n} ${n === 1 ? 'reward is' : 'rewards are'} ready to claim.` : 'Free XP track: 8 tiers, earned by playing this season.';
+  return `<h3 class="rw-h">Season pass</h3><section class="rw-passcard" aria-label="Season pass"><div class="rw-pass-top"><b class="rw-box-title">${esc(se && se.name ? se.name : 'This season')}</b>${rwReadyTag(n) || '<span class="rw-pass-free">Free track</span>'}</div><p class="rw-box-rates">${esc(line)}</p><button type="button" class="btn ${n > 0 ? 'btn-court' : 'btn-soft'} block" data-rw="pass"${c.busy ? ' disabled' : ''}>${n > 0 ? 'Claim rewards' : 'View season pass'}</button></section>`;
+}
 
 Object.assign(Rewards, {
   passHTML(c) {

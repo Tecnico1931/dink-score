@@ -92,7 +92,7 @@ import { module, page } from './helpers/app.js';
 const phone = ({ hide = false, on = true, box = false, spinFree = null, name = 'Ana', looksReply = { looks: {} } } = {}) => {
   const calls = [], kv = { 'pb.rewardsHide': hide }, listeners = [], root = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } };
   const env = { clubSheet: null, renders: 0, announced: [] };
-  const code = module('economy') + ';' + module('economyshop') + ';return { Rewards, rwItemCard, rwCur, rwClean, rwCleanLooks, rwApplyLook, rwSpinLearn, rwSpinNow, rwSpinNext, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
+  const code = module('economy') + ';' + module('economyshop') + ';' + module('economypass') + ';return { Rewards, rwItemCard, rwCur, rwClean, rwCleanLooks, rwApplyLook, rwSpinLearn, rwSpinNow, rwSpinNext, set sheet(v) { clubSheet = v; }, get sheet() { return clubSheet; } };';
   const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', 'renderClub', 'initials', 'iconSvg', 'skel', 'avatarInner', 'teamLabel',
     'let clubSheet = null;' + code)(
     { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } }, { code: 'club-a', rewards: on, mysteryBox: box }, String, m => env.announced.push(m),
@@ -268,7 +268,10 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
   const html = x.Rewards.storeHTML({ store: { dinks: 1, worn: { frame: 'frame-court', paddle: '' }, items: items(['frame-court']), box }, msg: '', error: '', busy: false });
   const at = s => html.indexOf(s);
   assert.ok(at('rw-streak') > -1 && at('rw-streak') < at('In the shop'), 'the header and streak come first');
-  if (at('Mystery box') > -1) assert.ok(at('In the shop') < at('Mystery box'), 'fixed items sit above the mystery box');
+  // M3 (upstream order): wallet, then Daily spin, Mystery box and the Season pass card, then the shelves.
+  assert.ok(at('>Season pass<') > at('rw-streak') && at('>Season pass<') < at('In the shop'), 'the Season pass card sits under the wallet, above the shelves');
+  if (at('>Mystery box<') > -1) assert.ok(at('rw-streak') < at('>Mystery box<') && at('>Mystery box<') < at('>Season pass<'), 'the box comes before the pass card');
+  assert.match(html, /data-rw="pass"/, 'the Season pass card opens the pass');
   assert.match(html, /<b>1<\/b><span>Dink<\/span>/);
   assert.ok(!/\b1 Dinks\b|<span>Dinks<\/span>/.test(html.replace(/<b>1<\/b><span>Dink<\/span>/g, '')), 'no "1 Dinks"');
   const buy = html.match(/<button[^>]*data-rw-buy="frame-blue"[^>]*>/)[0];
