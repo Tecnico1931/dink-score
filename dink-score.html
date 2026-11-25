@@ -255,6 +255,8 @@ button { cursor: pointer; }
 [data-rw-frame="pickle"] { --rw-c: color-mix(in srgb, var(--green) 65%, var(--ink)); --rw-ring: 0 0 0 4px var(--rw-c), 0 0 0 6px color-mix(in srgb, var(--green) 50%, var(--ball)); --rw-ring-sm: 0 0 0 3.5px var(--rw-c), 0 0 0 5px color-mix(in srgb, var(--green) 50%, var(--ball)); }
 [data-rw-frame="ice"] { --rw-c: color-mix(in srgb, var(--blue) 50%, var(--surface)); --rw-ring: 0 0 0 3px var(--rw-c), 0 0 9px 5px color-mix(in srgb, var(--blue) 45%, transparent); --rw-ring-sm: 0 0 0 2.5px var(--rw-c), 0 0 7px 4px color-mix(in srgb, var(--blue) 45%, transparent); }
 [data-rw-frame="lava"] { --rw-c: color-mix(in srgb, var(--down) 70%, var(--ball)); --rw-ring: 0 0 0 4px var(--down), 0 0 0 6px var(--ink), 0 0 0 8px var(--rw-c); --rw-ring-sm: 0 0 0 3.5px var(--down), 0 0 0 5px var(--ink), 0 0 0 6.5px var(--rw-c); }
+[data-rw-frame="season"] { --rw-ring: 0 0 0 3px var(--surface), 0 0 0 5px var(--green), 0 0 0 7px var(--surface), 0 0 0 9px var(--green); --rw-ring-sm: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--green), 0 0 0 5.5px var(--surface), 0 0 0 7px var(--green); --rw-c: var(--green); }
+[data-rw-frame="trophy"] { --rw-ring: 0 0 0 4px var(--ball), 0 0 0 6px var(--surface), 0 0 0 8px var(--green); --rw-ring-sm: 0 0 0 3.5px var(--ball), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--green); --rw-c: var(--ball); }
 /* Seasonal looks (api/_economyseason.js): only the app's own tokens, mixed with color-mix where a tint is needed. */
 [data-rw-frame="spring"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--ball); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--ball); --rw-c: var(--green); }
 [data-rw-frame="heat"] { --rw-ring: 0 0 0 5px var(--down); --rw-ring-sm: 0 0 0 4px var(--down); --rw-c: var(--down); }
@@ -356,6 +358,12 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-nm[data-rw-style="pickle"] { color: color-mix(in srgb, var(--green) 70%, var(--ink)); }
 .rw-nm[data-rw-style="ice"] { color: color-mix(in srgb, var(--blue-text) 75%, var(--ink)); text-shadow: 0 0 4px color-mix(in srgb, var(--blue) 30%, transparent); }
 .rw-nm[data-rw-style="neon"] { color: color-mix(in srgb, color-mix(in srgb, var(--down) 50%, var(--blue-text)) 75%, var(--ink)); text-shadow: 0 0 5px color-mix(in srgb, var(--down) 35%, transparent); }
+.rw-nm[data-rw-style="courtline"] { text-decoration: underline; text-decoration-color: var(--green); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.rw-level { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: center; margin: 0 0 12px; padding: 14px 16px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.rw-level .rw-lv { grid-row: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 18px; }
+.rw-level div { display: flex; flex-direction: column; min-width: 0; }
+.rw-level small { font-size: 14px; color: var(--muted); }
+.rw-level p { grid-column: 1 / -1; margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 :root[data-outdoor] .rw-nm { text-shadow: none; }
 .rw-badges { min-height: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .rw-badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; line-height: 1; }
@@ -6560,7 +6568,8 @@ function renderProfile() {
   const tab = hasTabs && profile.tab === 'paddles' ? 'paddles' : 'stats';
   const tabs = hasTabs ? `<div class="seg" role="tablist" aria-label="Profile sections">${[['stats', 'Stats'], ['paddles', 'Paddles']].map(([v, l]) => `<button type="button" role="tab" id="pf-tab-${v}" data-ptab="${v}" aria-selected="${v === tab}" aria-controls="pf-panel" tabindex="${v === tab ? 0 : -1}">${l}</button>`).join('')}</div>` : '';
   const panel = tab === 'paddles' ? paddlesProfileHTML(pr.name, rated)
-    : `${selfDuprHTML(pr.name)}
+    : `${typeof Rewards !== 'undefined' ? Rewards.levelCardHTML(pr.name) : ''}
+    ${selfDuprHTML(pr.name)}
     ${dssoProfileHTML(pr.name)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
     ${body}

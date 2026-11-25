@@ -189,13 +189,13 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     if (c.inv) return rwInventoryHTML(c, s, head, done);
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
-    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && i.slot !== 'theme' && i.slot !== 'celebrate' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
+    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && !i.pass && i.slot !== 'sound' && i.slot !== 'theme' && i.slot !== 'celebrate' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
-    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event && !rwIsTop(i)); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
+    const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event && !i.pass && !rwIsTop(i)); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
-    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || rwIsTop(i));
+    const allOwned = s.items.every(i => i.owned || i.seasonal || i.event || i.pass || rwIsTop(i));
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
     const box = rwSpinHTML(c, s) + rwBoxHTML(c, s);
     return `${head}${rwShopHeadHTML(c, s)}

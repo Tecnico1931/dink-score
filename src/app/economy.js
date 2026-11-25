@@ -6,7 +6,7 @@
 // rank or a pairing.
 const RW_BONUS = [[3, 2], [7, 5], [14, 10], [30, 25]]; // streak day -> bonus Dinks; after day 30, every 30th day pays the day-30 bonus again
 // The rules card quotes these numbers; test/economyrules.test.js pins each to the server constant it copies (DAY_PAY, BOX_*, PASS_TIERS).
-const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 10;
+const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 8, RW_XP = { game: 10, win: 15, cap: 300, tier: 125 };
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
@@ -22,8 +22,8 @@ const RW_EXTRA_SLOTS = ['title', 'style'];
 // A court theme and a win celebration are never in a club look either; they are only worn on this phone (economycelebrate.js).
 const RW_OWN_SLOTS = ['sound', 'theme', 'celebrate'];
 // Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
-const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss' };
-const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged'];
+const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss', grinder: 'The Grinder', closer: 'The Closer', rallyking: 'Rally Machine' };
+const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged', 'courtline'];
 const rwSlotId = (slot, v) => (typeof v === 'string' && new RegExp(`^${slot}-[a-z]{3,12}$`).test(v) ? v : '');
 // {title, style} ids that are set and well formed, nothing else.
 const rwExtras = v => Object.fromEntries(RW_EXTRA_SLOTS.map(s => [s, rwSlotId(s, v && v[s])]).filter(e => e[1]));
@@ -112,6 +112,15 @@ function rwSetReady(n, code = club && club.code) {
   rwRedrawClub();
   if (typeof clubSheet !== 'undefined' && clubSheet && !/^rw/.test(clubSheet.view) && typeof renderClub === 'function') renderClub();
 }
+// Your level (XP over all games your phone saved), learned from the pass answer for the profile level card. Yours only: the server never sends it
+// for anyone else, and it is held in memory only.
+const rwLevel = { code: null, v: null };
+function rwSetLevel(l, code = club && club.code) {
+  const v = l && Number.isInteger(l.level) && Number.isInteger(l.xp) && Number.isInteger(l.toNext) && Number.isInteger(l.max) ? { level: l.level, xp: l.xp, toNext: l.toNext, max: l.max } : null;
+  const changed = rwLevel.code !== code || JSON.stringify(rwLevel.v) !== JSON.stringify(v);
+  rwLevel.code = code; rwLevel.v = v;
+  if (changed && club && club.code === code && rwShown() && typeof renderProfile === 'function') renderProfile();
+}
 let rwBusy = false, rwAt = 0, rwLooksBusy = false, rwLooksAt = 0, rwLooksCode = null;
 const rwLooksByClub = Object.create(null);
 const rwClubLooks = () => (club && club.code && rwLooksByClub[club.code]) || null;
@@ -160,7 +169,7 @@ const Rewards = {
     rwReady.busy = true;
     try {
       const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() });
-      if (club && club.code === code && d && Array.isArray(d.tiers)) rwSetReady(d.tiers.filter(t => t.unlocked && !t.claimed).length, code);
+      if (club && club.code === code && d && Array.isArray(d.tiers)) { rwSetLevel(d.level, code); rwSetReady(d.tiers.filter(t => t.unlocked && !t.claimed).length, code); }
     } catch { /* offline or off: keep the last value */ } finally { rwReady.busy = false; }
   },
   // Fetch the club's opt-in worn looks (allow-listed item ids only; never balance, streak or history). Skipped when rewards are off or hidden.
@@ -194,6 +203,14 @@ const Rewards = {
   titleHTML(name) {
     const l = Rewards.lookOf(name), t = l && Object.hasOwn(RW_TITLES, l.title) ? RW_TITLES[l.title] : '';
     return t ? `<span class="rw-title">${esc(t)}</span>` : '';
+  },
+  // The level card at the top of your own Stats tab (WI-14): Level N of 25, total XP, and what is left to the next level. Own profile only.
+  levelCardHTML(name) {
+    if (!rwShown() || !isMe(name)) return '';
+    const l = club && rwLevel.code === club.code ? rwLevel.v : null;
+    if (!l) { Rewards.syncReady(); return ''; }
+    const next = l.level >= l.max ? 'You are at the top level.' : `${l.toNext} XP to level ${l.level + 1}.`;
+    return `<section class="rw-level" aria-label="Your level"><span class="rw-lv" aria-hidden="true">${l.level}</span><div><b>Level ${l.level} of ${l.max}</b><small>${l.xp} XP all time</small></div><p>${next} Games sent from a club player's phone give ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} a day.</p></section>`;
   },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
@@ -265,7 +282,7 @@ const Rewards = {
     const lad = RW_BONUS.map(([d, b]) => `+${b} on day ${d}`).join(', '), top = RW_BONUS[RW_BONUS.length - 1];
     const spin = rwBoxOn() ? `<li><b>Daily spin:</b> one free spin a day (UTC) wins ${RW_SPIN.min} to ${RW_SPIN.max} Dinks. It is drawn on the server and the chances are shown on the card. It never depends on a score.</li>` : '';
     const box = rwBoxOn() ? `<li><b>Mystery box:</b> opens a random item you don't own yet for ${rwDinks(RW_BOX.cost)}, up to ${RW_BOX.limit} a day. If you already own it, ${rwDinks(RW_BOX.refund)} come back. The odds are shown before you open one.</li>` : '';
-    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${RW_DAY_PAY}</b> for the first game you play each day. A logged result counts the same as one scored live.</li><li><b>Daily streak:</b> play on days in a row for a bonus: ${lad}, then +${top[1]} every ${top[0]}th day after that. Miss a day and the streak starts again.</li><li>Only games saved from your own linked name count. Winning, losing or the score never changes what you earn.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} rewards that unlock as you play games this season. Games count, never results.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
+    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${RW_DAY_PAY}</b> for the first game you play each day. A logged result counts the same as one scored live.</li><li><b>Daily streak:</b> play on days in a row for a bonus: ${lad}, then +${top[1]} every ${top[0]}th day after that. Miss a day and the streak starts again.</li><li>Only games saved from your own linked name count. Winning, losing or the score never changes the Dinks you earn.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
   },
   // The "You" rows (shown only where the club has rewards on): the way into the Shop and Season pass, and the one switch on this phone.
   youRowHTML() {

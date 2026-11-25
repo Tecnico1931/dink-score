@@ -1694,7 +1694,7 @@ await step('rewards Manage shop: organizer-only prices, validated, charged by th
   ok(await cfPost(club, { action: 'set-mystery-box', on: false, ownerToken: cf.owner }));
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
 });
-await step('rewards season pass: server-derived from verified games in club season, idempotent claims, forged claims ignored, follows season-end, rename, merge and anonymise', async () => {
+await step('rewards season pass and XP: server-derived from verified games in club season, idempotent claims, forged claims ignored, follows season-end, rename, merge and anonymise', async () => {
   const pc = ok(await call(club, 'POST', { body: { name: 'Season pass club', pin: '357911' } }), 201);
   const pcode = pc.club.code, powner = pc.ownerToken, ppin = '357911';
   const pPost = (h, b) => call(h, 'POST', { body: { code: pcode, ...b } });
@@ -1702,7 +1702,7 @@ await step('rewards season pass: server-derived from verified games in club seas
   const ptok = {};
   const join = async name => { ptok[name] = ok(await pPost(playersApi, { action: 'claim', name, ownerToken: powner })).playerToken; };
   const post = (name, a) => pPost(playersApi, { name, playerToken: ptok[name], ...a });
-  const passRows = async name => (await pg.query(`SELECT id, amount FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id LIKE 'pass:%' ORDER BY id`, [pcode, name.toLowerCase()])).rows;
+  const passRows = async name => (await pg.query(`SELECT id, amount FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id LIKE 'xpass:%' ORDER BY id`, [pcode, name.toLowerCase()])).rows;
   const owned = async name => (await pg.query(`SELECT item FROM reward_items WHERE club = $1 AND name_key = $2 ORDER BY item`, [pcode, name.toLowerCase()])).rows.map(r => r.item);
   await join('Noa'); await join('Ollie'); await join('Pat');
   // Rewards off: refused with 403.
@@ -1714,70 +1714,89 @@ await step('rewards season pass: server-derived from verified games in club seas
     assert.equal((await post('Noa', { action: 'rewards-pass', ...bad })).status, 403);
     assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: 1, ...bad })).status, 403);
   }
-  // Start with 0 games this season: nothing unlocked, claim refused (409), invalid tier refused (400).
+  // Start with 0 XP this season: nothing unlocked, claim refused (409), invalid tier refused (400).
   let p = ok(await post('Noa', { action: 'rewards-pass' }));
-  assert.equal(p.games, 0); assert.equal(p.tiers.length, 10); assert.equal(p.claimable, 0);
+  assert.equal(p.xp, 0); assert.equal(p.maxXp, 1000); assert.equal(p.tiers.length, 8); assert.equal(p.claimable, 0);
+  assert.deepEqual(p.level, { xp: 0, level: 1, max: 25, toNext: 40, into: 0, step: 40 });
   const seasonId = p.season.id;
   assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: 1 })).status, 409, 'not yet earned');
-  for (const bad of [0, 11, 1.5, '1', null, '__proto__']) assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: bad })).status, 400);
-  // Forged client fields (games: 99, amount: 999, dinks: 999, item: 'frame-double') are completely ignored.
-  assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: 1, games: 99, amount: 999, dinks: 999, item: 'frame-double' })).status, 409);
-  // A game saved by Ollie's phone where Noa played does NOT count for Noa; a game saved by Noa's phone where Noa lost DOES count.
+  for (const bad of [0, 9, 1.5, '1', null, '__proto__']) assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: bad })).status, 400);
+  // Forged client fields (xp: 999, amount: 999, dinks: 999, item: 'frame-double') are completely ignored.
+  assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: 1, xp: 999, amount: 999, dinks: 999, item: 'frame-double' })).status, 409);
+  // A game saved by Ollie's phone where Noa played does NOT give Noa XP; Ollie, who saved it, gets the XP.
   const saveAs = (who, id, teams, score, agoMs = 60000) => pPost(games, { games: [cfGame(id, { teams, score, endedAt: now - agoMs })], playerName: who, playerToken: ptok[who] });
   ok(await saveAs('Ollie', 'pass-other-1', [['Noa', 'Ollie'], ['Ana', 'Ben']], [11, 4], 90000000));
-  assert.equal(ok(await post('Noa', { action: 'rewards-pass' })).games, 0, 'another phone saving does not count');
-  assert.equal(ok(await post('Ollie', { action: 'rewards-pass' })).games, 1, 'counts for Ollie who saved it');
-  // Save 5 games as Noa (all losses: scores/results never matter) + 1 game backdated to an earlier season in DB.
-  for (let i = 1; i <= 5; i++) ok(await saveAs('Noa', 'pass-noa-' + i, [['Noa', 'Ollie'], ['Ana', 'Ben']], [i, 11], (i + 1) * 7200e3));
+  assert.equal(ok(await post('Noa', { action: 'rewards-pass' })).xp, 0, 'another phone saving gives no XP');
+  assert.ok([10, 15].includes(ok(await post('Ollie', { action: 'rewards-pass' })).xp), 'Ollie saved it: 10 XP, 15 if the win was recorded');
+  // XP games: one saved for real through the API (a loss: 10 XP) plus rows put straight into the table, a few per UTC day inside the season
+  // (the 300 XP/day cap would stop a single test day from reaching the later tiers), and one game from before the season that must not count.
+  ok(await saveAs('Noa', 'pass-noa-live', [['Noa', 'Ollie'], ['Ana', 'Ben']], [3, 11], 7200e3));
+  let dayN = 0;
+  const addGames = async (who, n, tag, startMs) => {
+    for (let i = 0; i < n; i++) {
+      const at = startMs + 3600e3 + Math.floor(dayN++ / 4) * 864e5 + (i % 4) * 60e3;
+      await pg.query(`INSERT INTO games (club, id, data, ended_at) VALUES ($1, $2, $3::jsonb, $4)`, [pcode, `${tag}-${i}`, JSON.stringify({ id: `${tag}-${i}`, mode: 'doubles', teams: [[who, 'Ollie'], ['Ana', 'Ben']], score: [3, 11], winner: 1, endedAt: at, receivedAt: at, scoredBy: who.toLowerCase() }), at]);
+    }
+  };
+  await addGames('Noa', 13, 'pass-noa-a', p.season.start);
   await pg.query(`INSERT INTO games (club, id, data, ended_at) VALUES ($1, 'pass-old-season', $2::jsonb, $3)`,
     [pcode, JSON.stringify({ id: 'pass-old-season', mode: 'doubles', teams: [['Noa', 'Ollie'], ['Ana', 'Ben']], score: [11, 2], winner: 0, endedAt: p.season.start - 86400e3, receivedAt: p.season.start - 86400e3, scoredBy: 'noa' }), p.season.start - 86400e3]);
   p = ok(await post('Noa', { action: 'rewards-pass' }));
-  assert.equal(p.games, 5, 'only current-season verified games count');
-  assert.equal(p.claimable, 3, 'tiers 1, 2 and 3 unlocked');
-  // Claim tier 1 once (with forged amount/dinks ignored -> pays exact tier 1 Dinks = 2).
-  let c1 = ok(await post('Noa', { action: 'rewards-pass-claim', tier: 1, seasonId, amount: 999, dinks: 999 }));
-  assert.deepEqual([c1.claimed, c1.gained, c1.dinks, c1.granted], [true, 2, 2, null]);
-  assert.deepEqual(await passRows('Noa'), [{ id: `pass:${seasonId}:1`, amount: 2 }]);
+  assert.equal(p.xp, 140, '14 verified losses this season at 10 XP; the old season and the other phone do not count');
+  assert.equal(p.claimable, 1, 'tier 1 (125 XP) unlocked');
+  assert.equal(p.level.level, 4, 'all-time XP 150 = level 4 (40+50+60 = 150)');
+  // Claim tier 1 once (forged amount/dinks ignored -> pays exactly 25 and grants The Grinder).
+  const c1 = ok(await post('Noa', { action: 'rewards-pass-claim', tier: 1, seasonId, amount: 999, dinks: 999 }));
+  assert.deepEqual([c1.claimed, c1.gained, c1.dinks, c1.granted && c1.granted.id], [true, 25, 25, 'title-grinder']);
+  assert.deepEqual(await passRows('Noa'), [{ id: `xpass:${seasonId}:1`, amount: 25 }]);
+  assert.deepEqual(await owned('Noa'), ['title-grinder']);
   // Replay and concurrent double-claim add nothing.
   const rep = ok(await post('Noa', { action: 'rewards-pass-claim', tier: 1, seasonId }));
-  assert.deepEqual([rep.claimed, rep.gained, rep.dinks], [false, 0, 2]);
+  assert.deepEqual([rep.claimed, rep.gained, rep.dinks], [false, 0, 25]);
+  await addGames('Noa', 11, 'pass-noa-b', p.season.start);
   const race = await Promise.all([post('Noa', { action: 'rewards-pass-claim', tier: 2, seasonId }), post('Noa', { action: 'rewards-pass-claim', tier: 2, seasonId })]);
   assert.deepEqual(race.map(r => r.status), [200, 200]);
   assert.deepEqual(race.map(r => r.json.claimed).sort(), [false, true], 'concurrent claim pays once only');
-  assert.equal(ok(await post('Noa', { action: 'rewards-pass' })).dinks, 5);
-  // Tier 3 grants free cosmetic item (frame-court) + 2 Dinks, and the shop sees it as owned immediately.
+  assert.equal(ok(await post('Noa', { action: 'rewards-pass' })).dinks, 50);
+  // Tier 3 grants the pass-only sound; the shop lists it as owned, and it cannot be bought.
+  await addGames('Noa', 13, 'pass-noa-c', p.season.start);
   const c3 = ok(await post('Noa', { action: 'rewards-pass-claim', tier: 3, seasonId }));
-  assert.equal(c3.claimed, true); assert.equal(c3.gained, 2); assert.equal(c3.granted.id, 'frame-court'); assert.equal(c3.dinks, 7);
-  assert.deepEqual(await owned('Noa'), ['frame-court']);
-  assert.equal(ok(await post('Noa', { action: 'rewards-catalog' })).items.find(i => i.id === 'frame-court').owned, true);
-  // Tier 4 still needs 8 games -> refused with 409.
+  assert.equal(c3.claimed, true); assert.equal(c3.gained, 25); assert.equal(c3.granted.id, 'sound-whistle'); assert.equal(c3.dinks, 75);
+  assert.deepEqual(await owned('Noa'), ['frame-season', 'sound-whistle', 'title-grinder']);
+  assert.equal(ok(await post('Noa', { action: 'rewards-catalog' })).items.find(i => i.id === 'sound-whistle').owned, true);
+  const other = ok(await post('Ollie', { action: 'rewards-catalog' }));
+  assert.ok(!other.items.some(i => i.id === 'sound-whistle'), 'a player who has not earned a pass item does not see it in the shop');
+  assert.equal((await post('Noa', { action: 'rewards-buy', item: 'ring-nope' })).status, 400);
+  assert.equal((await post('Ollie', { action: 'rewards-buy', item: 'title-closer' })).status, 409, 'pass items are not for sale');
+  // Tier 4 still needs 500 season XP -> refused with 409.
   assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: 4, seasonId })).status, 409);
   // Nothing leaks into GET /api/club.
-  assert.ok(!/pass:|rewards-pass|frame-court/.test(JSON.stringify(ok(await pGet()))), 'GET /api/club stays free of pass data');
-  // Ending the club season starts a fresh pass track; stale seasonId is refused with 409; already-owned cosmetic tier pays item price in Dinks.
+  assert.ok(!/xpass:|rewards-pass|title-grinder/.test(JSON.stringify(ok(await pGet()))), 'GET /api/club stays free of pass data');
+  // Ending the club season starts a fresh pass track (season XP back to 0, level XP kept); stale seasonId is refused; an owned item tier pays Dinks only.
   const ended = ok(await pPost(club, { action: 'season-end', seasonId, name: 'Pass Season 2', ownerToken: powner }));
   const s2 = ended.season.id;
   assert.notEqual(s2, seasonId);
   assert.equal((await post('Noa', { action: 'rewards-pass-claim', tier: 1, seasonId })).status, 409, 'stale seasonId refused');
-  assert.equal(ok(await post('Noa', { action: 'rewards-pass' })).games, 0, 'new season starts at 0 games');
-  for (let i = 1; i <= 5; i++) ok(await saveAs('Noa', 'pass-s2-' + i, [['Noa', 'Ollie'], ['Ana', 'Ben']], [11, i], (i + 10) * 7200e3));
-  const c3Again = ok(await post('Noa', { action: 'rewards-pass-claim', tier: 3, seasonId: s2 }));
-  assert.deepEqual([c3Again.claimed, c3Again.gained, c3Again.granted], [true, 45, null], 'already-owned cosmetic tier pays its Dinks price instead');
-  // Rename preserves season games, claimed tiers and granted items.
+  const fresh = ok(await post('Noa', { action: 'rewards-pass' }));
+  assert.equal(fresh.xp, 0, 'new season starts at 0 XP'); assert.ok(fresh.level.xp >= 380, 'level XP is all time');
+  await addGames('Noa', 13, 'pass-noa-s2', fresh.season.start);
+  const c1Again = ok(await post('Noa', { action: 'rewards-pass-claim', tier: 1, seasonId: s2 }));
+  assert.deepEqual([c1Again.claimed, c1Again.gained, c1Again.granted], [true, 25, null], 'an already-owned item tier pays just the 25 Dinks');
+  // Rename preserves season XP, claimed tiers and granted items.
   ok(await pPost(playersApi, { action: 'rename', name: 'Noa', newName: 'Nora', ownerToken: powner }));
   const afterRen = ok(await pPost(playersApi, { action: 'rewards-pass', name: 'Nora', playerToken: ptok.Noa }));
-  assert.equal(afterRen.games, 5);
-  assert.equal(afterRen.tiers[2].claimed, true, 'tier 3 stays claimed after rename');
-  assert.equal(afterRen.dinks, 52);
-  assert.deepEqual(await owned('Nora'), ['frame-court']);
-  // Merge into an unclaimed player preserves pass claims, games and items without allowing a double claim.
+  assert.equal(afterRen.xp, 130);
+  assert.equal(afterRen.tiers[0].claimed, true, 'tier 1 stays claimed after rename');
+  assert.equal(afterRen.dinks, 100);
+  assert.deepEqual(await owned('Nora'), ['frame-season', 'sound-whistle', 'title-grinder']);
+  // Merge into an unclaimed player preserves pass claims, XP and items without allowing a double claim.
   ok(await pPost(playersApi, { action: 'release', name: 'Pat', ownerToken: powner }));
   ok(await pPost(playersApi, { action: 'merge', name: 'Nora', into: 'Pat', ownerToken: powner }));
   const afterMerge = ok(await pPost(playersApi, { action: 'rewards-pass', name: 'Pat', playerToken: ptok.Noa }));
-  assert.equal(afterMerge.games, 5);
-  assert.equal(afterMerge.tiers[2].claimed, true, 'tier 3 stays claimed after merge');
-  assert.deepEqual(await owned('Pat'), ['frame-court']);
-  const mergedRep = ok(await pPost(playersApi, { action: 'rewards-pass-claim', name: 'Pat', playerToken: ptok.Noa, tier: 3, seasonId: s2 }));
+  assert.equal(afterMerge.xp, 130);
+  assert.equal(afterMerge.tiers[0].claimed, true, 'tier 1 stays claimed after merge');
+  assert.deepEqual(await owned('Pat'), ['frame-season', 'sound-whistle', 'title-grinder']);
+  const mergedRep = ok(await pPost(playersApi, { action: 'rewards-pass-claim', name: 'Pat', playerToken: ptok.Noa, tier: 1, seasonId: s2 }));
   assert.equal(mergedRep.claimed, false, 'cannot re-claim merged tier');
   // Anonymise removes pass ledger rows and items and blocks further pass calls.
   ok(await pPost(playersApi, { action: 'anonymise', name: 'Pat', ownerToken: powner }));
