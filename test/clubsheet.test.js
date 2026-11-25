@@ -32,6 +32,8 @@ function renderClubHome(over = {}) {
     clubOps: () => [],
     gnUpcoming: () => over.upcoming || [],
     otCan: () => !!over.org,
+    otState: () => ({ requests: over.pending || 0, held: 0, dupes: 0 }),
+    otPendingTotal: s => s.requests + s.held + s.dupes,
     otEntryHTML: () => '<button type="button" class="btn btn-soft block ot-row ot-entry" data-act="ot-open">Organizer tools</button>',
     odCanOrg: () => !!over.org,
     isCreator: () => !!over.creator,
@@ -58,30 +60,44 @@ function actionIds(markup) {
   return ids;
 }
 
-test('club sheet is grouped into three labelled sections with h3 headings and most-used jobs first', () => {
+test('club sheet is grouped into three labelled sections with h3 headings, This club first', () => {
+  const secsOf = out => [...out.matchAll(/<section class="club-group" aria-labelledby="([^"]+)">\s*<h3 id="\1" class="club-sec">([^<]+)<\/h3>/g)].map(m => m[2]);
   const out = renderClubHome({ myName: 'Ana', org: true, creator: true });
-  const secs = [...out.matchAll(/<section class="club-group" aria-labelledby="([^"]+)">\s*<h3 id="\1" class="club-sec">([^<]+)<\/h3>/g)].map(m => m[2]);
-  assert.deepEqual(secs, ['Play and events', 'This club', 'Organizer']);
+  assert.deepEqual(secsOf(out), ['This club', 'Play and events', 'Organizer']);
   assert.match(out, /<h2 id="club-h" tabindex="-1">Preview Club<\/h2>/);
-  const playSection = out.slice(out.indexOf('id="club-sec-play"'), out.indexOf('id="club-sec-club"'));
-  const playOrder = actionIds(playSection);
-  assert.deepEqual(playOrder, ['gn:open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open']);
+  const playSection = out.slice(out.indexOf('id="club-sec-play"'), out.indexOf('id="club-sec-org"'));
+  assert.deepEqual(actionIds(playSection), ['club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open']);
+  // the club code, link and QR are above every row of Play and events
+  assert.ok(out.indexOf('Club code') < out.indexOf('id="club-sec-play"'));
+});
+
+test('Organizer moves up under This club only while something waits for an organizer', () => {
+  const secsOf = out => [...out.matchAll(/<h3 id="club-sec-(\w+)"/g)].map(m => m[1]);
+  assert.deepEqual(secsOf(renderClubHome({ org: true, creator: true, myName: 'Ana', pending: 2 })), ['club', 'org', 'play']);
+  assert.deepEqual(secsOf(renderClubHome({ org: true, creator: true, myName: 'Ana', pending: 0 })), ['club', 'play', 'org']);
+  assert.deepEqual(secsOf(renderClubHome({ org: false, pending: 5 })), ['club', 'play', 'org'], 'members never see the pending order');
+});
+
+test('Game nights is not repeated on the club sheet (it lives on the Events tab and in Organizer tools)', () => {
+  const out = renderClubHome({ myName: 'Ana', org: true, creator: true, upcoming: [{ id: 'n1' }] });
+  assert.ok(!/data-gn=/.test(out));
+  assert.ok(!/Game nights/.test(out));
 });
 
 test('every action id in the club sheet appears exactly once across every role', () => {
   const cases = [
     ['plain member (unclaimed)', { org: false, creator: false, myName: null },
-      ['gn:open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'club-copy', 'club-share', 'club-add', 'move-out-open', 'pin-unlock-open', 'club-close', 'club-leave']],
+      ['club-copy', 'club-share', 'club-add', 'move-out-open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'pin-unlock-open', 'club-close', 'club-leave']],
     ['plain member (claimed)', { org: false, creator: false, myName: 'Ana' },
-      ['gn:open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'pin-unlock-open', 'club-close', 'club-leave']],
+      ['club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'pin-unlock-open', 'club-close', 'club-leave']],
     ['plain member (openClaim without PIN)', { club: { hasPin: false, openClaim: true }, org: false, creator: false, canSetFirstPin: true, myName: null },
-      ['gn:open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'club-copy', 'club-share', 'club-add', 'move-out-open', 'pin-set-open', 'club-close', 'club-leave']],
+      ['club-copy', 'club-share', 'club-add', 'move-out-open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'pin-set-open', 'club-close', 'club-leave']],
     ['unlocked organizer (PIN, not creator)', { org: true, creator: false, myName: 'Ana' },
-      ['gn:open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'ot-open', 'od:open', 'pin-lock', 'club-close', 'club-leave']],
+      ['club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'ot-open', 'od:open', 'pin-lock', 'club-close', 'club-leave']],
     ['creator organizer', { org: true, creator: true, myName: 'Ana' },
-      ['gn:open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'ot-open', 'od:open', 'recovery-open', 'club-close', 'club-leave']],
+      ['club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'ot-open', 'od:open', 'recovery-open', 'club-close', 'club-leave']],
     ['creator organizer without PIN', { club: { hasPin: false }, org: true, creator: true, canSetFirstPin: true, myName: 'Ana' },
-      ['gn:open', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'ot-open', 'od:open', 'recovery-open', 'club-close', 'club-leave']]
+      ['club-copy', 'club-share', 'club-add', 'move-out-open', 'member-leave', 'club-board', 'club-games', 'club-mine', 'cl:open', 'pk-open', 'ot-open', 'od:open', 'recovery-open', 'club-close', 'club-leave']]
   ];
 
   for (const [label, opts, expected] of cases) {

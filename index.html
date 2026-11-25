@@ -5502,32 +5502,15 @@ function clubRow(act, ico, title, hint = '') {
 function clubHomeHTML(c) {
   const local = store.get('pb.games', []).length;
   const deleted = clubData ? (clubData.deleted || []).filter(g => !clubOps().some(o => o.type === 'restore' && o.id === g.id)) : [];
-  const upcoming = gnUpcoming().length;
   const org = otCan();
   const orgRows = org ? [
     odCanOrg() ? clubRow('data-od="open"', '🛡️', 'Who\u2019s an organizer', 'Unlocked phones that can organize this club') : '',
     isCreator() ? clubRow('data-act="recovery-open"', '🆘', 'Creator recovery code', 'Restore organizer access if you lose this phone') : '',
     club.hasPin && !isCreator() && hasOrganizer() ? clubRow('data-act="pin-lock"', '🔒', 'Lock this phone', 'Require the organizer PIN on this phone again') : ''
   ].filter(Boolean).join('') : '';
-  return `<h2 id="club-h" tabindex="-1">${esc(club.name)}</h2>
-    ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
-    ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
-    ${club.deleteAt ? `<p class="err" role="status">${esc(club.name)} is scheduled for deletion on ${esc(new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}. An organizer can undo it under Your data.</p>` : ''}
-    ${needsAttentionHTML()}
-    ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button type="button" class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
-    ${clubInfoHTML()}
-    <section class="club-group" aria-labelledby="club-sec-play">
-      <h3 id="club-sec-play" class="club-sec">Play and events</h3>
-      <div class="club-rows">
-        ${clubRow('data-gn="open" data-gn-from="club"', '📅', upcoming ? `Game nights (${upcoming} upcoming)` : 'Game nights', upcoming ? 'See who is coming and RSVP' : 'See upcoming nights and RSVP')}
-        ${clubRow('data-act="club-board"', '🏟️', 'Open play court board', 'Who is on court and up next')}
-        ${clubRow('data-act="club-games"', '📡', 'Games going on', 'Live scores from other courts')}
-        ${clubRow('data-act="club-mine"', '📊', 'My games across clubs', 'Your record and ratings in every club')}
-        ${clubRow('data-cl="open"', '🤝', 'Linked clubs', 'One leaderboard with a friendly club')}
-        ${clubRow('data-act="pk-open"', '🏓', 'Pickup session', 'Play with people outside the club')}
-      </div>
-    </section>
-    <section class="club-group" aria-labelledby="club-sec-club">
+  // This club (code, link, QR) leads; Organizer follows it only when something waits for an organizer.
+  const secs = {
+    club: `<section class="club-group" aria-labelledby="club-sec-club">
       <h3 id="club-sec-club" class="club-sec">This club</h3>
       <div class="code-card"><span class="lab">Club code</span><span class="code">${esc(club.code)}</span>
         <p>Share the code or the invite link. Anyone with either can see and add games.</p>
@@ -5537,8 +5520,18 @@ function clubHomeHTML(c) {
         ${clubRow('data-act="move-out-open"', '📲', 'Move to a new phone', 'Copy your clubs and access with a one-time code')}
         ${myName() && myToken() ? clubRow('data-act="member-leave"', '👋', c.confirmLeave ? 'Tap again to leave' : `Leave the member list as ${esc(myName())}`, 'Your games and ratings stay') : ''}
       </div>
-    </section>
-    <section class="club-group" aria-labelledby="club-sec-org">
+    </section>`,
+    play: `<section class="club-group" aria-labelledby="club-sec-play">
+      <h3 id="club-sec-play" class="club-sec">Play and events</h3>
+      <div class="club-rows">
+        ${clubRow('data-act="club-board"', '🏟️', 'Open play court board', 'Who is on court and up next')}
+        ${clubRow('data-act="club-games"', '📡', 'Games going on', 'Live scores from other courts')}
+        ${clubRow('data-act="club-mine"', '📊', 'My games across clubs', 'Your record and ratings in every club')}
+        ${clubRow('data-cl="open"', '🤝', 'Linked clubs', 'One leaderboard with a friendly club')}
+        ${clubRow('data-act="pk-open"', '🏓', 'Pickup session', 'Play with people outside the club')}
+      </div>
+    </section>`,
+    org: `<section class="club-group" aria-labelledby="club-sec-org">
       <h3 id="club-sec-org" class="club-sec">Organizer</h3>
       ${!club.hasPin ? `<div class="org-card" role="alert" style="border:1px solid var(--down)"><span class="lab">This club is not protected</span><p>It has no organizer PIN, so anyone with the club code can delete and change games.${org ? ' Set a PIN in Organizer tools to fix that.' : canSetFirstPin() ? ' Set a PIN to fix that.' : ` Ask whoever created ${esc(club.name)} to set one.`}</p>${!org && canSetFirstPin() ? '<div class="org-btns"><button type="button" class="btn btn-ink" data-act="pin-set-open">Set a PIN</button></div>' : ''}</div>` : ''}
       ${org && club.hasPin && club.shortPin ? '<p class="err" role="status">This PIN is shorter than 6 digits. Change it in Organizer tools so it is harder to guess.</p>' : ''}
@@ -5548,7 +5541,17 @@ function clubHomeHTML(c) {
         <p>Deleting, restoring and running events needs the PIN.</p>
         <div class="org-btns"><button type="button" class="btn btn-ink" data-act="pin-unlock-open">Unlock this phone</button></div></div>` : ''}
       ${deleted.length ? `<div class="field" style="margin:0"><span class="lab">Recently deleted</span><ul class="deleted">${deleted.slice(0, 10).map(g => `<li><span>${esc(teamLabel(g.teams[0]))} ${Number(g.score[0])}–${Number(g.score[1])} ${esc(teamLabel(g.teams[1]))}</span><button type="button" class="link" data-restore="${esc(g.id)}">Restore</button></li>`).join('')}</ul><p class="note">Deleted games can be restored for 30 days.</p></div>` : ''}
-    </section>
+    </section>`
+  };
+  const order = org && otPendingTotal(otState(c)) > 0 ? ['club', 'org', 'play'] : ['club', 'play', 'org'];
+  return `<h2 id="club-h" tabindex="-1">${esc(club.name)}</h2>
+    ${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}
+    ${c.newOrganizerCode ? `<div class="org-card" role="status"><span class="lab">Your organizer code</span><span class="code">${esc(c.newOrganizerCode)}</span><p>Write this down. It is shown once. Enter it on another phone to organize ${esc(club.name)} there. This phone is already unlocked.</p></div>` : ''}
+    ${club.deleteAt ? `<p class="err" role="status">${esc(club.name)} is scheduled for deletion on ${esc(new Date(club.deleteAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}. An organizer can undo it under Your data.</p>` : ''}
+    ${needsAttentionHTML()}
+    ${local && !uploadedHere() ? `<div class="upload-card"><b>${local} game${local === 1 ? '' : 's'} on this phone</b><p>Add the games you scored before joining to ${esc(club.name)}'s record.</p><button type="button" class="btn btn-blue" data-act="club-upload" ${uploading ? 'disabled' : ''}>Upload my games</button></div>` : ''}
+    ${clubInfoHTML()}
+    ${order.map(k => secs[k]).join('\n    ')}
     <p class="note legal-links"><a href="/privacy" target="_blank" rel="noopener">Privacy</a><span aria-hidden="true">·</span><a href="/terms" target="_blank" rel="noopener">Terms</a></p>
     <div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button>
       <button type="button" class="btn btn-line-danger" data-act="club-leave">Leave ${esc(club.name)} on this phone</button></div>`;
