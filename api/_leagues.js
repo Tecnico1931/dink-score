@@ -29,9 +29,10 @@ import { newShareToken } from './_share.js';
 import { notify, vapidFromEnv, leagueWeekMessages, leagueMovedMessages, leagueResultMessages } from './_push.js';
 import * as L from './_league.js';
 import * as W from './_leagueweeks.js';
+import * as PO from './_leagueplayoffs.js';
 
 export const LEAGUE_ACTIONS = ['league-create', 'league-result', 'league-correct', 'league-results-by', 'league-end', 'league-next-season', 'league-share', 'league-share-new', 'league-share-off', 'league-delete',
-  'league-challenge', 'league-answer', 'league-schedule', 'league-reschedule', 'league-forfeit', 'league-notify'];
+  'league-challenge', 'league-answer', 'league-schedule', 'league-reschedule', 'league-forfeit', 'league-notify', 'league-playoffs-start', 'league-playoffs-fix'];
 export const MAX_LEAGUES = 50; // per club, not counting deleted ones
 
 async function readOne(sql, code, id) {
@@ -58,11 +59,13 @@ async function mutate(sql, code, id, fn) {
 export async function leagueGet(sql, club, req, res, params) {
   const code = club.code;
   const id = params.get('league');
-  if (id) return replyTagged(req, res, code + ':league:' + id, { league: L.view(await readOne(sql, code, id)) });
+  if (id) return replyTagged(req, res, code + ':league:' + id, { league: present(await readOne(sql, code, id)) });
   const rows = await sql`SELECT data FROM leagues WHERE club = ${code} AND deleted_at IS NULL ORDER BY updated_at DESC, id LIMIT ${MAX_LEAGUES}`;
   return replyTagged(req, res, code + ':leagues', { leagues: rows.map(r => L.summary(r.data)) });
 }
 
+// The league as the app shows it, with the playoff bracket (slots named) once there is one.
+const present = lg => Object.assign(L.view(lg), lg.playoffs ? { playoffs: PO.playoffView(lg) } : {});
 const fix = fn => { try { return fn(); } catch (e) { if (e.status) throw fail(e.status, e.message); throw e; } };
 
 // Returns { body, status? } (the caller sends it), or throws.
@@ -79,7 +82,19 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
     const actor = { organizer, name: sender && sender !== 'organizer' ? sender : null };
     if (action !== 'league-result') { // an open challenge (send, accept, decline, withdraw): the same who-may-act rules, no game
       const { league } = await mutate(sql, code, id, lg => fix(() => (action === 'league-challenge' ? L.openChallenge(lg, body, now, actor) : L.answerChallenge(lg, body.challengeId, body.answer, now, actor))));
-      return { body: { league: L.view(league) } };
+      return { body: { league: present(league) } };
+    }
+    if (body.playoff) { // a playoff match: its players or an organizer, like a season match; saved once as the game <leagueId>-po-<matchId>
+      const matchId = String(body.matchId || '');
+      const { league } = await mutate(sql, code, id, lg => fix(() => {
+        const P = lg.playoffs, m = P && P.bracket.matches.find(x => x.id === matchId);
+        if (m) L.checkResultActor(lg, m.slots.map(s => (typeof s === 'number' && s >= 0 ? P.field[s].members : [])), actor);
+        return PO.recordPlayoff(lg, matchId, body.score, now);
+      }));
+      const endedAt = Math.min(now + 864e5, Math.max(Date.UTC(2015, 0, 1), Math.trunc(Number(body.endedAt)) || now));
+      const game = PO.playoffGame(league, matchId, endedAt);
+      if (game) await recordGame(sql, club, code, league, Object.assign(game, { startedAt: endedAt }), body, now, body.rallyLog);
+      return { body: { league: present(league) } };
     }
     const { league, out } = await mutate(sql, code, id, lg => fix(() => {
       if (lg.kind === 'ladder') return L.recordChallenge(lg, body, now, actor);
@@ -90,7 +105,7 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
     await recordGame(sql, club, code, league, out.game, body, now, body.rallyLog);
     if (out.changed && out.match && out.match.teams) await notify(sql, code, leagueResultMessages(league, out.match, actor.name)); // the match's players: result is in, no score
     if (out.opened) await notify(sql, code, leagueWeekMessages(league, out.opened));
-    return { body: { league: L.view(league) } };
+    return { body: { league: present(league) } };
   }
 
   await requireOrganizer(club, body.pin, req, body.ownerToken);
@@ -106,7 +121,7 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
     const made = fix(() => (input.kind === 'ladder' ? L.createLadder(input, ratings, now, rand) : L.createLeague(input, ratings, now, rand)));
     await sql`INSERT INTO leagues (club, id, data, status) VALUES (${code}, ${made.id}, ${JSON.stringify(made)}::jsonb, ${made.status})`;
     await addToRoster(sql, code, made.entries.flat());
-    return { status: 201, body: { league: L.view(made) } };
+    return { status: 201, body: { league: present(made) } };
   }
 
   if (action === 'league-next-season') {
@@ -117,22 +132,34 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
     if (taken) throw fail(409, 'The next season has already been made.');
     const next = fix(() => L.nextSeason(prev, body, now, rand));
     await sql`INSERT INTO leagues (club, id, data, status) VALUES (${code}, ${next.id}, ${JSON.stringify(next)}::jsonb, ${next.status})`;
-    return { status: 201, body: { league: L.view(next) } };
+    return { status: 201, body: { league: present(next) } };
   }
 
   if (action === 'league-correct') {
     const { league, out } = await mutate(sql, code, id, lg => fix(() => L.correctLeagueResult(lg, String(body.matchId || ''), body.score, now)));
     await correctGame(sql, club, code, out.game, body, 'league score corrected');
-    return { body: { league: L.view(league) } };
+    return { body: { league: present(league) } };
+  }
+  if (action === 'league-playoffs-start') {
+    const { league } = await mutate(sql, code, id, lg => fix(() => { PO.startPlayoffs(lg, { top: body.top }, now); }));
+    return { body: { league: present(league) } };
+  }
+  if (action === 'league-playoffs-fix') {
+    const matchId = String(body.matchId || '');
+    const { league } = await mutate(sql, code, id, lg => fix(() => { PO.correctPlayoff(lg, matchId, body.score, now); }));
+    const [row] = await sql`SELECT ended_at FROM games WHERE club = ${code} AND id = ${`${id}-po-${matchId}`} AND deleted_at IS NULL`;
+    const game = row && PO.playoffGame(league, matchId, Number(row.ended_at));
+    if (game) await correctGame(sql, club, code, Object.assign(game, { startedAt: game.endedAt }), body, 'playoff score corrected');
+    return { body: { league: present(league) } };
   }
   if (action === 'league-schedule') {
     const { league } = await mutate(sql, code, id, lg => fix(() => W.setWeekPlan(lg, body.week, body, now)));
-    return { body: { league: L.view(league) } };
+    return { body: { league: present(league) } };
   }
   if (action === 'league-reschedule') {
     const { league, out } = await mutate(sql, code, id, lg => fix(() => W.rescheduleMatch(lg, body.matchId, body, now)));
     if (out.changed) await notify(sql, code, leagueMovedMessages(league, league.weeks.find(w => w.matches.includes(out.match)) || league.weeks[0], out.match));
-    return { body: { league: L.view(league) } };
+    return { body: { league: present(league) } };
   }
   if (action === 'league-forfeit') {
     const { league, out } = await mutate(sql, code, id, lg => fix(() => {
@@ -141,20 +168,20 @@ export async function leagueAction(sql, club, body, req, { now = Date.now(), ran
       return r;
     }));
     if (out.opened) await notify(sql, code, leagueWeekMessages(league, out.opened));
-    return { body: { league: L.view(league) } };
+    return { body: { league: present(league) } };
   }
   if (action === 'league-notify') {
     const { league, out } = await mutate(sql, code, id, lg => fix(() => ({ week: W.noteWeekSent(lg, body.week, now) })));
     const sent = await notify(sql, code, leagueWeekMessages(league, out.week));
-    return { body: { league: L.view(league), sent, on: !!vapidFromEnv() } };
+    return { body: { league: present(league), sent, on: !!vapidFromEnv() } };
   }
   if (action === 'league-results-by') {
     const { league } = await mutate(sql, code, id, lg => fix(() => L.setResultsBy(lg, body.who, now)));
-    return { body: { league: L.view(league) } };
+    return { body: { league: present(league) } };
   }
   if (action === 'league-end') {
     const { league } = await mutate(sql, code, id, lg => fix(() => (lg.kind === 'ladder' ? L.closeLadderSeason(lg, cleanName(body.season) || undefined, now) : L.endSeason(lg, now))));
-    return { body: { league: L.view(league) } };
+    return { body: { league: present(league) } };
   }
   if (action === 'league-share' || action === 'league-share-new' || action === 'league-share-off') {
     // Same as an event's link: 'share' makes it (or returns the one that exists), 'share-new' replaces it, 'share-off' removes it. Only organizers see the token.

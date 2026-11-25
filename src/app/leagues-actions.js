@@ -36,8 +36,8 @@ async function lgSaveEntry() {
   const s = lgScreen, e = s.entry, L = s.league, sc = lgScores(e);
   if (typeof sc === 'string') { e.error = sc; renderLeagues(true); return; }
   const id = L.id, now = Date.now();
-  if (e.fix) { await lgRun({ action: 'league-correct', id, matchId: e.m, score: sc }, 'Score fixed'); return; }
-  queueOp({ type: 'league-result', leagueId: id, matchId: e.m, score: sc, startedAt: now, endedAt: now, rallies: 0, live: false });
+  if (e.fix) { await lgRun({ action: e.po ? 'league-playoffs-fix' : 'league-correct', id, matchId: e.m, score: sc }, 'Score fixed'); return; }
+  queueOp({ type: 'league-result', leagueId: id, matchId: e.m, playoff: e.po || undefined, score: sc, startedAt: now, endedAt: now, rallies: 0, live: false });
   s.entry = null; renderLeagues(true); showToast('Score saved', false);
 }
 async function lgSaveChallenge() {
@@ -104,6 +104,10 @@ function lgAct(a, d) {
   if (a === 'enter') { s.entry = { m: d.m, s: ['', ''], error: '' }; renderLeagues(true); }
   else if (a === 'fix') { const m = L.weeks.flatMap(w => w.matches).find(x => x.id === d.m); s.entry = { m: d.m, s: m ? m.score.map(String) : ['', ''], fix: true, error: '' }; renderLeagues(true); }
   else if (a === 'fix-result') { const r = L.results.find(x => x.id === d.k); s.entry = { m: d.k, s: r ? r.score.map(String) : ['', ''], fix: true, error: '' }; renderLeagues(true); }
+  else if (a === 'po-enter') { s.entry = { m: d.m, po: true, s: ['', ''], error: '' }; renderLeagues(true); }
+  else if (a === 'po-fix') { const m = L.playoffs && L.playoffs.bracket.matches.find(x => x.id === d.m); s.entry = { m: d.m, po: true, s: m && m.score ? m.score.map(String) : ['', ''], fix: true, error: '' }; renderLeagues(true); }
+  else if (a === 'po-start') lgRun({ action: 'league-playoffs-start', id: L.id, top: s.poTop === undefined ? 2 : s.poTop }, 'Playoffs started');
+  else if (a === 'step' && d.k === 'poTop') { s.poTop = Math.min(8, Math.max(1, (s.poTop === undefined ? 2 : s.poTop) + (+d.d))); announce(`${s.poTop} from each division`); renderLeagues(true); }
   else if (a === 'cancel') { s.entry = s.plan = s.rs = s.ff = null; renderLeagues(true); }
   else if (a === 'plan') { const w = L.weeks.find(x => x.n === +d.n); s.entry = s.rs = s.ff = null; s.plan = { n: +d.n, date: (w && w.date) || '', time: (w && w.time) || '', courts: '', error: '' }; renderLeagues(true); }
   else if (a === 'resched') { const m = L.weeks.flatMap(w => w.matches).find(x => x.id === d.m); s.entry = s.plan = s.ff = null; s.rs = { m: d.m, date: (m && m.date) || '', time: (m && m.time) || '', court: (m && m.court) || '', error: '' }; renderLeagues(true); }
