@@ -304,6 +304,23 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-item .btn { min-height: 44px; min-width: 64px; }
 .rw-sec { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 18px 0 8px; } .rw-sec .rw-h { margin: 0; } .rw-sec-note { margin: 0; font-size: 13px; color: var(--muted); }
 .rw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+/* header of the rewards sheet: who, balance, streak week, bag, earn chips (flat surfaces, no motion) */
+.rw-head { display: grid; gap: 4px; margin: 4px 0 12px; }
+.rw-who { display: flex; align-items: center; gap: 10px; min-width: 0; } .rw-who-n { flex: 1 1 auto; min-width: 0; font-size: 17px; overflow-wrap: anywhere; }
+.rw-who-av { width: 44px; height: 44px; border-radius: 50%; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-weight: 700; font-size: 16px; flex: none; }
+.rw-edit { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.rw-big { margin: 4px 0 0; display: flex; align-items: baseline; gap: 8px; } .rw-big b { font-family: var(--display); font-size: 56px; line-height: 1; font-weight: 800; font-stretch: 75%; font-variant-numeric: tabular-nums; } .rw-big span { font-size: 18px; font-weight: 700; color: var(--muted); }
+.rw-tally { margin: 0; font-size: 14px; color: var(--muted); }
+.rw-streak { margin: 12px 0; padding: 14px; border-radius: 22px; background: var(--surface-2); }
+.rw-streak-top { display: flex; align-items: center; gap: 10px; } .rw-streak-fl svg { display: block; width: 28px; height: 28px; color: var(--accent-text); }
+.rw-streak-tx { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; } .rw-streak-tx b { font-size: 18px; } .rw-streak-tx small, .rw-best { font-size: 14px; color: var(--muted); } .rw-best { flex: none; font-weight: 700; }
+.rw-track { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.rw-dayc { position: relative; display: grid; justify-items: center; gap: 4px; } .rw-dayc b { font-size: 12px; color: var(--muted); }
+.rw-dot { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; background: var(--surface); color: var(--ink); border: 1.5px solid var(--line); }
+.rw-dayc.got .rw-dot { background: var(--court); color: var(--on-court); border-color: var(--court); } .rw-dayc.next .rw-dot { border: 2px solid var(--court-ring); } :root[data-outdoor] .rw-dot { border-color: var(--ink); }
+.rw-inv { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 56px; border: 0; border-radius: 20px; background: var(--surface-2); color: var(--ink); font: inherit; font-size: 17px; font-weight: 700; cursor: pointer; } .rw-inv svg { width: 24px; height: 24px; flex: none; }
+.rw-count { min-width: 28px; padding: 2px 8px; border-radius: 999px; background: var(--court-pill); color: var(--on-court); font-size: 14px; font-weight: 800; text-align: center; }
+.rw-earn { list-style: none; margin: 12px 0 8px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .rw-earn li { padding: 10px 12px; border-radius: 14px; background: var(--surface-2); font-size: 14px; line-height: 1.35; color: var(--muted); } .rw-earn li b { color: var(--ink); } .rw-earn li:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .rw-card { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
 .rw-well { min-height: 76px; display: grid; place-items: center; border-radius: 14px; background: var(--surface-2); }
 .rw-well .rw-sw { margin: 0; }
@@ -3823,7 +3840,11 @@ const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Ma
   const out = { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn };
   if (pet) out.pet = pet;
   return out; };
+const rwBagSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/></svg>';
 const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
+// What day `n` of a streak pays, and the 7 days of the week the streak is in (for the Shop track): checked up to the streak, `next` is the one to play.
+const rwDayPay = n => RW_DAY_PAY + rwBonusFor(n);
+const rwTrack = (day, done) => { const first = Math.floor((Math.max(1, done ? day : day + 1) - 1) / 7) * 7 + 1; return Array.from({ length: 7 }, (_, i) => ({ n: first + i, pay: rwDayPay(first + i), got: first + i <= day, next: first + i === day + 1 })); };
 // The streak as it stands on `today`: a run that missed yesterday and today is broken (0). Playing today or yesterday keeps it.
 const rwStreak = (s, today) => (s.last && rwDayNum(today) - rwDayNum(s.last) <= 1 ? s.streak : 0);
 // The next bonus ahead of `day`: { day, bonus, in } (days to go).
@@ -3970,6 +3991,20 @@ const Rewards = {
       return `<span class="rw-g-p">${av}${esc(n)}${pd}</span>`;
     }).join(' &amp; ');
   },
+  // The Shop button in the bottom bar (between Leaders and Record). Drawn for a visitor with no club (the sheet says to join one) and where the club has
+  // rewards on; gone where they are off or hidden on this phone. It opens the Shop sheet, so it is never the current page.
+  navSync() {
+    const nav = document.querySelector('#tabs nav');
+    if (!nav) return;
+    let b = nav.querySelector('[data-rw="shopnav"]');
+    const show = !rwHidden() && (!club || rwClubOn());
+    if (!show) { if (b) b.hidden = true; return; }
+    if (!b) {
+      b = document.createElement('button'); b.type = 'button'; b.dataset.rw = 'shopnav'; b.innerHTML = `${rwBagSvg}Shop`;
+      nav.insertBefore(b, nav.querySelector('[data-tab="history"]'));
+    }
+    b.hidden = false;
+  },
   // The small flame on the avatar: the streak when it is 2 or more days.
   flameHTML() {
     rwApplyLook(); // the header is drawn on every tab and after every change, so the worn ring is always current
@@ -4023,6 +4058,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-rw]');
   if (!b) return;
   const a = b.dataset.rw;
+  if (a === 'shopnav') { Rewards.openShop(); return; }
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
   if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }
@@ -4334,7 +4370,7 @@ function rwBoxHTML(c, s) {
   const b = s.box, opened = Number(b.openedToday) || 0, limit = Number(b.dailyLimit) || 3, atLimit = opened >= limit;
   const need = Math.max(0, b.price - s.dinks), r = c.boxResult;
   const tiers = b.tiers.map(t => `<li class="rw-tier"><div class="rw-tier-top"><b>${esc(t.label)}</b><span class="rw-pct num">${t.chance}% (${t.chance} in 100)</span></div><p class="rw-tier-items">${esc((t.items || []).map(i => i.name).join(', '))}</p></li>`).join('');
-  const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${rwDinks(r.refund)} returned to your balance.` : 'Added to What you wear.'}</small></span></div>` : '';
+  const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${rwDinks(r.refund)} returned to your balance.` : 'Added to your Inventory.'}</small></span></div>` : '';
   const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : need > 0 ? `${need} more Dinks` : `Open mystery box (${rwDinks(b.price)})`;
   const btnAria = !atLimit && need > 0 ? ` aria-label="Open mystery box for ${rwDinks(b.price)}. You need ${need} more"` : '';
   return `<h3 class="rw-h">Mystery box</h3><section class="rw-box" aria-label="Mystery box">
@@ -4349,34 +4385,68 @@ function rwBoxHTML(c, s) {
   </section>`;
 }
 
+// Shop header: who you are, the balance with what came in and went out, the streak week, the way into your Inventory, and what earns Dinks.
+// Every number is the server's or one of the RW_* copies of its constants (test/economyrules.test.js pins them); nothing here is a result or a score.
+function rwStreakHTML() {
+  const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = day + 1;
+  const sub = done ? `Tomorrow: day ${nx}, +${rwDayPay(nx)}` : day ? `Play today: day ${nx}, +${rwDayPay(nx)}` : `Play today to start: day 1, +${rwDayPay(1)}`;
+  const cells = rwTrack(day, done).map(t => `<li class="rw-dayc${t.got ? ' got' : ''}${t.next ? ' next' : ''}"><span class="rw-dot" aria-hidden="true">${t.got ? '✓' : t.n}</span><span class="vh">Day ${t.n}: +${t.pay}${t.got ? ', done' : t.next ? ', next' : ''}</span><b aria-hidden="true">+${t.pay}</b></li>`).join('');
+  return `<section class="rw-streak" aria-label="Daily streak"><div class="rw-streak-top"><span class="rw-streak-fl">${rwFlame}</span><span class="rw-streak-tx"><b>${day ? `Day ${day} streak` : 'No streak yet'}</b><small>${esc(sub)}</small></span><b class="rw-best">Best ${st.best}</b></div><ol class="rw-track">${cells}</ol></section>`;
+}
+const rwEarnChips = () => [`<b>+${RW_DAY_PAY}</b> for your first game each day`].concat(RW_BONUS.map(([d, b]) => `<b>+${b}</b> more on a ${d} day streak`)).map(t => `<li>${t}</li>`).join('');
+function rwShopHeadHTML(c, s) {
+  const n = myName() || '', frame = rwLook(rwCur().worn.frame), mine = s.items.filter(i => i.owned).length;
+  const tally = typeof s.earned === 'number' && typeof s.spent === 'number' ? `<p class="rw-tally">${s.earned} earned, ${s.spent} spent</p>` : '';
+  return `<div class="rw-head"><div class="rw-who"><span class="rw-who-av"${frame ? ` data-rw-frame="${esc(frame)}"` : ''}>${avatarInner(n)}</span><button type="button" class="rw-edit" data-act="av-open" aria-label="Edit your picture">Edit</button><b class="rw-who-n">${esc(n)}</b><span class="badge you">You</span></div>
+    <p class="rw-big"><b>${s.dinks}</b><span>${s.dinks === 1 ? 'Dink' : 'Dinks'}</span></p>${tally}</div>
+    ${rwStreakHTML()}
+    <button type="button" class="rw-inv" data-rw="inv">${rwBagSvg}<span>Inventory</span><span class="rw-count">${mine}<span class="vh"> ${mine === 1 ? 'item' : 'items'}</span></span></button>
+    <ul class="rw-earn" aria-label="How Dinks are earned">${rwEarnChips()}</ul>
+    <p class="note">Dinks come from games saved under your own name, one day at a time. Winning, losing or the score never changes what you earn.</p>`;
+}
+// Inventory: what you own and what you wear. Pickers, the ring, paddle colour and court pet, and the one switch that shows your look to the club.
+function rwInventoryHTML(c, s, head, done) {
+  const mine = s.items.filter(i => i.owned);
+  const wear = RW_SLOTS.concat([['pet', 'Court pet']]).map(([slot, label]) => {
+    const own = mine.filter(i => i.slot === slot);
+    if (!own.length) return '';
+    const opt = (id, name, sw) => `<button type="button" class="rw-opt" data-rw-wear="${slot}:${esc(id)}" aria-pressed="${s.worn[slot] === id}" ${c.busy ? 'disabled' : ''}>${sw}<span>${esc(name)}</span></button>`;
+    return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
+  }).join('');
+  const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour, court pet, title and name style — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour, court pet, title and name style on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
+  return `${head.replace('>Shop<', '>Inventory<')}<p class="note">${mine.length ? `${mine.length} ${mine.length === 1 ? 'item' : 'items'} you own. Choose what you wear.` : 'Nothing yet. What you buy in the shop shows up here.'}</p>
+    ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
+    ${wear}${share}<div class="btns"><button type="button" class="btn btn-soft" data-rw="inv-back">Back to the shop</button></div>${done}`;
+}
+// Nobody to shop for yet: a visitor with no club, or a phone with no linked name. The tab is still there so the way in is one tap away.
+function rwGateHTML() {
+  if (!club) return '<p class="note">Join a club to earn Dinks from games and spend them here.</p><div class="btns"><button type="button" class="btn btn-blue" data-act="club-open">Join or start a club</button></div>';
+  if (!myName() || !myToken()) return '<p class="note">Pick your name in the club to start earning Dinks.</p><div class="btns"><button type="button" class="btn btn-blue" data-act="whoami-open">Choose my name</button></div>';
+  return '<p class="note">Rewards are hidden on this phone.</p>';
+}
+
 Object.assign(Rewards, {
   storeHTML(c) {
     const s = c.store, done = '<div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>';
     const head = '<h2 id="club-h" tabindex="-1">Shop</h2>';
+    if (c.gate) return `${head}${rwGateHTML()}${done}`;
     if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p>${done}`;
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
+    if (c.inv) return rwInventoryHTML(c, s, head, done);
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
-    const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
-    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
+    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
     const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
-    const wear = slots.map(([slot, label]) => {
-      const own = mine.filter(i => i.slot === slot);
-      if (!own.length) return '';
-      const opt = (id, name, sw) => `<button type="button" class="rw-opt" data-rw-wear="${slot}:${esc(id)}" aria-pressed="${s.worn[slot] === id}" ${c.busy ? 'disabled' : ''}>${sw}<span>${esc(name)}</span></button>`;
-      return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
-    }).join('');
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal || i.event);
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
-    const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour, court pet, title and name style — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour, court pet, title and name style on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     const box = rwBoxHTML(c, s);
-    return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> ${s.dinks === 1 ? 'Dink' : 'Dinks'}</p>
+    return `${head}${rwShopHeadHTML(c, s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
+      ${rwGoalHTML(c, s)}${seasonSec}
       ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
@@ -4406,6 +4476,12 @@ Object.assign(Rewards, {
     renderClub();
     try { const d = await playerCall({ action: 'rewards-activity', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.activity = d; }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "Your Dinks activity couldn't load."; }
+    renderClub();
+  },
+  // The Shop button in the bar: the shop where there is one to open, else the plain note on what is missing.
+  openShop() {
+    if (rwShown() && myName() && myToken()) { Rewards.openStore(); return; }
+    clubSheet = { view: 'rwstore', gate: true, store: null, msg: '', error: '', busy: false };
     renderClub();
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
@@ -4462,11 +4538,16 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw="inv"], [data-rw="inv-back"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   if (t.dataset.rw === 'activity') { Rewards.openActivity(); return; }
   if (t.dataset.rw === 'pets') { Rewards.openPets(); return; }
+  if (t.dataset.rw === 'inv' || t.dataset.rw === 'inv-back') {
+    const k = clubSheet;
+    if (k && k.view === 'rwstore' && k.store) { k.inv = t.dataset.rw === 'inv'; k.msg = ''; k.error = ''; renderClub(); const h = document.querySelector('#club-h'); if (h) h.focus(); }
+    return;
+  }
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store) return;
   if (t.dataset.rwBoxOpen) {
@@ -4485,7 +4566,7 @@ document.addEventListener('click', e => {
       const tLabel = r.tier && r.tier.label ? ` (${r.tier.label})` : '';
       return r.duplicate
         ? `Mystery box: ${r.item.name}${tLabel}, already owned. ${rwDinks(r.refund)} returned to your balance.`
-        : `Mystery box: ${r.item.name}${tLabel}. Added to What you wear.`;
+        : `Mystery box: ${r.item.name}${tLabel}. Added to your Inventory.`;
     }, '#club-h');
     return;
   }
@@ -4510,7 +4591,7 @@ document.addEventListener('click', e => {
     if (!it || it.owned) return;
     // The server decides; this only saves a trip when the balance obviously doesn't reach.
     if (c.store.dinks < it.price) { c.error = rwShort(it.name, it.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
-    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it under What you wear.`), '#club-h');
+    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it in your Inventory.`), '#club-h');
     return;
   }
   const [slot, id] = t.dataset.rwWear.split(':');
@@ -5181,7 +5262,7 @@ function renderClub() {
     body = avatarSheetHTML(c);
   } else if (c.view === 'paddles' && club && myName()) {
     body = paddleSheetHTML(c);
-  } else if (c.view === 'rwstore' && club && myName()) {
+  } else if (c.view === 'rwstore') {
     body = Rewards.storeHTML(c);
   } else if (c.view === 'rwpass' && club && myName()) {
     body = Rewards.passHTML(c);
@@ -5526,6 +5607,7 @@ function renderApp() {
   const y = document.body.scrollTop;
   if (!club && tab === 'events') tab = 'play';
   document.querySelectorAll('#tabs button').forEach(b => { b.hidden = !club && b.dataset.tab === 'events'; b.setAttribute('aria-current', b.dataset.tab === tab ? 'page' : 'false'); });
+  if (typeof Rewards !== 'undefined') Rewards.navSync();
   inboxRefresh();
   const head = `<header class="top"><div class="wordmark">${MARK}<h1>Dink Score</h1></div><div class="top-right">${syncPillHTML()}${bellButtonHTML()}${profileButtonHTML()}</div></header>`;
   $('#app').innerHTML = head + Heal.guard(() => tab === 'play' ? playView() : tab === 'leaders' ? leadersView() : tab === 'events' ? eventsTabView() : tab === 'history' ? historyView() : rulesView());

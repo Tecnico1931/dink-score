@@ -1379,7 +1379,9 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   // Two buys at once that together cost more than the balance (8 + 8 > 12): exactly one goes through, the balance never goes below zero.
   const both = await Promise.all(['paddle-blue', 'paddle-ink'].map(item => post('Hal', { action: 'rewards-buy', item })));
   assert.deepEqual(both.map(x => x.status).sort(), [200, 409]);
-  assert.equal(ok(await post('Hal', { action: 'rewards-catalog' })).dinks, 4);
+  const tot = ok(await post('Hal', { action: 'rewards-catalog' }));
+  assert.equal(tot.dinks, 4);
+  assert.ok(tot.spent > 0 && tot.earned - tot.spent === tot.dinks, 'the Shop header totals: balance = earned - spent');
   // Dinks activity: only the caller's own rows, in plain words, newest first with the running balance, never an id.
   const act = ok(await post('Hal', { action: 'rewards-activity' }));
   assert.equal(act.balance, 4); assert.equal(act.entries[0].balance, 4);

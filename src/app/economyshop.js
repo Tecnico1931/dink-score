@@ -87,7 +87,7 @@ function rwBoxHTML(c, s) {
   const b = s.box, opened = Number(b.openedToday) || 0, limit = Number(b.dailyLimit) || 3, atLimit = opened >= limit;
   const need = Math.max(0, b.price - s.dinks), r = c.boxResult;
   const tiers = b.tiers.map(t => `<li class="rw-tier"><div class="rw-tier-top"><b>${esc(t.label)}</b><span class="rw-pct num">${t.chance}% (${t.chance} in 100)</span></div><p class="rw-tier-items">${esc((t.items || []).map(i => i.name).join(', '))}</p></li>`).join('');
-  const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${rwDinks(r.refund)} returned to your balance.` : 'Added to What you wear.'}</small></span></div>` : '';
+  const res = r && r.item ? `<div class="rw-box-res" role="status">${rwSwatch(r.item)}<span><b>${esc(r.item.name)}${r.duplicate ? ' (already owned)' : ''}</b><small>${esc(r.tier && r.tier.label ? `${r.tier.label} (${r.tier.chance}%). ` : '')}${r.duplicate ? `${rwDinks(r.refund)} returned to your balance.` : 'Added to your Inventory.'}</small></span></div>` : '';
   const btnLabel = atLimit ? `Daily limit reached (${opened} of ${limit} today)` : need > 0 ? `${need} more Dinks` : `Open mystery box (${rwDinks(b.price)})`;
   const btnAria = !atLimit && need > 0 ? ` aria-label="Open mystery box for ${rwDinks(b.price)}. You need ${need} more"` : '';
   return `<h3 class="rw-h">Mystery box</h3><section class="rw-box" aria-label="Mystery box">
@@ -102,34 +102,68 @@ function rwBoxHTML(c, s) {
   </section>`;
 }
 
+// Shop header: who you are, the balance with what came in and went out, the streak week, the way into your Inventory, and what earns Dinks.
+// Every number is the server's or one of the RW_* copies of its constants (test/economyrules.test.js pins them); nothing here is a result or a score.
+function rwStreakHTML() {
+  const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = day + 1;
+  const sub = done ? `Tomorrow: day ${nx}, +${rwDayPay(nx)}` : day ? `Play today: day ${nx}, +${rwDayPay(nx)}` : `Play today to start: day 1, +${rwDayPay(1)}`;
+  const cells = rwTrack(day, done).map(t => `<li class="rw-dayc${t.got ? ' got' : ''}${t.next ? ' next' : ''}"><span class="rw-dot" aria-hidden="true">${t.got ? '✓' : t.n}</span><span class="vh">Day ${t.n}: +${t.pay}${t.got ? ', done' : t.next ? ', next' : ''}</span><b aria-hidden="true">+${t.pay}</b></li>`).join('');
+  return `<section class="rw-streak" aria-label="Daily streak"><div class="rw-streak-top"><span class="rw-streak-fl">${rwFlame}</span><span class="rw-streak-tx"><b>${day ? `Day ${day} streak` : 'No streak yet'}</b><small>${esc(sub)}</small></span><b class="rw-best">Best ${st.best}</b></div><ol class="rw-track">${cells}</ol></section>`;
+}
+const rwEarnChips = () => [`<b>+${RW_DAY_PAY}</b> for your first game each day`].concat(RW_BONUS.map(([d, b]) => `<b>+${b}</b> more on a ${d} day streak`)).map(t => `<li>${t}</li>`).join('');
+function rwShopHeadHTML(c, s) {
+  const n = myName() || '', frame = rwLook(rwCur().worn.frame), mine = s.items.filter(i => i.owned).length;
+  const tally = typeof s.earned === 'number' && typeof s.spent === 'number' ? `<p class="rw-tally">${s.earned} earned, ${s.spent} spent</p>` : '';
+  return `<div class="rw-head"><div class="rw-who"><span class="rw-who-av"${frame ? ` data-rw-frame="${esc(frame)}"` : ''}>${avatarInner(n)}</span><button type="button" class="rw-edit" data-act="av-open" aria-label="Edit your picture">Edit</button><b class="rw-who-n">${esc(n)}</b><span class="badge you">You</span></div>
+    <p class="rw-big"><b>${s.dinks}</b><span>${s.dinks === 1 ? 'Dink' : 'Dinks'}</span></p>${tally}</div>
+    ${rwStreakHTML()}
+    <button type="button" class="rw-inv" data-rw="inv">${rwBagSvg}<span>Inventory</span><span class="rw-count">${mine}<span class="vh"> ${mine === 1 ? 'item' : 'items'}</span></span></button>
+    <ul class="rw-earn" aria-label="How Dinks are earned">${rwEarnChips()}</ul>
+    <p class="note">Dinks come from games saved under your own name, one day at a time. Winning, losing or the score never changes what you earn.</p>`;
+}
+// Inventory: what you own and what you wear. Pickers, the ring, paddle colour and court pet, and the one switch that shows your look to the club.
+function rwInventoryHTML(c, s, head, done) {
+  const mine = s.items.filter(i => i.owned);
+  const wear = RW_SLOTS.concat([['pet', 'Court pet']]).map(([slot, label]) => {
+    const own = mine.filter(i => i.slot === slot);
+    if (!own.length) return '';
+    const opt = (id, name, sw) => `<button type="button" class="rw-opt" data-rw-wear="${slot}:${esc(id)}" aria-pressed="${s.worn[slot] === id}" ${c.busy ? 'disabled' : ''}>${sw}<span>${esc(name)}</span></button>`;
+    return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
+  }).join('');
+  const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour, court pet, title and name style — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour, court pet, title and name style on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
+  return `${head.replace('>Shop<', '>Inventory<')}<p class="note">${mine.length ? `${mine.length} ${mine.length === 1 ? 'item' : 'items'} you own. Choose what you wear.` : 'Nothing yet. What you buy in the shop shows up here.'}</p>
+    ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
+    ${wear}${share}<div class="btns"><button type="button" class="btn btn-soft" data-rw="inv-back">Back to the shop</button></div>${done}`;
+}
+// Nobody to shop for yet: a visitor with no club, or a phone with no linked name. The tab is still there so the way in is one tap away.
+function rwGateHTML() {
+  if (!club) return '<p class="note">Join a club to earn Dinks from games and spend them here.</p><div class="btns"><button type="button" class="btn btn-blue" data-act="club-open">Join or start a club</button></div>';
+  if (!myName() || !myToken()) return '<p class="note">Pick your name in the club to start earning Dinks.</p><div class="btns"><button type="button" class="btn btn-blue" data-act="whoami-open">Choose my name</button></div>';
+  return '<p class="note">Rewards are hidden on this phone.</p>';
+}
+
 Object.assign(Rewards, {
   storeHTML(c) {
     const s = c.store, done = '<div class="btns"><button type="button" class="btn btn-soft" data-act="club-close">Done</button></div>';
     const head = '<h2 id="club-h" tabindex="-1">Shop</h2>';
+    if (c.gate) return `${head}${rwGateHTML()}${done}`;
     if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p>${done}`;
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
+    if (c.inv) return rwInventoryHTML(c, s, head, done);
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
-    const slots = hasPetsUi ? RW_SLOTS : RW_SLOTS.concat([['pet', 'Court pet']]);
-    const mine = s.items.filter(i => i.owned), toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
+    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style');
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
     const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
-    const wear = slots.map(([slot, label]) => {
-      const own = mine.filter(i => i.slot === slot);
-      if (!own.length) return '';
-      const opt = (id, name, sw) => `<button type="button" class="rw-opt" data-rw-wear="${slot}:${esc(id)}" aria-pressed="${s.worn[slot] === id}" ${c.busy ? 'disabled' : ''}>${sw}<span>${esc(name)}</span></button>`;
-      return `<fieldset class="rw-pick"><legend>${esc(label)}</legend>${opt('', 'None', '')}${own.map(i => opt(i.id, i.name, rwSwatch(i))).join('')}</fieldset>`;
-    }).join('');
     const petsSec = hasPetsUi ? rwPetsSectionHTML(c, s) : '';
     const rows = toBuy.length ? rwShelf(c, s, toBuy) : '';
     const allOwned = s.items.every(i => i.owned || i.seasonal || i.event);
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
-    const share = `<button type="button" class="rw-share" data-rw-share="${s.share ? '0' : '1'}" aria-pressed="${!!s.share}" ${c.busy ? 'disabled' : ''}><span><b>Show my look to the club</b><small>${s.share ? 'Other members see your worn ring, paddle colour, court pet, title and name style — never your Dinks, streak or history.' : 'Off by default: only you see your ring, paddle colour, court pet, title and name style on this phone.'}</small></span><span class="rw-pill" aria-hidden="true">${s.share ? 'On' : 'Off'}</span></button>`;
     const box = rwBoxHTML(c, s);
-    return `${head}<p class="rw-bal-line"><b>${s.dinks}</b> ${s.dinks === 1 ? 'Dink' : 'Dinks'}</p>
+    return `${head}${rwShopHeadHTML(c, s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
-      ${rwGoalHTML(c, s)}${wear ? `<h3 class="rw-h">What you wear</h3>${wear}` : ''}${share}${seasonSec}
+      ${rwGoalHTML(c, s)}${seasonSec}
       ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
@@ -159,6 +193,12 @@ Object.assign(Rewards, {
     renderClub();
     try { const d = await playerCall({ action: 'rewards-activity', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.activity = d; }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "Your Dinks activity couldn't load."; }
+    renderClub();
+  },
+  // The Shop button in the bar: the shop where there is one to open, else the plain note on what is missing.
+  openShop() {
+    if (rwShown() && myName() && myToken()) { Rewards.openStore(); return; }
+    clubSheet = { view: 'rwstore', gate: true, store: null, msg: '', error: '', busy: false };
     renderClub();
   },
   // Open the shop sheet and load it. The sheet is the app's own club sheet (see renderClub).
@@ -215,11 +255,16 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw="inv"], [data-rw="inv-back"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   if (t.dataset.rw === 'activity') { Rewards.openActivity(); return; }
   if (t.dataset.rw === 'pets') { Rewards.openPets(); return; }
+  if (t.dataset.rw === 'inv' || t.dataset.rw === 'inv-back') {
+    const k = clubSheet;
+    if (k && k.view === 'rwstore' && k.store) { k.inv = t.dataset.rw === 'inv'; k.msg = ''; k.error = ''; renderClub(); const h = document.querySelector('#club-h'); if (h) h.focus(); }
+    return;
+  }
   const c = clubSheet;
   if (!c || c.view !== 'rwstore' || !c.store) return;
   if (t.dataset.rwBoxOpen) {
@@ -238,7 +283,7 @@ document.addEventListener('click', e => {
       const tLabel = r.tier && r.tier.label ? ` (${r.tier.label})` : '';
       return r.duplicate
         ? `Mystery box: ${r.item.name}${tLabel}, already owned. ${rwDinks(r.refund)} returned to your balance.`
-        : `Mystery box: ${r.item.name}${tLabel}. Added to What you wear.`;
+        : `Mystery box: ${r.item.name}${tLabel}. Added to your Inventory.`;
     }, '#club-h');
     return;
   }
@@ -263,7 +308,7 @@ document.addEventListener('click', e => {
     if (!it || it.owned) return;
     // The server decides; this only saves a trip when the balance obviously doesn't reach.
     if (c.store.dinks < it.price) { c.error = rwShort(it.name, it.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
-    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it under What you wear.`), '#club-h');
+    rwStoreAct({ action: 'rewards-buy', item: it.id }, () => (it.slot === 'pet' ? `${it.name} is yours for ${rwDinks(it.price)}. Choose it under Your companion.` : `${it.name} is yours for ${rwDinks(it.price)}. Choose it in your Inventory.`), '#club-h');
     return;
   }
   const [slot, id] = t.dataset.rwWear.split(':');

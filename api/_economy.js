@@ -47,6 +47,9 @@ export function deriveEarnings({ ledger = [], receivedAt = [], tz = 0, now }) {
   return out;
 }
 
+// What the Shop header shows beside the balance: all Dinks ever earned and all spent (balance = earned - spent, before the 1e6 cap).
+export const totals = ledger => ledger.reduce((t, e) => { const n = Number.isFinite(e.amount) ? e.amount : 0; if (n > 0) t.earned += n; else t.spent -= n; return t; }, { earned: 0, spent: 0 });
+
 export const ledgerBalance = ledger => Math.min(MAX_BALANCE, ledger.reduce((n, e) => n + (Number.isFinite(e.amount) ? e.amount : 0), 0));
 
 // A spend row (used by the shop). Refuses a spend that would take the balance below zero, and a repeat of an id already used.

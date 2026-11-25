@@ -59,7 +59,11 @@ const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Ma
   const out = { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn };
   if (pet) out.pet = pet;
   return out; };
+const rwBagSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8h12l1 12H5z"/><path d="M9 8V6.5a3 3 0 016 0V8"/></svg>';
 const rwBonusFor = day => { const hit = RW_BONUS.find(b => b[0] === day); return hit ? hit[1] : day > 30 && day % 30 === 0 ? RW_BONUS[RW_BONUS.length - 1][1] : 0; };
+// What day `n` of a streak pays, and the 7 days of the week the streak is in (for the Shop track): checked up to the streak, `next` is the one to play.
+const rwDayPay = n => RW_DAY_PAY + rwBonusFor(n);
+const rwTrack = (day, done) => { const first = Math.floor((Math.max(1, done ? day : day + 1) - 1) / 7) * 7 + 1; return Array.from({ length: 7 }, (_, i) => ({ n: first + i, pay: rwDayPay(first + i), got: first + i <= day, next: first + i === day + 1 })); };
 // The streak as it stands on `today`: a run that missed yesterday and today is broken (0). Playing today or yesterday keeps it.
 const rwStreak = (s, today) => (s.last && rwDayNum(today) - rwDayNum(s.last) <= 1 ? s.streak : 0);
 // The next bonus ahead of `day`: { day, bonus, in } (days to go).
@@ -206,6 +210,20 @@ const Rewards = {
       return `<span class="rw-g-p">${av}${esc(n)}${pd}</span>`;
     }).join(' &amp; ');
   },
+  // The Shop button in the bottom bar (between Leaders and Record). Drawn for a visitor with no club (the sheet says to join one) and where the club has
+  // rewards on; gone where they are off or hidden on this phone. It opens the Shop sheet, so it is never the current page.
+  navSync() {
+    const nav = document.querySelector('#tabs nav');
+    if (!nav) return;
+    let b = nav.querySelector('[data-rw="shopnav"]');
+    const show = !rwHidden() && (!club || rwClubOn());
+    if (!show) { if (b) b.hidden = true; return; }
+    if (!b) {
+      b = document.createElement('button'); b.type = 'button'; b.dataset.rw = 'shopnav'; b.innerHTML = `${rwBagSvg}Shop`;
+      nav.insertBefore(b, nav.querySelector('[data-tab="history"]'));
+    }
+    b.hidden = false;
+  },
   // The small flame on the avatar: the streak when it is 2 or more days.
   flameHTML() {
     rwApplyLook(); // the header is drawn on every tab and after every change, so the worn ring is always current
@@ -259,6 +277,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest && e.target.closest('[data-rw]');
   if (!b) return;
   const a = b.dataset.rw;
+  if (a === 'shopnav') { Rewards.openShop(); return; }
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
   if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }

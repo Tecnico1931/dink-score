@@ -111,8 +111,11 @@ const items = owned => CATALOGUE.map(i => ({ ...i, owned: owned.includes(i.id) }
 test('the shop sheet lists only what is unowned to buy and what is owned to wear, with fixed prices up front', () => {
   const { x } = phone();
   const html = x.Rewards.storeHTML({ store: { dinks: 44, worn: { frame: 'frame-court', paddle: '' }, items: items(['frame-court', 'frame-ink']) }, msg: '', error: '', busy: false });
-  assert.match(html, /<b>44<\/b> Dinks/);
-  const [wear, buy] = html.split('In the shop');
+  assert.match(html, /<b>44<\/b><span>Dinks<\/span>/);
+  assert.ok(!/data-rw-wear/.test(html), 'the wear pickers moved to the Inventory');
+  assert.match(html, /data-rw="inv"/);
+  const wear = x.Rewards.storeHTML({ store: { dinks: 44, worn: { frame: 'frame-court', paddle: '' }, items: items(['frame-court', 'frame-ink']) }, msg: '', error: '', busy: false, inv: true });
+  const buy = html.split('In the shop')[1];
   assert.match(wear, /data-rw-wear="frame:frame-court"[^>]*aria-pressed="true"/);
   assert.match(wear, /data-rw-wear="frame:frame-ink"[^>]*aria-pressed="false"/);
   assert.match(wear, /data-rw-wear="frame:"/, 'None is always an option');
@@ -184,7 +187,7 @@ test('club looks: never fetched when off or hidden, cleans server data, renders 
   assert.equal(mem.x.Rewards.teamHTML(['Ben', 'Cy']), 'Ben & Cy', 'games with no shared looks stay plain text');
   // One-tap share toggle in Shop sheet sends rewards-share and updates own club look immediately.
   const p = phone();
-  const hOff = p.x.Rewards.storeHTML({ store: { dinks: 14, worn: { frame: 'frame-court', paddle: '' }, share: false, items: items(['frame-court']) }, msg: '', error: '', busy: false });
+  const hOff = p.x.Rewards.storeHTML({ store: { dinks: 14, worn: { frame: 'frame-court', paddle: '' }, share: false, items: items(['frame-court']) }, msg: '', error: '', busy: false, inv: true });
   assert.match(hOff, /data-rw-share="1"[^>]*aria-pressed="false"/);
   assert.match(hOff, /Show my look to the club/);
   await p.x.Rewards.openStore();
@@ -204,10 +207,10 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
   const box = { price: 5, duplicateRefund: 2, dailyLimit: 3, openedToday: 0, tiers: [{ label: 'Common', chance: 100, items: [{ name: 'Team blue ring' }] }] };
   const html = x.Rewards.storeHTML({ store: { dinks: 1, worn: { frame: 'frame-court', paddle: '' }, items: items(['frame-court']), box }, msg: '', error: '', busy: false });
   const at = s => html.indexOf(s);
-  assert.ok(at('What you wear') > -1 && at('What you wear') < at('In the shop'), 'What you wear is first');
+  assert.ok(at('rw-streak') > -1 && at('rw-streak') < at('In the shop'), 'the header and streak come first');
   if (at('Mystery box') > -1) assert.ok(at('In the shop') < at('Mystery box'), 'fixed items sit above the mystery box');
-  assert.match(html, /<b>1<\/b> Dink</);
-  assert.ok(!/\b1 Dinks\b|<\/b> Dinks<\/p>/.test(html.replace(/<b>1<\/b> Dink/g, '')), 'no "1 Dinks"');
+  assert.match(html, /<b>1<\/b><span>Dink<\/span>/);
+  assert.ok(!/\b1 Dinks\b|<span>Dinks<\/span>/.test(html.replace(/<b>1<\/b><span>Dink<\/span>/g, '')), 'no "1 Dinks"');
   const buy = html.match(/<button[^>]*data-rw-buy="frame-blue"[^>]*>/)[0];
   assert.match(buy, /aria-disabled="true"/);
   assert.match(buy, /data-rw-short="1"/);
