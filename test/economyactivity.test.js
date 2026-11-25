@@ -22,7 +22,7 @@ test('each reason reads in plain words and the balance runs oldest to newest', (
     ['Mystery box refund: you already had Ink paddle', 1, 4],
     ['Opened a mystery box: Ink paddle', -2, 3],
     ['Season pass tier 1', 5, 5],
-    ['Bought Court green ring', -4, 0],
+    ['Bought Forest ring', -4, 0],
     ['Earned for a play day, with a streak bonus', 3, 4],
     ['Earned for a play day', 1, 1]
   ]);
