@@ -23,7 +23,7 @@ const light = blockVars(tokenBlock, ':root');
 const dark = Object.assign({}, light, blockVars(tokenBlock, ':root[data-theme="dark"]'));
 const outdoor = Object.assign({}, light, blockVars(tokenBlock, ':root[data-outdoor]'));
 const paletteOutdoorBase = blockVars(tokenBlock, ':root[data-palette][data-outdoor]');
-const PALETTE_IDS = ['green', 'blue', 'clay', 'violet', 'sunset', 'slate', 't-sunset', 't-clay', 't-grass', 't-neon', 't-beach', 't-ice', 't-midnight', 't-arcade', 't-snow'];
+const PALETTE_IDS = ['green', 'blue', 'clay', 'violet', 'sunset', 'slate', 't-sunset', 't-clay', 't-grass', 't-neon', 't-beach', 't-ice', 't-midnight', 't-arcade', 't-snow', 't-aurora', 't-galaxy', 't-eclipse'];
 const palettes = {
   green: { light, dark, mediaDark: Object.assign({}, light, blockVars(tokenBlock, ':root:not([data-theme="light"])')), outdoor }
 };

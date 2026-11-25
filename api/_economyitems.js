@@ -50,5 +50,19 @@ export const TOP_SOUNDS = Object.freeze([
   v('fanfare', 'Royal fanfare', 720, 'legendary'),
   v('ascension', 'Ascension', 3000, 'mythic')
 ]);
+// Legendary and Mythic court themes and win celebrations (M2, upstream prices). Looks only, worn on the player's own scoring phone like the Rare ones.
+// There are 7 Mythic items in all (name, style, ring, sound, pet, court, celebration). Imported by _economyshop.js into CATALOGUE.
+const th = (id, name, price, rarity) => Object.freeze({ id: 'theme-' + id, slot: 'theme', name, price, rarity });
+const ce = (id, name, price, rarity) => Object.freeze({ id: 'celebrate-' + id, slot: 'celebrate', name, price, rarity });
+export const TOP_THEMES = Object.freeze([
+  th('aurora', 'Aurora court', 1080, 'legendary'),
+  th('galaxy', 'Galaxy court', 1080, 'legendary'),
+  th('eclipse', 'Eclipse court', 4100, 'mythic')
+]);
+export const TOP_CELEBRATIONS = Object.freeze([
+  ce('fireworks', 'Fireworks', 900, 'legendary'),
+  ce('trophy', 'Trophy shower', 1200, 'legendary'),
+  ce('supernova', 'Supernova', 4400, 'mythic')
+]);
 // The two top shelves are drawn from this: every item whose rarity is one of these (pets included, see _economypets.js).
 export const TOP_RARITIES = Object.freeze(['mythic', 'legendary']);

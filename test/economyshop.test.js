@@ -10,7 +10,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const earn = n => ({ id: 'day:2026-01-' + String(n).padStart(2, '0'), kind: 'earn', amount: n, reason: 'day', day: null, streak: 1 });
 
 test('the catalogue is fixed-price and cosmetic-only', () => {
-  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 80);
+  assert.ok(CATALOGUE.length >= 10 && CATALOGUE.length <= 100);
   assert.equal(new Set(CATALOGUE.map(i => i.id)).size, CATALOGUE.length, 'ids are unique');
   // Only these keys: nothing here can carry a rule, a score effect or a random draw.
   for (const i of CATALOGUE) {
@@ -283,7 +283,7 @@ test('UX-09: shop order, muted unaffordable buttons that stay focusable, and 1 D
 test('WI-1: every item has a rarity, the rare tier is badged, and every shelf draws the same card', () => {
   for (const i of CATALOGUE) assert.ok(RARITIES.includes(i.rarity), `${i.id} has a known rarity`);
   assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'rare').map(i => i.id), ['frame-double', 'paddle-stripe', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-blob', 'pet-bat', 'pet-fox', 'sound-drum', 'sound-crowd', 'theme-sunset', 'theme-clay', 'theme-grass', 'theme-neon', 'theme-beach', 'theme-ice', 'theme-midnight', 'theme-arcade', 'celebrate-confetti', 'celebrate-balls', 'celebrate-pickles', 'celebrate-paddles', 'celebrate-hearts', 'title-erne', 'title-post', 'style-gold', 'style-glowing', 'style-flame', 'style-pickle', 'style-ice', 'style-neon']);
-  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'legendary').map(i => i.id), ['pet-netdragon', 'sound-fanfare', 'frame-rainbow', 'frame-orbit', 'frame-crown', 'title-overlord', 'title-ruler', 'title-unbeaten', 'title-eager', 'style-holo', 'style-molten'], 'WI-13: the Legendary items (Net dragon came first)');
+  assert.deepEqual(CATALOGUE.filter(i => i.rarity === 'legendary').map(i => i.id), ['pet-netdragon', 'sound-fanfare', 'frame-rainbow', 'frame-orbit', 'frame-crown', 'theme-aurora', 'theme-galaxy', 'celebrate-fireworks', 'celebrate-trophy', 'title-overlord', 'title-ruler', 'title-unbeaten', 'title-eager', 'style-holo', 'style-molten'], 'WI-13: the Legendary items (Net dragon came first)');
   const { x } = phone();
   const html = x.Rewards.storeHTML({ store: { dinks: 10, worn: { frame: 'frame-court' }, items: items(['frame-court']), season: null }, msg: '', error: '', busy: false });
   const cards = html.match(/<div class="rw-card"[\s\S]*?<\/button><\/div>/g) || [];
@@ -355,13 +355,13 @@ test('WI-9: the shop shows Titles and Name styles shelves, and a worn title and 
 });
 
 // ---- WI-13: Mythic and Legendary shelves ----
-test('WI-13: five Mythic and eleven Legendary items at the upstream prices, never in the box or the pass, none shown as a courts/celebration item yet', async () => {
+test('WI-13/M2: seven Mythic and fifteen Legendary items at the upstream prices, never in the box or the pass, none shown as a courts/celebration item yet', async () => {
   const { BOX_TIERS } = await import('../api/_economybox.js');
   const { PASS_TIERS } = await import('../api/_economypass.js');
   const mythic = CATALOGUE.filter(i => i.rarity === 'mythic');
-  assert.deepEqual(mythic.map(i => [i.id, i.price]), [['pet-supernova', 4800], ['sound-ascension', 3000], ['frame-horizon', 3600], ['title-finalboss', 2800], ['style-starforged', 3600]]);
+  assert.deepEqual(mythic.map(i => [i.id, i.price]), [['pet-supernova', 4800], ['sound-ascension', 3000], ['frame-horizon', 3600], ['theme-eclipse', 4100], ['celebrate-supernova', 4400], ['title-finalboss', 2800], ['style-starforged', 3600]]);
   const legend = CATALOGUE.filter(i => i.rarity === 'legendary');
-  assert.deepEqual(legend.map(i => [i.name, i.price]), [['Net dragon', 800], ['Royal fanfare', 720], ['Spinning rainbow', 660], ['Orbiting ball', 720], ["Champion's crown", 960], ['Erne Overlord', 600], ['Ruler of the Kitchen', 720], ['The Unbeatable', 660], ['Gain Eager', 660], ['Holographic name', 780], ['Molten gold name', 840]]);
+  assert.deepEqual(legend.map(i => [i.name, i.price]), [['Net dragon', 800], ['Royal fanfare', 720], ['Spinning rainbow', 660], ['Orbiting ball', 720], ["Champion's crown", 960], ['Aurora court', 1080], ['Galaxy court', 1080], ['Fireworks', 900], ['Trophy shower', 1200], ['Erne Overlord', 600], ['Ruler of the Kitchen', 720], ['The Unbeatable', 660], ['Gain Eager', 660], ['Holographic name', 780], ['Molten gold name', 840]]);
   const top = new Set([...mythic, ...legend].map(i => i.id));
   assert.ok(!BOX_TIERS.some(t => t.items.some(id => top.has(id))), 'a top item is not a box prize');
   assert.ok(!PASS_TIERS.some(t => t.item && top.has(t.item)), 'a top item is not a pass reward');
@@ -374,11 +374,11 @@ test('WI-13: the Mythic and Legendary shelves come first Mythic, count the owner
   const html = x.Rewards.storeHTML({ store: { dinks: 99999, worn: {}, items: list([]), shinyWeek: null }, msg: '', error: '', busy: false });
   const at = s => html.indexOf(s);
   assert.ok(at('Mythic</h3>') > -1 && at('Mythic</h3>') < at('Legendary</h3>'), 'Mythic first, then Legendary');
-  assert.match(html, /Only 5 exist\./);
+  assert.match(html, /Only 7 exist\./);
   assert.match(html, /Nobody here has one yet/);
   assert.match(html, /2 players here have this/);
-  assert.equal((html.match(/data-rw-top="mythic"/g) || []).length, 5);
-  assert.equal((html.match(/data-rw-top="legendary"/g) || []).length, 11);
+  assert.equal((html.match(/data-rw-top="mythic"/g) || []).length, 7);
+  assert.equal((html.match(/data-rw-top="legendary"/g) || []).length, 15);
   const shelfOf = id => html.indexOf(`data-rw-card="${id}"`);
   assert.ok(shelfOf('title-finalboss') > at('Mythic</h3>') && shelfOf('title-finalboss') < at('Legendary</h3>'));
   assert.equal((html.match(/data-rw-card="title-finalboss"/g) || []).length, 1, 'each item is drawn once');
@@ -390,7 +390,7 @@ test('WI-13: buying a top item shows a quiet confirmation card; the card says no
   const { x } = phone();
   const list = owned => CATALOGUE.map(i => ({ ...i, owned: owned.includes(i.id), ...(i.rarity === 'mythic' ? { owners: owned.includes(i.id) ? 1 : 0 } : {}) }));
   const got = x.Rewards.storeHTML({ store: { dinks: 5, worn: {}, items: list(['title-finalboss']) }, got: 'title-finalboss', msg: '', error: '', busy: false });
-  assert.match(got, /class="rw-got" role="status"[^>]*><b>The Final Boss is yours\.<\/b><span>One of 5 Mythic items in the shop\./);
+  assert.match(got, /class="rw-got" role="status"[^>]*><b>The Final Boss is yours\.<\/b><span>One of 7 Mythic items in the shop\./);
   assert.ok(!/rw-got/.test(x.Rewards.storeHTML({ store: { dinks: 5, worn: {}, items: list(['title-finalboss']) }, msg: '', error: '', busy: false })), 'no card unless it was just bought');
 });
 
