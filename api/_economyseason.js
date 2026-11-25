@@ -59,10 +59,50 @@ export function seasonFor(ts) {
 }
 
 // Is this item on sale at `ts`? Permanent items (no season) always are.
-export const isAvailable = (item, ts) => !isSeasonal(item) || seasonFor(ts).id === item.season;
+export const isAvailable = (item, ts) => isEventItem(item) ? eventOpen(item, ts) : !isSeasonal(item) || seasonFor(ts).id === item.season;
 
 // The plain refusal when a buy is outside the window; says when it is back. Pure.
 export function closedMessage(item) {
+  if (isEventItem(item)) return eventClosedMessage(item);
   const s = SEASONS.find(x => x.id === item.season);
   return `${item.name} is only in the shop during ${s.name}, from 1 ${MONTHS[s.firstMonth]}. It comes back every year.`;
+}
+
+// ---------- Events (WI-12): a dated shelf of limited-time items, on top of the four calendar seasons ----------
+// An event runs between two UTC month-days (inclusive), the same every year, so it comes back and nothing is permanently missed. Same rules as
+// a season: only BUYING is limited to the window; an owned item stays owned, wearable and visible to the club afterwards; never in the box or the
+// pass; one fixed price (an organizer may set the club's own in Manage shop, _economyprices.js). The shop says when it ends as a date, never a
+// countdown. `items` may use any slot in SLOT_META (_economyshop.js); list only slots the phone can already draw. Items carry `event: <id>`.
+export const EVENTS = Object.freeze([
+  Object.freeze({
+    id: 'christmas', name: 'Christmas', from: [10, 24], to: [11, 25], until: 'the end of Christmas Day',
+    items: Object.freeze([
+      Object.freeze({ id: 'frame-candy', slot: 'frame', name: 'Candy cane ring', price: 150, rarity: 'rare' }),
+      Object.freeze({ id: 'frame-twinkle', slot: 'frame', name: 'Twinkle lights ring', price: 300, rarity: 'rare' })
+    ].map(i => Object.freeze({ ...i, event: 'christmas' })))
+  })
+]);
+export const EVENT_ITEMS = Object.freeze(EVENTS.flatMap(e => e.items));
+export const eventById = id => EVENTS.find(e => e.id === id) || null;
+export const isEventItem = item => !!(item && item.event);
+
+// The event on at `ts` (UTC), or null: { id, name, startsOn, endsOn (last day, inclusive), startMs, endMs (exclusive), dates, note }. Pure.
+export function eventFor(ts) {
+  const ms = msOf(ts), year = new Date(ms).getUTCFullYear();
+  for (const e of EVENTS) {
+    const startMs = Date.UTC(year, e.from[0], e.from[1]), endMs = Date.UTC(year, e.to[0], e.to[1] + 1);
+    if (ms < startMs || ms >= endMs) continue;
+    return {
+      id: e.id, name: e.name, startsOn: iso(startMs), endsOn: iso(endMs - 86400000), startMs, endMs,
+      dates: `${e.from[1]} ${MONTHS[e.from[0]]} to ${e.to[1]} ${MONTHS[e.to[0]]} (UTC)`,
+      note: `Here until ${e.until} (${e.to[1]} ${MONTHS[e.to[0]]}, UTC), and anything you buy is yours to keep.`
+    };
+  }
+  return null;
+}
+
+export const eventOpen = (item, ts) => { const e = eventFor(ts); return !!e && e.id === item.event; };
+export function eventClosedMessage(item) {
+  const e = eventById(item.event);
+  return `${item.name} is only in the shop during ${e.name}, from ${e.from[1]} ${MONTHS[e.from[0]]} to ${e.to[1]} ${MONTHS[e.to[0]]}. It comes back every year, and anything you already have stays yours.`;
 }

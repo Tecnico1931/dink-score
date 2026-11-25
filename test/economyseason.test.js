@@ -117,3 +117,54 @@ test('the phone draws the season from the server and has no timer, no random and
   for (const i of SEASONAL) assert.ok(css.includes(`[data-rw-${i.slot === 'frame' ? 'frame' : 'skin'}="${i.id.replace(/^[a-z]+-/, '')}"]`), i.id + ' has a look');
   assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/.test(css), 'tokens only');
 });
+
+// ---------- Events (WI-12) ----------
+import { EVENTS, EVENT_ITEMS, eventFor } from '../api/_economyseason.js';
+import { SLOTS } from '../api/_economyshop.js';
+
+test('events: a fixed, cosmetic, rarity-labelled list outside CATALOGUE, in existing slots, on a plain look name', () => {
+  assert.ok(EVENTS.length >= 1);
+  for (const i of EVENT_ITEMS) {
+    assert.ok(SLOTS.includes(i.slot));
+    assert.match(i.id, /^[a-z]{3,8}-[a-z]{3,12}$/);
+    assert.ok(Number.isInteger(i.price) && i.price >= 1 && ['common', 'rare', 'legendary', 'mythic'].includes(i.rarity));
+    assert.ok(!CATALOGUE.some(c => c.id === i.id) && !SEASONAL.some(c => c.id === i.id));
+    assert.equal(itemById(i.id), i);
+  }
+  assert.equal(new Set(EVENT_ITEMS.map(i => i.id)).size, EVENT_ITEMS.length);
+});
+
+test('eventFor: Christmas runs 24 Nov to the end of 25 Dec in UTC, every year, with an end date and no countdown', () => {
+  const id = s => (eventFor(at(s)) || {}).id || null;
+  assert.equal(id('2026-11-23T23:59:59Z'), null);
+  assert.equal(id('2026-11-24T00:00:00Z'), 'christmas');
+  assert.equal(id('2026-12-25T23:59:59Z'), 'christmas');
+  assert.equal(id('2026-12-26T00:00:00Z'), null);
+  assert.equal(id('2027-12-01T12:00:00Z'), 'christmas');
+  assert.equal(id('2028-06-01T12:00:00Z'), null);
+  const e = eventFor(at('2026-12-01T00:00:00Z'));
+  assert.equal(e.startsOn, '2026-11-24'); assert.equal(e.endsOn, '2026-12-25');
+  assert.equal(e.dates, '24 November to 25 December (UTC)');
+  assert.ok(/end of Christmas Day \(25 December, UTC\).*yours to keep/.test(e.note));
+  assert.ok(!/hurry|last chance|limited|only \d|ends in|countdown|don'?t miss|running out|\d+ (days?|hours?) left/i.test(e.note + closedMessage(EVENT_ITEMS[0])));
+});
+
+test('planBuy: an event item is bought only inside its window at one fixed price; owned stays owned and wearable', () => {
+  const it = EVENT_ITEMS[0], big = [{ id: 'day:2026-01-01', kind: 'earn', amount: 5000, reason: 'day', day: null, streak: 1 }];
+  assert.equal(planBuy(big, [], it.id, at('2026-12-10T10:00:00Z')).entry.amount, -it.price);
+  for (const when of ['2026-11-23T10:00:00Z', '2026-12-26T00:00:00Z', '2027-03-01T10:00:00Z']) {
+    assert.throws(() => planBuy(big, [], it.id, at(when)), e => e.status === 409 && /Christmas/.test(e.message) && /yours/.test(e.message), when);
+  }
+  assert.deepEqual(planBuy(big, [it.id], it.id, at('2027-03-01T10:00:00Z')), { item: it, already: true });
+  assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: it.slot, item: it.id }], at('2027-03-01T00:00:00Z')), { ana: { [it.slot]: it.id } });
+});
+
+test('the event shelf is drawn from the server, with no timer and no hard-coded colour; every event ring has a look', () => {
+  const ui = fs.readFileSync(path.join(root, 'src/app/economyshop.js'), 'utf8');
+  const fn = ui.slice(ui.indexOf('function rwEventHTML'), ui.indexOf('// One item card'));
+  assert.ok(fn.includes('ev.note') && fn.includes('rwShelf'));
+  assert.ok(!/setInterval|setTimeout|Date\.now|new Date|Math\.random|#[0-9a-f]{3,8}\b/i.test(fn));
+  const html = fs.readFileSync(path.join(root, 'dink-score.html'), 'utf8');
+  for (const i of EVENT_ITEMS.filter(x => x.slot === 'frame')) assert.ok(html.includes(`[data-rw-frame="${i.id.replace(/^[a-z]+-/, '')}"]`), i.id + ' has a look');
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgb\(|hsl\(/.test(html.slice(html.indexOf('/* Event shelf'), html.indexOf('/* Paddle colourways'))), 'tokens only');
+});
