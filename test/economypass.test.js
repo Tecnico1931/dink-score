@@ -192,19 +192,18 @@ test('phone UI: Season pass renders XP tiers calmly, claims via server and annou
   const afterClaim3 = { ...buildPassView({ season: Q4, xp: 380, allXp: 380, ledger: [L1, { ...L1, id: `xpass:${Q4.id}:3`, reason: 'pass:sound-whistle' }], items: [{ id: 'title-grinder', slot: 'title', worn: false }, { id: 'sound-whistle', slot: 'sound', worn: false }], share: false }), claimed: true, gained: 25, granted: { id: 'sound-whistle', slot: 'sound', name: "Ref's whistle" } };
 
   const off = phone({ on: false, passReply: initialPass });
-  assert.equal(off.x.Rewards.cardHTML(), '');
+  assert.equal(off.x.Rewards.tileHTML(), '');
   await off.x.Rewards.openPass();
   assert.equal(off.calls.length, 0);
   const hid = phone({ hide: true, passReply: initialPass });
-  assert.equal(hid.x.Rewards.cardHTML(), '');
+  assert.equal(hid.x.Rewards.tileHTML(), '');
   assert.equal(hid.x.Rewards.levelCardHTML('Ana'), '', 'hidden: no level card');
   await hid.x.Rewards.openPass();
   assert.equal(hid.calls.length, 0);
   const unlinked = phone({ name: null, passReply: initialPass });
-  assert.ok(!/data-rw="pass"/.test(unlinked.x.Rewards.cardHTML()));
+  assert.ok(!/data-rw="pass"/.test(unlinked.x.Rewards.youRowHTML()));
 
   const p = phone({ passReply: initialPass, claimReply: afterClaim3 });
-  assert.match(p.x.Rewards.cardHTML(), /data-rw="pass" aria-label="Season pass, 2 ready to claim">Pass|data-rw="pass" aria-label="Season pass">Pass</);
   await p.x.Rewards.openPass();
   assert.deepEqual(p.calls[0], { action: 'rewards-pass', name: 'Ana', playerToken: 'tok' });
   assert.equal(p.x.sheet.view, 'rwpass');
@@ -247,23 +246,22 @@ test('phone UI: the level card shows on your own profile only, from the pass ans
   assert.match(top.x.Rewards.levelCardHTML('Ana'), /Level 25 of 25[\s\S]*You are at the top level/);
 });
 
-test('UX-10: ready tag on the Your Dink card and You sheet, learned from the pass, cleared by a claim', async () => {
+test('UX-10: ready tag on the You sheet, learned from the pass, cleared by a claim', async () => {
   const unclaimed = buildPassView({ season: Q4, xp: 125, allXp: 125, ledger: [], items: [], share: false });
   assert.equal(unclaimed.claimable, 1);
   const none = buildPassView({ season: Q4, xp: 0, allXp: 0, ledger: [], items: [], share: false });
   const p = phone({ passReply: unclaimed, claimReply: { ...unclaimed, claimable: 0, claimed: true, gained: 25, dinks: 25 } });
-  assert.ok(!/rw-ready/.test(p.x.Rewards.cardHTML()), 'no tag before the pass has been read');
+  assert.ok(!/rw-ready/.test(p.x.Rewards.youRowHTML()), 'no tag before the pass has been read');
   assert.match(p.x.Rewards.youRowHTML(), /data-rw="pass"[\s\S]*Shop &amp; season pass[\s\S]*Claim rewards and spend your Dinks/);
   assert.match(p.x.Rewards.youRowHTML(), /Hide rewards and streak/);
   await p.x.Rewards.syncReady(true);
   assert.deepEqual(p.calls.map(c => c.action), ['rewards-pass']);
-  assert.match(p.x.Rewards.cardHTML(), /data-rw="pass" aria-label="Season pass, 1 ready to claim">Pass<span class="rw-ready">1 ready<\/span>/);
   assert.match(p.x.Rewards.youRowHTML(), /1 reward is ready to claim[\s\S]*<span class="rw-ready">1 ready<\/span>/);
   await p.x.Rewards.openPass();
   const click = ds => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
   click({ rwClaim: '1' });
   await new Promise(r => setTimeout(r, 10));
-  assert.ok(!/rw-ready/.test(p.x.Rewards.cardHTML()), 'claimed: the tag is gone');
+  assert.ok(!/rw-ready/.test(p.x.Rewards.youRowHTML()), 'claimed: the tag is gone');
   assert.match(p.x.Rewards.youRowHTML(), /Claim rewards and spend your Dinks/);
   const hid = phone({ hide: true, passReply: unclaimed });
   await hid.x.Rewards.syncReady(true);
@@ -271,7 +269,7 @@ test('UX-10: ready tag on the Your Dink card and You sheet, learned from the pas
   assert.ok(!/data-rw="pass"/.test(hid.x.Rewards.youRowHTML()) && /Show rewards and streak/.test(hid.x.Rewards.youRowHTML()));
   const idle = phone({ passReply: none });
   await idle.x.Rewards.syncReady(true);
-  assert.ok(!/rw-ready/.test(idle.x.Rewards.cardHTML()));
+  assert.ok(!/rw-ready/.test(idle.x.Rewards.youRowHTML()));
   const anon = phone({ name: null, passReply: unclaimed });
   assert.ok(!/data-rw="pass"/.test(anon.x.Rewards.youRowHTML()), 'a phone with no linked name has no pass to open');
 });

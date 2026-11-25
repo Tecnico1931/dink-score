@@ -513,19 +513,13 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.ok(!/data-rw-buy="pet-frog"/.test(html), 'owned pet is not offered to adopt again');
   assert.ok(!/animation|odds|random/i.test(html), 'calm copy only'); // the Confetti celebration card (WI-16) is a name, not an effect
 
-  // Clicking the one-tap shiny toggle sends rewards-wear with shiny: true, announces and updates Your Dink card.
+  // Clicking the one-tap shiny toggle sends rewards-wear with shiny: true, announces.
   const click = ds => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
   click({ rwShiny: 'pet-frog:1' });
   await new Promise(r => setTimeout(r, 10));
   assert.deepEqual(p.calls.at(-1), { name: 'Ana', playerToken: 'tok', action: 'rewards-wear', slot: 'pet', item: 'pet-frog', shiny: true });
   assert.equal(p.announced.at(-1), 'Shiny coat on for Court Frog this week.');
   assert.equal(p.focused.at(-1), '[data-rw-shiny]');
-  const cardShiny = p.x.Rewards.cardHTML();
-  assert.match(cardShiny, /rw-card-pet/);
-  assert.match(cardShiny, /data-pet="pet-frog" data-pet-stage="2" data-pet-shiny="true"/);
-  assert.match(cardShiny, /Court Frog · Shiny coat/);
-  assert.match(cardShiny, /Club · 8 more play days to Veteran \(7\/15\)/);
-  assert.match(cardShiny, /role="img" aria-label="Court Frog, Club, shiny coat"/);
 
   // Clicking Adopt for an affordable pet sends rewards-buy (never a price) and announces.
   click({ rwBuy: 'pet-duck' });
@@ -553,11 +547,11 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.ok(!/animation|odds|random/i.test(coll.replace(/data-pet-shiny/g, '')), 'calm copy only');
   assert.ok(!/data-rw-shiny/.test(offWeekHtml), 'shiny toggle must not appear outside an owned pet featured week');
 
-  // Club rewards off or player hid rewards: nothing shows on Your Dink card or Shop sheet.
+  // Club rewards off or player hid rewards: nothing shows on the Your Dinks tile or Shop sheet.
   for (const opts of [{ rewards: false, hide: false }, { rewards: true, hide: true }]) {
     const h = mkPhone(opts);
     h.kv['pb.rewards'] = { 'club-a': { dinks: 20, streak: 3, best: 3, last: '', worn: { frame: '', paddle: '', pet: 'pet-frog' }, pet: { id: 'pet-frog', stage: 2, playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true } } };
-    assert.equal(h.x.Rewards.cardHTML(), '');
+    assert.equal(h.x.Rewards.tileHTML(), '');
     assert.ok(!/rw-pets|data-rw-shiny|data-rw-buy/.test(h.x.Rewards.storeHTML({ store: mkStore(), msg: '', error: '', busy: false })));
   }
 });

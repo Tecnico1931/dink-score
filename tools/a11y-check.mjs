@@ -115,7 +115,7 @@ for (const [mode, opt] of states) {
     await ctx.close();
   }
 }
-{ // Rewards: the Your Dink card with a worn ring and pet companion, and the Shop sheet (owned/unowned items, Court pets, weekly shiny toggle, mystery box), stubbed club and answers, nothing is sent.
+{ // Rewards: the Home Your Dinks tile with a worn ring and pet, and the Shop sheet (owned/unowned items, Court pets, weekly shiny toggle, mystery box), stubbed club and answers, nothing is sent.
   for (const [mode, opt] of [['light', { colorScheme: 'light' }], ['dark', { colorScheme: 'dark' }], ['outdoor', { colorScheme: 'light', outdoor: true }]]) {
     const colorScheme = mode;
     const ctx = await browser.createBrowserContext(), page = await ctx.newPage();
@@ -170,15 +170,7 @@ for (const [mode, opt] of states) {
       render();
     });
     await sleep(300);
-    await audit(page, `Your Dink card, ring and pet worn (${colorScheme})`, report);
-    if (colorScheme === 'light') {
-      for (const w of [320, 195]) {
-        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
-        const over = await page.evaluate(() => [...document.querySelectorAll('.rw-card, .rw-card *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1 && !e.closest('svg'); }).map(e => e.tagName + '.' + e.className).slice(0, 3));
-        if (over.length) report.push({ label: `Your Dink card with pet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
-      }
-      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
-    }
+    await audit(page, `Home Your Dinks tile, ring and pet worn (${colorScheme})`, report);
     await page.evaluate(() => Rewards.openPass()); await sleep(400);
     await audit(page, `Season pass sheet (${colorScheme})`, report, '.sheet');
     if (colorScheme === 'light') {

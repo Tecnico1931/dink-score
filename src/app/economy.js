@@ -297,19 +297,11 @@ const Rewards = {
   label() { const n = rwShown() ? rwStreak(rwCur(), rwDayKey(Date.now())) : 0; return n >= 2 ? `. ${n} day play streak` : ''; },
   // The "N Dinks" chip beside your name on your own profile. Never another player's balance, and gone when rewards are hidden or off.
   chipHTML(name) { return rwShown() && isMe(name) && myName() && myToken() ? `<span class="badge rw-bal">${rwDinks(rwCur().dinks)}</span>` : ''; },
-  // "Your Dink" card on the Play tab.
-  // The small "Your Dinks" tile beside Top player on Play: balance and streak only (the card below keeps the actions).
+  // The one "Your Dinks" surface on Play, beside Top player: balance and streak, a link to the Shop (Pass, Activity and Hide live in the Shop and the You sheet).
   tileHTML() {
     if (!rwShown()) return '';
     const st = rwCur(), day = rwStreak(st, rwDayKey(Date.now()));
-    return `<section class="tile rw-tile" aria-label="Your Dinks"><span class="t-k">Your Dinks</span><span class="rw-tile-day">${rwFlame}<span>${day ? `Day ${day} streak` : 'No streak yet'}</span></span><span class="t-big">${st.dinks}</span></section>`;
-  },
-  cardHTML() {
-    if (!rwShown()) return '';
-    const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = rwNext(day);
-    const line = !myName() || !myToken() ? 'Pick your name in the club to start earning Dinks.' : done ? `Played today. Play tomorrow for +${nx.pay} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
-    const pet = typeof rwPetCardHTML === 'function' ? rwPetCardHTML(st) : '', ready = rwReadyN();
-    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>${st.dinks === 1 ? 'Dink' : 'Dinks'}</small></span></div>${pet}<p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? `<button type="button" class="rw-hide" data-rw="pass" aria-label="Season pass${ready ? `, ${ready} ready to claim` : ''}">Pass${rwReadyTag(ready)}</button><button type="button" class="rw-hide" data-rw="store">Shop</button><button type="button" class="rw-hide" data-rw="activity" aria-label="Dinks activity">Activity</button>` : ''}<button type="button" class="rw-hide" data-rw="hide" aria-label="Hide this">Hide</button></div></section>`;
+    return `<button type="button" class="tile rw-tile" data-rw="store"><span class="t-k">Your Dinks</span><span class="rw-tile-day">${rwFlame}<span>${day ? `Day ${day} streak` : 'No streak yet'}</span></span><span class="t-big">${st.dinks}</span></button>`;
   },
   // Rules tab: the "Earning Dinks" card, written from the same constants the ledger, box and pass use. Nothing draws where rewards are off or hidden.
   rulesJump() { return rwShown() ? [['rules-earning', 'Earning']] : []; },

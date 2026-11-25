@@ -14,7 +14,8 @@ test('the hero card greets by time of day, even with no linked name, and shows t
   assert.match(homeTiles, /club \? esc\(club\.name\) : 'Just this phone'/);
   assert.match(homeTiles, /game\$\{total === 1 \? '' : 's'\} this week/);
   assert.match(homeTiles, /<div class="week" role="img" aria-label="Games per day/);
-  assert.ok(/\$\{hero\}<section class="tiles">\$\{tiles\.join\(''\)\}<\/section>\$\{gnHomeHTML\(\)\}\$\{gnPlanHomeHTML\(\)\}\$\{Rewards\.cardHTML\(\)\}\$\{stats\}/.test(homeTiles), 'hero, New game / Log a result tiles, game-night plan row, Your Dink card, then the Top player and Dinks tiles and the challenges card');
+  assert.ok(/\$\{hero\}<section class="tiles">\$\{tiles\.join\(''\)\}<\/section>\$\{gnHomeHTML\(\)\}\$\{gnPlanHomeHTML\(\)\}\$\{stats\}/.test(homeTiles), 'hero, New game / Log a result tiles, game-night plan row, then the Top player and Dinks tiles and the challenges card');
+  assert.ok(!/Rewards\.cardHTML/.test(homeTiles), 'one Dinks surface on Home: the Your Dinks tile, no second card');
   assert.ok(!/class="tile wide"[^`]*This week/.test(homeTiles), 'the old weekly tile is gone');
 });
 

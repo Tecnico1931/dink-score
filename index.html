@@ -274,26 +274,19 @@ button { cursor: pointer; }
 .me-btn .av-icon { width: 60%; height: 60%; }
 .me-btn .rw-flame { position: absolute; right: -6px; bottom: -6px; min-width: 22px; height: 22px; padding: 0 5px 0 3px; display: inline-flex; align-items: center; gap: 1px; border-radius: 999px; background: var(--court-2); color: var(--ball); box-shadow: 0 0 0 2px var(--surface); font-size: 12px; line-height: 1; }
 .me-btn .rw-flame svg { width: 12px; height: 12px; }
-.card.rw-card { display: flex; flex-direction: column; gap: 8px; padding: 16px 20px; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); box-shadow: var(--lift); }
 .rw-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .rw-day, .rw-bal { display: inline-flex; align-items: center; gap: 10px; }
 .rw-day svg { width: 32px; height: 32px; color: var(--ball); }
 .rw-day b, .rw-bal b { display: block; font-size: 32px; line-height: 1; }
 .rw-day small, .rw-bal small { display: block; font-size: 12px; color: var(--on-court-muted); }
 .rw-bal { text-align: right; }
-.rw-line { margin: 0; font-size: 14px; }
 .rw-fine { margin: 0; font-size: 12px; color: var(--on-court-muted); }
-.rw-hide { align-self: flex-start; min-height: 44px; padding: 0 16px; border: 1.5px solid transparent; border-radius: 999px; background: var(--court-pill); color: var(--on-court); font: inherit; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
-.rw-hide:active { filter: brightness(.9); }
 /* Daily spin tile on Play: full width, one short row, a 44 px+ target. Ready = the court colours (like the rewards card); used = a calm surface tile. */
 .tile.rw-spintile { flex-direction: row; align-items: center; gap: 14px; min-height: 64px; padding: 12px 16px; font: inherit; cursor: pointer; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); }
 .tile.rw-spintile.done { color: var(--ink); background: var(--surface); }
 .rw-spin-ico { flex: none; width: 36px; height: 36px; color: var(--ball); } .rw-spintile.done .rw-spin-ico { color: var(--muted); }
 .rw-spintxt { display: grid; gap: 2px; min-width: 0; } .rw-spintxt b { font-size: 16px; line-height: 1.25; overflow-wrap: anywhere; } .rw-spintxt small { font-size: 13px; line-height: 1.3; color: var(--on-court-muted); overflow-wrap: anywhere; } .rw-spintile.done small { color: var(--muted); }
 :root[data-outdoor] .tile.rw-spintile { border: 2px solid var(--ink); }
-.rw-hide[data-rw="hide"] { background: none; border-color: color-mix(in srgb, var(--on-court) 45%, transparent); color: var(--on-court-muted); font-weight: 500; } /* quieter than the three ways in */
-.rw-acts { display: flex; flex-wrap: nowrap; gap: 6px; } .rw-acts .rw-hide { min-width: 44px; flex: 0 1 auto; padding: 0 11px; font-size: 13px; white-space: nowrap; }
-@media (max-width: 300px) { .rw-acts { flex-wrap: wrap; } } /* one row (short labels, full names in aria-label); only a very narrow screen wraps */
 /* Worn looks, set on <html> (data-rw-frame, data-rw-skin) while rewards are shown, on swatches, and on opted-in club members' avatars. Colours use the app's own tokens so both themes pass contrast. */
 [data-rw-frame="court"] { --rw-ring: 0 0 0 5px var(--green); --rw-ring-sm: 0 0 0 4px var(--green); --rw-c: var(--green); } [data-rw-frame="blue"] { --rw-ring: 0 0 0 5px var(--blue); --rw-ring-sm: 0 0 0 4px var(--blue); --rw-c: var(--blue); } [data-rw-frame="ink"] { --rw-ring: 0 0 0 5px var(--ink); --rw-ring-sm: 0 0 0 4px var(--ink); --rw-c: var(--ink); }
 [data-rw-frame="double"] { --rw-ring: 0 0 0 4px var(--green), 0 0 0 6px var(--surface), 0 0 0 8px var(--blue); --rw-ring-sm: 0 0 0 3.5px var(--green), 0 0 0 5px var(--surface), 0 0 0 6.5px var(--blue); --rw-c: var(--green); }
@@ -491,12 +484,6 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-pet[data-pet="pet-yorkie"] { --pet-steel: color-mix(in srgb, var(--blue) 40%, var(--muted)); --pet-black: color-mix(in srgb, var(--ball-ink) 70%, var(--blue)); --pet-tan: color-mix(in srgb, var(--ball) 50%, var(--down)); --pet-gold: color-mix(in srgb, var(--ball) 72%, var(--down)); }
 .rw-pet[data-pet="pet-yorkie"][data-pet-shiny="true"] { --pet-steel: var(--blue); --pet-black: color-mix(in srgb, var(--ball-ink) 55%, var(--blue)); --pet-tan: color-mix(in srgb, var(--ball) 78%, var(--down)); --pet-gold: var(--ball); }
 .rw-pet.sm { width: 20px; height: 20px; } .rw-pet.md { width: 36px; height: 36px; } .rw-pet.lg { width: 44px; height: 44px; }
-.rw-card-pet { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 14px; background: var(--court-pill); }
-.rw-card-pet .rw-pet { --pet-bg: var(--surface); box-shadow: 0 0 0 2px var(--on-court); }
-.rw-card-pet .rw-pet[data-pet-shiny="true"] { box-shadow: 0 0 0 2px var(--ball); }
-.rw-card-pet-txt { flex: 1 1 110px; min-width: 0; display: grid; gap: 2px; }
-.rw-card-pet-txt b { font-size: 14px; line-height: 1.25; color: var(--on-court); overflow-wrap: anywhere; }
-.rw-card-pet-txt small { font-size: 12px; line-height: 1.3; color: var(--on-court-muted); overflow-wrap: anywhere; }
 .rw-pets { display: grid; gap: 12px; }
 .rw-pets-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px; border-radius: 16px; color: var(--on-court); background: linear-gradient(160deg, var(--court) 0%, var(--court-2) 100%); box-shadow: var(--lift); }
 .rw-pets-head .rw-pet { --pet-bg: var(--surface); box-shadow: 0 0 0 2px var(--ball); }
@@ -4218,19 +4205,11 @@ const Rewards = {
   label() { const n = rwShown() ? rwStreak(rwCur(), rwDayKey(Date.now())) : 0; return n >= 2 ? `. ${n} day play streak` : ''; },
   // The "N Dinks" chip beside your name on your own profile. Never another player's balance, and gone when rewards are hidden or off.
   chipHTML(name) { return rwShown() && isMe(name) && myName() && myToken() ? `<span class="badge rw-bal">${rwDinks(rwCur().dinks)}</span>` : ''; },
-  // "Your Dink" card on the Play tab.
-  // The small "Your Dinks" tile beside Top player on Play: balance and streak only (the card below keeps the actions).
+  // The one "Your Dinks" surface on Play, beside Top player: balance and streak, a link to the Shop (Pass, Activity and Hide live in the Shop and the You sheet).
   tileHTML() {
     if (!rwShown()) return '';
     const st = rwCur(), day = rwStreak(st, rwDayKey(Date.now()));
-    return `<section class="tile rw-tile" aria-label="Your Dinks"><span class="t-k">Your Dinks</span><span class="rw-tile-day">${rwFlame}<span>${day ? `Day ${day} streak` : 'No streak yet'}</span></span><span class="t-big">${st.dinks}</span></section>`;
-  },
-  cardHTML() {
-    if (!rwShown()) return '';
-    const st = rwCur(), today = rwDayKey(Date.now()), day = rwStreak(st, today), done = st.last === today, nx = rwNext(day);
-    const line = !myName() || !myToken() ? 'Pick your name in the club to start earning Dinks.' : done ? `Played today. Play tomorrow for +${nx.pay} Dinks on day ${nx.day}.` : day ? `Play today to keep your ${day} day streak.` : 'Play a game today to start a streak.';
-    const pet = typeof rwPetCardHTML === 'function' ? rwPetCardHTML(st) : '', ready = rwReadyN();
-    return `<section class="card rw-card" aria-label="Your Dink"><div class="rw-top"><span class="rw-day">${rwFlame}<span><b>${day}</b><small>${day === 1 ? 'Day' : 'Days'}</small></span></span><span class="rw-bal"><b>${st.dinks}</b><small>${st.dinks === 1 ? 'Dink' : 'Dinks'}</small></span></div>${pet}<p class="rw-line">${esc(line)}</p><p class="rw-fine">Free play money. It can't be bought with real money or cashed out, and it never changes a game or a rating.</p><div class="rw-acts">${myName() && myToken() ? `<button type="button" class="rw-hide" data-rw="pass" aria-label="Season pass${ready ? `, ${ready} ready to claim` : ''}">Pass${rwReadyTag(ready)}</button><button type="button" class="rw-hide" data-rw="store">Shop</button><button type="button" class="rw-hide" data-rw="activity" aria-label="Dinks activity">Activity</button>` : ''}<button type="button" class="rw-hide" data-rw="hide" aria-label="Hide this">Hide</button></div></section>`;
+    return `<button type="button" class="tile rw-tile" data-rw="store"><span class="t-k">Your Dinks</span><span class="rw-tile-day">${rwFlame}<span>${day ? `Day ${day} streak` : 'No streak yet'}</span></span><span class="t-big">${st.dinks}</span></button>`;
   },
   // Rules tab: the "Earning Dinks" card, written from the same constants the ledger, box and pass use. Nothing draws where rewards are off or hidden.
   rulesJump() { return rwShown() ? [['rules-earning', 'Earning']] : []; },
@@ -4412,19 +4391,6 @@ function rwPetRotationCopy(shinyWeek) {
   return cur
     ? `Each pet gets a free shiny coat in turn, rotating every Monday (UTC): ${order}.`
     : `Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+). Free shiny coat rotates every Monday (UTC): ${order}.`;
-}
-
-// Companion block inside the "Your Dink" card on the Play tab (hidden automatically whenever rewards are off or hidden).
-function rwPetCardHTML(st) {
-  if (!st || !st.worn || !st.worn.pet) return '';
-  const key = rwPetNormId(st.worn.pet);
-  if (!key) return '';
-  const p = st.pet && rwPetNormId(st.pet.id) === key
-    ? st.pet
-    : { id: key, stage: 1, stageLabel: 'Rookie', playDays: 0, nextStageDays: 5, shiny: false };
-  const name = rwPetName(key);
-  const stageLine = rwPetStageLine(p);
-  return `<div class="rw-card-pet">${rwPetBadgeHTML(key, { stage: p.stage, shiny: !!p.shiny, decorative: false, size: 44 })}<div class="rw-card-pet-txt"><b>${esc(name)}${p.shiny ? ' · Shiny coat' : ''}</b><small>${esc(stageLine)}</small></div></div>`;
 }
 
 // Dedicated "Court pets" section for the Shop sheet: court-green spotlight header, owned pet picker with growth progress,
@@ -4700,7 +4666,7 @@ Object.assign(Rewards, {
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${box}${rwGoalHTML(c, s)}${seasonSec}${rwTopShelvesHTML(c, s)}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwLooksSectionsHTML === 'function' ? rwLooksSectionsHTML(c, s) : ''}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwLooksSectionsHTML === 'function' ? rwLooksSectionsHTML(c, s) : ''}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}<div class="btns"><button type="button" class="btn btn-soft" data-rw="activity">Dinks activity</button></div>${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
@@ -6051,7 +6017,7 @@ function homeTiles(games) {
   const hero = `<section class="card hero" aria-label="This week"><div class="hero-top"><div class="hero-txt"><p class="play-greeting">${esc(greet)}</p><p class="hero-club">${club ? esc(club.name) : 'Just this phone'}</p></div></div>${BALL_IMG('hero-ball', 124)}
     <div class="hero-total"><span class="n">${total}</span><span class="t-k">game${total === 1 ? '' : 's'} this week</span></div>
     <div class="week" role="img" aria-label="Games per day, last 7 days: ${perDay}">${days.map((d, i) => `<div><i class="${counts[i] ? 'has' : ''} ${i === 6 ? 'today' : ''}" style="height:${counts[i] ? Math.max(14, 100 * counts[i] / max) : 8}%" title="${counts[i]} games"></i><span>${d.toLocaleDateString(undefined, { weekday: 'narrow' })}</span></div>`).join('')}</div></section>`;
-  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${gnPlanHomeHTML()}${Rewards.cardHTML()}${stats}${monthCard(games)}`;
+  return `${hero}<section class="tiles">${tiles.join('')}</section>${gnHomeHTML()}${gnPlanHomeHTML()}${stats}${monthCard(games)}`;
 }
 
 // "This month" on the home screen: the club's (or this phone's) games since the 1st of the month.
