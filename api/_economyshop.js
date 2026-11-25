@@ -11,7 +11,7 @@ import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry, paceFrom, totals } from './_economy.js';
 import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
 import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
-import { TITLES, STYLES, TOP_FRAMES, TOP_SOUNDS, TOP_RARITIES } from './_economyitems.js';
+import { TITLES, STYLES, TOP_FRAMES, TOP_SOUNDS, TOP_THEMES, TOP_CELEBRATIONS, TOP_RARITIES } from './_economyitems.js';
 import { PASS_ITEMS } from './_economyxp.js';
 
 // One place that says which slots exist. `club`: a worn item in the slot may be shown to the club (opt-in look); a sound is only ever heard on the
@@ -68,12 +68,14 @@ export const CATALOGUE = [
   { id: 'theme-ice', slot: 'theme', name: 'Ice rink', price: 150, rarity: 'rare' },
   { id: 'theme-midnight', slot: 'theme', name: 'Midnight court', price: 150, rarity: 'rare' },
   { id: 'theme-arcade', slot: 'theme', name: 'Retro arcade', price: 210, rarity: 'rare' },
+  ...TOP_THEMES,
   // Win celebrations (WI-16): one short CSS effect on the scoring phone when a game ends (src/app/economycelebrate.js); needs Win celebration on in Settings.
   { id: 'celebrate-confetti', slot: 'celebrate', name: 'Confetti', price: 120, rarity: 'rare' },
   { id: 'celebrate-balls', slot: 'celebrate', name: 'Ball burst', price: 120, rarity: 'rare' },
   { id: 'celebrate-pickles', slot: 'celebrate', name: 'Pickle rain', price: 150, rarity: 'rare' },
   { id: 'celebrate-paddles', slot: 'celebrate', name: 'Flying paddles', price: 150, rarity: 'rare' },
   { id: 'celebrate-hearts', slot: 'celebrate', name: 'Heart burst', price: 120, rarity: 'rare' },
+  ...TOP_CELEBRATIONS,
   ...TITLES,
   ...STYLES
 ];

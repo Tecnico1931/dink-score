@@ -9,26 +9,30 @@ const THEMES = [['theme-sunset', 'Sunset court', 150], ['theme-clay', 'Clay cour
 const FX = [['celebrate-confetti', 'Confetti', 120], ['celebrate-balls', 'Ball burst', 120], ['celebrate-pickles', 'Pickle rain', 150], ['celebrate-paddles', 'Flying paddles', 150], ['celebrate-hearts', 'Heart burst', 120]];
 const XMAS_FX = [['celebrate-snowfall', 'Snowfall', 300], ['celebrate-gifts', 'Present drop', 1200]]; // event shelf, not in CATALOGUE
 
-test('eight court themes and five win celebrations at the upstream prices, never in the box, never shown to the club', () => {
-  assert.deepEqual(CATALOGUE.filter(i => i.slot === 'theme').map(i => [i.id, i.name, i.price, i.rarity]), THEMES.map(([id, n, p]) => [id, n, p, 'rare']));
-  assert.deepEqual(CATALOGUE.filter(i => i.slot === 'celebrate').map(i => [i.id, i.name, i.price, i.rarity]), FX.map(([id, n, p]) => [id, n, p, 'rare']));
+// M2: the Legendary and Mythic looks, at the upstream prices (three Mythic items more make the seven that exist).
+const TOP_THEMES = [['theme-aurora', 'Aurora court', 1080, 'legendary'], ['theme-galaxy', 'Galaxy court', 1080, 'legendary'], ['theme-eclipse', 'Eclipse court', 4100, 'mythic']];
+const TOP_FX = [['celebrate-fireworks', 'Fireworks', 900, 'legendary'], ['celebrate-trophy', 'Trophy shower', 1200, 'legendary'], ['celebrate-supernova', 'Supernova', 4400, 'mythic']];
+
+test('eleven court themes and eight win celebrations at the upstream prices, never in the box, never shown to the club', () => {
+  assert.deepEqual(CATALOGUE.filter(i => i.slot === 'theme').map(i => [i.id, i.name, i.price, i.rarity]), [...THEMES.map(([id, n, p]) => [id, n, p, 'rare']), ...TOP_THEMES]);
+  assert.deepEqual(CATALOGUE.filter(i => i.slot === 'celebrate').map(i => [i.id, i.name, i.price, i.rarity]), [...FX.map(([id, n, p]) => [id, n, p, 'rare']), ...TOP_FX]);
   assert.ok(SLOTS.includes('theme') && SLOTS.includes('celebrate'));
-  const ids = [...THEMES, ...FX].map(x => x[0]);
+  const ids = [...THEMES, ...FX, ...TOP_THEMES, ...TOP_FX].map(x => x[0]);
   assert.ok(!BOX_TIERS.some(t => t.items.some(id => ids.includes(id))), 'a theme or celebration is not a box prize');
   assert.deepEqual(clubLooksFrom(ids.map(item => ({ name_key: 'ana', slot: item.split('-')[0], item }))), {}, 'only the owner sees them, on their own phone');
   assert.deepEqual(wornFrom([{ id: 'theme-neon', slot: 'theme', worn: true }, { id: 'celebrate-hearts', slot: 'celebrate', worn: true }]).theme, 'theme-neon');
 });
 
-test('every theme has its token blocks in light, night and sunlight, and the phone draws the same eight', () => {
+test('every theme has its token blocks in light, night and sunlight, and the phone draws the same eleven', () => {
   const css = section('REWARDTHEMES');
-  for (const [id] of [...THEMES, ['theme-snow']]) {
+  for (const [id] of [...THEMES, ['theme-snow'], ...TOP_THEMES]) {
     const key = 't-' + id.slice(6);
     for (const sel of [`:root[data-palette="${key}"] {`, `:root[data-palette="${key}"]:not([data-theme="light"]) {`, `:root[data-palette="${key}"][data-theme="dark"] {`, `:root[data-palette="${key}"][data-outdoor] {`]) assert.ok(css.includes(sel), sel);
   }
   assert.ok(!/animation|transition/.test(css), 'tokens only');
   const m = page().match(/\/\*DISPLAY-START\*\/([\s\S]*?)\/\*DISPLAY-END\*\//)[1];
   const D = new Function(m + '\nreturn DisplayPrefs;')();
-  const all = [...THEMES, ['theme-snow', 'Snowy court']]; // the Christmas event shelf's court (api/_economyseason.js)
+  const all = [...THEMES, ['theme-snow', 'Snowy court'], ...TOP_THEMES]; // snow: the Christmas event shelf's court (api/_economyseason.js)
   assert.deepEqual(D.SHOP_THEMES.map(t => t.item), all.map(t => t[0]));
   assert.deepEqual(D.SHOP_THEMES.map(t => t.name), all.map(t => t[1]), 'names match the server catalogue');
 });

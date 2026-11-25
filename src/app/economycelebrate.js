@@ -14,6 +14,10 @@ const RW_FX = {
   'celebrate-paddles': { kind: 'paddles', rain: false, colors: ['#3E5BF0', '#F08A4B'], svg: '<rect x="4" y="1" width="16" height="15" rx="7"/><rect x="10.5" y="15" width="3" height="8" rx="1.5"/>' },
   'celebrate-snowfall': { kind: 'snowfall', rain: true, colors: ['#9CC9EE', '#C7E2F7', '#7FB2E0'], svg: '<circle cx="12" cy="12" r="7"/>' },
   'celebrate-gifts': { kind: 'gifts', rain: false, colors: ['#D8404E', '#2F9E63', '#E8B93C'], svg: '<rect x="3" y="9" width="18" height="13" rx="2"/><rect x="2" y="5" width="20" height="5" rx="1.5"/>' },
+  // Legendary and Mythic (M2): same pieces and timing, richer shapes and colours. Not in the box; they sit on the Legendary and Mythic shelves.
+  'celebrate-fireworks': { kind: 'fireworks', rain: false, colors: ['#FF5C7A', '#FFD23F', '#4DD2FF', '#9B7BFF', '#5BE37D'], svg: '<circle cx="12" cy="12" r="6"/>' },
+  'celebrate-trophy': { kind: 'trophy', rain: true, colors: ['#F2C94C', '#E0A53A', '#FFE08A'], svg: '<path d="M6 2h12v6a6 6 0 0 1-12 0z"/><rect x="10.5" y="14" width="3" height="4"/><rect x="7" y="18" width="10" height="4" rx="1.5"/>' },
+  'celebrate-supernova': { kind: 'supernova', rain: false, colors: ['#FFFFFF', '#FFD23F', '#C7A8FF', '#FF8A4B'], svg: '<path d="M12 1l2.9 7.3L22 9.2l-5.6 4.9L18 22l-6-4-6 4 1.6-7.9L2 9.2l7.1-.9z"/>' },
   'celebrate-hearts': { kind: 'hearts', rain: false, colors: ['#E8506A', '#F08AC4'], svg: '<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.6 2.7 5 6.2 5c2.1 0 3.7 1.1 5.8 3.2C14.1 6.1 15.7 5 17.8 5c3.5 0 5.3 3.6 3.8 6.8C19.5 16.4 12 21 12 21z"/>' }
 };
 const rwFxPiece = (fx, i, style) => `<i style="color:${fx.colors[i % fx.colors.length]};${style}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">${fx.svg}</svg></i>`;
@@ -33,7 +37,7 @@ function rwLookWell(it, small) {
 const RW_LOOK_COPY = { theme: ['Court themes', 'Your scoring screen on this phone.'], celebrate: ['Win celebrations', 'Plays on your scoring phone when a game ends.'] };
 function rwLooksSectionsHTML(c, s) {
   const sec = slot => {
-    const its = (s.items || []).filter(i => i.slot === slot && !i.seasonal && !i.event);
+    const its = (s.items || []).filter(i => i.slot === slot && !i.seasonal && !i.event && i.rarity !== 'legendary' && i.rarity !== 'mythic'); // the top two live on their own shelves
     return its.length ? `${rwSecHead(RW_LOOK_COPY[slot][0], RW_LOOK_COPY[slot][1])}${rwShelf(c, s, its)}` : '';
   };
   const themes = sec('theme'), fx = sec('celebrate');

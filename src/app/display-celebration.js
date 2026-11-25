@@ -19,7 +19,10 @@ const DisplayPrefs = (() => {
     { id: 't-ice', item: 'theme-ice', name: 'Ice rink', light: '#EFF3F6', dark: '#0A1015', c1: '#285E95', c2: '#315D68' },
     { id: 't-midnight', item: 'theme-midnight', name: 'Midnight court', light: '#EFF0F6', dark: '#0A0B15', c1: '#364DAB', c2: '#593286' },
     { id: 't-arcade', item: 'theme-arcade', name: 'Retro arcade', light: '#F6EFF3', dark: '#150A11', c1: '#AB1C72', c2: '#125E64' },
-    { id: 't-snow', item: 'theme-snow', name: 'Snowy court', light: '#EFF5F2', dark: '#0A1210', c1: '#2D6A4F', c2: '#8E2F3A' }
+    { id: 't-snow', item: 'theme-snow', name: 'Snowy court', light: '#EFF5F2', dark: '#0A1210', c1: '#2D6A4F', c2: '#8E2F3A' },
+    { id: 't-aurora', item: 'theme-aurora', name: 'Aurora court', light: '#EEF6F3', dark: '#08130F', c1: '#0B6F5C', c2: '#5A3FA0' },
+    { id: 't-galaxy', item: 'theme-galaxy', name: 'Galaxy court', light: '#F2EFF8', dark: '#0D0816', c1: '#5A2FB0', c2: '#A02A8C' },
+    { id: 't-eclipse', item: 'theme-eclipse', name: 'Eclipse court', light: '#F6F2EA', dark: '#070605', c1: '#7E5200', c2: '#4A2C6E' }
   ];
   const SHOP_BY_ITEM = Object.fromEntries(SHOP_THEMES.map(t => [t.item, t]));
   const PALETTE_BY_ID = Object.fromEntries(PALETTES.map(p => [p.id, p]));
