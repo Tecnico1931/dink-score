@@ -23,7 +23,7 @@ const light = blockVars(tokenBlock, ':root');
 const dark = Object.assign({}, light, blockVars(tokenBlock, ':root[data-theme="dark"]'));
 const outdoor = Object.assign({}, light, blockVars(tokenBlock, ':root[data-outdoor]'));
 const paletteOutdoorBase = blockVars(tokenBlock, ':root[data-palette][data-outdoor]');
-const PALETTE_IDS = ['green', 'blue', 'clay', 'violet', 'sunset', 'slate', 't-sunset', 't-clay', 't-grass', 't-neon', 't-beach', 't-ice', 't-midnight', 't-arcade'];
+const PALETTE_IDS = ['green', 'blue', 'clay', 'violet', 'sunset', 'slate', 't-sunset', 't-clay', 't-grass', 't-neon', 't-beach', 't-ice', 't-midnight', 't-arcade', 't-snow'];
 const palettes = {
   green: { light, dark, mediaDark: Object.assign({}, light, blockVars(tokenBlock, ':root:not([data-theme="light"])')), outdoor }
 };
@@ -334,6 +334,8 @@ test('WI-9: every name style stays >= 4.5:1 on cards, soft cards and the page in
     gold: t => mix(t.ball, 0.4, t.ink),
     glowing: t => t.ink,
     flame: t => mix(t.down, 0.75, t.ink),
+    candy: t => mix(t.down, 0.65, t.ink),
+    tinsel: t => mix(mix(t.green, 0.5, t['blue-text']), 0.75, t.ink),
     pickle: t => mix(t.green, 0.7, t.ink),
     ice: t => mix(t['blue-text'], 0.75, t.ink),
     neon: t => mix(mix(t.down, 0.5, t['blue-text']), 0.75, t.ink),

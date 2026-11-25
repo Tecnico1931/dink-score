@@ -12,6 +12,8 @@ const RW_FX = {
   'celebrate-balls': { kind: 'balls', rain: false, colors: ['#C8E81B', '#D9F23A'], svg: '<circle cx="12" cy="12" r="10"/>' },
   'celebrate-pickles': { kind: 'pickles', rain: true, colors: ['#5C9E2E', '#7DB544', '#4A8A22'], svg: '<rect x="8" y="1" width="8" height="22" rx="4"/>' },
   'celebrate-paddles': { kind: 'paddles', rain: false, colors: ['#3E5BF0', '#F08A4B'], svg: '<rect x="4" y="1" width="16" height="15" rx="7"/><rect x="10.5" y="15" width="3" height="8" rx="1.5"/>' },
+  'celebrate-snowfall': { kind: 'snowfall', rain: true, colors: ['#9CC9EE', '#C7E2F7', '#7FB2E0'], svg: '<circle cx="12" cy="12" r="7"/>' },
+  'celebrate-gifts': { kind: 'gifts', rain: false, colors: ['#D8404E', '#2F9E63', '#E8B93C'], svg: '<rect x="3" y="9" width="18" height="13" rx="2"/><rect x="2" y="5" width="20" height="5" rx="1.5"/>' },
   'celebrate-hearts': { kind: 'hearts', rain: false, colors: ['#E8506A', '#F08AC4'], svg: '<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.6 2.7 5 6.2 5c2.1 0 3.7 1.1 5.8 3.2C14.1 6.1 15.7 5 17.8 5c3.5 0 5.3 3.6 3.8 6.8C19.5 16.4 12 21 12 21z"/>' }
 };
 const rwFxPiece = (fx, i, style) => `<i style="color:${fx.colors[i % fx.colors.length]};${style}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">${fx.svg}</svg></i>`;

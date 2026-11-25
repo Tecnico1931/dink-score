@@ -18,7 +18,8 @@ const DisplayPrefs = (() => {
     { id: 't-beach', item: 'theme-beach', name: 'Beach court', light: '#F6F3EF', dark: '#15110A', c1: '#825017', c2: '#155B75' },
     { id: 't-ice', item: 'theme-ice', name: 'Ice rink', light: '#EFF3F6', dark: '#0A1015', c1: '#285E95', c2: '#315D68' },
     { id: 't-midnight', item: 'theme-midnight', name: 'Midnight court', light: '#EFF0F6', dark: '#0A0B15', c1: '#364DAB', c2: '#593286' },
-    { id: 't-arcade', item: 'theme-arcade', name: 'Retro arcade', light: '#F6EFF3', dark: '#150A11', c1: '#AB1C72', c2: '#125E64' }
+    { id: 't-arcade', item: 'theme-arcade', name: 'Retro arcade', light: '#F6EFF3', dark: '#150A11', c1: '#AB1C72', c2: '#125E64' },
+    { id: 't-snow', item: 'theme-snow', name: 'Snowy court', light: '#EFF5F2', dark: '#0A1210', c1: '#2D6A4F', c2: '#8E2F3A' }
   ];
   const SHOP_BY_ITEM = Object.fromEntries(SHOP_THEMES.map(t => [t.item, t]));
   const PALETTE_BY_ID = Object.fromEntries(PALETTES.map(p => [p.id, p]));

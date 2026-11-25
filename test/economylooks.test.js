@@ -7,6 +7,7 @@ import { module, page, section } from './helpers/app.js';
 
 const THEMES = [['theme-sunset', 'Sunset court', 150], ['theme-clay', 'Clay court', 150], ['theme-grass', 'Grass court', 150], ['theme-neon', 'Neon court', 210], ['theme-beach', 'Beach court', 150], ['theme-ice', 'Ice rink', 150], ['theme-midnight', 'Midnight court', 150], ['theme-arcade', 'Retro arcade', 210]];
 const FX = [['celebrate-confetti', 'Confetti', 120], ['celebrate-balls', 'Ball burst', 120], ['celebrate-pickles', 'Pickle rain', 150], ['celebrate-paddles', 'Flying paddles', 150], ['celebrate-hearts', 'Heart burst', 120]];
+const XMAS_FX = [['celebrate-snowfall', 'Snowfall', 300], ['celebrate-gifts', 'Present drop', 1200]]; // event shelf, not in CATALOGUE
 
 test('eight court themes and five win celebrations at the upstream prices, never in the box, never shown to the club', () => {
   assert.deepEqual(CATALOGUE.filter(i => i.slot === 'theme').map(i => [i.id, i.name, i.price, i.rarity]), THEMES.map(([id, n, p]) => [id, n, p, 'rare']));
@@ -20,15 +21,16 @@ test('eight court themes and five win celebrations at the upstream prices, never
 
 test('every theme has its token blocks in light, night and sunlight, and the phone draws the same eight', () => {
   const css = section('REWARDTHEMES');
-  for (const [id] of THEMES) {
+  for (const [id] of [...THEMES, ['theme-snow']]) {
     const key = 't-' + id.slice(6);
     for (const sel of [`:root[data-palette="${key}"] {`, `:root[data-palette="${key}"]:not([data-theme="light"]) {`, `:root[data-palette="${key}"][data-theme="dark"] {`, `:root[data-palette="${key}"][data-outdoor] {`]) assert.ok(css.includes(sel), sel);
   }
   assert.ok(!/animation|transition/.test(css), 'tokens only');
   const m = page().match(/\/\*DISPLAY-START\*\/([\s\S]*?)\/\*DISPLAY-END\*\//)[1];
   const D = new Function(m + '\nreturn DisplayPrefs;')();
-  assert.deepEqual(D.SHOP_THEMES.map(t => t.item), THEMES.map(t => t[0]));
-  assert.deepEqual(D.SHOP_THEMES.map(t => t.name), THEMES.map(t => t[1]), 'names match the server catalogue');
+  const all = [...THEMES, ['theme-snow', 'Snowy court']]; // the Christmas event shelf's court (api/_economyseason.js)
+  assert.deepEqual(D.SHOP_THEMES.map(t => t.item), all.map(t => t[0]));
+  assert.deepEqual(D.SHOP_THEMES.map(t => t.name), all.map(t => t[1]), 'names match the server catalogue');
 });
 
 test('a worn theme is applied only while rewards are shown here, and hiding them puts the free palette back', () => {
@@ -67,7 +69,7 @@ const phone = ({ worn = '', shown = true } = {}) => {
 };
 
 test('a worn celebration draws one short band of 16 pieces and removes it after 1.5 s; none worn or hidden draws nothing', () => {
-  for (const [id, , ] of FX) {
+  for (const [id, , ] of [...FX, ...XMAS_FX]) {
     const p = phone({ worn: id });
     assert.equal(p.rwWinFx(), true, id);
     assert.equal(p.added.length, 1); assert.equal(p.added[0].className, 'rw-fx'); assert.equal(p.added[0].attrs['aria-hidden'], 'true');
