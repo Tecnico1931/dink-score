@@ -106,15 +106,15 @@ async function acctOpen() {
   await acctLoad();
   if (clubSheet && clubSheet.view === 'account') { clubSheet.busy = false; renderClub(); }
 }
-// Sign-in first on the no-club and join screens, so a returning person is not steered into making a new club.
+// One quiet sign-in row after join and create on the no-club and join screens, so the code box stays the first thing a new member sees.
 function addAcctHTML(c) {
   if (!passkeysOk()) return '';
   const off = c.busy ? 'disabled' : '';
   if (acctIn()) {
     const missing = new Set(acctMissing().map(i => i.code)).size;
-    return `<div class="field"><p class="note" role="status">Signed in as <b>${esc(acct.account.name)}</b>.</p>${missing ? `<button class="btn btn-ink block" data-act="acct-restore-add" ${off}>Bring my clubs to this phone (${missing})</button>` : ''}</div><div class="or"><span>or</span></div>`;
+    return `<div class="field"><p class="note" role="status">Signed in as <b>${esc(acct.account.name)}</b>.</p>${missing ? `<button class="btn btn-soft block" data-act="acct-restore-add" ${off}>Bring my clubs to this phone (${missing})</button>` : ''}</div>`;
   }
-  return `<div class="field"><span class="lab">Already have clubs?</span><button class="btn btn-ink block" data-act="acct-in-add" ${off}>Sign in with a passkey</button><p class="note">Brings the clubs and player names on your account to this phone. The Home Screen app is a separate copy from Safari, so sign in there too.</p></div><div class="or"><span>or</span></div>`;
+  return `<div class="field"><button class="btn btn-soft block" data-act="acct-in-add" ${off}>Already have clubs? Sign in with a passkey</button><p class="note">Brings the clubs and player names on your account to this phone. The Home Screen app is a separate copy from Safari, so sign in there too.</p></div>`;
 }
 // A phone whose token was replaced (your account was restored on another phone) can take its access back.
 const lostToken = msg => /phone isn't linked to that player|only the phone that created/i.test(msg || '');
