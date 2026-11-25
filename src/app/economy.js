@@ -272,8 +272,8 @@ const Rewards = {
     if (!rwClubOn()) return '';
     const n = rwReadyN();
     const way = rwShown() && myName() && myToken()
-      ? `<button type="button" class="you-row" data-rw="pass"><span><b>Shop &amp; season pass</b><small>${n ? `${n === 1 ? '1 reward is' : `${n} rewards are`} ready to claim` : 'Claim rewards and spend your Dinks'}</small></span>${rwReadyTag(n)}<span class="chev" aria-hidden="true">›</span></button>` : '';
-    return `${way}<button type="button" class="you-row" data-rw="${rwHidden() ? 'show' : 'hide'}"><span><b>${rwHidden() ? 'Show rewards and streak' : 'Hide rewards and streak'}</b><small>${rwHidden() ? 'Your Dink card, flame and Shop come back' : 'Hides the streak, the flame, Dinks and the Shop on this phone'}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
+      ? `<button type="button" class="you-row" data-rw="pass"><span class="row-ico" aria-hidden="true">🛍️</span><span><b>Shop &amp; season pass</b><small>${n ? `${n === 1 ? '1 reward is' : `${n} rewards are`} ready to claim` : 'Claim rewards and spend your Dinks'}</small></span>${rwReadyTag(n)}<span class="chev" aria-hidden="true">›</span></button>` : '';
+    return `${way}<button type="button" class="you-row" data-rw="${rwHidden() ? 'show' : 'hide'}"><span class="row-ico" aria-hidden="true">${rwHidden() ? '👀' : '🫥'}</span><span><b>${rwHidden() ? 'Show rewards and streak' : 'Hide rewards and streak'}</b><small>${rwHidden() ? 'Your Dink card, flame and Shop come back' : 'Hides the streak, the flame, Dinks and the Shop on this phone'}</small></span><span class="chev" aria-hidden="true">›</span></button>`;
   }
 };
 
