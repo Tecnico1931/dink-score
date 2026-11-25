@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import { page, section } from './helpers/app.js';
 
 const html = page();
-const tokenBlock = section('TOKENS');
+const tokenBlock = section('TOKENS') + section('REWARDTHEMES'); // the free palettes, then the eight rewarded court themes (WI-16) that layer over them
 const hexRgb = h => { h = h.replace('#', ''); if (h.length === 3) h = [...h].map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
 const lum = ([r, g, b]) => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
 const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
@@ -23,7 +23,7 @@ const light = blockVars(tokenBlock, ':root');
 const dark = Object.assign({}, light, blockVars(tokenBlock, ':root[data-theme="dark"]'));
 const outdoor = Object.assign({}, light, blockVars(tokenBlock, ':root[data-outdoor]'));
 const paletteOutdoorBase = blockVars(tokenBlock, ':root[data-palette][data-outdoor]');
-const PALETTE_IDS = ['green', 'blue', 'clay', 'violet', 'sunset', 'slate'];
+const PALETTE_IDS = ['green', 'blue', 'clay', 'violet', 'sunset', 'slate', 't-sunset', 't-clay', 't-grass', 't-neon', 't-beach', 't-ice', 't-midnight', 't-arcade'];
 const palettes = {
   green: { light, dark, mediaDark: Object.assign({}, light, blockVars(tokenBlock, ':root:not([data-theme="light"])')), outdoor }
 };
@@ -101,7 +101,7 @@ for (const id of PALETTE_IDS) {
     });
   }
 }
-test('all 6 palettes lock Team 1, Team 2 and pickleball tokens and match @media dark with data-theme="dark"', () => {
+test('all 14 palettes lock Team 1, Team 2 and pickleball tokens and match @media dark with data-theme="dark"', () => {
   for (const id of PALETTE_IDS) {
     assert.deepEqual(palettes[id].mediaDark, palettes[id].dark, `${id}: @media dark must match [data-theme="dark"]`);
     for (const mode of ['light', 'dark', 'outdoor']) {
@@ -272,7 +272,15 @@ test('DisplayPrefs: normalizes and resolves Match phone, Light, Dark, Outdoor an
   assert.ok(m, 'DISPLAY-START/END block missing');
   const DisplayPrefs = new Function(m[1] + '\nreturn DisplayPrefs;')();
 
-  assert.deepEqual(DisplayPrefs.PALETTES.map(p => p.id), PALETTE_IDS);
+  assert.deepEqual(DisplayPrefs.PALETTES.map(p => p.id), PALETTE_IDS.slice(0, 6), 'the free picker keeps its six');
+  // WI-16: the rewarded themes are extra palettes set only from a worn item; the free choice underneath is untouched.
+  assert.deepEqual(DisplayPrefs.SHOP_THEMES.map(t => t.id), PALETTE_IDS.slice(6));
+  const neon = DisplayPrefs.SHOP_BY_ITEM['theme-neon'];
+  assert.deepEqual(DisplayPrefs.resolve({ theme: 'light', palette: 'blue' }, true, 'theme-neon'), { dataTheme: 'light', dataPalette: 't-neon', palette: 't-neon', effective: 'light', colorScheme: 'light', themeColor: neon.light, outdoor: false, large: false });
+  assert.equal(DisplayPrefs.resolve({ theme: 'dark' }, false, 'theme-neon').themeColor, neon.dark);
+  assert.equal(DisplayPrefs.resolve({ outdoor: 1 }, false, 'theme-neon').themeColor, '#000000');
+  assert.equal(DisplayPrefs.resolve({ palette: 'blue' }, false, 'theme-nope').dataPalette, 'blue', 'an unknown item changes nothing');
+  assert.equal(DisplayPrefs.resolve({ palette: 'blue' }, false, '').dataPalette, 'blue', 'none worn: the free palette');
   assert.equal(DisplayPrefs.paletteInfo('blue').name, 'Court Blue');
   assert.equal(DisplayPrefs.paletteInfo('bogus').id, 'green');
 

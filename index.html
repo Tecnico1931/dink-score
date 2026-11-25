@@ -182,6 +182,43 @@ img { max-width: 100%; }
 :root[data-palette="sunset"][data-outdoor] { --court: #7E2F00; --court-2: #7E2F00; --court-ring: #7E2F00; --accent: #7E2F00; --accent-text: #7E2F00; --focus: #7E2F00; }
 :root[data-palette="slate"][data-outdoor] { --court: #14181F; --court-2: #14181F; --court-ring: #14181F; --accent: #14181F; --accent-text: #14181F; --focus: #14181F; }
 /*TOKENS-END*/
+/*REWARDTHEMES-START*/
+/* Rewarded court themes (WI-16): `t-<id>` palettes layered over the six free ones, set only from the worn `theme` item (src/app/economycelebrate.js); same token set, same contrast pins. */
+:root[data-palette="t-sunset"] { --bg: #F6F0EF; --surface: #FFFFFF; --surface-2: #F6F0EF; --ink: #20110E; --muted: #77605A; --line: #E2D7D4; --court: #B42236; --court-2: #5F3286; --court-ring: #B42236; --accent: #B42236; --accent-text: #B42236; --focus: #B42236; --dsp-bg: #25130E; --dsp-surface: #381F19; --dsp-ink: #F8F3F2; --dsp-muted: #D9C4BF; --dsp-dim: #BA9E97; }
+:root[data-palette="t-clay"] { --bg: #F6F2EF; --surface: #FFFFFF; --surface-2: #F4EFEC; --ink: #20150E; --muted: #746358; --line: #E2DAD4; --court: #954523; --court-2: #325986; --court-ring: #954523; --accent: #954523; --accent-text: #954523; --focus: #954523; --dsp-bg: #25170E; --dsp-surface: #382619; --dsp-ink: #F8F4F2; --dsp-muted: #D9C9BF; --dsp-dim: #BAA597; }
+:root[data-palette="t-grass"] { --bg: #F1F6EF; --surface: #FFFFFF; --surface-2: #ECF2E9; --ink: #14200E; --muted: #58694F; --line: #D9E2D4; --court: #376921; --court-2: #445D1D; --court-ring: #376921; --accent: #376921; --accent-text: #376921; --focus: #376921; --dsp-bg: #16250E; --dsp-surface: #243819; --dsp-ink: #F4F8F2; --dsp-muted: #C8D9BF; --dsp-dim: #A3BA97; }
+:root[data-palette="t-neon"] { --bg: #F6EFF6; --surface: #FFFFFF; --surface-2: #F6EFF6; --ink: #200E20; --muted: #7A5C7A; --line: #E2D4E2; --court: #A81594; --court-2: #0C5C79; --court-ring: #A81594; --accent: #A81594; --accent-text: #A81594; --focus: #A81594; --dsp-bg: #250E25; --dsp-surface: #381938; --dsp-ink: #F8F2F8; --dsp-muted: #D9BFD9; --dsp-dim: #BA97BA; }
+:root[data-palette="t-beach"] { --bg: #F6F3EF; --surface: #FFFFFF; --surface-2: #F4F1EC; --ink: #20190E; --muted: #6E6553; --line: #E2DDD4; --court: #825017; --court-2: #155B75; --court-ring: #825017; --accent: #825017; --accent-text: #825017; --focus: #825017; --dsp-bg: #251D0E; --dsp-surface: #382D19; --dsp-ink: #F8F6F2; --dsp-muted: #D9CFBF; --dsp-dim: #BAAD97; }
+:root[data-palette="t-ice"] { --bg: #EFF3F6; --surface: #FFFFFF; --surface-2: #ECF0F4; --ink: #0E1820; --muted: #586874; --line: #D4DCE2; --court: #285E95; --court-2: #315D68; --court-ring: #285E95; --accent: #285E95; --accent-text: #285E95; --focus: #285E95; --dsp-bg: #0E1B25; --dsp-surface: #192B38; --dsp-ink: #F2F5F8; --dsp-muted: #BFCED9; --dsp-dim: #97ABBA; }
+:root[data-palette="t-midnight"] { --bg: #EFF0F6; --surface: #FFFFFF; --surface-2: #EFF0F6; --ink: #0E1020; --muted: #5C607A; --line: #D4D6E2; --court: #364DAB; --court-2: #593286; --court-ring: #364DAB; --accent: #364DAB; --accent-text: #364DAB; --focus: #364DAB; --dsp-bg: #0E1125; --dsp-surface: #191D38; --dsp-ink: #F2F3F8; --dsp-muted: #BFC3D9; --dsp-dim: #979CBA; }
+:root[data-palette="t-arcade"] { --bg: #F6EFF3; --surface: #FFFFFF; --surface-2: #F6EFF3; --ink: #200E19; --muted: #7A5C6F; --line: #E2D4DD; --court: #AB1C72; --court-2: #125E64; --court-ring: #AB1C72; --accent: #AB1C72; --accent-text: #AB1C72; --focus: #AB1C72; --dsp-bg: #250E1D; --dsp-surface: #38192D; --dsp-ink: #F8F2F6; --dsp-muted: #D9BFCF; --dsp-dim: #BA97AD; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="t-sunset"]:not([data-theme="light"]) { --bg: #150C0A; --surface: #211512; --surface-2: #2A1C18; --ink: #F6F0EE; --muted: #A48A84; --line: #432E28; --court: #AB2133; --court-2: #4F2970; --court-ring: #D83148; --accent: #D83148; --accent-text: #EE7787; --focus: #EE7787; }
+  :root[data-palette="t-clay"]:not([data-theme="light"]) { --bg: #150E0A; --surface: #211812; --surface-2: #271D16; --ink: #F6F1EE; --muted: #A49184; --line: #433328; --court: #9D4925; --court-2: #294A70; --court-ring: #D06639; --accent: #BA562C; --accent-text: #E48258; --focus: #E48258; }
+  :root[data-palette="t-grass"]:not([data-theme="light"]) { --bg: #0E150A; --surface: #172112; --surface-2: #172112; --ink: #F1F6EE; --muted: #8FA484; --line: #314328; --court: #396D22; --court-2: #445D1D; --court-ring: #6BC445; --accent: #438028; --accent-text: #86DA62; --focus: #86DA62; }
+  :root[data-palette="t-neon"]:not([data-theme="light"]) { --bg: #150A15; --surface: #211221; --surface-2: #2A182A; --ink: #F6EEF6; --muted: #A484A4; --line: #432843; --court: #B1169C; --court-2: #0C5C79; --court-ring: #E425CB; --accent: #D11AB8; --accent-text: #F55CE0; --focus: #F55CE0; }
+  :root[data-palette="t-beach"]:not([data-theme="light"]) { --bg: #15110A; --surface: #211C12; --surface-2: #241E14; --ink: #F6F3EE; --muted: #A49884; --line: #433928; --court: #8B5518; --court-2: #155B75; --court-ring: #DA8A2F; --accent: #A5651D; --accent-text: #ECA351; --focus: #ECA351; }
+  :root[data-palette="t-ice"]:not([data-theme="light"]) { --bg: #0A1015; --surface: #121B21; --surface-2: #162027; --ink: #EEF3F6; --muted: #8497A4; --line: #283843; --court: #2A639D; --court-2: #315D68; --court-ring: #3E85CC; --accent: #3278BD; --accent-text: #60A1E1; --focus: #60A1E1; }
+  :root[data-palette="t-midnight"]:not([data-theme="light"]) { --bg: #0A0B15; --surface: #121421; --surface-2: #1A1C2E; --ink: #EEEFF6; --muted: #878BA6; --line: #282C43; --court: #31469B; --court-2: #4A2970; --court-ring: #546CC9; --accent: #546CC9; --accent-text: #8396E2; --focus: #8396E2; }
+  :root[data-palette="t-arcade"]:not([data-theme="light"]) { --bg: #150A11; --surface: #21121C; --surface-2: #2E1A26; --ink: #F6EEF3; --muted: #A6879B; --line: #432839; --court: #AF1D75; --court-2: #125E64; --court-ring: #DD2C96; --accent: #D7238F; --accent-text: #F16FBD; --focus: #F16FBD; }
+}
+:root[data-palette="t-sunset"][data-theme="dark"] { --bg: #150C0A; --surface: #211512; --surface-2: #2A1C18; --ink: #F6F0EE; --muted: #A48A84; --line: #432E28; --court: #AB2133; --court-2: #4F2970; --court-ring: #D83148; --accent: #D83148; --accent-text: #EE7787; --focus: #EE7787; }
+:root[data-palette="t-clay"][data-theme="dark"] { --bg: #150E0A; --surface: #211812; --surface-2: #271D16; --ink: #F6F1EE; --muted: #A49184; --line: #433328; --court: #9D4925; --court-2: #294A70; --court-ring: #D06639; --accent: #BA562C; --accent-text: #E48258; --focus: #E48258; }
+:root[data-palette="t-grass"][data-theme="dark"] { --bg: #0E150A; --surface: #172112; --surface-2: #172112; --ink: #F1F6EE; --muted: #8FA484; --line: #314328; --court: #396D22; --court-2: #445D1D; --court-ring: #6BC445; --accent: #438028; --accent-text: #86DA62; --focus: #86DA62; }
+:root[data-palette="t-neon"][data-theme="dark"] { --bg: #150A15; --surface: #211221; --surface-2: #2A182A; --ink: #F6EEF6; --muted: #A484A4; --line: #432843; --court: #B1169C; --court-2: #0C5C79; --court-ring: #E425CB; --accent: #D11AB8; --accent-text: #F55CE0; --focus: #F55CE0; }
+:root[data-palette="t-beach"][data-theme="dark"] { --bg: #15110A; --surface: #211C12; --surface-2: #241E14; --ink: #F6F3EE; --muted: #A49884; --line: #433928; --court: #8B5518; --court-2: #155B75; --court-ring: #DA8A2F; --accent: #A5651D; --accent-text: #ECA351; --focus: #ECA351; }
+:root[data-palette="t-ice"][data-theme="dark"] { --bg: #0A1015; --surface: #121B21; --surface-2: #162027; --ink: #EEF3F6; --muted: #8497A4; --line: #283843; --court: #2A639D; --court-2: #315D68; --court-ring: #3E85CC; --accent: #3278BD; --accent-text: #60A1E1; --focus: #60A1E1; }
+:root[data-palette="t-midnight"][data-theme="dark"] { --bg: #0A0B15; --surface: #121421; --surface-2: #1A1C2E; --ink: #EEEFF6; --muted: #878BA6; --line: #282C43; --court: #31469B; --court-2: #4A2970; --court-ring: #546CC9; --accent: #546CC9; --accent-text: #8396E2; --focus: #8396E2; }
+:root[data-palette="t-arcade"][data-theme="dark"] { --bg: #150A11; --surface: #21121C; --surface-2: #2E1A26; --ink: #F6EEF3; --muted: #A6879B; --line: #432839; --court: #AF1D75; --court-2: #125E64; --court-ring: #DD2C96; --accent: #D7238F; --accent-text: #F16FBD; --focus: #F16FBD; }
+:root[data-palette="t-sunset"][data-outdoor] { --court: #811826; --court-2: #811826; --court-ring: #811826; --accent: #811826; --accent-text: #811826; --focus: #811826; }
+:root[data-palette="t-clay"][data-outdoor] { --court: #7C3A1D; --court-2: #7C3A1D; --court-ring: #7C3A1D; --accent: #7C3A1D; --accent-text: #7C3A1D; --focus: #7C3A1D; }
+:root[data-palette="t-grass"][data-outdoor] { --court: #305D1D; --court-2: #305D1D; --court-ring: #305D1D; --accent: #305D1D; --accent-text: #305D1D; --focus: #305D1D; }
+:root[data-palette="t-neon"][data-outdoor] { --court: #881178; --court-2: #881178; --court-ring: #881178; --accent: #881178; --accent-text: #881178; --focus: #881178; }
+:root[data-palette="t-beach"][data-outdoor] { --court: #794B15; --court-2: #794B15; --court-ring: #794B15; --accent: #794B15; --accent-text: #794B15; --focus: #794B15; }
+:root[data-palette="t-ice"][data-outdoor] { --court: #204D79; --court-2: #204D79; --court-ring: #204D79; --accent: #204D79; --accent-text: #204D79; --focus: #204D79; }
+:root[data-palette="t-midnight"][data-outdoor] { --court: #253574; --court-2: #253574; --court-ring: #253574; --accent: #253574; --accent-text: #253574; --focus: #253574; }
+:root[data-palette="t-arcade"][data-outdoor] { --court: #841558; --court-2: #841558; --court-ring: #841558; --accent: #841558; --accent-text: #841558; --focus: #841558; }
+/*REWARDTHEMES-END*/
 html { height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); }
 body { height: 100%; height: 100dvh; margin: 0; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: inherit; z-index: 15; pointer-events: none; }
@@ -326,6 +363,13 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-well .rw-sw { margin: 0; }
 .rw-play { width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--ink); color: var(--bg); cursor: pointer; }
 .rw-sw.snd { background: var(--surface-2); color: var(--ink); } .rw-sw.snd svg { width: 70%; height: 70%; }
+/* Court theme preview (two stacked pills in the theme's own colours) and win celebration preview (five still pieces). Decorative; the card carries the name. */
+.rw-thm { display: grid; gap: 4px; width: 56px; } .rw-thm i { display: block; height: 20px; border-radius: 7px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .18); }
+.rw-thm i:first-child { background: linear-gradient(160deg, color-mix(in srgb, var(--p1) 80%, #fff), var(--p1)); } .rw-thm i:last-child { background: linear-gradient(160deg, color-mix(in srgb, var(--p2) 80%, #fff), var(--p2)); }
+.rw-thm.sm { width: 28px; gap: 2px; margin-right: 8px; } .rw-thm.sm i { height: 10px; border-radius: 4px; }
+.rw-fxp { position: relative; display: block; width: 112px; height: 56px; } .rw-fxp.sm { width: 40px; height: 24px; margin-right: 8px; }
+.rw-fxp i { position: absolute; width: 18px; height: 18px; } .rw-fxp.sm i { width: 12px; height: 12px; } .rw-fxp svg, .rw-fx svg { display: block; width: 100%; height: 100%; }
+[data-fx="confetti"] i { height: 12px; } [data-fx="confetti"].rw-fxp.sm i { height: 8px; }
 /* Titles (a line under a name) and name styles (a colour on the name). Styles mix a token hue into --ink, so text stays >= 4.5:1 on --surface, --surface-2 and --bg
    in every theme and palette (pinned in test/contrast.test.js); the soft glow is dropped in outdoor mode and nothing animates. */
 .rw-ttl { padding: 0 10px; font-weight: 700; font-size: 14px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
@@ -860,6 +904,12 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 }
 @keyframes confetti-burst { to { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r)); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .celebration-confetti { display: none; } }
+/* The win effect: a band across the top of the screen (never over the court's buttons), pointer-events off, gone after 1.5 s. Still under reduced motion. */
+.rw-fx { position: fixed; left: 0; right: 0; top: 0; height: 44vh; height: 44dvh; z-index: 96; overflow: hidden; pointer-events: none; }
+.rw-fx i { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; opacity: .95; transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--r, 0deg)); }
+.rw-fx[data-fx="confetti"] i { height: 11px; } .rw-fx[data-fx="pickles"] i { width: 12px; height: 20px; } .rw-fx[data-fx="paddles"] i { width: 20px; height: 20px; }
+@media (prefers-reduced-motion: no-preference) { .rw-fx i { opacity: 0; animation: rw-fx 1100ms cubic-bezier(.16, .8, .3, 1) var(--d, 0ms) forwards; } }
+@keyframes rw-fx { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--r, 0deg)); } }
 
 .net { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; }
 .net::before { content: ""; position: absolute; left: -12px; right: -12px; top: 42px; height: 3px; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .6) 18%, rgb(255 255 255 / .6) 82%, transparent); }
@@ -2467,6 +2517,18 @@ const DisplayPrefs = (() => {
     { id: 'sunset', name: 'Sunset Orange', light: '#F7F4EF', dark: '#120E0A', c1: '#A64100', c2: '#7E2F00' },
     { id: 'slate', name: 'Club Slate', light: '#F3F4F6', dark: '#0A0C10', c1: '#2C384A', c2: '#1B2330' }
   ];
+  // Rewarded court themes (WI-16): extra palettes, set only from the worn `theme` item; never in the free picker. c1/c2 draw the card preview.
+  const SHOP_THEMES = [
+    { id: 't-sunset', item: 'theme-sunset', name: 'Sunset court', light: '#F6F0EF', dark: '#150C0A', c1: '#B42236', c2: '#5F3286' },
+    { id: 't-clay', item: 'theme-clay', name: 'Clay court', light: '#F6F2EF', dark: '#150E0A', c1: '#954523', c2: '#325986' },
+    { id: 't-grass', item: 'theme-grass', name: 'Grass court', light: '#F1F6EF', dark: '#0E150A', c1: '#376921', c2: '#445D1D' },
+    { id: 't-neon', item: 'theme-neon', name: 'Neon court', light: '#F6EFF6', dark: '#150A15', c1: '#A81594', c2: '#0C5C79' },
+    { id: 't-beach', item: 'theme-beach', name: 'Beach court', light: '#F6F3EF', dark: '#15110A', c1: '#825017', c2: '#155B75' },
+    { id: 't-ice', item: 'theme-ice', name: 'Ice rink', light: '#EFF3F6', dark: '#0A1015', c1: '#285E95', c2: '#315D68' },
+    { id: 't-midnight', item: 'theme-midnight', name: 'Midnight court', light: '#EFF0F6', dark: '#0A0B15', c1: '#364DAB', c2: '#593286' },
+    { id: 't-arcade', item: 'theme-arcade', name: 'Retro arcade', light: '#F6EFF3', dark: '#150A11', c1: '#AB1C72', c2: '#125E64' }
+  ];
+  const SHOP_BY_ITEM = Object.fromEntries(SHOP_THEMES.map(t => [t.item, t]));
   const PALETTE_BY_ID = Object.fromEntries(PALETTES.map(p => [p.id, p]));
   const paletteInfo = id => PALETTE_BY_ID[id] || PALETTE_BY_ID.green;
   const normalize = d => {
@@ -2474,17 +2536,17 @@ const DisplayPrefs = (() => {
     const palette = PALETTE_BY_ID[o.palette] ? o.palette : 'green';
     return { theme: THEMES[o.theme] || 'auto', palette, outdoor: o.outdoor ? 1 : 0, large: o.large ? 1 : 0 };
   };
-  const resolve = (d, prefersDark) => {
-    const p = normalize(d);
-    const info = PALETTE_BY_ID[p.palette];
+  const resolve = (d, prefersDark, shopItem) => {
+    const p = normalize(d), rt = SHOP_BY_ITEM[shopItem];
+    const info = rt || PALETTE_BY_ID[p.palette];
     const dataTheme = p.theme === 'light' || p.theme === 'dark' ? p.theme : null;
-    const dataPalette = p.palette === 'green' ? null : p.palette;
+    const dataPalette = rt ? rt.id : p.palette === 'green' ? null : p.palette;
     const effective = p.outdoor ? 'light' : (dataTheme || (prefersDark ? 'dark' : 'light'));
     const colorScheme = p.outdoor ? 'light' : (dataTheme || 'light dark');
     const themeColor = p.outdoor ? '#000000' : (effective === 'dark' ? info.dark : info.light);
-    return { dataTheme, dataPalette, palette: p.palette, effective, colorScheme, themeColor, outdoor: !!p.outdoor, large: !!p.large };
+    return { dataTheme, dataPalette, palette: rt ? rt.id : p.palette, effective, colorScheme, themeColor, outdoor: !!p.outdoor, large: !!p.large };
   };
-  return { PALETTES, paletteInfo, normalize, resolve };
+  return { PALETTES, SHOP_THEMES, SHOP_BY_ITEM, paletteInfo, normalize, resolve };
 })();
 /*DISPLAY-END*/
 /*CELEBRATION-START*/
@@ -2501,16 +2563,20 @@ const Celebration = (() => {
   const justFinished = (beforeWinner, winner) => beforeWinner === null && (winner === 0 || winner === 1);
   const shouldConfetti = ({ on, beforeWinner, winner, reducedMotion }) => !!on && justFinished(beforeWinner, winner) && !reducedMotion;
   const shouldSound = ({ on, beforeWinner, winner, muted }) => !!on && justFinished(beforeWinner, winner) && !muted;
+  // A worn rewarded celebration replaces the default burst: needs the same opt-in (Win celebration on) and a game that just ended; reduced motion shows it still.
+  const shouldShopFx = ({ on, beforeWinner, winner }) => !!on && justFinished(beforeWinner, winner);
   const palette = winner => PALETTES[winner === 1 ? 1 : 0];
-  return { normalize, justFinished, shouldConfetti, shouldSound, palette };
+  return { normalize, justFinished, shouldConfetti, shouldSound, shouldShopFx, palette };
 })();
 /*CELEBRATION-END*/
 let display = DisplayPrefs.normalize(store.get('pb.display', {}));
 let celebration = Celebration.normalize(store.get('pb.celebration', {}));
+// The rewarded court theme worn on this phone (an item id like 'theme-neon', or ''), kept so the first paint is right before the club loads. economycelebrate.js owns it.
+let shopTheme = (() => { const v = store.get('pb.shopTheme', ''); return typeof v === 'string' && DisplayPrefs.SHOP_BY_ITEM[v] ? v : ''; })();
 const darkMQ = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 function applyDisplay() {
   const r = document.documentElement;
-  const res = DisplayPrefs.resolve(display, !!(darkMQ && darkMQ.matches));
+  const res = DisplayPrefs.resolve(display, !!(darkMQ && darkMQ.matches), shopTheme);
   if (res.dataTheme) r.setAttribute('data-theme', res.dataTheme); else r.removeAttribute('data-theme');
   if (res.dataPalette) r.setAttribute('data-palette', res.dataPalette); else r.removeAttribute('data-palette');
   r.toggleAttribute('data-outdoor', res.outdoor); r.toggleAttribute('data-large', res.large);
@@ -2593,7 +2659,8 @@ function celebrateWin(beforeWinner, winner) {
   if (!live || !live.open) return;
   const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const opts = { on: celebration.on, beforeWinner, winner, reducedMotion, muted: celebration.muted };
-  if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
+  if (Celebration.shouldShopFx(opts) && typeof rwWinFx === 'function' && rwWinFx(winner, reducedMotion)) { /* a worn rewarded celebration replaces the default burst */ }
+  else if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
   if (Celebration.shouldSound(opts) && !(typeof rwPlayWinSound === 'function' && rwPlayWinSound())) playCelebrationSound(); // a worn victory sound replaces the default chime
 }
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];
@@ -3810,7 +3877,7 @@ const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { m
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
-const rwId = v => (typeof v === 'string' && /^[a-z]{3,8}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
+const rwId = v => (typeof v === 'string' && /^[a-z]{3,9}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
 const rwLook = id => String(id || '').replace(/^[a-z]+-/, ''); // 'frame-court' -> 'court': the name the stylesheet draws
 // The worn paddle colour as one small upright pickleball paddle (rounded face, edge, holes, handle), coloured only by the --rw-pad-* tokens of
 // the [data-rw-skin] it sits in, so it follows both themes. Decorative: callers carry the text. The stripe shows only for the striped skin.
@@ -3819,6 +3886,8 @@ const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').
 // Slots the server knows (mirror of SLOT_META in api/_economyshop.js). frame, paddle and pet are always present in a look; the newer ones only when set.
 // A sound is never in a club look: it stays on its owner's phone.
 const RW_EXTRA_SLOTS = ['title', 'style'];
+// A court theme and a win celebration are never in a club look either; they are only worn on this phone (economycelebrate.js).
+const RW_OWN_SLOTS = ['sound', 'theme', 'celebrate'];
 // Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
 const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss' };
 const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged'];
@@ -3854,7 +3923,7 @@ const rwCleanPet = (p, wornPet) => {
   return { id, stage, playDays: days, nextStageDays: next, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
 };
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
-  const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet), ...Object.fromEntries(['title', 'style', 'sound'].map(k => [k, rwId(w[k])]).filter(e => e[1])) };
+  const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet), ...Object.fromEntries(['title', 'style', ...RW_OWN_SLOTS].map(k => [k, rwId(w[k])]).filter(e => e[1])) };
   const pet = rwCleanPet(s.pet, worn.pet);
   const out = { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn };
   if (pet) out.pet = pet;
@@ -3884,6 +3953,15 @@ function rwApplyLook() {
   const r = document.documentElement; if (!r) return;
   const w = rwShown() ? rwCur().worn : {};
   for (const [slot, attr] of [['frame', 'data-rw-frame'], ['paddle', 'data-rw-skin']]) { const v = rwLook(w[slot]); if (v) r.setAttribute(attr, v); else r.removeAttribute(attr); }
+  if (club) rwThemeSync(w.theme); // with no club loaded yet, keep the theme the last visit left, so the first paint doesn't flash back to the free palette
+}
+// The worn court theme becomes this phone's palette (display-live.js applyDisplay); hiding rewards or a club with them off puts the free palette back.
+function rwThemeSync(id) {
+  if (typeof DisplayPrefs === 'undefined' || typeof shopTheme === 'undefined') return;
+  id = id && DisplayPrefs.SHOP_BY_ITEM[id] ? id : '';
+  if (id === shopTheme) return;
+  shopTheme = id; store.set('pb.shopTheme', id); applyDisplay();
+  if (typeof settingsOpen !== 'undefined' && settingsOpen && typeof renderSettings === 'function') renderSettings();
 }
 const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.5 2.5c.4 3-1.3 4.6-2.9 6.4C8 10.7 6.5 12.6 6.5 15.2a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.2-5.2-.2 1.2-.7 2-1.5 2.5.5-3.5-.2-7.3-1.3-10z"/></svg>';
 
@@ -4311,8 +4389,9 @@ function rwPetCollectionHTML(c) {
 // rewards-catalog|buy|wear|share|box-odds|box-open); this phone draws what it is told and never sets a price or draws a random item.
 // Cosmetic only: a ring around your picture and a colour on your paddle thumbnails. Nothing here animates or makes a sound, and it never
 // reads or changes a score, a rating, a rank or a pairing. Opened from the Your Dink card (so the one-tap hide removes it too).
-const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails'], ['title', 'Title under your name'], ['style', 'Name style'], ['sound', 'Victory sound']];
+const RW_SLOTS = [['frame', 'Ring around your picture'], ['paddle', 'Paddle thumbnails'], ['title', 'Title under your name'], ['style', 'Name style'], ['theme', 'Court theme'], ['celebrate', 'Win celebration'], ['sound', 'Victory sound']];
 const rwSwatch = it => it.slot === 'title' ? ''
+  : (it.slot === 'theme' || it.slot === 'celebrate') && typeof rwLookWell === 'function' ? rwLookWell(it, true)
   : it.slot === 'style' ? `<span class="rw-nm" data-rw-style="${esc(rwLook(it.id))}" aria-hidden="true">Aa</span>`
   : it.slot === 'sound' && typeof RW_NOTE_SVG === 'string' ? `<span class="rw-sw snd" aria-hidden="true">${RW_NOTE_SVG}</span>`
   : it.slot === 'frame'
@@ -4358,6 +4437,7 @@ const RW_RARITY = { rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
 const rwIsTop = it => it.rarity === 'legendary' || it.rarity === 'mythic'; // these two live on their own shelves, Mythic first
 function rwCardPreview(it) {
   if (it.slot === 'sound' && typeof rwSoundPlayBtn === 'function') return rwSoundPlayBtn(it);
+  if ((it.slot === 'theme' || it.slot === 'celebrate') && typeof rwLookWell === 'function') return rwLookWell(it);
   if (it.slot === 'title') return `<span class="rw-ttl">${esc(it.name)}</span>`;
   if (it.slot === 'style') return `<span class="rw-nm" data-rw-style="${esc(rwLook(it.id))}">Your name</span>`;
   return it.slot === 'pet' && typeof rwPetBadgeHTML === 'function' ? rwPetBadgeHTML(it.id, { stage: it.stage || 1, shiny: !!it.shiny, decorative: true, size: 44 }) : rwSwatch(it);
@@ -4495,7 +4575,7 @@ Object.assign(Rewards, {
     if (!s) return `${head}${c.error ? `<p class="err">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="store">Try again</button>` : skel(2)}${done}`;
     if (c.inv) return rwInventoryHTML(c, s, head, done);
     const hasPetsUi = typeof rwPetsSectionHTML === 'function';
-    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
+    const toBuy = s.items.filter(i => !i.owned && !i.seasonal && !i.event && i.slot !== 'sound' && i.slot !== 'theme' && i.slot !== 'celebrate' && (!hasPetsUi || i.slot !== 'pet') && i.slot !== 'title' && i.slot !== 'style' && !rwIsTop(i));
     // Titles and name styles each get their own shelf (name left, one muted line right); the shelf stays so an owned one reads "Owned".
     const shelf = (slot, label, note) => { const its = s.items.filter(i => i.slot === slot && !i.seasonal && !i.event && !rwIsTop(i)); return its.length ? `${rwSecHead(label, note)}${rwShelf(c, s, its)}` : ''; };
     const nameSecs = `${shelf('title', 'Titles', 'Shown under your name.')}${shelf('style', 'Name styles', 'How your name looks on the leaderboard.')}`;
@@ -4508,7 +4588,7 @@ Object.assign(Rewards, {
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${rwGoalHTML(c, s)}${seasonSec}
-      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${rwTopShelvesHTML(c, s)}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
+      ${rwSecHead('In the shop', 'Fixed prices, bought once.')}${rows || `<p class="note">${allOwned ? 'You have everything in the shop.' : 'You have every ring and paddle.'}</p>`}${petsSec}${nameSecs}${typeof rwLooksSectionsHTML === 'function' ? rwLooksSectionsHTML(c, s) : ''}${typeof rwSoundsSectionHTML === 'function' ? rwSoundsSectionHTML(c, s) : ''}${rwTopShelvesHTML(c, s)}${box}${typeof rwMgCan === 'function' && rwMgCan() ? '<div class="btns"><button type="button" class="btn btn-soft" data-rw="manage">Manage shop</button></div>' : ''}${done}`;
   },
   // "Pet collection": every pet at its three growth stages (drawn by economypets.js from the shop answer already on the phone).
   petsHTML(c) { return typeof rwPetCollectionHTML === 'function' ? rwPetCollectionHTML(c) : ''; },
@@ -4663,7 +4743,7 @@ document.addEventListener('click', e => {
   }
   const [slot, id] = t.dataset.rwWear.split(':');
   const it = c.store.items.find(i => i.id === id);
-  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : slot === 'paddle' ? 'Paddle thumbnails back to plain.' : slot === 'title' ? 'No title under your name.' : slot === 'style' ? 'Your name is plain again.' : slot === 'sound' ? 'No victory sound worn.' : 'No court pet worn.'), `[data-rw-wear="${slot}:${id}"]`);
+  rwStoreAct({ action: 'rewards-wear', slot, item: id }, () => (it ? `Now wearing ${it.name}.` : slot === 'frame' ? 'No ring around your picture.' : slot === 'paddle' ? 'Paddle thumbnails back to plain.' : slot === 'title' ? 'No title under your name.' : slot === 'style' ? 'Your name is plain again.' : slot === 'sound' ? 'No victory sound worn.' : slot === 'theme' ? 'Court theme off: your free palette is back.' : slot === 'celebrate' ? 'No win celebration worn.' : 'No court pet worn.'), `[data-rw-wear="${slot}:${id}"]`);
 });
 /* ---------- rewards: victory sounds (WI-10; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
 // Five short sounds the phone makes itself with Web Audio (no audio files, no new hosts). Which one you own and wear is the server's
@@ -4752,6 +4832,73 @@ document.addEventListener('click', e => {
   if (!b || !rwShown()) return;
   if (rwSoundPlay(b.dataset.rwSound)) announce('Playing ' + (b.getAttribute('aria-label') || '').replace(/^Play /, '') + '.');
 });
+/* ---------- rewards: court themes and win celebrations (WI-16; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
+// Two more looks that stay on the phone that wears them (never in a club look, never in the box or the pass; the server's table is SLOT_META in
+// api/_economyshop.js). Which ones you own and wear is the server's; this file draws the shelves, the card previews and one short effect.
+//   - A court theme is an extra `data-palette` (`t-<id>`, tokens in the REWARDTHEMES CSS block) on this phone only, applied through applyDisplay()
+//     by rwThemeSync() (economy.js). The six free palettes in Settings stay free; a worn theme sits over them until you wear None.
+//   - A win celebration is one canvas-free CSS effect: 16 small inline SVG pieces, at most 1.5 s, in a band across the top of the screen with
+//     pointer-events off, so it never covers or blocks the scoring buttons. It plays on the phone with Win celebration on in Settings (the
+//     existing opt-in; display-live.js celebrateWin) and replaces the default burst. Under prefers-reduced-motion the pieces sit still.
+// Nothing here reads a score, a rating or a rank, and nothing draws while rewards are hidden on this phone.
+const RW_FX = {
+  'celebrate-confetti': { kind: 'confetti', rain: false, colors: ['#4361FF', '#17B988', '#F08A4B', '#F2C94C'], svg: '<rect x="2" y="6" width="20" height="12" rx="3"/>' },
+  'celebrate-balls': { kind: 'balls', rain: false, colors: ['#C8E81B', '#D9F23A'], svg: '<circle cx="12" cy="12" r="10"/>' },
+  'celebrate-pickles': { kind: 'pickles', rain: true, colors: ['#5C9E2E', '#7DB544', '#4A8A22'], svg: '<rect x="8" y="1" width="8" height="22" rx="4"/>' },
+  'celebrate-paddles': { kind: 'paddles', rain: false, colors: ['#3E5BF0', '#F08A4B'], svg: '<rect x="4" y="1" width="16" height="15" rx="7"/><rect x="10.5" y="15" width="3" height="8" rx="1.5"/>' },
+  'celebrate-hearts': { kind: 'hearts', rain: false, colors: ['#E8506A', '#F08AC4'], svg: '<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.6 2.7 5 6.2 5c2.1 0 3.7 1.1 5.8 3.2C14.1 6.1 15.7 5 17.8 5c3.5 0 5.3 3.6 3.8 6.8C19.5 16.4 12 21 12 21z"/>' }
+};
+const rwFxPiece = (fx, i, style) => `<i style="color:${fx.colors[i % fx.colors.length]};${style}"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">${fx.svg}</svg></i>`;
+// The preview in a card's well (and a small one in the "What you wear" list): five pieces scattered, still.
+const RW_FX_SPOTS = [[12, 24, -20], [56, 6, 15], [34, 50, 40], [74, 44, -10], [48, 28, 25]];
+function rwLookWell(it, small) {
+  if (it.slot === 'theme') {
+    const t = DisplayPrefs.SHOP_BY_ITEM[it.id];
+    return t ? `<span class="rw-thm${small ? ' sm' : ''}" aria-hidden="true" style="--p1:${t.c1};--p2:${t.c2}"><i></i><i></i></span>` : '';
+  }
+  const fx = RW_FX[it.id];
+  if (!fx) return '';
+  const spots = small ? RW_FX_SPOTS.slice(0, 3) : RW_FX_SPOTS;
+  return `<span class="rw-fxp${small ? ' sm' : ''}" data-fx="${fx.kind}" aria-hidden="true">${spots.map(([x, y, r], i) => rwFxPiece(fx, i, `left:${x}%;top:${y}%;transform:rotate(${r}deg)`)).join('')}</span>`;
+}
+// Two shelves after the name styles, in the same card as every other shelf. Court themes and celebrations are not in the "In the shop" grid.
+const RW_LOOK_COPY = { theme: ['Court themes', 'Your scoring screen on this phone.'], celebrate: ['Win celebrations', 'Plays on your scoring phone when a game ends.'] };
+function rwLooksSectionsHTML(c, s) {
+  const sec = slot => {
+    const its = (s.items || []).filter(i => i.slot === slot && !i.seasonal && !i.event);
+    return its.length ? `${rwSecHead(RW_LOOK_COPY[slot][0], RW_LOOK_COPY[slot][1])}${rwShelf(c, s, its)}` : '';
+  };
+  const themes = sec('theme'), fx = sec('celebrate');
+  if (!themes && !fx) return '';
+  return `${themes}${fx}<p class="rw-box-fine">A court theme only recolours your own scoring screen on this phone; the six free palettes in Settings stay free and come back when you wear None. A celebration lasts under two seconds, shows only when Win celebration is on in Settings (still, with no motion, if your phone asks for less motion), and never covers the scoring buttons.</p>`;
+}
+// The worn celebration for this phone, or '' (rewards hidden, off, or none worn).
+const rwWornFx = () => (rwShown() && RW_FX[rwCur().worn.celebrate] ? rwCur().worn.celebrate : '');
+let rwFxTimer = null;
+function rwFxClear() {
+  clearTimeout(rwFxTimer); rwFxTimer = null;
+  document.querySelectorAll('.rw-fx').forEach(el => el.remove());
+}
+// A game just ended and the device has Win celebration on: show the worn effect. False means "nothing worn, use the default burst".
+function rwWinFx() {
+  const id = rwWornFx(); if (!id) return false;
+  const fx = RW_FX[id], n = 16;
+  rwFxClear();
+  if (typeof clearConfetti === 'function') clearConfetti();
+  let pieces = '';
+  for (let i = 0; i < n; i++) {
+    const a = (Math.PI * 2 * i) / n + (i % 3) * .12, d = 14 + (i % 5) * 6;
+    const x = fx.rain ? ((i % 3) - 1) * 3 : Math.cos(a) * d, y = fx.rain ? 38 + (i % 4) * 3 : Math.sin(a) * d * .7;
+    const left = fx.rain ? 6 + i * 5.6 : 50, top = fx.rain ? -6 : 40;
+    pieces += rwFxPiece(fx, i, `left:${left.toFixed(1)}%;top:${top}%;--x:${x.toFixed(1)}vmin;--y:${y.toFixed(1)}vmin;--r:${(i % 2 ? 1 : -1) * (40 + i * 18)}deg;--d:${(i % 6) * 50}ms`);
+  }
+  const box = document.createElement('div');
+  box.className = 'rw-fx'; box.dataset.fx = fx.kind; box.setAttribute('aria-hidden', 'true');
+  box.innerHTML = pieces;
+  document.body.appendChild(box);
+  rwFxTimer = setTimeout(rwFxClear, 1500); // longest piece: 250 ms delay + 1.1 s motion
+  return true;
+}
 /* ---------- rewards season pass: free play track per club season (L16 slice 5; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
 // Progress and tiers are derived on the server (api/_economypass.js, players.js rewards-pass|rewards-pass-claim) from games saved by this
 // player's verified phone in the current club season. Free only: no paid tier, no real money, no countdown pressure, no randomness, no motion
@@ -9350,7 +9497,7 @@ function renderSettings() {
       ${seg('data-theme-pick', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], display.theme).replace('role="group"', 'role="group" aria-labelledby="set-app-l"')}
       <p class="note">${themeNote}</p></div>
     <div class="field" style="margin:0"><span class="lab" id="set-pal-l">Court theme</span>
-      <div class="pal-grid" role="group" aria-labelledby="set-pal-l">${DisplayPrefs.PALETTES.map(p => `<button type="button" class="pal-opt" data-palette-pick="${p.id}" aria-pressed="${display.palette === p.id ? 'true' : 'false'}"><span class="pal-sw" aria-hidden="true" style="--p1:${p.c1};--p2:${p.c2}"><span class="pal-ball"></span></span><span class="pal-name">${p.name}</span></button>`).join('')}</div>
+      <div class="pal-grid" role="group" aria-labelledby="set-pal-l">${DisplayPrefs.PALETTES.map(p => `<button type="button" class="pal-opt" data-palette-pick="${p.id}" aria-pressed="${display.palette === p.id ? 'true' : 'false'}"><span class="pal-sw" aria-hidden="true" style="--p1:${p.c1};--p2:${p.c2}"><span class="pal-ball"></span></span><span class="pal-name">${p.name}</span></button>`).join('')}</div>${shopTheme ? `<p class="note">You are wearing ${esc(DisplayPrefs.SHOP_BY_ITEM[shopTheme].name)}, which sits over these. Choose None under What you wear to use one of them again.</p>` : ''}
       <p class="note">Changes the court colour across the app. Team colours and the pickleball stay the same.</p></div>
     <div class="field" style="margin:0"><span class="lab" id="disp-o">Sunlight contrast</span>
       ${seg('data-disp', [['outdoor-0', 'Standard'], ['outdoor-1', 'Sunlight']], 'outdoor-' + display.outdoor).replace('role="group"', 'role="group" aria-labelledby="disp-o"')}

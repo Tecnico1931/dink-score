@@ -156,6 +156,43 @@
 :root[data-palette="sunset"][data-outdoor] { --court: #7E2F00; --court-2: #7E2F00; --court-ring: #7E2F00; --accent: #7E2F00; --accent-text: #7E2F00; --focus: #7E2F00; }
 :root[data-palette="slate"][data-outdoor] { --court: #14181F; --court-2: #14181F; --court-ring: #14181F; --accent: #14181F; --accent-text: #14181F; --focus: #14181F; }
 /*TOKENS-END*/
+/*REWARDTHEMES-START*/
+/* Rewarded court themes (WI-16): `t-<id>` palettes layered over the six free ones, set only from the worn `theme` item (src/app/economycelebrate.js); same token set, same contrast pins. */
+:root[data-palette="t-sunset"] { --bg: #F6F0EF; --surface: #FFFFFF; --surface-2: #F6F0EF; --ink: #20110E; --muted: #77605A; --line: #E2D7D4; --court: #B42236; --court-2: #5F3286; --court-ring: #B42236; --accent: #B42236; --accent-text: #B42236; --focus: #B42236; --dsp-bg: #25130E; --dsp-surface: #381F19; --dsp-ink: #F8F3F2; --dsp-muted: #D9C4BF; --dsp-dim: #BA9E97; }
+:root[data-palette="t-clay"] { --bg: #F6F2EF; --surface: #FFFFFF; --surface-2: #F4EFEC; --ink: #20150E; --muted: #746358; --line: #E2DAD4; --court: #954523; --court-2: #325986; --court-ring: #954523; --accent: #954523; --accent-text: #954523; --focus: #954523; --dsp-bg: #25170E; --dsp-surface: #382619; --dsp-ink: #F8F4F2; --dsp-muted: #D9C9BF; --dsp-dim: #BAA597; }
+:root[data-palette="t-grass"] { --bg: #F1F6EF; --surface: #FFFFFF; --surface-2: #ECF2E9; --ink: #14200E; --muted: #58694F; --line: #D9E2D4; --court: #376921; --court-2: #445D1D; --court-ring: #376921; --accent: #376921; --accent-text: #376921; --focus: #376921; --dsp-bg: #16250E; --dsp-surface: #243819; --dsp-ink: #F4F8F2; --dsp-muted: #C8D9BF; --dsp-dim: #A3BA97; }
+:root[data-palette="t-neon"] { --bg: #F6EFF6; --surface: #FFFFFF; --surface-2: #F6EFF6; --ink: #200E20; --muted: #7A5C7A; --line: #E2D4E2; --court: #A81594; --court-2: #0C5C79; --court-ring: #A81594; --accent: #A81594; --accent-text: #A81594; --focus: #A81594; --dsp-bg: #250E25; --dsp-surface: #381938; --dsp-ink: #F8F2F8; --dsp-muted: #D9BFD9; --dsp-dim: #BA97BA; }
+:root[data-palette="t-beach"] { --bg: #F6F3EF; --surface: #FFFFFF; --surface-2: #F4F1EC; --ink: #20190E; --muted: #6E6553; --line: #E2DDD4; --court: #825017; --court-2: #155B75; --court-ring: #825017; --accent: #825017; --accent-text: #825017; --focus: #825017; --dsp-bg: #251D0E; --dsp-surface: #382D19; --dsp-ink: #F8F6F2; --dsp-muted: #D9CFBF; --dsp-dim: #BAAD97; }
+:root[data-palette="t-ice"] { --bg: #EFF3F6; --surface: #FFFFFF; --surface-2: #ECF0F4; --ink: #0E1820; --muted: #586874; --line: #D4DCE2; --court: #285E95; --court-2: #315D68; --court-ring: #285E95; --accent: #285E95; --accent-text: #285E95; --focus: #285E95; --dsp-bg: #0E1B25; --dsp-surface: #192B38; --dsp-ink: #F2F5F8; --dsp-muted: #BFCED9; --dsp-dim: #97ABBA; }
+:root[data-palette="t-midnight"] { --bg: #EFF0F6; --surface: #FFFFFF; --surface-2: #EFF0F6; --ink: #0E1020; --muted: #5C607A; --line: #D4D6E2; --court: #364DAB; --court-2: #593286; --court-ring: #364DAB; --accent: #364DAB; --accent-text: #364DAB; --focus: #364DAB; --dsp-bg: #0E1125; --dsp-surface: #191D38; --dsp-ink: #F2F3F8; --dsp-muted: #BFC3D9; --dsp-dim: #979CBA; }
+:root[data-palette="t-arcade"] { --bg: #F6EFF3; --surface: #FFFFFF; --surface-2: #F6EFF3; --ink: #200E19; --muted: #7A5C6F; --line: #E2D4DD; --court: #AB1C72; --court-2: #125E64; --court-ring: #AB1C72; --accent: #AB1C72; --accent-text: #AB1C72; --focus: #AB1C72; --dsp-bg: #250E1D; --dsp-surface: #38192D; --dsp-ink: #F8F2F6; --dsp-muted: #D9BFCF; --dsp-dim: #BA97AD; }
+@media (prefers-color-scheme: dark) {
+  :root[data-palette="t-sunset"]:not([data-theme="light"]) { --bg: #150C0A; --surface: #211512; --surface-2: #2A1C18; --ink: #F6F0EE; --muted: #A48A84; --line: #432E28; --court: #AB2133; --court-2: #4F2970; --court-ring: #D83148; --accent: #D83148; --accent-text: #EE7787; --focus: #EE7787; }
+  :root[data-palette="t-clay"]:not([data-theme="light"]) { --bg: #150E0A; --surface: #211812; --surface-2: #271D16; --ink: #F6F1EE; --muted: #A49184; --line: #433328; --court: #9D4925; --court-2: #294A70; --court-ring: #D06639; --accent: #BA562C; --accent-text: #E48258; --focus: #E48258; }
+  :root[data-palette="t-grass"]:not([data-theme="light"]) { --bg: #0E150A; --surface: #172112; --surface-2: #172112; --ink: #F1F6EE; --muted: #8FA484; --line: #314328; --court: #396D22; --court-2: #445D1D; --court-ring: #6BC445; --accent: #438028; --accent-text: #86DA62; --focus: #86DA62; }
+  :root[data-palette="t-neon"]:not([data-theme="light"]) { --bg: #150A15; --surface: #211221; --surface-2: #2A182A; --ink: #F6EEF6; --muted: #A484A4; --line: #432843; --court: #B1169C; --court-2: #0C5C79; --court-ring: #E425CB; --accent: #D11AB8; --accent-text: #F55CE0; --focus: #F55CE0; }
+  :root[data-palette="t-beach"]:not([data-theme="light"]) { --bg: #15110A; --surface: #211C12; --surface-2: #241E14; --ink: #F6F3EE; --muted: #A49884; --line: #433928; --court: #8B5518; --court-2: #155B75; --court-ring: #DA8A2F; --accent: #A5651D; --accent-text: #ECA351; --focus: #ECA351; }
+  :root[data-palette="t-ice"]:not([data-theme="light"]) { --bg: #0A1015; --surface: #121B21; --surface-2: #162027; --ink: #EEF3F6; --muted: #8497A4; --line: #283843; --court: #2A639D; --court-2: #315D68; --court-ring: #3E85CC; --accent: #3278BD; --accent-text: #60A1E1; --focus: #60A1E1; }
+  :root[data-palette="t-midnight"]:not([data-theme="light"]) { --bg: #0A0B15; --surface: #121421; --surface-2: #1A1C2E; --ink: #EEEFF6; --muted: #878BA6; --line: #282C43; --court: #31469B; --court-2: #4A2970; --court-ring: #546CC9; --accent: #546CC9; --accent-text: #8396E2; --focus: #8396E2; }
+  :root[data-palette="t-arcade"]:not([data-theme="light"]) { --bg: #150A11; --surface: #21121C; --surface-2: #2E1A26; --ink: #F6EEF3; --muted: #A6879B; --line: #432839; --court: #AF1D75; --court-2: #125E64; --court-ring: #DD2C96; --accent: #D7238F; --accent-text: #F16FBD; --focus: #F16FBD; }
+}
+:root[data-palette="t-sunset"][data-theme="dark"] { --bg: #150C0A; --surface: #211512; --surface-2: #2A1C18; --ink: #F6F0EE; --muted: #A48A84; --line: #432E28; --court: #AB2133; --court-2: #4F2970; --court-ring: #D83148; --accent: #D83148; --accent-text: #EE7787; --focus: #EE7787; }
+:root[data-palette="t-clay"][data-theme="dark"] { --bg: #150E0A; --surface: #211812; --surface-2: #271D16; --ink: #F6F1EE; --muted: #A49184; --line: #433328; --court: #9D4925; --court-2: #294A70; --court-ring: #D06639; --accent: #BA562C; --accent-text: #E48258; --focus: #E48258; }
+:root[data-palette="t-grass"][data-theme="dark"] { --bg: #0E150A; --surface: #172112; --surface-2: #172112; --ink: #F1F6EE; --muted: #8FA484; --line: #314328; --court: #396D22; --court-2: #445D1D; --court-ring: #6BC445; --accent: #438028; --accent-text: #86DA62; --focus: #86DA62; }
+:root[data-palette="t-neon"][data-theme="dark"] { --bg: #150A15; --surface: #211221; --surface-2: #2A182A; --ink: #F6EEF6; --muted: #A484A4; --line: #432843; --court: #B1169C; --court-2: #0C5C79; --court-ring: #E425CB; --accent: #D11AB8; --accent-text: #F55CE0; --focus: #F55CE0; }
+:root[data-palette="t-beach"][data-theme="dark"] { --bg: #15110A; --surface: #211C12; --surface-2: #241E14; --ink: #F6F3EE; --muted: #A49884; --line: #433928; --court: #8B5518; --court-2: #155B75; --court-ring: #DA8A2F; --accent: #A5651D; --accent-text: #ECA351; --focus: #ECA351; }
+:root[data-palette="t-ice"][data-theme="dark"] { --bg: #0A1015; --surface: #121B21; --surface-2: #162027; --ink: #EEF3F6; --muted: #8497A4; --line: #283843; --court: #2A639D; --court-2: #315D68; --court-ring: #3E85CC; --accent: #3278BD; --accent-text: #60A1E1; --focus: #60A1E1; }
+:root[data-palette="t-midnight"][data-theme="dark"] { --bg: #0A0B15; --surface: #121421; --surface-2: #1A1C2E; --ink: #EEEFF6; --muted: #878BA6; --line: #282C43; --court: #31469B; --court-2: #4A2970; --court-ring: #546CC9; --accent: #546CC9; --accent-text: #8396E2; --focus: #8396E2; }
+:root[data-palette="t-arcade"][data-theme="dark"] { --bg: #150A11; --surface: #21121C; --surface-2: #2E1A26; --ink: #F6EEF3; --muted: #A6879B; --line: #432839; --court: #AF1D75; --court-2: #125E64; --court-ring: #DD2C96; --accent: #D7238F; --accent-text: #F16FBD; --focus: #F16FBD; }
+:root[data-palette="t-sunset"][data-outdoor] { --court: #811826; --court-2: #811826; --court-ring: #811826; --accent: #811826; --accent-text: #811826; --focus: #811826; }
+:root[data-palette="t-clay"][data-outdoor] { --court: #7C3A1D; --court-2: #7C3A1D; --court-ring: #7C3A1D; --accent: #7C3A1D; --accent-text: #7C3A1D; --focus: #7C3A1D; }
+:root[data-palette="t-grass"][data-outdoor] { --court: #305D1D; --court-2: #305D1D; --court-ring: #305D1D; --accent: #305D1D; --accent-text: #305D1D; --focus: #305D1D; }
+:root[data-palette="t-neon"][data-outdoor] { --court: #881178; --court-2: #881178; --court-ring: #881178; --accent: #881178; --accent-text: #881178; --focus: #881178; }
+:root[data-palette="t-beach"][data-outdoor] { --court: #794B15; --court-2: #794B15; --court-ring: #794B15; --accent: #794B15; --accent-text: #794B15; --focus: #794B15; }
+:root[data-palette="t-ice"][data-outdoor] { --court: #204D79; --court-2: #204D79; --court-ring: #204D79; --accent: #204D79; --accent-text: #204D79; --focus: #204D79; }
+:root[data-palette="t-midnight"][data-outdoor] { --court: #253574; --court-2: #253574; --court-ring: #253574; --accent: #253574; --accent-text: #253574; --focus: #253574; }
+:root[data-palette="t-arcade"][data-outdoor] { --court: #841558; --court-2: #841558; --court-ring: #841558; --accent: #841558; --accent-text: #841558; --focus: #841558; }
+/*REWARDTHEMES-END*/
 html { height: 100%; height: 100dvh; overflow: hidden; background: var(--bg); }
 body { height: 100%; height: 100dvh; margin: 0; overflow-y: auto; overscroll-behavior-y: none; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
 body::before { content: ""; position: fixed; top: 0; left: 0; right: 0; height: env(safe-area-inset-top, 0px); background: inherit; z-index: 15; pointer-events: none; }
@@ -300,6 +337,13 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-well .rw-sw { margin: 0; }
 .rw-play { width: 44px; height: 44px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--ink); color: var(--bg); cursor: pointer; }
 .rw-sw.snd { background: var(--surface-2); color: var(--ink); } .rw-sw.snd svg { width: 70%; height: 70%; }
+/* Court theme preview (two stacked pills in the theme's own colours) and win celebration preview (five still pieces). Decorative; the card carries the name. */
+.rw-thm { display: grid; gap: 4px; width: 56px; } .rw-thm i { display: block; height: 20px; border-radius: 7px; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .18); }
+.rw-thm i:first-child { background: linear-gradient(160deg, color-mix(in srgb, var(--p1) 80%, #fff), var(--p1)); } .rw-thm i:last-child { background: linear-gradient(160deg, color-mix(in srgb, var(--p2) 80%, #fff), var(--p2)); }
+.rw-thm.sm { width: 28px; gap: 2px; margin-right: 8px; } .rw-thm.sm i { height: 10px; border-radius: 4px; }
+.rw-fxp { position: relative; display: block; width: 112px; height: 56px; } .rw-fxp.sm { width: 40px; height: 24px; margin-right: 8px; }
+.rw-fxp i { position: absolute; width: 18px; height: 18px; } .rw-fxp.sm i { width: 12px; height: 12px; } .rw-fxp svg, .rw-fx svg { display: block; width: 100%; height: 100%; }
+[data-fx="confetti"] i { height: 12px; } [data-fx="confetti"].rw-fxp.sm i { height: 8px; }
 /* Titles (a line under a name) and name styles (a colour on the name). Styles mix a token hue into --ink, so text stays >= 4.5:1 on --surface, --surface-2 and --bg
    in every theme and palette (pinned in test/contrast.test.js); the soft glow is dropped in outdoor mode and nothing animates. */
 .rw-ttl { padding: 0 10px; font-weight: 700; font-size: 14px; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
@@ -834,6 +878,12 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 }
 @keyframes confetti-burst { to { transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r)); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .celebration-confetti { display: none; } }
+/* The win effect: a band across the top of the screen (never over the court's buttons), pointer-events off, gone after 1.5 s. Still under reduced motion. */
+.rw-fx { position: fixed; left: 0; right: 0; top: 0; height: 44vh; height: 44dvh; z-index: 96; overflow: hidden; pointer-events: none; }
+.rw-fx i { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; opacity: .95; transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--r, 0deg)); }
+.rw-fx[data-fx="confetti"] i { height: 11px; } .rw-fx[data-fx="pickles"] i { width: 12px; height: 20px; } .rw-fx[data-fx="paddles"] i { width: 20px; height: 20px; }
+@media (prefers-reduced-motion: no-preference) { .rw-fx i { opacity: 0; animation: rw-fx 1100ms cubic-bezier(.16, .8, .3, 1) var(--d, 0ms) forwards; } }
+@keyframes rw-fx { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 70% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--x, 0), var(--y, 0)) rotate(var(--r, 0deg)); } }
 
 .net { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 0; }
 .net::before { content: ""; position: absolute; left: -12px; right: -12px; top: 42px; height: 3px; background: linear-gradient(90deg, transparent, rgb(255 255 255 / .6) 18%, rgb(255 255 255 / .6) 82%, transparent); }
@@ -6873,7 +6923,7 @@ function renderSettings() {
       ${seg('data-theme-pick', [['auto', 'Match phone'], ['light', 'Light'], ['dark', 'Dark']], display.theme).replace('role="group"', 'role="group" aria-labelledby="set-app-l"')}
       <p class="note">${themeNote}</p></div>
     <div class="field" style="margin:0"><span class="lab" id="set-pal-l">Court theme</span>
-      <div class="pal-grid" role="group" aria-labelledby="set-pal-l">${DisplayPrefs.PALETTES.map(p => `<button type="button" class="pal-opt" data-palette-pick="${p.id}" aria-pressed="${display.palette === p.id ? 'true' : 'false'}"><span class="pal-sw" aria-hidden="true" style="--p1:${p.c1};--p2:${p.c2}"><span class="pal-ball"></span></span><span class="pal-name">${p.name}</span></button>`).join('')}</div>
+      <div class="pal-grid" role="group" aria-labelledby="set-pal-l">${DisplayPrefs.PALETTES.map(p => `<button type="button" class="pal-opt" data-palette-pick="${p.id}" aria-pressed="${display.palette === p.id ? 'true' : 'false'}"><span class="pal-sw" aria-hidden="true" style="--p1:${p.c1};--p2:${p.c2}"><span class="pal-ball"></span></span><span class="pal-name">${p.name}</span></button>`).join('')}</div>${shopTheme ? `<p class="note">You are wearing ${esc(DisplayPrefs.SHOP_BY_ITEM[shopTheme].name)}, which sits over these. Choose None under What you wear to use one of them again.</p>` : ''}
       <p class="note">Changes the court colour across the app. Team colours and the pickleball stay the same.</p></div>
     <div class="field" style="margin:0"><span class="lab" id="disp-o">Sunlight contrast</span>
       ${seg('data-disp', [['outdoor-0', 'Standard'], ['outdoor-1', 'Sunlight']], 'outdoor-' + display.outdoor).replace('role="group"', 'role="group" aria-labelledby="disp-o"')}

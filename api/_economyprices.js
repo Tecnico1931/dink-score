@@ -10,7 +10,7 @@ import { fail } from './_db.js';
 
 export const MIN_PRICE = 1;
 export const MAX_PRICE = 99999;
-const GROUPS = { frame: 'Rings', paddle: 'Paddle colours', pet: 'Pets', title: 'Titles', style: 'Name styles' };
+const GROUPS = { frame: 'Rings', paddle: 'Paddle colours', pet: 'Pets', title: 'Titles', style: 'Name styles', theme: 'Court themes', celebrate: 'Win celebrations' };
 
 // Every priced thing, with its default: the box first, then the catalogue, then this and other seasons' items.
 const priceable = () => [

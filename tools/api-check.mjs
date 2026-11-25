@@ -1361,7 +1361,7 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
   ok(await cfPost(club, { action: 'set-rewards', on: true, pin: cf.pin }));
   for (const bad of [{ playerToken: undefined }, { playerToken: 'f'.repeat(48) }, { playerToken: cfTok.Bo }, { name: 'Nobody' }]) for (const action of ['rewards-catalog', 'rewards-buy', 'rewards-wear', 'rewards-activity']) assert.equal((await post('Hal', { action, item: 'frame-court', slot: 'frame', ...bad })).status, 403);
   let s = ok(await post('Hal', { action: 'rewards-catalog' }));
-  assert.equal(s.items.filter(i => !i.seasonal && !i.event).length, 62); assert.ok(s.items.every(i => !i.owned && i.price > 0));
+  assert.equal(s.items.filter(i => !i.seasonal && !i.event).length, 75); assert.ok(s.items.every(i => !i.owned && i.price > 0));
   // WI-13: a Mythic item carries a head count of this club's owners (a number, no names); no other item has one
   const myth = s.items.filter(i => i.rarity === 'mythic');
   assert.equal(myth.length, 5); assert.ok(myth.every(i => i.owners === 0)); assert.ok(s.items.filter(i => i.rarity !== 'mythic').every(i => !('owners' in i)));
