@@ -809,7 +809,7 @@ h3 { font-family: var(--display); font-weight: 700; font-stretch: 90%; font-size
 }
 .rules-jump a:active { background: var(--surface-2); }
 .rule[id], .rules button, .rules a { scroll-margin-top: calc(68px + env(safe-area-inset-top, 0px)); }
-.rule h3:focus:not(:focus-visible) { outline: none; }
+.rule h3:focus:not(:focus-visible), h2[tabindex="-1"]:focus:not(:focus-visible) { outline: none; } /* a tap that moves focus to a sheet title draws no box; keyboard focus keeps its ring */
 .rule-goto { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 2px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .rule-goto:first-of-type { border-top: 0; padding-top: 0; }
 .rule-goto:last-of-type { padding-bottom: 0; }
@@ -1104,7 +1104,7 @@ button.sync { cursor: pointer; font-weight: 600; color: var(--ink); max-width: 1
 .deleted { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .deleted li { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 8px 12px; font-size: 14px; }
 .deleted li span { min-width: 0; overflow-wrap: anywhere; }
-.field-input { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; }
+.field-input { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 16px; font-family: inherit; color: var(--ink); }
 .org-card { background: var(--surface-2); border-radius: 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .org-head { display: flex; justify-content: space-between; align-items: center; }
 .org-card p { font-size: 14px; }
@@ -5745,8 +5745,11 @@ function renderClub() {
   } else {
     body = clubHomeHTML(c);
   }
+  // The title shares the row with the close button, like the Inbox, Settings and Log sheets; a view that does not open with its h2 keeps the old empty row.
+  const lead = body.match(/^\s*(<h2\b[^>]*>[\s\S]*?<\/h2>)/);
+  if (lead) body = body.slice(lead[0].length);
   setSheet(root, `<div class="sheet-bg top"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="club-h"><span class="grip"></span>
-    <div class="sheet-head"><span></span><button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
+    <div class="sheet-head">${lead ? lead[1] : '<span></span>'}<button type="button" class="x" data-act="club-close" aria-label="Close">✕</button></div>${body}</div></div>`, c.view);
   if (c.view === 'watch-link') watchReattach(); // a redraw replaced the camera's <video>
 }
 // Changes the server refused. Each can be retried, fixed (a game's score), exported, or, only when the person says so, discarded.
