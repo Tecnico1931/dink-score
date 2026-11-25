@@ -182,14 +182,14 @@ It must never read as a corporate fitness app (gradients everywhere, stock athle
 - Ball yellow is a light source, used sparingly to mark serve, live and first place.
 - Team identity is color: blue for team one, green for team two, carried from setup to scoring to history.
 - Generous radii and big tap targets, so everything works one-handed and mid-game.
-- Full light, dark and sunlight-contrast modes (`data-theme`, `data-outdoor`), orthogonal to six free per-device court palettes (`data-palette`).
+- Full light, dark and sunlight-contrast modes (`data-theme`, `data-outdoor`), orthogonal to six free per-device court palettes (`data-palette`). Eight more court themes can be bought with Dinks (WI-16, below); they layer over the six, which stay free.
 
 ## Colors
 
 The default Court Green palette pairs cool slate neutrals with an emerald court surface, locked team colours and one electric ball yellow. Six selectable court palettes let players match their home court without changing team identity or ball contrast.
 
 ### Selectable Court Palettes (`data-palette`)
-Stored per device in `pb.display` (never sent to the club, always free, never part of the shop, season pass or mystery box). Public bracket (`/b/<token>`) and league (`/l/<token>`) pages also accept an optional `?palette=` query parameter matching `?theme=`, falling back to Court Green for unknown values.
+Stored per device in `pb.display` (never sent to the club, always free, never part of the season pass or mystery box; the eight bought themes are separate, see Rewards). Public bracket (`/b/<token>`) and league (`/l/<token>`) pages also accept an optional `?palette=` query parameter matching `?theme=`, falling back to Court Green for unknown values.
 
 - **Court Green** (`green`, default — `data-palette` omitted): emerald court (`#0E7A55` → `#0A5E42` light, `#0F6B4B` → `#0A4A34` dark, `#00593F` outdoor).
 - **Court Blue** (`blue`): US Open / PPA hard-court cobalt (`#1552A3` → `#0D3A78` light, `#185AB3` → `#0E3C7D` dark, `#0A3580` outdoor).
@@ -321,11 +321,11 @@ Rewards (Dinks, shop, levels and the like) are a calm extra, never the point of 
 - **Dinks are play money.** They have no cash value and no purchase path: nothing is sold for real money, and nothing converts Dinks into money, goods or prizes.
 - **The shop sells looks at fixed prices.** Dinks can be spent on cosmetic items (a ring around a picture, a colour for paddle thumbnails) at a price shown before the tap and set on the server. An item never changes a rating, a score, a rank, a pairing or any rule, and a fixed-price item is bought once.
 - **Odds are always shown.** Any random reward (such as the optional per-club mystery box and the free daily spin, off by default behind the same organizer switch) states its cost or prize values, daily limit, duplicate refund and every rarity's or prize's odds in plain words and numbers from the server draw table before the player takes part, draws only on the server, and uses no pity timers, countdowns, animation, sound or confetti. The daily spin wheel is a still picture (turned once to show the win, never spinning) and the next spin is shown as "tomorrow", not a clock.
-- **Calm motion.** No flashing and no storm effects (confetti, particle bursts, full-screen takeovers). A reward shows as a quiet card, count-up or check mark, and under `prefers-reduced-motion` it appears with no animation at all.
+- **Calm motion.** No flashing and no storm effects (particle storms, full-screen takeovers). A reward shows as a quiet card, count-up or check mark, and under `prefers-reduced-motion` it appears with no animation at all. The one exception is a win celebration the player bought (WI-16, reversing the old ban on confetti and particle bursts): a single CSS-only burst of 16 small pieces in a band across the top of the screen, never over the scoring buttons and never blocking a tap, gone within 1.5 s, drawn only on a phone with Win celebration on in Settings, and shown still (no motion) under `prefers-reduced-motion`.
 - **Sound is off until the player turns it on**, per device. A victory sound from the shop is made on the phone itself (no audio files) and plays only after a tap on its play button, or at a win when Win celebration and Celebration sound are on in Settings; never while rewards are hidden.
 - **One tap hides it all.** Every player has a single switch that hides all reward UI on their device, and the app works the same without it.
 - **Transparent, never pushy.** The player can read their own Dinks history in plain words (Dinks activity), and can pick one shop item as a saving goal that shows only what is missing and an estimate from their own recent earnings, kept on the device. No streak pressure, countdowns or nudges.
-- **Rewards never touch the game or app themes.** They never change a rating, a score, a rank, a pairing or a result, they never decide who plays, and court themes are always free for every player (never sold in the shop, season pass or mystery box).
+- **Rewards never touch the game or app themes.** They never change a rating, a score, a rank, a pairing or a result, they never decide who plays, and the six court palettes in Settings are always free for every player. Eight extra court themes (WI-16, reversing the old rule that no theme is ever sold) can be bought in the shop, never come from the season pass or mystery box, only recolour the buyer's own screen on that phone (never the club, the public pages or another player), and wearing None brings the free palette back.
 
 ## Do's and Don'ts
 
@@ -340,7 +340,7 @@ Rewards (Dinks, shop, levels and the like) are a calm extra, never the point of 
 
 ### Don't:
 - **Don't** let it look like a corporate fitness app: no gradients on daylight surfaces, no stock athletes, no hype copy. Gradients belong only to the court panels.
-- **Don't** let a reward flash, storm or sell: no slot-machine flashing, confetti storms, loot-box theatrics, real-money prices or hidden odds. The Rewards rules above are the whole contract.
+- **Don't** let a reward flash, storm or sell: no slot-machine flashing, confetti storms (a bought win celebration is one short burst, see Calm motion), loot-box theatrics, real-money prices or hidden odds. The Rewards rules above are the whole contract.
 - **Don't** set text below 13px for reading or below 11px for labels, and don't pack dense small type that needs squinting outdoors.
 - **Don't** add a second accent color, or use ball yellow as a background wash.
 - **Don't** add hover-only affordances. Every state must work on touch.

@@ -22,6 +22,8 @@ export const SLOT_META = Object.freeze([
   { id: 'pet', label: 'Pets', note: 'A companion that grows as you play.', club: true },
   { id: 'title', label: 'Titles', note: 'Shown under your name.', club: true },
   { id: 'style', label: 'Name styles', note: 'How your name looks on the leaderboard.', club: true },
+  { id: 'theme', label: 'Court themes', note: 'Your scoring screen on this phone.', club: false },
+  { id: 'celebrate', label: 'Win celebrations', note: 'Plays on your scoring phone when a game ends.', club: false },
   { id: 'sound', label: 'Victory sounds', note: 'Plays on your phone when you win, if you turn sound on.', club: false }
 ].map(Object.freeze));
 export const SLOTS = SLOT_META.map(s => s.id);
@@ -55,6 +57,22 @@ export const CATALOGUE = [
   { id: 'sound-crowd', slot: 'sound', name: 'Crowd roar', price: 150, rarity: 'rare' },
   ...TOP_SOUNDS,
   ...TOP_FRAMES,
+  // Court themes (WI-16): extra `data-palette` values (`t-<id>`) on this phone's own scoring screen, layered over the six free palettes, which stay free.
+  // Looks only, never in the box or the pass, never shown to the club. Prices as upstream.
+  { id: 'theme-sunset', slot: 'theme', name: 'Sunset court', price: 150, rarity: 'rare' },
+  { id: 'theme-clay', slot: 'theme', name: 'Clay court', price: 150, rarity: 'rare' },
+  { id: 'theme-grass', slot: 'theme', name: 'Grass court', price: 150, rarity: 'rare' },
+  { id: 'theme-neon', slot: 'theme', name: 'Neon court', price: 210, rarity: 'rare' },
+  { id: 'theme-beach', slot: 'theme', name: 'Beach court', price: 150, rarity: 'rare' },
+  { id: 'theme-ice', slot: 'theme', name: 'Ice rink', price: 150, rarity: 'rare' },
+  { id: 'theme-midnight', slot: 'theme', name: 'Midnight court', price: 150, rarity: 'rare' },
+  { id: 'theme-arcade', slot: 'theme', name: 'Retro arcade', price: 210, rarity: 'rare' },
+  // Win celebrations (WI-16): one short CSS effect on the scoring phone when a game ends (src/app/economycelebrate.js); needs Win celebration on in Settings.
+  { id: 'celebrate-confetti', slot: 'celebrate', name: 'Confetti', price: 120, rarity: 'rare' },
+  { id: 'celebrate-balls', slot: 'celebrate', name: 'Ball burst', price: 120, rarity: 'rare' },
+  { id: 'celebrate-pickles', slot: 'celebrate', name: 'Pickle rain', price: 150, rarity: 'rare' },
+  { id: 'celebrate-paddles', slot: 'celebrate', name: 'Flying paddles', price: 150, rarity: 'rare' },
+  { id: 'celebrate-hearts', slot: 'celebrate', name: 'Heart burst', price: 120, rarity: 'rare' },
   ...TITLES,
   ...STYLES
 ];

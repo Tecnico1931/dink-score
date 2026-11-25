@@ -10,7 +10,7 @@ const RW_DAY_PAY = 1, RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { m
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
-const rwId = v => (typeof v === 'string' && /^[a-z]{3,8}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
+const rwId = v => (typeof v === 'string' && /^[a-z]{3,9}-[a-z]{3,12}$/.test(v) ? v : ''); // a worn item id, 'frame-court'
 const rwLook = id => String(id || '').replace(/^[a-z]+-/, ''); // 'frame-court' -> 'court': the name the stylesheet draws
 // The worn paddle colour as one small upright pickleball paddle (rounded face, edge, holes, handle), coloured only by the --rw-pad-* tokens of
 // the [data-rw-skin] it sits in, so it follows both themes. Decorative: callers carry the text. The stripe shows only for the striped skin.
@@ -19,6 +19,8 @@ const rwKey = n => String(n || '').trim().replace(/\s+/g, ' ').normalize('NFC').
 // Slots the server knows (mirror of SLOT_META in api/_economyshop.js). frame, paddle and pet are always present in a look; the newer ones only when set.
 // A sound is never in a club look: it stays on its owner's phone.
 const RW_EXTRA_SLOTS = ['title', 'style'];
+// A court theme and a win celebration are never in a club look either; they are only worn on this phone (economycelebrate.js).
+const RW_OWN_SLOTS = ['sound', 'theme', 'celebrate'];
 // Title ids -> the words shown under a name (mirror of TITLES in api/_economyitems.js; test/economyitems.test.js pins them together).
 const RW_TITLES = { kitchen: 'Kitchen King', dink: 'Dink Master', banger: 'Banger', lob: 'Lob Legend', third: 'Third-Shot Wizard', erne: 'Erne Artist', soft: 'Soft Hands', ninja: 'Net Ninja', dropshot: 'Drop Shot Doctor', speedup: 'Speed-Up Specialist', post: 'Around the Post', overlord: 'Erne Overlord', ruler: 'Ruler of the Kitchen', unbeaten: 'The Unbeatable', eager: 'Gain Eager', finalboss: 'The Final Boss' };
 const RW_STYLES = ['gold', 'glowing', 'flame', 'pickle', 'ice', 'neon', 'holo', 'molten', 'starforged'];
@@ -54,7 +56,7 @@ const rwCleanPet = (p, wornPet) => {
   return { id, stage, playDays: days, nextStageDays: next, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
 };
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
-  const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet), ...Object.fromEntries(['title', 'style', 'sound'].map(k => [k, rwId(w[k])]).filter(e => e[1])) };
+  const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet), ...Object.fromEntries(['title', 'style', ...RW_OWN_SLOTS].map(k => [k, rwId(w[k])]).filter(e => e[1])) };
   const pet = rwCleanPet(s.pet, worn.pet);
   const out = { streak: n(s.streak), best: n(s.best), dinks: n(s.dinks), last: typeof s.last === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.last) ? s.last : '', worn };
   if (pet) out.pet = pet;
@@ -84,6 +86,15 @@ function rwApplyLook() {
   const r = document.documentElement; if (!r) return;
   const w = rwShown() ? rwCur().worn : {};
   for (const [slot, attr] of [['frame', 'data-rw-frame'], ['paddle', 'data-rw-skin']]) { const v = rwLook(w[slot]); if (v) r.setAttribute(attr, v); else r.removeAttribute(attr); }
+  if (club) rwThemeSync(w.theme); // with no club loaded yet, keep the theme the last visit left, so the first paint doesn't flash back to the free palette
+}
+// The worn court theme becomes this phone's palette (display-live.js applyDisplay); hiding rewards or a club with them off puts the free palette back.
+function rwThemeSync(id) {
+  if (typeof DisplayPrefs === 'undefined' || typeof shopTheme === 'undefined') return;
+  id = id && DisplayPrefs.SHOP_BY_ITEM[id] ? id : '';
+  if (id === shopTheme) return;
+  shopTheme = id; store.set('pb.shopTheme', id); applyDisplay();
+  if (typeof settingsOpen !== 'undefined' && settingsOpen && typeof renderSettings === 'function') renderSettings();
 }
 const rwFlame = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12.5 2.5c.4 3-1.3 4.6-2.9 6.4C8 10.7 6.5 12.6 6.5 15.2a5.5 5.5 0 0 0 11 0c0-2.2-1-3.9-2.2-5.2-.2 1.2-.7 2-1.5 2.5.5-3.5-.2-7.3-1.3-10z"/></svg>';
 

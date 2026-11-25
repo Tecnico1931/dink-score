@@ -306,7 +306,7 @@ test('Variant A shiny state and clubLooksFrom allow-list: active only in feature
   assert.equal(cleanPetLook({ slot: 'frame', item: 'frame-court' }, wk0), null);
   assert.equal(cleanPetLook(null, wk0), null);
   assert.deepEqual(wornFrom([{ id: featured, slot: 'pet', worn: true }, { id: 'frame-court', slot: 'frame', worn: true }]), {
-    frame: 'frame-court', paddle: '', pet: featured, title: '', style: '', sound: ''
+    frame: 'frame-court', paddle: '', pet: featured, title: '', style: '', theme: '', celebrate: '', sound: ''
   });
 });
 
@@ -512,7 +512,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(html, /Dink duck<\/b><small class="rw-cost">200 Dinks/);
   assert.match(html, /data-rw-buy="pet-cat"[^>]*aria-label="Adopt Kitchen cat for 500 Dinks\. You need 250 more"[^>]*>250 more</, 'shortfall stated before tapping');
   assert.ok(!/data-rw-buy="pet-frog"/.test(html), 'owned pet is not offered to adopt again');
-  assert.ok(!/animation|confetti|odds|random/i.test(html), 'calm copy only');
+  assert.ok(!/animation|odds|random/i.test(html), 'calm copy only'); // the Confetti celebration card (WI-16) is a name, not an effect
 
   // Clicking the one-tap shiny toggle sends rewards-wear with shiny: true, announces and updates Your Dink card.
   const click = ds => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
@@ -551,7 +551,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(coll, /after 5 play days/); assert.match(coll, /after 15 play days/);
   assert.match(coll, /Yours: Club/);
   assert.match(coll, /data-rw="store">Back to the shop</);
-  assert.ok(!/animation|confetti|odds|random/i.test(coll.replace(/data-pet-shiny/g, '')), 'calm copy only');
+  assert.ok(!/animation|odds|random/i.test(coll.replace(/data-pet-shiny/g, '')), 'calm copy only');
   assert.ok(!/data-rw-shiny/.test(offWeekHtml), 'shiny toggle must not appear outside an owned pet featured week');
 
   // Club rewards off or player hid rewards: nothing shows on Your Dink card or Shop sheet.

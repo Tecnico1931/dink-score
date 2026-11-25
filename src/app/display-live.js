@@ -1,9 +1,11 @@
 let display = DisplayPrefs.normalize(store.get('pb.display', {}));
 let celebration = Celebration.normalize(store.get('pb.celebration', {}));
+// The rewarded court theme worn on this phone (an item id like 'theme-neon', or ''), kept so the first paint is right before the club loads. economycelebrate.js owns it.
+let shopTheme = (() => { const v = store.get('pb.shopTheme', ''); return typeof v === 'string' && DisplayPrefs.SHOP_BY_ITEM[v] ? v : ''; })();
 const darkMQ = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 function applyDisplay() {
   const r = document.documentElement;
-  const res = DisplayPrefs.resolve(display, !!(darkMQ && darkMQ.matches));
+  const res = DisplayPrefs.resolve(display, !!(darkMQ && darkMQ.matches), shopTheme);
   if (res.dataTheme) r.setAttribute('data-theme', res.dataTheme); else r.removeAttribute('data-theme');
   if (res.dataPalette) r.setAttribute('data-palette', res.dataPalette); else r.removeAttribute('data-palette');
   r.toggleAttribute('data-outdoor', res.outdoor); r.toggleAttribute('data-large', res.large);
@@ -86,7 +88,8 @@ function celebrateWin(beforeWinner, winner) {
   if (!live || !live.open) return;
   const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const opts = { on: celebration.on, beforeWinner, winner, reducedMotion, muted: celebration.muted };
-  if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
+  if (Celebration.shouldShopFx(opts) && typeof rwWinFx === 'function' && rwWinFx(winner, reducedMotion)) { /* a worn rewarded celebration replaces the default burst */ }
+  else if (Celebration.shouldConfetti(opts)) launchConfetti(winner);
   if (Celebration.shouldSound(opts) && !(typeof rwPlayWinSound === 'function' && rwPlayWinSound())) playCelebrationSound(); // a worn victory sound replaces the default chime
 }
 const TEAM_COLOR = ['var(--blue)', 'var(--green)'];
