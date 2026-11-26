@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CATALOGUE, SLOTS, clubLooksFrom, wornFrom } from '../api/_economyshop.js';
-import { BOX_TIERS } from '../api/_economybox.js';
+import { boxTiers } from '../api/_economybox.js';
 import { module, page, section } from './helpers/app.js';
 
 const THEMES = [['theme-sunset', 'Sunset court', 150], ['theme-clay', 'Clay court', 150], ['theme-grass', 'Grass court', 150], ['theme-neon', 'Neon court', 210], ['theme-beach', 'Beach court', 150], ['theme-ice', 'Ice rink', 150], ['theme-midnight', 'Midnight court', 150], ['theme-arcade', 'Retro arcade', 210]];
@@ -13,12 +13,14 @@ const XMAS_FX = [['celebrate-snowfall', 'Snowfall', 300], ['celebrate-gifts', 'P
 const TOP_THEMES = [['theme-aurora', 'Aurora court', 1080, 'legendary'], ['theme-galaxy', 'Galaxy court', 1080, 'legendary'], ['theme-eclipse', 'Eclipse court', 4100, 'mythic']];
 const TOP_FX = [['celebrate-fireworks', 'Fireworks', 900, 'legendary'], ['celebrate-trophy', 'Trophy shower', 1200, 'legendary'], ['celebrate-supernova', 'Supernova', 4400, 'mythic']];
 
-test('eleven court themes and eight win celebrations at the upstream prices, never in the box, never shown to the club', () => {
+test('eleven court themes and eight win celebrations at the upstream prices, Legendary ones can come from the box, Mythic never, never shown to the club', () => {
   assert.deepEqual(CATALOGUE.filter(i => i.slot === 'theme').map(i => [i.id, i.name, i.price, i.rarity]), [...THEMES.map(([id, n, p]) => [id, n, p, 'rare']), ...TOP_THEMES]);
   assert.deepEqual(CATALOGUE.filter(i => i.slot === 'celebrate').map(i => [i.id, i.name, i.price, i.rarity]), [...FX.map(([id, n, p]) => [id, n, p, 'rare']), ...TOP_FX]);
   assert.ok(SLOTS.includes('theme') && SLOTS.includes('celebrate'));
   const ids = [...THEMES, ...FX, ...TOP_THEMES, ...TOP_FX].map(x => x[0]);
-  assert.ok(!BOX_TIERS.some(t => t.items.some(id => ids.includes(id))), 'a theme or celebration is not a box prize');
+  const prizes = new Set(boxTiers().flatMap(t => t.items.map(i => i.id)));
+  assert.ok(ids.filter(id => !TOP_THEMES.concat(TOP_FX).some(x => x[0] === id && x[3] === 'mythic')).every(id => prizes.has(id)), 'a non-Mythic theme or celebration can be a box prize');
+  assert.ok(TOP_THEMES.concat(TOP_FX).filter(x => x[3] === 'mythic').every(x => !prizes.has(x[0])), 'a Mythic one is not');
   assert.deepEqual(clubLooksFrom(ids.map(item => ({ name_key: 'ana', slot: item.split('-')[0], item }))), {}, 'only the owner sees them, on their own phone');
   assert.deepEqual(wornFrom([{ id: 'theme-neon', slot: 'theme', worn: true }, { id: 'celebrate-hearts', slot: 'celebrate', worn: true }]).theme, 'theme-neon');
 });

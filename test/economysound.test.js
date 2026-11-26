@@ -2,16 +2,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CATALOGUE, SLOTS, clubLooksFrom, wornFrom } from '../api/_economyshop.js';
-import { BOX_TIERS } from '../api/_economybox.js';
+import { boxTiers } from '../api/_economybox.js';
 import { module } from './helpers/app.js';
 
 const IDS = ['sound-bell', 'sound-horn', 'sound-8bit', 'sound-drum', 'sound-crowd', 'sound-fanfare', 'sound-ascension'];
 
-test('the seven sounds are sold at the upstream prices, never in the box, never shown to the club', () => {
+test('the seven sounds are sold at the upstream prices, Mythic never in the box, never shown to the club', () => {
   const sounds = CATALOGUE.filter(i => i.slot === 'sound');
   assert.deepEqual(sounds.map(i => [i.id, i.price, i.rarity]), [['sound-bell', 60, 'common'], ['sound-horn', 90, 'common'], ['sound-8bit', 105, 'common'], ['sound-drum', 135, 'rare'], ['sound-crowd', 150, 'rare'], ['sound-fanfare', 720, 'legendary'], ['sound-ascension', 3000, 'mythic']]);
   assert.ok(SLOTS.includes('sound'));
-  assert.ok(!BOX_TIERS.some(t => t.items.some(id => IDS.includes(id))), 'a sound is not a box prize');
+  const prizes = new Set(boxTiers().flatMap(t => t.items.map(i => i.id)));
+  assert.deepEqual(IDS.filter(id => prizes.has(id)), IDS.filter(id => id !== 'sound-ascension'), 'a sound is a box prize unless it is Mythic');
   assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'sound', item: 'sound-bell' }]), {}, 'a sound is only heard on the owner\'s phone');
   assert.equal(wornFrom([{ id: 'sound-horn', slot: 'sound', worn: true }]).sound, 'sound-horn');
 });

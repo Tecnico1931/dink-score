@@ -359,15 +359,17 @@ test('WI-9: the shop shows Titles and Name styles shelves, and a worn title and 
 });
 
 // ---- WI-13: Mythic and Legendary shelves ----
-test('WI-13/M2: seven Mythic and fifteen Legendary items at the upstream prices, never in the box or the pass, none shown as a courts/celebration item yet', async () => {
-  const { BOX_TIERS } = await import('../api/_economybox.js');
+test('WI-13/M2: seven Mythic and fifteen Legendary items at the upstream prices, Mythic never in the box and none in the pass, none shown as a courts/celebration item yet', async () => {
+  const { boxTiers } = await import('../api/_economybox.js');
   const { PASS_TIERS } = await import('../api/_economypass.js');
   const mythic = CATALOGUE.filter(i => i.rarity === 'mythic');
   assert.deepEqual(mythic.map(i => [i.id, i.price]), [['pet-supernova', 4800], ['sound-ascension', 3000], ['frame-horizon', 3600], ['theme-eclipse', 4100], ['celebrate-supernova', 4400], ['title-finalboss', 2800], ['style-starforged', 3600]]);
   const legend = CATALOGUE.filter(i => i.rarity === 'legendary');
   assert.deepEqual(legend.map(i => [i.name, i.price]), [['Net dragon', 800], ['Royal fanfare', 720], ['Spinning rainbow', 660], ['Orbiting ball', 720], ["Champion's crown", 960], ['Aurora court', 1080], ['Galaxy court', 1080], ['Fireworks', 900], ['Trophy shower', 1200], ['Erne Overlord', 600], ['Ruler of the Kitchen', 720], ['The Unbeatable', 660], ['Gain Eager', 660], ['Holographic name', 780], ['Molten gold name', 840]]);
   const top = new Set([...mythic, ...legend].map(i => i.id));
-  assert.ok(!BOX_TIERS.some(t => t.items.some(id => top.has(id))), 'a top item is not a box prize');
+  const prizes = new Set(boxTiers().flatMap(t => t.items.map(i => i.id)));
+  assert.ok(mythic.every(i => !prizes.has(i.id)), 'a Mythic item is not a box prize');
+  assert.ok(legend.every(i => prizes.has(i.id)), 'a Legendary item is in the box legendary group');
   assert.ok(!PASS_TIERS.some(t => t.item && top.has(t.item)), 'a top item is not a pass reward');
   for (const i of top) assert.match(i, /^[a-z]+-[a-z]{3,12}$/, 'id passes the phone allow-list');
 });
