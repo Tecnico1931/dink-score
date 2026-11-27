@@ -3,7 +3,9 @@ let acct = null; // the last answer from /api/account: { account, identities } o
 const passkeysOk = () => !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
 const toBuf = s => Uint8Array.from(atob(String(s).replace(/-/g, '+').replace(/_/g, '/')), ch => ch.charCodeAt(0)).buffer;
 const fromBuf = b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-const acctPost = body => api('account', { method: 'POST', body: JSON.stringify(body) });
+let emailAvail = false; // the server's `config.email`, kept apart because some answers (claim, restore) carry no config
+const seeConfig = d => { if (d && d.config) emailAvail = !!d.config.email; return d; };
+const acctPost = async body => seeConfig(await api('account', { method: 'POST', body: JSON.stringify(body) }));
 function credJson(c) {
   const r = c.response, response = { clientDataJSON: fromBuf(r.clientDataJSON) };
   if (r.attestationObject) { response.attestationObject = fromBuf(r.attestationObject); response.transports = r.getTransports ? r.getTransports() : []; }
@@ -15,7 +17,7 @@ async function passkeyCreate(o) {
   return credJson(await navigator.credentials.create({ publicKey: pk }));
 }
 async function passkeyGet(o) { return credJson(await navigator.credentials.get({ publicKey: Object.assign({}, o, { challenge: toBuf(o.challenge) }) })); }
-async function acctLoad() { try { acct = await api('account'); } catch { acct = null; } }
+async function acctLoad() { try { acct = seeConfig(await api('account')); } catch { acct = null; } }
 const acctMsg = err => err && (err.name === 'NotAllowedError' || err.name === 'AbortError') ? 'The passkey step was cancelled. Try again when you are ready.' : err.message;
 // Hands the server this phone's own tokens, once, so the account can bring the same clubs and names to another phone.
 async function acctClaim(only) { // `only`: just that club code
@@ -101,6 +103,29 @@ function acctAddPasskey() {
   });
 }
 function acctDelete() { return acctRun(async () => { await acctPost({ action: 'delete-account' }); acct = null; return 'Account deleted. Your clubs and games were not touched.'; }); }
+// Email sign-in link (only when the server has a mail key: `config.email`). The link opens the page with #signin=<token>; the token
+// stays in this variable and is traded on a tap, so a mail scanner that merely fetches the link can't use it up.
+let pendingSignin = '';
+const emailOk = () => emailAvail;
+const acctEmailSend = email => acctRun(async () => (await acctPost({ action: 'email-start', email: String(email || '').trim() })).message);
+const acctEmailRemove = email => acctRun(async () => { acct = Object.assign({}, acct, await acctPost({ action: 'email-remove', email })); return 'Email address removed.'; });
+function acctEmailFinish() {
+  return acctRun(async () => {
+    acct = await acctPost({ action: 'email-finish', token: pendingSignin });
+    pendingSignin = '';
+    const restored = await acctRestore();
+    return acctSyncMsg(restored, await acctClaim());
+  });
+}
+async function acctFromLink(token) {
+  pendingSignin = token;
+  await acctOpen();
+}
+function emailFormHTML(c, label, btn, hint) {
+  return `<form class="club-form" data-form="acct-email"><label class="lab" for="acct-email">${label}</label>
+    <div class="add-player"><input id="acct-email" type="email" inputmode="email" placeholder="you@example.com" autocomplete="email" maxlength="254" required><button type="submit" class="btn btn-soft" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>${btn}</button></div>
+    <p class="note">${hint}</p></form>`;
+}
 async function acctOpen() {
   clubSheet = { view: 'account', busy: true }; renderClub();
   await acctLoad();
@@ -126,13 +151,15 @@ function accountHTML(c) {
   const err = c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : '';
   const back = `<div class="btns"><button class="btn btn-soft" data-act="acct-close">Done</button></div>`;
   const what = `<p>An account is optional. Without one, Dink Score works exactly as before. With one, you keep your clubs, player names and organizer access across phones, and a lost phone no longer loses them. There is no password: you sign in with a passkey, the fingerprint, face or screen lock you already use on this phone.</p>`;
-  const note = c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : '';
+  const note = (c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : '')
+    + (pendingSignin ? `<div class="field"><p><b>Finish signing in.</b> Tap to sign in with the link from your email.</p><button class="btn btn-ink block" data-act="acct-email-finish" ${c.busy ? 'disabled' : ''}>Finish signing in</button></div>` : '');
   if (!passkeysOk()) return `<h2 id="club-h">Account (optional)</h2>${what}<p class="err">This browser can't make passkeys, so accounts aren't available here. Everything else works.</p>${back}`;
   if (acct && acct.account) {
     const ids = acct.identities || [], unlinked = acctUnlinked();
     return `<h2 id="club-h">Your account</h2>${note}${err}
       <p>Signed in as <b>${esc(acct.account.name)}</b>. ${acct.account.passkeys} passkey${acct.account.passkeys === 1 ? '' : 's'}.</p>
       <p class="note">A passkey works only on the web address it was made on${acct.account.host ? ` (this one is ${esc(acct.account.host)})` : ''}. Your account and clubs are the same on every address, but you sign in with a passkey made on the address you are using.${acct.account.passkeysHere === 0 ? ' You have no passkey for this address yet.' : ''}</p>
+      ${emailOk() || (acct.account.emails || []).length ? `<div class="field"><span class="lab">Email sign-in</span>${(acct.account.emails || []).length ? `<ul class="deleted">${acct.account.emails.map(e => `<li><span>${esc(e)}</span><button class="link" style="min-height:44px;padding-inline:8px" data-act="acct-email-rm" data-email="${esc(e)}" ${c.busy ? 'disabled' : ''}>Remove</button></li>`).join('')}</ul>` : '<p class="note">No email address yet.</p>'}${emailOk() ? emailFormHTML(c, 'Add an email address', 'Send link', 'We email a link that works once, for 15 minutes. Opening it adds the address, so you can sign in from it later.') : ''}</div>` : ''}
       <button class="btn btn-ink block" data-act="acct-restore" ${c.busy ? 'disabled' : ''}>Bring my clubs to this phone</button>
       <p class="note">Gets the clubs and names on your account that this phone does not have yet. Each one moves to this phone, so a phone that had it before loses it until you bring it back there.</p>
       <div class="field"><span class="lab">Linked to your account</span>${ids.length ? `<ul class="deleted">${ids.map(i => `<li><span>${esc(i.club)}: ${i.kind === 'organizer' ? 'organizer access (club creator)' : esc(i.name || 'player name')}${i.stale ? ' (no longer valid)' : ''}</span></li>`).join('')}</ul>` : '<p class="note">Nothing yet.</p>'}</div>
@@ -149,6 +176,7 @@ function accountHTML(c) {
     <span class="lab">Already have an account?</span>
     <button class="btn btn-ink block" data-act="acct-in" ${c.busy ? 'disabled' : ''}>Sign in with a passkey</button>
     <p class="note">A passkey works only on the web address it was made on${acct && acct.config ? ` (this one is ${esc(acct.config.rpId)})` : ''}. If your account has no passkey for this address yet, get a code from the address where you are signed in. The Home Screen app is a separate copy from Safari, so sign in there too.</p>
+    ${emailOk() ? emailFormHTML(c, 'Or get a sign-in link by email', 'Send link', 'Works for a new account too. We email a link that works once, for 15 minutes; there is no password. Open it on this phone.') : ''}
     <div class="or"><span>or</span></div>
     <form class="club-form" data-form="acct-up"><label class="lab" for="acct-name">New here? Create an account</label>
       <div class="add-player"><input id="acct-name" placeholder="Your name" autocomplete="name" maxlength="40"><button type="submit" class="btn btn-blue" style="padding:10px 16px;border-radius:12px" ${c.busy ? 'disabled' : ''}>Create</button></div>

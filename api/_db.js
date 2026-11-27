@@ -225,6 +225,23 @@ export function ensureSchema() {
         PRIMARY KEY (club, kind, name_key)
       )`;
       await q`CREATE INDEX IF NOT EXISTS account_identities_account ON account_identities (account_id)`;
+      // Email sign-in (see account.js, _mail.js). An address is stored only because signing in by email needs it; it goes with the account.
+      await q`CREATE TABLE IF NOT EXISTS account_emails (
+        email text PRIMARY KEY,
+        account_id text NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        last_used_at timestamptz
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS account_emails_account ON account_emails (account_id)`;
+      // A pending sign-in link: only the SHA-256 of the token is kept, the row is deleted when used, and it expires after 15 minutes.
+      await q`CREATE TABLE IF NOT EXISTS email_links (
+        token_hash text PRIMARY KEY,
+        email text NOT NULL,
+        account_id text REFERENCES accounts(id) ON DELETE CASCADE,
+        name text NOT NULL DEFAULT '',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        expires_at timestamptz NOT NULL
+      )`;
       // Where a renamed or merged player went, so a phone that still holds the old name can follow it (see players.js).
       await q`CREATE TABLE IF NOT EXISTS name_changes (
         club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,

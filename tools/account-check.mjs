@@ -164,6 +164,163 @@ await step('rate limits: repeated wrong sign-ins from one address are stopped', 
   assert.equal(last, 429);
 });
 
+// Email sign-in links. Resend is replaced by a stub on global fetch (every other URL, the throwaway database included, passes through):
+// no real mail is ever sent.
+const realFetch = globalThis.fetch;
+const mails = [];
+let mailStatus = 200;
+globalThis.fetch = async (url, init) => {
+  if (String(url) !== 'https://api.resend.com/emails') return realFetch(url, init);
+  mails.push({ headers: init.headers, body: JSON.parse(init.body) });
+  return { ok: mailStatus < 300, status: mailStatus };
+};
+const KEY = 're_test_key_not_real';
+const tokenOf = m => /#signin=([A-Za-z0-9_-]+)$/.exec(m.body.text.match(/https?:\/\/\S+/)[0])[1];
+const startMail = (email, opts) => post({ action: 'email-start', email }, opts);
+const lastToken = () => tokenOf(mails[mails.length - 1]);
+const finish = async token => keep(await post({ action: 'email-finish', token }));
+delete process.env.RESEND_API_KEY; delete process.env.MAIL_FROM;
+
+await step('email sign-in is off and hidden without RESEND_API_KEY and MAIL_FROM', async () => {
+  assert.equal(ok(await call(account, 'GET')).config.email, false);
+  assert.equal((await startMail('ana@example.test')).status, 404);
+  process.env.RESEND_API_KEY = KEY; // a key alone is not enough: there is no sender
+  assert.equal(ok(await call(account, 'GET')).config.email, false);
+  assert.equal((await startMail('ana@example.test')).status, 404);
+  assert.equal(mails.length, 0);
+});
+
+process.env.MAIL_FROM = 'Dink Score <login@mail.example.test>';
+
+await step('email-start: the same answer for a new and a known address; the mail carries a same-origin link and no secret is returned or stored', async () => {
+  cookie = '';
+  assert.equal(ok(await call(account, 'GET')).config.email, true);
+  assert.equal((await startMail('not an address')).status, 400);
+  assert.equal((await startMail('a@b')).status, 400);
+  assert.equal((await post({ action: 'email-start', email: 'ana@example.test' }, { headers: { origin: 'https://evil.example' } })).status, 403);
+  assert.equal(mails.length, 0);
+  const first = await startMail('Ana@Example.test ');
+  const m = mails[0];
+  assert.equal(m.headers.Authorization, 'Bearer ' + KEY);
+  assert.equal(m.body.from, 'Dink Score <login@mail.example.test>');
+  assert.deepEqual(m.body.to, ['ana@example.test']);
+  assert.match(m.body.text, /^Open this link to sign in to Dink Score:\n\nhttps:\/\/dinkscore\.vercel\.app\/#signin=[A-Za-z0-9_-]{43}\n/);
+  assert.ok(m.body.html.includes('https://dinkscore.vercel.app/#signin='));
+  const token = lastToken();
+  assert.equal(JSON.stringify(first).includes(token) || JSON.stringify(first).includes(KEY), false);
+  const rows = (await pg.query(`SELECT * FROM email_links`)).rows;
+  assert.equal(rows.length, 1);
+  assert.notEqual(rows[0].token_hash, token); // only the hash is stored
+  assert.ok(!JSON.stringify(rows[0]).includes(token));
+  const mins = (await pg.query(`SELECT extract(epoch FROM expires_at - created_at) / 60 AS m FROM email_links`)).rows[0].m;
+  assert.ok(Math.abs(mins - 15) < 0.1, 'expires in 15 minutes');
+  const sameAsNew = await startMail('someone-else@example.test');
+  assert.deepEqual(sameAsNew.json, first.json); // sign-up and sign-in answer alike
+});
+
+await step('email-finish: a new address makes an account and a session; the link works once; the address is lower-cased', async () => {
+  const token = tokenOf(mails[0]);
+  assert.equal((await finish('wrong')).status, 400);
+  const r = await finish(token);
+  assert.equal(r.status, 201, JSON.stringify(r.json));
+  for (const a of ['HttpOnly', 'Secure', 'SameSite=Lax', '__Host-']) assert.ok(r.setCookie.includes(a), a);
+  assert.deepEqual(r.json.account.emails, ['ana@example.test']);
+  assert.equal(r.json.account.name, 'Dink Score player');
+  assert.equal(r.json.config.email, true);
+  assert.equal((await finish(token)).status, 400); // single use
+  assert.deepEqual(ok(await call(account, 'GET')).account.emails, ['ana@example.test']);
+});
+
+await step('a known address signs in to the same account from another phone; an expired link is refused', async () => {
+  const firstId = (await pg.query(`SELECT account_id FROM account_emails WHERE email = 'ana@example.test'`)).rows[0].account_id;
+  cookie = '';
+  await startMail('ANA@example.test');
+  const r = await finish(lastToken());
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM accounts WHERE id = '${firstId}'`)).rows[0].n, 1);
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM account_emails WHERE email = 'ana@example.test'`)).rows[0].n, 1);
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM sessions WHERE account_id = '${firstId}'`)).rows[0].n >= 2, true);
+  cookie = '';
+  await startMail('ana@example.test');
+  const t = lastToken();
+  await pg.query(`UPDATE email_links SET expires_at = now() - interval '1 second'`);
+  assert.equal((await finish(t)).status, 400);
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM sessions s JOIN account_emails e ON e.account_id = s.account_id`)).rows[0].n >= 2, true);
+  assert.equal(cookie, '');
+});
+
+await step('signed in: an address is added to the same account (passkey account keeps its passkey); the last way in cannot be removed', async () => {
+  cookie = '';
+  const pkAuth = makeAuthenticator({ rpId, origin: ORIGIN });
+  const reg = await signUp(pkAuth, 'Pat');
+  assert.equal(reg.status, 201);
+  await startMail('pat@example.test');
+  const r = await finish(lastToken());
+  assert.equal(r.status, 200, JSON.stringify(r.json));
+  assert.equal(r.json.account.name, 'Pat');
+  assert.deepEqual(r.json.account.emails, ['pat@example.test']);
+  assert.equal(r.json.account.passkeys, 1);
+  cookie = '';
+  await startMail('pat@example.test');
+  const again = await finish(lastToken()); // signed out: the address now signs in to Pat's account
+  assert.equal(again.json.account.name, 'Pat');
+  assert.equal(again.json.account.passkeys, 1);
+  assert.equal((await post({ action: 'email-remove', email: 'nobody@example.test' })).status, 404);
+  assert.deepEqual(ok(await post({ action: 'email-remove', email: 'pat@example.test' })).account.emails, []); // a passkey remains
+  // An email-only account keeps its one address.
+  cookie = '';
+  await startMail('solo@example.test');
+  assert.equal((await finish(lastToken())).status, 201);
+  assert.equal((await post({ action: 'email-remove', email: 'solo@example.test' })).status, 400);
+  await startMail('solo2@example.test'); // signed in: joins this account
+  assert.deepEqual((await finish(lastToken())).json.account.emails, ['solo@example.test', 'solo2@example.test']);
+  assert.deepEqual(ok(await post({ action: 'email-remove', email: 'solo@example.test' })).account.emails, ['solo2@example.test']);
+});
+
+await step('export carries the address and no secrets; delete-account removes addresses and pending links', async () => {
+  const ex = ok(await post({ action: 'export' }));
+  assert.equal(ex.format, 'dink-score-account-export');
+  assert.deepEqual(ex.emails.map(e => e.email), ['solo2@example.test']);
+  const text = JSON.stringify(ex);
+  assert.ok(!/token|hash|public_key|session/i.test(text.replace(/"exportedAt"/g, '')), 'no secrets in the export');
+  await startMail('solo2@example.test'); // leaves a pending link for this account
+  assert.ok((await pg.query(`SELECT 1 FROM email_links WHERE account_id IS NOT NULL`)).rows.length >= 1);
+  const id = (await pg.query(`SELECT account_id FROM account_emails WHERE email = 'solo2@example.test'`)).rows[0].account_id;
+  ok(await post({ action: 'delete-account' }));
+  cookie = '';
+  assert.equal((await pg.query(`SELECT 1 FROM account_emails WHERE account_id = '${id}'`)).rows.length, 0);
+  assert.equal((await pg.query(`SELECT 1 FROM email_links WHERE account_id = '${id}'`)).rows.length, 0);
+  assert.equal((await post({ action: 'export' })).status, 401);
+});
+
+await step('limits: one inbox is not flooded (still the same answer), one address is capped, a failed send leaves nothing behind', async () => {
+  const before = mails.length;
+  const answers = [];
+  for (let i = 0; i < 5; i++) answers.push((await startMail('flood@example.test')).json);
+  assert.equal(mails.length - before, 3); // the fourth and fifth are dropped quietly
+  assert.ok(answers.every(a => JSON.stringify(a) === JSON.stringify(answers[0])));
+  let last = 0;
+  for (let i = 0; i < 10; i++) last = (await startMail(`user${i}@example.test`, { keepIp: true })).status;
+  assert.equal(last, 429); // per network
+  mailStatus = 500;
+  const links = (await pg.query(`SELECT count(*)::int AS n FROM email_links`)).rows[0].n;
+  const bad = await startMail('fails@example.test');
+  mailStatus = 200;
+  assert.equal(bad.status, 502);
+  assert.ok(!JSON.stringify(bad.json).includes(KEY));
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM email_links`)).rows[0].n, links);
+  // Wrong links count against the network too.
+  last = 0;
+  for (let i = 0; i < 12; i++) last = (await post({ action: 'email-finish', token: 'x' + i }, { keepIp: true })).status;
+  assert.equal(last, 429);
+});
+
+delete process.env.RESEND_API_KEY; delete process.env.MAIL_FROM;
+await step('email sign-in is off again once the key is removed', async () => {
+  assert.equal((await startMail('ana@example.test')).status, 404);
+  assert.equal(ok(await call(account, 'GET')).config.email, false);
+});
+
 // Two addresses on one deployment (WEBAUTHN_ORIGINS). Each address has its own cookie jar, as browsers keep per host.
 const A = ORIGIN, B = 'https://dink.example.test', hostB = 'dink.example.test';
 const postAt = (origin, jarCookie, body) => call(account, 'POST', { body, jar: false, headers: { origin, ...(jarCookie ? { cookie: jarCookie } : {}) } });

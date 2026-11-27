@@ -12,7 +12,7 @@
 <main>
 <a class="back" href="/">&larr; Back to Dink Score</a>
 <h1>Privacy note</h1>
-<p>Dink Score is a pickleball scoreboard for friends and clubs. There are no accounts: a club is opened with a short club code. This note says what is stored, who handles it, and how long it stays.</p>
+<p>Dink Score is a pickleball scoreboard for friends and clubs. Accounts are optional: a club is opened with a short club code. This note says what is stored, who handles it, and how long it stays.</p>
 <div class="draft"><b>Draft for review.</b> This text was written by the project team to describe what the app does today. It is not legal advice and has not been reviewed by a lawyer. The site owner should review it before relying on it.</div>
 
 <h2>What is stored</h2>
@@ -35,10 +35,11 @@
 <tr><td>A request to link a name (only if a member asks an organizer to approve instead of using the PIN): the saved name, a hash of a key made up on the asking phone, and the times asked and decided</td><td>Letting an organizer decide whether that name moves to the new phone. The request runs out after 15 minutes</td><td>The club's organizers see the name and when it was asked. The request is deleted a day after it runs out, or when the name is renamed or anonymised. The decision and who made it stay in the club's change history</td></tr>
 <tr><td>Phones unlocked for organizer actions (only if someone enters the organizer PIN on a phone): a random id, a hash of the phone's secret key, when it was unlocked and last used, and the name of the player the phone is linked to, if any</td><td>Letting organizers see which phones are unlocked and remove one without changing the PIN for everyone</td><td>The club's organizers see the linked name and the two dates, never the key. A phone is forgotten when an organizer removes it, when it is locked, when the PIN is changed, after 180 days unused, or when the club is deleted. The link to a name is cleared when the name is anonymised. Each unlock, removal and lock stays in the club's change history</td></tr>
 <tr><td>Linked Apple Watches (only if an organizer or member links one): the watch's name (for example "Ana's Apple Watch"), when it was linked and last used, and a secret that proves it is linked (stored only as a hash)</td><td>Letting the watch score the games a phone sends to it, and saving a finished game</td><td>Club members see the list of linked watches and can have one unlinked; an organizer can unlink any. The phone's camera is used only to read the watch's code on the phone itself: no picture is stored or sent. A watch can also be linked to one game only, with a short code the scoring phone shows (kept only as a hash, used once, gone after 10 minutes); that link holds no club name, ends with the game and is removed with the club. A phone with no club can also share one game for this: the server keeps a nameless throwaway room (no club, account or organizer) holding the game's team names and score, removed when the game ends and after 24 hours at the latest. Deleting the club removes its watch links</td></tr>
+<tr><td>Optional account sign-in by email (only when switched on and you choose it): your email address (lower case), when it was added and last used, and while a sign-in link is waiting, a hash of its one-time secret and when it expires (15 minutes; deleted when used)</td><td>Letting you sign in to your account from a link sent to that address, instead of a passkey</td><td>Nobody in the app. Not shown to clubs or players, never in a club export or a public page. It is in your account's own download, and the mail provider below sees it when sending</td></tr>
 <tr><td>Network address (IP) of failed club-code, PIN and similar attempts</td><td>Blocking guessing attacks</td><td>Nobody in the app. Not linked to a player</td></tr>
 <tr><td>On your own phone: saved settings, your name on this phone, games scored before joining a club, and, if your club turns rewards on, the last daily play streak, free points balance and worn items the server told your phone (a day count, a number and your worn item names), so they still show offline, and the one reward item you pick as a saving goal (it is never sent to the server and is cleared when you get it)</td><td>Making the app work offline</td><td>Only you. It stays in your browser until you clear site data</td></tr>
 </table>
-<p>Dink Score does not ask for email addresses, phone numbers, locations or payment details, and does not use advertising or cross-site tracking (see Visit counts below for the page-view counter).</p>
+<p>Dink Score does not ask for phone numbers, locations or payment details, and asks for an email address only if you choose to sign in to an optional account by email (see the table), and does not use advertising or cross-site tracking (see Visit counts below for the page-view counter).</p>
 <p> Do not put sensitive personal details in names, club names or team names.</p>
 
 <h2>Visit counts (Vercel Web Analytics)</h2>
@@ -48,6 +49,7 @@
 <ul>
 <li><b>Vercel</b> hosts the website and its server functions, and runs Vercel Web Analytics (see below). Vercel sees ordinary web request data such as IP address and browser type.</li>
 <li><b>Neon</b> hosts the Postgres database that holds the club data above.</li>
+<li><b>Resend</b>, only if you ask for a sign-in link by email: it sends that one message, so it receives your email address and the link, and its own privacy terms apply to the delivery.</li>
 <li><b>DUPR</b>, only if the DUPR feature is switched on and a player chooses to link: you sign in on DUPR's own page inside the app, and DUPR's own privacy terms apply to what you do there. Results are sent to DUPR only when someone sends them.</li>
 <li><b>Your browser's push service</b> (Google, Apple, Mozilla or Microsoft, depending on the phone), only when you turn notifications on: the Dink Score server sends each message, encrypted so only your phone can read it, through that service, which sees that a message was sent to your phone and its size and time.</li>
 <li><b>Google</b>, only when an organizer imports players from a Google Sheet link: the server fetches that sheet once to read it. The fetch is made by the server, not your phone, and only for the link the organizer gives.</li>
@@ -74,7 +76,8 @@
 <li><b>Anonymise me (any player; an organizer can do it for a name too).</b> Your name is replaced by a random label such as "Former player 4K7QX" in every game, reaction, event, live game, court board and history entry (who changed or confirmed what) of that club. Your game night responses, picture, DUPR ID and link, self-reported rating, the link from this phone, the name shown for any organizer phone linked to it and any account link to the name are removed. The games stay, so other people's ratings and records do not change; they just show the label. This cannot be undone, and anyone who remembers who you were can still guess from the games. Only the club you do it in is changed.</li>
 <li><b>Download the whole club (organizers).</b> A JSON file with the club's players and their roles, games (with rally logs) and reactions, events, leagues and ladders, game nights and responses, the names of linked clubs, the phones unlocked for organizer actions (linked name and dates only), and the history of member and game changes, or a CSV file of its games. It does not contain the PIN, phone tokens, phone keys, bracket and league link tokens or DUPR links and IDs.</li>
 <li><b>Delete the club (the creating phone or the organizer PIN).</b> Co-organizers can download the club but cannot delete it. The organizer types the club's name to confirm. Everyone sees the club is scheduled for deletion; the creating phone or PIN holder can undo it for 24 hours, after which the club and everything in it is removed.</li>
-<li><b>Delete my account (optional accounts).</b> Removes the account, its passkeys, sign-in sessions and its links to club names. Clubs, games and names stay; use anonymise to change those.</li>
+<li><b>Download my account (optional accounts).</b> While signed in, a JSON file with the account's name, its email addresses and passkey dates (never the keys), and the club names linked to it.</li>
+<li><b>Remove an email address or delete my account (optional accounts).</b> You can remove an email address (never your last way to sign in). Deleting the account removes it, its email addresses and any waiting sign-in links, its passkeys, sign-in sessions and its links to club names. Clubs, games and names stay; use anonymise to change those.</li>
 <li>Organizers can also delete games and remove saved players in the app.</li>
 </ul>
 <p>Not covered by these tools: copies in the database provider's backups, and data already on other people's phones or in files they downloaded. To correct something, ask an organizer to edit the game, or contact us below.</p>
@@ -82,7 +85,7 @@
 <h2>Contact</h2>
 <p><b>[Contact email: to be added by the site owner before launch]</b>. Security problems: see <a href="https://github.com/Tecnico1931/dink-score/security/policy">the security policy</a>.</p>
 
-<footer><p>See also the <a href="/terms">terms of use</a>. Last updated: 18 November 2026 (draft).</p></footer>
+<footer><p>See also the <a href="/terms">terms of use</a>. Last updated: 27 November 2026 (draft).</p></footer>
 </main>
 </body>
 </html>
