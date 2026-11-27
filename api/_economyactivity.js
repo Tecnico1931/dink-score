@@ -18,6 +18,7 @@ export function describe(e) {
     if (r === 'day') return 'Earned for a play day';
     if (r === 'day+streak') return 'Earned for a play day, with a streak bonus';
     if (r === 'spin') return 'Daily spin';
+    if (r.startsWith('org:')) return `From an organizer: ${r.slice(4)}`; // the reason an organizer typed, shown to the player it is about
     if (r === 'game') return 'Earned from games';
     if (r === 'challenge') return 'Weekly challenge reward';
     if (r.startsWith('ach:')) return `Achievement: ${(ACHIEVEMENTS.find(a => a.id === r.slice(4)) || {}).name || 'unlocked'}`;
@@ -28,6 +29,7 @@ export function describe(e) {
     if (r.startsWith('pass:')) return `Season pass tier reward: ${nameOf(r.slice(5))}`;
     return 'Earned Dinks';
   }
+  if (r.startsWith('orgtake:')) return `Taken by an organizer: ${r.slice(8)}`;
   if (r === 'game-adj') return 'Taken back: a game was edited or removed';
   if (r.startsWith('shop:')) return `Bought ${nameOf(r.slice(5))}`;
   if (r.startsWith('box:')) return `Opened a mystery box: ${nameOf(r.slice(4))}`;

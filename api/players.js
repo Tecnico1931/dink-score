@@ -16,6 +16,9 @@
 //   rewards-activity {name, playerToken}              -> your own last 100 ledger rows in plain words with the running balance (read-only; no ids, nothing of
 //                                                       anyone else). Only that name's phone; only where the club has rewards on. See _economyactivity.js.
 //   rewards-prices|rewards-prices-save {pin|ownerToken, prices?|reset?} -> organizer: this club's own price per item and for the box; the catalogue price stays the default. See _economyprices.js.
+//   rewards-boost {pin|ownerToken}                    -> organizer: the boost running or waiting; rewards-boost-start {choice, ...} | rewards-boost-end open or end one.
+//   rewards-adjust {name, mode: give|take, amount, reason, opId} | rewards-gift {name, item} | rewards-spin-reset {name} -> organizer: change a
+//                                                       player's balance by hand, gift an item, let them spin again today. Logged, most can be undone. See _economyorg.js.
 //   rewards-box-odds {}                               -> club members (when club.rewards and club.mystery_box are on): server odds table for the mystery box.
 //   rewards-box-open {name, playerToken, openId}      -> opens one mystery box on the server (idempotent by openId, daily limit, duplicate refund). See _economybox.js.
 //   rewards-spin {name, playerToken}                  -> the free daily spin (one per UTC day, server draw, idempotent; same gate as the box). See _economyspin.js.
@@ -48,6 +51,8 @@ import { spinStatus, doSpin } from './_economyspin.js';
 import { pricesView, savePrices } from './_economyprices.js';
 import { passView, claimPassTier } from './_economypass.js';
 import { activityFrom } from './_economyactivity.js';
+import { adjustBalance, giftItem, resetSpin, startBoost, endBoost, undoOrganizerChange } from './_economyorg.js';
+import { boostView } from './_economyboost.js';
 
 const didYouMean = (name, similar) => Object.assign(fail(409, `Did you mean ${similar[0]}? Use ${name} only if they are a different person.`), { extra: { similar } });
 
@@ -376,6 +381,15 @@ export default handler(async (req, res) => {
   // Everything below is for organizers.
   const actor = await requireOrganizer(club, body.pin, req, body.ownerToken);
 
+  if (body.action === 'rewards-boost') return send(res, 200, await boostView(sql, code));
+  if (['rewards-adjust', 'rewards-gift', 'rewards-spin-reset', 'rewards-boost-start', 'rewards-boost-end'].includes(body.action)) {
+    if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
+    return send(res, 200, body.action === 'rewards-adjust' ? await adjustBalance(sql, club, actor, body)
+      : body.action === 'rewards-gift' ? await giftItem(sql, club, actor, body)
+      : body.action === 'rewards-spin-reset' ? await resetSpin(sql, club, actor, body)
+      : body.action === 'rewards-boost-start' ? await startBoost(sql, club, actor, body)
+      : await endBoost(sql, club, actor));
+  }
   if (body.action === 'rewards-prices') return send(res, 200, await pricesView(sql, club));
   if (body.action === 'rewards-prices-save') {
     try { return send(res, 200, await savePrices(sql, club, actor, body)); }
@@ -406,6 +420,12 @@ export default handler(async (req, res) => {
     if (!e) throw fail(404, 'That change is not in the history.');
     const kind = undoKind(e, Date.now());
     if (!kind) throw fail(409, e.undone_at ? 'That change was already undone.' : 'That change can no longer be undone.');
+    if (kind === 'points' || kind === 'gift' || kind === 'boost') { // a rewards change by hand, or a boost: reversed in _economyorg.js
+      await undoOrganizerChange(sql, club, actor, e, kind);
+      await sql`UPDATE club_audit SET undone_at = now() WHERE club = ${code} AND id = ${e.id} AND undone_at IS NULL`;
+      await audit(sql, code, actor, 'undo', e.target, { undid: e.action, id: e.id });
+      return send(res, 200, { ok: true });
+    }
     if (kind === 'role' && actor.by === 'organizer') throw fail(403, 'Only the phone that created the club, or the organizer PIN, can change roles.');
     const [row] = await sql`SELECT * FROM roster WHERE club = ${code} AND name_key = ${nameKey(e.target)}`;
     const [other] = kind === 'rename' ? await sql`SELECT name, name_key FROM roster WHERE club = ${code} AND name_key = ${nameKey(e.detail.from)}` : [];

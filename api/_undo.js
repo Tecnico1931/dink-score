@@ -1,8 +1,8 @@
 // Undo for organizer changes (L19), pure so test/undo.test.js needs no database. An organizer can reverse a role change (promote or
-// demote) or a rename, once, within UNDO_DAYS of it being logged in club_audit. The undo is itself logged ('undo'). A merge is never
+// demote), a rename, a rewards change by hand (points given or taken, an item gifted) or a boost, once, within UNDO_DAYS of it being logged in club_audit. The undo is itself logged ('undo'). A merge is never
 // undoable: it folds two players' games, phone links and DUPR details into one, which can't be pulled apart again safely.
 export const UNDO_DAYS = 7;
-export const UNDO_ACTIONS = { promote: 'role', demote: 'role', rename: 'rename' };
+export const UNDO_ACTIONS = { promote: 'role', demote: 'role', rename: 'rename', 'reward-give': 'points', 'reward-take': 'points', 'reward-gift': 'gift', boost: 'boost' };
 
 // What kind of undo a log row allows ('role' | 'rename'), or null. `at` is a Date or ms; undone_at set means it was already undone.
 export function undoKind(entry, now) {
@@ -10,6 +10,9 @@ export function undoKind(entry, now) {
   const at = new Date(entry.at).getTime();
   if (!(now - at <= UNDO_DAYS * 86400000)) return null;
   const d = entry.detail || {};
+  if (UNDO_ACTIONS[entry.action] === 'points') return Number.isInteger(d.amount) && d.amount > 0 && entry.target ? 'points' : null;
+  if (UNDO_ACTIONS[entry.action] === 'gift') return typeof d.item === 'string' && d.item && entry.target ? 'gift' : null;
+  if (entry.action === 'boost') return Number.isInteger(d.boostId) ? 'boost' : null;
   if (entry.action === 'rename') return typeof d.from === 'string' && d.from && entry.target ? 'rename' : null;
   return (d.from === 'organizer' || d.from === 'player') && (d.to === 'organizer' || d.to === 'player') ? 'role' : null;
 }

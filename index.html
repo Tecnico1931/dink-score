@@ -347,6 +347,9 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-mg-row label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .rw-mg-row small { font-size: 13px; color: var(--muted); }
 .rw-mg-in { width: 104px; min-height: 44px; padding: 0 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; text-align: right; }
 .rw-mg-save { position: sticky; bottom: 0; z-index: 1; display: grid; gap: 8px; margin: 12px 0; padding: 12px 0; background: var(--surface); }
+.rw-tools-f { display: grid; gap: 10px; margin: 8px 0 16px; } .rw-tools-f .rw-mg-in { width: 100%; text-align: left; }
+.rw-boost-btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 8px 0; }
+.rw-boost-chip { margin: 8px 0; } .badge.rw-boost { background: var(--ball); color: var(--ball-ink); white-space: normal; }
 .rw-mg-names { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .rw-mg-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 4px 14px; border-radius: 12px; background: var(--surface-2); }
 .rw-mg-name .link { min-height: 44px; padding: 0 4px; }
@@ -4610,6 +4613,13 @@ const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.random
 const RW_BOX_ART = '<svg class="rw-gift" viewBox="0 0 64 64" width="64" height="64" focusable="false" aria-hidden="true"><rect x="10" y="26" width="44" height="30" rx="4" fill="var(--court)"/><rect x="7" y="20" width="50" height="11" rx="4" fill="var(--court-2)"/><rect x="28" y="20" width="8" height="36" fill="var(--ball)"/><path d="M32 20c-4-9-14-9-13-3 1 5 9 3 13 3zm0 0c4-9 14-9 13-3-1 5-9 3-13 3z" fill="var(--ball)" stroke="var(--court-2)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 // The odds in one sentence, straight from the server's tiers: "50% common · 30% uncommon · ...".
 const rwBoxOddsLine = b => `A random look from the shop. ${(b.tiers || []).map(t => `${t.chance}% ${String(t.label || '').toLowerCase()}`).join(' · ')}.`;
+// The boost chip under the wallet (M11): double Dinks (and XP when the organizer ticked it) while an organizer's boost runs, or when it starts.
+function rwBoostChipHTML(s) {
+  const b = s.boost, cur = b && (b.active || b.upcoming);
+  if (!cur) return '';
+  const when = Rewards.boostWhen(b.active ? cur.until : cur.from);
+  return `<p class="rw-boost-chip"><span class="badge rw-boost">${b.active ? `Boost on: double Dinks${cur.xp > 1 ? ' and XP' : ''} until ${esc(when)}` : `Boost starts ${esc(when)}: double Dinks${cur.xp > 1 ? ' and XP' : ''}`}</span></p>`;
+}
 // Daily spin: a still wheel drawn from the server's segments (no spinning, no sound), the chances in words, one button. After the spin the
 // wheel is turned once, statically, so the won segment sits under the pointer. No countdown: the next spin is "tomorrow".
 function rwWheelSVG(seg, hit) {
@@ -4709,7 +4719,7 @@ Object.assign(Rewards, {
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
     // Order as upstream: spin, box and the pass card right under the wallet; Mythic and Legendary above the slot shelves.
     const box = rwSpinHTML(c, s) + rwBoxHTML(c, s) + (typeof rwPassCardHTML === 'function' ? rwPassCardHTML(c, s) : '');
-    return `${head}${rwShopHeadHTML(c, s)}
+    return `${head}${rwShopHeadHTML(c, s)}${rwBoostChipHTML(s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${box}${rwGoalHTML(c, s)}${seasonSec}${rwTopShelvesHTML(c, s)}
@@ -5202,6 +5212,58 @@ Object.assign(Rewards, {
       <p class="note">Release a name if someone changed phones or picked the wrong one. Their Dinks and items stay with the name.</p>
       <div class="btns">${rwMgDone}</div>`;
   },
+  // "Boost events and gifts" (M11): the organizer's sheet to double game rewards for a while, give or take Dinks with a reason, gift an item and let
+  // a player spin again. Every number is checked again by players.js (rewards-adjust | -gift | -spin-reset | -boost*); this only draws and sends.
+  toolsHTML(c) {
+    const head = '<h2 id="club-h" tabindex="-1">Boost events and gifts</h2>', d = c.data;
+    if (!rwMgCan()) return `${head}<p class="note">Only organizers can use these.</p><div class="btns">${rwMgDone}</div>`;
+    if (!d) return `${head}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p><button type="button" class="btn btn-ink" data-rw="tools">Try again</button>` : skel(3)}<div class="btns">${rwMgDone}</div>`;
+    const f = c.f, b = d.boost || {}, off = c.busy ? 'disabled' : '', give = f.mode !== 'take';
+    const who = (id, key, val) => `<label class="rw-goal" for="${id}"><span>Player</span><select id="${id}" data-rw-tl-f="${key}" ${off}><option value="">Pick a player</option>${d.names.map(n => `<option value="${esc(n)}"${n === val ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`;
+    const live = b.active || b.upcoming;
+    const boost = live
+      ? `<p class="note" role="status"><b>${b.active ? 'Running' : 'Starts'}:</b> double Dinks${live.xp > 1 ? ' and double XP' : ''} ${b.active ? 'until' : 'from'} ${esc(Rewards.boostWhen(b.active ? live.until : live.from))}.</p><button type="button" class="btn btn-soft block" data-rw-tl="boost-end" ${off}>End the boost now</button>`
+      : `<p class="note">Doubles what games pay and the daily limit, for everyone in the club. Days are UTC.</p><div class="rw-boost-btns">${[['today', 'Today'], ['weekend', 'This weekend'], ['1', '1 day'], ['3', '3 days'], ['7', '7 days']].map(([k, l]) => `<button type="button" class="btn btn-soft" data-rw-tl="boost" data-choice="${k}" ${off}>${l}</button>`).join('')}</div><label class="rw-mg-switch"><input type="checkbox" data-rw-tl-xp ${f.xp ? 'checked' : ''} ${off}><span>Double XP too</span></label>`;
+    return `${head}${c.msg ? `<p class="note" role="status">${esc(c.msg)}</p>` : ''}${c.error ? `<p class="err" role="alert">${esc(c.error)}</p>` : ''}
+      <h3 class="rw-h">Boost event</h3>${boost}
+      <h3 class="rw-h">Give or take Dinks</h3><div class="rw-tools-f">${who('rw-tl-who', 'who', f.who)}
+        <label class="rw-goal" for="rw-tl-mode"><span>What</span><select id="rw-tl-mode" data-rw-tl-f="mode" ${off}><option value="give"${give ? ' selected' : ''}>Give Dinks</option><option value="take"${give ? '' : ' selected'}>Take Dinks back</option></select></label>
+        <label class="rw-goal" for="rw-tl-amount"><span>How many (1 to 5000)</span><input id="rw-tl-amount" class="rw-mg-in" type="number" inputmode="numeric" min="1" max="5000" step="1" value="${esc(f.amount)}" data-rw-tl-f="amount" ${off}></label>
+        <label class="rw-goal" for="rw-tl-reason"><span>Why (the player sees this)</span><input id="rw-tl-reason" class="rw-mg-in" type="text" maxlength="60" value="${esc(f.reason)}" data-rw-tl-f="reason" ${off}></label>
+        <button type="button" class="btn btn-court block" data-rw-tl="adjust" ${off}>${give ? 'Give' : 'Take'} Dinks</button></div>
+      <h3 class="rw-h">Gift an item</h3><div class="rw-tools-f">${who('rw-tl-gwho', 'gWho', f.gWho)}
+        <label class="rw-goal" for="rw-tl-item"><span>Item</span><select id="rw-tl-item" data-rw-tl-f="gItem" ${off}><option value="">Pick an item</option>${[...new Set(d.items.map(i => i.group))].map(g => `<optgroup label="${esc(g)}">${d.items.filter(i => i.group === g).map(i => `<option value="${esc(i.id)}"${i.id === f.gItem ? ' selected' : ''}>${esc(i.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+        <button type="button" class="btn btn-court block" data-rw-tl="gift" ${off}>Gift it</button></div>
+      ${d.mysteryBox ? `<h3 class="rw-h">Spin again</h3><div class="rw-tools-f">${who('rw-tl-swho', 'sWho', f.sWho)}<button type="button" class="btn btn-court block" data-rw-tl="spin" ${off}>Let them spin again today</button></div>` : ''}
+      <p class="note">Everything here is logged. Give, take, gift and boost can be undone for 7 days under Members and roles.</p>
+      <div class="btns">${rwMgDone}</div>`;
+  },
+  opId: () => 'o' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36), // one per tap: a retry after a dropped connection is the same change
+  boostWhen: ms => new Date(ms).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }),
+  // How the organizer history words a rewards change (result-links.js falls back to this for actions it does not know). '' for anything else.
+  auditText(a, t) {
+    const d = a.detail || {}, n = x => `${x} ${x === 1 ? 'Dink' : 'Dinks'}`, why = d.reason ? ` (${d.reason})` : '';
+    const span = { today: 'for today', weekend: 'for the weekend', 1: 'for 1 day', 3: 'for 3 days', 7: 'for 7 days' }[d.choice] || '';
+    if (a.action === 'reward-give') return `gave ${n(d.amount)} to ${t}${why}`;
+    if (a.action === 'reward-take') return `took ${n(d.amount)} back from ${t}${why}`;
+    if (a.action === 'reward-gift') return `gifted ${d.itemName || 'an item'} to ${t}`;
+    if (a.action === 'reward-spin-reset') return `let ${t} spin again`;
+    if (a.action === 'boost') return `started a double rewards boost ${span}${d.xp ? ' with double XP' : ''}`.replace(/ +$/, '');
+    if (a.action === 'boost-end') return 'ended the boost';
+    if (a.action === 'undo' && /^(reward-|boost)/.test(d.undid || '')) return `undid ${{ 'reward-give': `giving Dinks to ${t}`, 'reward-take': `taking Dinks back from ${t}`, 'reward-gift': `the gift to ${t}`, boost: 'the boost' }[d.undid] || 'a change'}`;
+    return '';
+  },
+  async openTools() {
+    if (!rwMgCan()) return;
+    const c = clubSheet = { view: 'rwtools', data: null, error: '', msg: '', busy: false, f: { who: '', mode: 'give', amount: '', reason: '', opId: '', gWho: '', gItem: '', sWho: '', xp: false } };
+    renderClub();
+    try {
+      const [boost, prices, m] = await Promise.all(['rewards-boost', 'rewards-prices', 'members'].map(action => playerCall(Object.assign({ action }, adminCreds()))));
+      if (clubSheet !== c) return;
+      c.data = { boost, mysteryBox: !!prices.mysteryBox, items: prices.items.filter(i => i.id !== 'box'), names: m.members.map(x => x.name) };
+    } catch (err) { if (clubSheet !== c) return; c.error = err.message || "This couldn't load."; }
+    renderClub();
+  },
   // Open the sheet and load the prices and the linked names (both organizer-only calls).
   async openManage() {
     if (!rwMgCan()) return;
@@ -5222,7 +5284,7 @@ Object.assign(Rewards, {
 async function rwMgAct(c, call, say, focus) {
   if (clubSheet !== c || c.busy) return;
   c.busy = true; c.error = ''; c.msg = ''; renderClub();
-  try { await call(); if (clubSheet !== c) return; c.msg = say; announce(say); }
+  try { await call(); if (clubSheet !== c) return; c.msg = typeof say === 'function' ? say() : say; announce(c.msg); }
   catch (err) { if (clubSheet !== c) return; c.error = err.message; announce(err.message); }
   c.busy = false; renderClub();
   const f = document.querySelector(focus); if (f) f.focus();
@@ -5244,10 +5306,57 @@ document.addEventListener('change', e => {
   }, on ? 'Rewards are on for this club.' : 'Rewards are off for this club.', '[data-rw-mg-club]');
 });
 
+// Boost events and gifts sheet: remember what is typed (the sheet is only redrawn after an action, so a field keeps the focus).
+document.addEventListener('input', e => {
+  const t = e.target, c = clubSheet;
+  if (t && t.matches && t.matches('input[data-rw-tl-f]') && c && c.view === 'rwtools') c.f[t.dataset.rwTlF] = t.value;
+});
+document.addEventListener('change', e => {
+  const t = e.target, c = clubSheet;
+  if (!t || !t.matches || !c || c.view !== 'rwtools' || !c.data || c.busy) return;
+  if (t.matches('input[data-rw-tl-xp]')) { c.f.xp = t.checked; return; }
+  if (!t.matches('select[data-rw-tl-f]')) return;
+  c.f[t.dataset.rwTlF] = t.value;
+  if (t.dataset.rwTlF === 'mode') { renderClub(); const f = document.getElementById('rw-tl-mode'); if (f) f.focus(); } // the button says Give or Take
+});
+
+const rwTl = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`;
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="manage"], [data-rw-mg-save], [data-rw-mg-reset], [data-rw-mg-release]');
+  const t = e.target.closest && e.target.closest('[data-rw="manage"], [data-rw="tools"], [data-rw-tl], [data-rw-mg-save], [data-rw-mg-reset], [data-rw-mg-release]');
   if (!t) return;
   if (t.dataset.rw === 'manage') { Rewards.openManage(); return; }
+  if (t.dataset.rw === 'tools') { Rewards.openTools(); return; }
+  if (t.dataset.rwTl) {
+    const c = clubSheet;
+    if (!c || c.view !== 'rwtools' || !c.data || c.busy) return;
+    const f = c.f, act = t.dataset.rwTl, bad = (msg, id) => { c.error = msg; c.msg = ''; announce(msg); renderClub(); const x = document.getElementById(id); if (x) x.focus(); };
+    if (act === 'boost') { rwMgAct(c, async () => { c.data.boost = await playerCall(Object.assign({ action: 'rewards-boost-start', choice: t.dataset.choice, xp: !!f.xp }, adminCreds())); }, 'The boost is on.', '#club-h'); return; }
+    if (act === 'boost-end') { rwMgAct(c, async () => { c.data.boost = await playerCall(Object.assign({ action: 'rewards-boost-end' }, adminCreds())); }, 'The boost has ended.', '#club-h'); return; }
+    if (act === 'adjust') {
+      const n = /^\d{1,4}$/.test(String(f.amount).trim()) ? Number(f.amount) : NaN, give = f.mode !== 'take', reason = String(f.reason).trim();
+      if (!f.who) return bad('Pick a player.', 'rw-tl-who');
+      if (!(n >= 1 && n <= 5000)) return bad('Enter a whole number of Dinks from 1 to 5000.', 'rw-tl-amount');
+      if (!reason) return bad('Say why, in a few words. The player sees it.', 'rw-tl-reason');
+      const opId = f.opId || (f.opId = Rewards.opId()), name = f.who;
+      let r;
+      rwMgAct(c, async () => { r = await playerCall(Object.assign({ action: 'rewards-adjust', name, mode: f.mode, amount: n, reason, opId }, adminCreds())); f.opId = ''; f.amount = ''; f.reason = ''; },
+        () => `${r.replayed ? 'Already done: ' : ''}${give ? `Gave ${rwTl(n)} to` : `Took ${rwTl(n)} from`} ${r.name}. They now have ${rwTl(r.balance)}.`, '#club-h');
+      return;
+    }
+    if (act === 'gift') {
+      if (!f.gWho) return bad('Pick a player.', 'rw-tl-gwho');
+      if (!f.gItem) return bad('Pick an item.', 'rw-tl-item');
+      let r;
+      rwMgAct(c, async () => { r = await playerCall(Object.assign({ action: 'rewards-gift', name: f.gWho, item: f.gItem }, adminCreds())); }, () => `${r.itemName} is now ${r.name}'s.`, '#club-h');
+      return;
+    }
+    if (act === 'spin') {
+      if (!f.sWho) return bad('Pick a player.', 'rw-tl-swho');
+      let r;
+      rwMgAct(c, async () => { r = await playerCall(Object.assign({ action: 'rewards-spin-reset', name: f.sWho }, adminCreds())); }, () => `${r.name} can spin again.`, '#club-h');
+    }
+    return;
+  }
   const c = clubSheet;
   if (!c || c.view !== 'rwmanage' || !c.data || c.busy) return;
   if (t.dataset.rwMgSave) {
@@ -5681,6 +5790,8 @@ function renderClub() {
     body = Rewards.passHTML(c);
   } else if (c.view === 'rwmanage' && club) {
     body = Rewards.manageHTML(c);
+  } else if (c.view === 'rwtools' && club) {
+    body = Rewards.toolsHTML(c);
   } else if (c.view === 'rwpets' && club && myName()) {
     body = Rewards.petsHTML(c);
   } else if (c.view === 'rwactivity' && club && myName()) {
@@ -8372,7 +8483,7 @@ function otItems(s) {
     { id: 'approve', title: 'Approve games', n: h, go: null, hint: h ? `${plural(h, 'game is', 'games are')} held out of ratings until approved` : s.requireConfirmation ? 'No games are waiting' : 'Every game counts now' },
     { id: 'dupes', title: 'Possible duplicates', n: d, go: null, hint: d ? `${plural(d, 'game looks', 'games look')} like it was recorded twice` : 'No games look recorded twice' },
     { id: 'members', title: 'Members and roles', go: 'data-act="members-open"', hint: `${plural(pl, 'player', 'players')}, who is an organizer, removals` },
-    { id: 'undo', title: 'Undo a change', go: 'data-act="members-open"', hint: u ? `${plural(u, 'change', 'changes')} you can undo` : 'Role changes and renames, for 7 days' },
+    { id: 'undo', title: 'Undo a change', go: 'data-act="members-open"', hint: u ? `${plural(u, 'change', 'changes')} you can undo` : 'Role changes, renames and reward changes, for 7 days' },
     { id: 'history', title: 'Game history', go: 'data-act="audit-open"', hint: 'Who changed or deleted what' },
     { id: 'nights', title: 'Game nights', go: 'data-gn="open" data-gn-from="club"', hint: nn ? `${nn} upcoming` : 'Schedule one and see who is coming' },
     { id: 'events', title: 'Events and leagues', go: 'data-act="ot-events"', hint: ev ? `${plural(ev, 'event is', 'events are')} live` : 'Tournaments, round robins and leagues' },
@@ -8380,6 +8491,7 @@ function otItems(s) {
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
     { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
     ...(s.rewards ? [{ id: 'mysteryBox', title: 'Mystery box and daily spin', go: 'data-rw="box"', hint: s.mysteryBox ? 'On. Players can open a random look box and take a free daily spin, with stated chances. Tap to turn off' : 'Off. Tap to add a mystery box and a free daily spin with stated chances' }] : []),
+    ...(s.rewards ? [{ id: 'rewardTools', title: 'Boost events and gifts', go: 'data-rw="tools"', hint: 'Double what games pay for a while, give or take rewards by hand, gift an item, let someone spin again' }] : []),
     ...(s.rewards ? [{ id: 'costs', title: 'Item costs', go: 'data-rw="manage"', hint: 'Set what each look and the mystery box cost here, and release linked names' }] : []),
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
@@ -9021,6 +9133,8 @@ async function loadMembers() {
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
   const t = a.target || 'a member';
+  const rw = typeof Rewards !== 'undefined' && Rewards.auditText ? Rewards.auditText(a, t) : ''; // rewards changes by hand and boosts are worded in economymanage.js
+  if (rw) return `${who} ${rw}`;
   const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, 'cost-change': a.detail && a.detail.reset ? 'put every item cost back to usual' : 'changed item costs', leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'device-unlock': a.target ? `unlocked a phone linked to ${a.target}` : 'unlocked a phone', 'device-remove': a.target ? `removed the phone linked to ${a.target}` : 'removed an unlocked phone', 'device-lock': a.target ? `locked the phone linked to ${a.target}` : 'locked a phone', 'pin-change': `changed the organizer PIN${a.detail && a.detail.phonesRemoved ? ` (${a.detail.phonesRemoved} unlocked phone${a.detail.phonesRemoved === 1 ? '' : 's'} had to unlock again)` : ''}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
   return `${who} ${did}`;
 }

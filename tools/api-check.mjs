@@ -1808,6 +1808,87 @@ await step('rewards Manage shop: organizer-only prices, validated, charged by th
   ok(await cfPost(club, { action: 'set-mystery-box', on: false, ownerToken: cf.owner }));
   ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
 });
+await step('rewards organizer tools (M11): give or take Dinks, gift an item, spin again, boost event; organizer only, idempotent, audited, undoable', async () => {
+  const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
+  const org = a => cfPost(playersApi, { pin: cf.pin, ...a });
+  const actions = [{ action: 'rewards-adjust', name: 'Rio', mode: 'give', amount: 5, reason: 'x', opId: 'org_deny_0001' }, { action: 'rewards-gift', name: 'Rio', item: 'frame-court' }, { action: 'rewards-spin-reset', name: 'Rio' }, { action: 'rewards-boost' }, { action: 'rewards-boost-start', choice: 'today' }, { action: 'rewards-boost-end' }];
+  // Wrong-PIN tries are counted per club for a day (later steps depend on that budget), so the guard is checked in the source instead: every one of these actions sits below requireOrganizer.
+  const src = (await import('node:fs')).readFileSync(path.join(root, 'api', 'players.js'), 'utf8'), guard = src.indexOf('const actor = await requireOrganizer');
+  for (const a of actions) assert.ok(src.indexOf("'" + a.action + "'") > guard, a.action + ' is organizer-only');
+  assert.equal((await org(actions[0])).status, 403, 'rewards are off: nothing changes by hand either');
+  ok(await cfPost(club, { action: 'set-rewards', on: true, ownerToken: cf.owner }));
+  ok(await cfPost(club, { action: 'set-mystery-box', on: true, ownerToken: cf.owner }));
+  const bal = async () => ok(await post('Rio', { action: 'rewards-catalog' })).dinks;
+  const audits = async action => (await pg.query(`SELECT id, actor, target, detail, undone_at FROM club_audit WHERE club = $1 AND action = $2 ORDER BY id`, [cf.code, action])).rows;
+  const b0 = await bal();
+  // Give and take: whole Dinks, a reason the player sees, one ledger row per opId, never below zero.
+  const give = { action: 'rewards-adjust', name: 'Rio', mode: 'give', amount: 20, reason: 'Ran the club night', opId: 'org_give_0001' };
+  assert.equal(ok(await org(give)).balance, b0 + 20);
+  assert.equal(ok(await org(give)).replayed, true, 'the same opId again adds nothing');
+  assert.equal(await bal(), b0 + 20);
+  assert.equal((await audits('reward-give')).length, 1, 'one audit row for one change');
+  assert.equal(ok(await org({ ...give, mode: 'take', amount: 5, reason: 'Paddle fee', opId: 'org_take_0001' })).balance, b0 + 15);
+  for (const bad of [{ amount: 0 }, { amount: 5001 }, { amount: 1.5 }, { amount: 'x' }, { reason: '  ' }, { reason: undefined }, { opId: 'short' }, { opId: 'has space in it' }, { mode: 'steal' }, { name: '' }])
+    assert.equal((await org({ ...give, opId: 'org_bad_00001', ...bad })).status, 400, JSON.stringify(bad));
+  assert.equal((await org({ ...give, name: 'Nobody Here', opId: 'org_bad_00002' })).status, 404);
+  const over = await org({ ...give, mode: 'take', amount: 5000, opId: 'org_over_0001' });
+  assert.equal(over.status, 409); assert.equal(await bal(), b0 + 15, 'a take the balance cannot cover changes nothing');
+  const race = await Promise.all(['org_race_0001', 'org_race_0002'].map(opId => org({ ...give, mode: 'take', amount: b0 + 15, opId })));
+  assert.deepEqual(race.map(r => r.status).sort(), [200, 409], 'two takes for the whole balance: one wins');
+  assert.equal(await bal(), 0);
+  const act = ok(await post('Rio', { action: 'rewards-activity' })).entries.map(e => e.text);
+  assert.ok(act.includes('From an organizer: Ran the club night') && act.includes('Taken by an organizer: Paddle fee'), 'the player reads the reason');
+  // Gift an item: once, from the catalogue only, no Dinks charged.
+  assert.equal((await org({ action: 'rewards-gift', name: 'Rio', item: 'nope-item' })).status, 400);
+  const owned = async id => ok(await post('Rio', { action: 'rewards-catalog' })).items.find(i => i.id === id).owned;
+  assert.equal(await owned('pet-owl'), false);
+  ok(await org({ action: 'rewards-gift', name: 'Rio', item: 'pet-owl' }));
+  assert.equal(await owned('pet-owl'), true); assert.equal(await bal(), 0, 'a gift costs nothing');
+  assert.equal((await org({ action: 'rewards-gift', name: 'Rio', item: 'pet-owl' })).status, 409, 'already has it');
+  // Spin again: only after today's spin is used, once per reset (a double tap grants one).
+  assert.equal((await org({ action: 'rewards-spin-reset', name: 'Rio' })).status, 409, 'has not spun yet');
+  ok(await post('Rio', { action: 'rewards-spin' }));
+  assert.deepEqual((await Promise.all([org({ action: 'rewards-spin-reset', name: 'Rio' }), org({ action: 'rewards-spin-reset', name: 'Rio' })])).map(r => r.status).sort(), [200, 409]);
+  const again = ok(await post('Rio', { action: 'rewards-spin' }));
+  assert.equal(again.spinResult.replayed, false, 'a second, fresh spin');
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'rio' AND reason = 'spin'`, [cf.code])).rows[0].n, 2);
+  assert.equal(ok(await post('Rio', { action: 'rewards-spin' })).spinResult.replayed, true, 'then spent again until the next reset');
+  // Boost: one at a time, shown to players, ended by hand.
+  assert.equal((await org({ action: 'rewards-boost-start', choice: 'tomorrow' })).status, 400);
+  assert.equal((await org({ action: 'rewards-boost-end' })).status, 409, 'nothing to end');
+  assert.equal(ok(await post('Rio', { action: 'rewards-catalog' })).boost.active, null);
+  const started = ok(await org({ action: 'rewards-boost-start', choice: '3', xp: true }));
+  assert.equal(started.active.dinks, 2); assert.equal(started.active.xp, 2); assert.ok(started.active.until > Date.now());
+  assert.deepEqual(ok(await post('Rio', { action: 'rewards-catalog' })).boost.active, started.active, 'a player sees the boost');
+  assert.equal((await org({ action: 'rewards-boost-start', choice: 'today' })).status, 409, 'one boost at a time');
+  assert.equal(ok(await org({ action: 'rewards-boost-end' })).active, null);
+  ok(await org({ action: 'rewards-boost-start', choice: 'today' }));
+  // Undo (7 days): the ledger row is reversed, the item taken back, the boost ended; each once, and not after the world moved on.
+  const log = () => org({ action: 'members' }).then(ok).then(d => d.audit);
+  const row = async action => (await log()).find(r => r.action === action && !r.undone);
+  const undo = async action => org({ action: 'undo', id: (await row(action)).id });
+  assert.equal((await row('reward-give')).undoable, true);
+  assert.equal((await row('boost')).undoable, true);
+  const b1 = await bal();
+  ok(await org({ ...give, mode: 'take', amount: b1, reason: 'Clear out', opId: 'org_drain_0001' }));
+  assert.equal(await bal(), 0);
+  assert.equal((await undo('reward-give')).status, 409, 'the balance is below what was given: it cannot be undone');
+  assert.equal(await bal(), 0);
+  const lastTake = await row('reward-take');
+  assert.equal((await org({ action: 'undo', id: lastTake.id })).status, 200, 'undoing a take gives the Dinks back');
+  assert.equal(await bal(), b1);
+  assert.equal((await org({ action: 'undo', id: lastTake.id })).status, 409, 'undone once only');
+  assert.equal(await bal(), b1);
+  await pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, 'rio', 'org_test_100', 'earn', 100, 'test')`, [cf.code]);
+  assert.equal((await undo('reward-give')).status, 200, 'with the Dinks still there, a give is taken back');
+  assert.equal(await bal(), b1 + 100 - 20);
+  assert.equal((await undo('reward-gift')).status, 200); assert.equal(await owned('pet-owl'), false);
+  assert.equal((await undo('boost')).status, 200); assert.equal(ok(await post('Rio', { action: 'rewards-catalog' })).boost.active, null);
+  assert.equal((await audits('boost')).filter(r => r.undone_at).length, 1);
+  assert.ok(Object.keys((await audits('reward-give'))[0].detail).every(k => ['amount', 'reason', 'ledgerId'].includes(k)));
+  ok(await cfPost(club, { action: 'set-mystery-box', on: false, ownerToken: cf.owner }));
+  ok(await cfPost(club, { action: 'set-rewards', on: false, ownerToken: cf.owner }));
+});
 await step('rewards season pass and XP: server-derived from verified games in club season, idempotent claims, forged claims ignored, follows season-end, rename, merge and anonymise', async () => {
   const pc = ok(await call(club, 'POST', { body: { name: 'Season pass club', pin: '357911' } }), 201);
   const pcode = pc.club.code, powner = pc.ownerToken, ppin = '357911';

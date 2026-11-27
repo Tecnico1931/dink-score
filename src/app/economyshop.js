@@ -100,6 +100,13 @@ const rwBoxOpenId = () => (typeof crypto !== 'undefined' && typeof crypto.random
 const RW_BOX_ART = '<svg class="rw-gift" viewBox="0 0 64 64" width="64" height="64" focusable="false" aria-hidden="true"><rect x="10" y="26" width="44" height="30" rx="4" fill="var(--court)"/><rect x="7" y="20" width="50" height="11" rx="4" fill="var(--court-2)"/><rect x="28" y="20" width="8" height="36" fill="var(--ball)"/><path d="M32 20c-4-9-14-9-13-3 1 5 9 3 13 3zm0 0c4-9 14-9 13-3-1 5-9 3-13 3z" fill="var(--ball)" stroke="var(--court-2)" stroke-width="1.5" stroke-linejoin="round"/></svg>';
 // The odds in one sentence, straight from the server's tiers: "50% common · 30% uncommon · ...".
 const rwBoxOddsLine = b => `A random look from the shop. ${(b.tiers || []).map(t => `${t.chance}% ${String(t.label || '').toLowerCase()}`).join(' · ')}.`;
+// The boost chip under the wallet (M11): double Dinks (and XP when the organizer ticked it) while an organizer's boost runs, or when it starts.
+function rwBoostChipHTML(s) {
+  const b = s.boost, cur = b && (b.active || b.upcoming);
+  if (!cur) return '';
+  const when = Rewards.boostWhen(b.active ? cur.until : cur.from);
+  return `<p class="rw-boost-chip"><span class="badge rw-boost">${b.active ? `Boost on: double Dinks${cur.xp > 1 ? ' and XP' : ''} until ${esc(when)}` : `Boost starts ${esc(when)}: double Dinks${cur.xp > 1 ? ' and XP' : ''}`}</span></p>`;
+}
 // Daily spin: a still wheel drawn from the server's segments (no spinning, no sound), the chances in words, one button. After the spin the
 // wheel is turned once, statically, so the won segment sits under the pointer. No countdown: the next spin is "tomorrow".
 function rwWheelSVG(seg, hit) {
@@ -199,7 +206,7 @@ Object.assign(Rewards, {
     const seasonSec = rwEventHTML(c, s) + rwSeasonHTML(c, s);
     // Order as upstream: spin, box and the pass card right under the wallet; Mythic and Legendary above the slot shelves.
     const box = rwSpinHTML(c, s) + rwBoxHTML(c, s) + (typeof rwPassCardHTML === 'function' ? rwPassCardHTML(c, s) : '');
-    return `${head}${rwShopHeadHTML(c, s)}
+    return `${head}${rwShopHeadHTML(c, s)}${rwBoostChipHTML(s)}
       <p class="note">Fixed prices, looks only. An item never changes a game, a rating, a rank or who plays, and Dinks can't be bought with real money.</p>
       ${c.msg ? `<p class="note">${esc(c.msg)}</p>` : ''}${rwGotHTML(c, s)}${c.error ? `<p class="err">${esc(c.error)}</p>` : ''}
       ${box}${rwGoalHTML(c, s)}${seasonSec}${rwTopShelvesHTML(c, s)}

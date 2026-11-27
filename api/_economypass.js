@@ -17,6 +17,7 @@ import { ledgerBalance, validEntry } from './_economy.js';
 import { loadLedger } from './_economysync.js';
 import { itemById, loadItems, wornFrom, shareOf } from './_economyshop.js';
 import { xpFromGames, levelFor } from './_economyxp.js';
+import { loadBoosts } from './_economyboost.js';
 
 export const PASS_XP_TIER = 125, PASS_DINKS = 25;
 // 8 tiers. Every `item` id comes from PASS_ITEMS in _economyxp.js (null = Dinks only).
@@ -84,7 +85,7 @@ export function planPassClaim({ ledger = [], owned = [], xp = 0, season, tier })
 async function loadSeasonState(sql, code, key, now) {
   const cuts = await loadCuts(sql, code);
   const season = seasonAt(now, cuts);
-  const [rows, ledger, items, share] = await Promise.all([
+  const [rows, ledger, items, share, boosts] = await Promise.all([
     sql`SELECT data->'teams' AS teams, data->>'receivedAt' AS r, data->>'winner' AS winner, data->>'scoredBy' AS scored_by, data->>'scoredByPlayer' AS scored_by_player
       FROM games
       WHERE club = ${code} AND deleted_at IS NULL
@@ -94,9 +95,10 @@ async function loadSeasonState(sql, code, key, now) {
       ORDER BY ended_at DESC LIMIT 5000`,
     loadLedger(sql, code, key),
     loadItems(sql, code, key),
-    shareOf(sql, code, key)
+    shareOf(sql, code, key),
+    loadBoosts(sql, code)
   ]);
-  return { season, xp: xpFromGames(rows, key, { from: season.start, to: season.end }), allXp: xpFromGames(rows, key), ledger, items, share };
+  return { season, xp: xpFromGames(rows, key, { from: season.start, to: season.end, boosts }), allXp: xpFromGames(rows, key, { boosts }), ledger, items, share };
 }
 
 export async function passView(sql, code, key, now = Date.now()) {

@@ -7,6 +7,7 @@
 // The insert is guarded by NOT EXISTS under the per-player advisory lock, so a double tap or a replay returns the same win.
 import { randomInt } from 'node:crypto';
 import { dayKey } from './_economy.js';
+import { nameKey } from './_names.js';
 
 // Wheel order, clockwise from the pointer (the phone draws exactly this).
 export const SPIN_SEGMENTS = Object.freeze([5, 10, 3, 15, 5, 25, 3, 50]);
@@ -35,16 +36,30 @@ export function drawSpin(randInt = randomInt) {
   return { value: won.value };
 }
 
-// Today's state for this player: has the spin been used, and what did it win.
+// Today's spins for this player: `used` (rows `spin:<day>`, then `spin:<day>:2`, ...), `allowed` (1, plus one for each time an organizer let them
+// spin again today: a 'reward-spin-reset' row in club_audit), and the win of the latest spin (0 before the first).
+export async function spinState(sql, code, key, now = Date.now()) {
+  const today = dayKey(now, 0), id = spinId(today), start = Date.parse(today + 'T00:00:00Z');
+  const [rows, resets] = await Promise.all([
+    sql`SELECT id, amount FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND (id = ${id} OR id LIKE ${id + ':%'})`,
+    sql`SELECT target FROM club_audit WHERE club = ${code} AND action = 'reward-spin-reset' AND at >= to_timestamp(${start / 1000})`
+  ]);
+  const nth = r => (r.id === id ? 1 : Number(r.id.slice(id.length + 1)) || 1);
+  const last = rows.reduce((a, r) => (!a || nth(r) > nth(a) ? r : a), null);
+  return { used: rows.length, allowed: 1 + resets.filter(r => nameKey(r.target) === key).length, won: last ? Number(last.amount) : 0 };
+}
+
+// Today's state for this player: has the spin been used (and no organizer reset since), and what did it win.
 export async function spinStatus(sql, code, key, now = Date.now()) {
-  const today = dayKey(now, 0);
-  const [row] = await sql`SELECT amount FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND id = ${spinId(today)}`;
-  return { ...spinOdds(), spunToday: !!row, wonToday: row ? Number(row.amount) : 0 };
+  const s = await spinState(sql, code, key, now), spun = s.used >= s.allowed;
+  return { ...spinOdds(), spunToday: spun, wonToday: spun ? s.won : 0 };
 }
 
 // Spin once: the draw is made first, then one guarded insert. A second call the same day finds the row and returns the stored win.
 export async function doSpin(sql, code, key, { now = Date.now(), randInt = randomInt } = {}) {
-  const today = dayKey(now, 0), id = spinId(today), drawn = drawSpin(randInt);
+  const today = dayKey(now, 0), st = await spinState(sql, code, key, now);
+  if (st.used >= st.allowed) return { ...spinOdds(), spunToday: true, wonToday: st.won, result: { value: st.won, replayed: true } };
+  const id = st.used ? `${spinId(today)}:${st.used + 1}` : spinId(today), drawn = drawSpin(randInt);
   const [, ins, rows] = await sql.transaction([
     sql`SELECT pg_advisory_xact_lock(hashtext(${code + '/' + key}))`,
     sql`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak)

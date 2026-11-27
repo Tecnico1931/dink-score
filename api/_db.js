@@ -338,6 +338,16 @@ export function ensureSchema() {
       // Public result pages (results.js, result.js). Off per club until an organizer turns it on; a link is one row, revoking deletes it.
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS public_results boolean NOT NULL DEFAULT false`;
       // Organizer-posted extras (club.js set-pay-link, set-note): an https "how to pay" link and a pinned note. Empty = none.
+      // Boost events (_economyboost.js): a window in which game Dinks (and optionally XP) are doubled. No names; cascades with the club.
+      await q`CREATE TABLE IF NOT EXISTS club_boosts (
+        id bigserial PRIMARY KEY,
+        club text NOT NULL REFERENCES clubs(code) ON DELETE CASCADE,
+        starts_at timestamptz NOT NULL,
+        ends_at timestamptz NOT NULL,
+        xp boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now()
+      )`;
+      await q`CREATE INDEX IF NOT EXISTS club_boosts_club ON club_boosts (club, ends_at DESC)`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS pay_link text`;
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS pinned_note text`;
       await q`CREATE TABLE IF NOT EXISTS result_shares (
