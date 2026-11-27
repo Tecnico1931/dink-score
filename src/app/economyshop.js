@@ -301,7 +301,7 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('click', e => {
-  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw="inv"], [data-rw="inv-back"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-share], [data-rw-box-open], [data-rw-spin]');
+  const t = e.target.closest && e.target.closest('[data-rw="store"], [data-rw="activity"], [data-rw="pets"], [data-rw="inv"], [data-rw="inv-back"], [data-rw-buy], [data-rw-wear], [data-rw-shiny], [data-rw-shiny-buy], [data-rw-share], [data-rw-box-open], [data-rw-spin]');
   if (!t) return;
   if (t.dataset.rw === 'store') { Rewards.openStore(); return; }
   if (t.dataset.rw === 'activity') { Rewards.openActivity(); return; }
@@ -344,6 +344,14 @@ document.addEventListener('click', e => {
     rwStoreAct({ action: 'rewards-share', share }, d => (d.share ? 'Your worn look is now shown to the club.' : 'Your worn look is now hidden from the club.'), '[data-rw-share]');
     return;
   }
+  if (t.dataset.rwShinyBuy) {
+    const sw = c.store.shinyWeek, pet = c.store.items.find(i => i.id === t.dataset.rwShinyBuy && i.slot === 'pet' && i.owned);
+    if (!sw || !pet || sw.petId !== pet.id || sw.owned || c.busy) return;
+    const name = 'Shiny ' + pet.name.toLowerCase();
+    if (c.store.dinks < sw.price) { c.error = rwShort(name, sw.price) + c.store.dinks + '.'; c.msg = ''; announce(c.error); renderClub(); return; }
+    rwStoreAct({ action: 'rewards-buy', item: 'shiny-' + pet.id }, () => `${name} is yours for ${rwDinks(sw.price)}. Switch it on under Your companion.`, '#club-h');
+    return;
+  }
   if (t.dataset.rwShiny) {
     const [id, onRaw] = t.dataset.rwShiny.split(':');
     const shiny = onRaw === '1';
@@ -351,7 +359,7 @@ document.addEventListener('click', e => {
     if (!it) return;
     rwStoreAct({ action: 'rewards-wear', slot: 'pet', item: it.id, shiny }, d => {
       const active = d && d.pet && d.pet.id === it.id && d.pet.shiny;
-      return active ? `Shiny coat on for ${it.name} this week.` : `Classic coat on for ${it.name}.`;
+      return active ? `Shiny coat on for ${it.name}.` : `Classic coat on for ${it.name}.`;
     }, '[data-rw-shiny]');
     return;
   }

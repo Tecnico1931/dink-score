@@ -4,10 +4,11 @@
 // and a row leaves here without its id, name key or any other player's data.
 import { itemById } from './_economyshop.js';
 import { ACHIEVEMENTS } from './_progress.js';
+import { shinyPetOf } from './_economypets.js';
 
 export const ACTIVITY_CAP = 100;   // rows sent to the phone
 
-const nameOf = id => { const it = itemById(id); return it ? it.name : 'an item'; };
+const nameOf = id => { const it = itemById(id) || shinyPetOf(id); return it ? (id.startsWith('shiny-') ? 'Shiny ' + it.name.toLowerCase() : it.name) : 'an item'; };
 const tierOf = r => (/^pass:tier-(\d+)$/.exec(r) || [])[1];
 
 // One ledger row in plain words. Unknown reasons fall back to a kind-only line, so a future reason never leaks its raw text.

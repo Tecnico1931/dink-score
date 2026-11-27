@@ -132,15 +132,15 @@ for (const [mode, opt] of states) {
         { id: 'uncommon', label: 'Uncommon', chance: 30, items: ['frame-blue', 'frame-ink', 'paddle-blue', 'paddle-ink'].map(k => byId[k]) },
         { id: 'rare', label: 'Rare', chance: 15, items: ['frame-double', 'paddle-stripe'].map(k => byId[k]) }
       ] };
-      const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog' };
-      const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true };
+      const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog', price: 300, owned: true };
+      const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, shinyOwned: true, featuredShiny: true };
       const shop = { dinks: 12, earned: 40, spent: 28, pace: 1.5, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
         const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck', 'pet-yorkie'].includes(id);
         if (slot !== 'pet') return { id, slot, name, price, owned };
         const featuredShiny = id === 'pet-frog';
         if (!owned) return { id, slot, name, price, owned, featuredShiny };
         if (id === 'pet-yorkie') return { id, slot, name, price, owned, featuredShiny, stage: 3, stageLabel: 'Veteran', playDays: 16, nextStageDays: null, shiny: false };
-        return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true }
+        return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, shinyOwned: true }
           : { id, slot, name, price, owned, featuredShiny, stage: 1, stageLabel: 'Rookie', playDays: 2, nextStageDays: 5, shiny: false };
       }) };
       // Seasonal: this season's item for sale, one more from another season already owned (stays wearable), as the server lists them.

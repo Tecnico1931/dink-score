@@ -9,7 +9,7 @@
 // ownership is one row per item in reward_items (name key only, like the ledger). Called from players.js as rewards-catalog|buy|wear|share|looks.
 import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry, paceFrom, totals } from './_economy.js';
-import { PETS, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook } from './_economypets.js';
+import { PETS, shinyWeekFor, petById, petStateFor, cleanPetLook, shinyItemId, shinyPetOf, shinyPriceOf } from './_economypets.js';
 import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
 import { TITLES, STYLES, TOP_FRAMES, TOP_SOUNDS, TOP_THEMES, TOP_CELEBRATIONS, TOP_RARITIES } from './_economyitems.js';
 import { PASS_ITEMS } from './_economyxp.js';
@@ -121,8 +121,8 @@ export async function loadOwnerCounts(sql, code) {
 export const isTop = item => TOP_RARITIES.includes(item.rarity);
 
 export async function loadItems(sql, code, key) {
-  return (await sql`SELECT item, slot, worn, shiny, at FROM reward_items WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, item ASC`)
-    .filter(r => itemById(r.item)).map(r => ({ id: r.item, slot: r.slot, worn: !!r.worn, shiny: !!r.shiny, at: r.at }));
+  return (await sql`SELECT item, slot, worn, shiny, shiny_owned, at FROM reward_items WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, item ASC`)
+    .filter(r => itemById(r.item)).map(r => ({ id: r.item, slot: r.slot, worn: !!r.worn, shiny: !!r.shiny, shinyOwned: !!(r.shiny_owned || r.shiny), at: r.at }));
 }
 // The worn item per slot ('' when none), as the phone draws it. A slot is listed once the shop sells something in it, so the answer
 // does not grow before WI-9/10 add titles, name styles and sounds.
@@ -206,16 +206,19 @@ export async function shopView(sql, code, key, now = Date.now()) {
     const featuredShiny = shinyWeek.petId === i.id;
     if (!row) return { ...i, owned: false, featuredShiny };
     const ps = petStateFor(row, ledger, now);
-    return { ...i, owned: true, featuredShiny, stage: ps.stage, stageLabel: ps.stageLabel, playDays: ps.playDays, nextStageDays: ps.nextStageDays, shiny: ps.shiny };
+    return { ...i, owned: true, featuredShiny, stage: ps.stage, stageLabel: ps.stageLabel, playDays: ps.playDays, nextStageDays: ps.nextStageDays, shiny: ps.shiny, shinyOwned: ps.shinyOwned };
   });
   const wornPetRow = items.find(i => i.slot === 'pet' && i.worn);
   const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now) : null;
   const { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn } = season;
-  return { dinks: ledgerBalance(ledger), ...totals(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, event: event && { id: event.id, name: event.name, dates: event.dates, note: event.note, startsOn: event.startsOn, endsOn: event.endsOn }, items: viewItems.concat(seasonal, eventItems, PASS_ITEMS.filter(i => ownedById.has(i.id)).map(i => ({ ...i, owned: true }))) };
+  // The week's shiny coat: its price for this club, and whether this player already owns it (bought once, by the pet's owner).
+  const shinyOffer = { ...shinyWeek, price: shinyPriceOf(petById(shinyWeek.petId), prices), owned: !!(ownedById.get(shinyWeek.petId) || {}).shinyOwned };
+  return { dinks: ledgerBalance(ledger), ...totals(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek: shinyOffer, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, event: event && { id: event.id, name: event.name, dates: event.dates, note: event.note, startsOn: event.startsOn, endsOn: event.endsOn }, items: viewItems.concat(seasonal, eventItems, PASS_ITEMS.filter(i => ownedById.has(i.id)).map(i => ({ ...i, owned: true }))) };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.
 export async function buyItem(sql, code, key, id, now = Date.now()) {
+  if (shinyPetOf(id)) return buyShiny(sql, code, key, shinyPetOf(id), now);
   const plan = planBuy(await loadLedger(sql, code, key), (await loadItems(sql, code, key)).map(i => i.id), id, now, await loadPrices(sql, code));
   if (plan.already) return { ...(await shopView(sql, code, key, now)), bought: false };
   const { item } = plan;
@@ -235,8 +238,38 @@ export async function buyItem(sql, code, key, id, now = Date.now()) {
   return { ...view, bought: true };
 }
 
+// Buy this week's shiny coat for a pet the player owns (`buy:shiny-<pet>`, the club's Manage shop price or the default). Same guarantees as buyItem:
+// one transaction under the player lock, charged once, never below zero. The pet keeps its level; the coat stays owned after the week ends.
+export async function buyShiny(sql, code, key, pet, now = Date.now()) {
+  const sid = shinyItemId(pet.id), id = 'buy:' + sid;
+  const [items, ledger, prices] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), loadPrices(sql, code)]);
+  const row = items.find(i => i.id === pet.id);
+  if (!row) throw Object.assign(new Error(`Get the ${pet.name.toLowerCase()} first: the shiny coat is for its owner.`), { status: 403 });
+  if (row.shinyOwned) return { ...(await shopView(sql, code, key, now)), bought: false };
+  const wk = shinyWeekFor(now);
+  if (wk.petId !== pet.id) throw Object.assign(new Error(`The shiny ${pet.name.toLowerCase()} isn't on sale this week. This week's shiny is the ${wk.petName.toLowerCase()}.`), { status: 409 });
+  const price = shinyPriceOf(pet, prices), name = 'Shiny ' + pet.name.toLowerCase();
+  try { spendEntry(ledger, { id, amount: price, reason: 'shop:' + sid }); }
+  catch (e) {
+    if (/Not enough/.test(e.message)) throw Object.assign(new Error(`Not enough Dinks yet: ${name} costs ${price} and you have ${ledgerBalance(ledger)}.`), { status: 409 });
+    throw e;
+  }
+  await sql.transaction([
+    sql`SELECT pg_advisory_xact_lock(hashtext(${code + '/' + key}))`,
+    sql`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason)
+      SELECT ${code}, ${key}, ${id}, 'spend', ${-price}, ${'shop:' + sid}
+      WHERE NOT EXISTS (SELECT 1 FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND id = ${id})
+        AND coalesce((SELECT sum(amount) FROM reward_ledger WHERE club = ${code} AND name_key = ${key}), 0) >= ${price}`,
+    sql`UPDATE reward_items SET shiny_owned = true WHERE club = ${code} AND name_key = ${key} AND item = ${pet.id}
+      AND EXISTS (SELECT 1 FROM reward_ledger WHERE club = ${code} AND name_key = ${key} AND id = ${id})`
+  ]);
+  const view = await shopView(sql, code, key, now);
+  if (!view.shinyWeek.owned) throw Object.assign(new Error(`Not enough Dinks yet: ${name} costs ${price} and you have ${view.dinks}.`), { status: 409 });
+  return { ...view, bought: true };
+}
+
 // Wear one owned item, or none (id '' with a slot). One worn item per slot.
-// For slot 'pet', optional boolean `shiny` toggles this week's featured shiny coat (Variant A: refused with 409 outside its featured week).
+// For slot 'pet', optional boolean `shiny` puts the pet's bought shiny coat on or off (refused with 403 until the player owns that coat).
 export async function wearItem(sql, code, key, slot, id, { shiny, now = Date.now() } = {}) {
   if (!SLOTS.includes(slot)) throw Object.assign(new Error('Pick ' + SLOTS.slice(0, -1).join(', ') + ' or ' + SLOTS[SLOTS.length - 1] + '.'), { status: 400 });
   if (shiny !== undefined && typeof shiny !== 'boolean') throw Object.assign(new Error('Say whether to use the weekly shiny coat.'), { status: 400 });
@@ -244,11 +277,9 @@ export async function wearItem(sql, code, key, slot, id, { shiny, now = Date.now
   if (id) {
     const item = itemById(id);
     if (!item || item.slot !== slot) throw Object.assign(new Error('That item isn\'t in the shop.'), { status: 400 });
-    if (!(await loadItems(sql, code, key)).some(i => i.id === id)) throw Object.assign(new Error('You don\'t own that yet.'), { status: 403 });
-    if (shiny === true && !isShinyFeatured(id, now)) {
-      const wk = shinyWeekFor(now);
-      throw Object.assign(new Error(`${item.name} isn't this week's featured shiny pet. This week's shiny coat is ${wk.petName}.`), { status: 409 });
-    }
+    const mine = (await loadItems(sql, code, key)).find(i => i.id === id);
+    if (!mine) throw Object.assign(new Error('You don\'t own that yet.'), { status: 403 });
+    if (shiny === true && !mine.shinyOwned) throw Object.assign(new Error(`You don't own the shiny ${item.name.toLowerCase()} yet. Its owner can buy it in its featured week.`), { status: 403 });
   }
   if (!id) {
     await sql.transaction([

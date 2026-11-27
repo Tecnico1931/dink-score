@@ -303,7 +303,7 @@ export default handler(async (req, res) => {
         reactions: myReactions.map(r => ({ gameId: r.game_id, reaction: r.reaction, at: new Date(r.created_at).toISOString() })),
         events: events.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, format: r.data.format, status: r.data.status })),
         leagues: leagues.filter(r => JSON.stringify(r.data) !== JSON.stringify(renameDeep(r.data, k, 'x'))).map(r => ({ id: r.id, name: r.data.name, kind: r.data.kind, season: r.data.season, status: r.data.status })),
-        rewardsItems: (await loadItems(sql, code, k)).map(i => ({ item: i.id, slot: i.slot, worn: i.worn, ...(i.slot === 'pet' ? { shiny: i.shiny, adoptedAt: new Date(i.at).toISOString() } : {}) })),
+        rewardsItems: (await loadItems(sql, code, k)).map(i => ({ item: i.id, slot: i.slot, worn: i.worn, ...(i.slot === 'pet' ? { shiny: i.shiny, shinyOwned: i.shinyOwned, adoptedAt: new Date(i.at).toISOString() } : {}) })),
         rewardsLedger: ledger.map(e => ({ id: e.id, kind: e.kind, amount: e.amount, reason: e.reason, day: e.day, streak: e.streak, at: new Date(e.at).toISOString() })),
         rewardsActivity: activityFrom(ledger, Infinity).entries,
         gameNights: nightRsvps.map(r => ({ id: r.id, title: r.title, startsAt: Number(r.starts_at), location: r.location || '', nightStatus: r.night_status, rsvp: r.status, updatedAt: new Date(r.updated_at).toISOString() }))

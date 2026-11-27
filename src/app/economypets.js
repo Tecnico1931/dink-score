@@ -139,8 +139,8 @@ function rwPetRotationCopy(shinyWeek) {
   const order = RW_PET_ORDER.filter(id => !RW_PET_NO_SHINY.includes(id)).map(id => RW_PET_NAMES[id]).join(' → ');
   const cur = shinyWeek && rwPetName(shinyWeek.petId);
   return cur
-    ? `Each pet gets a free shiny coat in turn, rotating every Monday (UTC): ${order}.`
-    : `Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+). Free shiny coat rotates every Monday (UTC): ${order}.`;
+    ? `Each pet gets a shiny coat for sale in turn, rotating every Monday (UTC): ${order}. Its owner can buy it that week and keeps it.`
+    : `Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+). A shiny coat goes on sale for one pet's owners each Monday (UTC), in turn: ${order}.`;
 }
 
 // Dedicated "Court pets" section for the Shop sheet: court-green spotlight header, owned pet picker with growth progress,
@@ -159,9 +159,13 @@ function rwPetsSectionHTML(c, s) {
   // Hero card for the week's shiny coat: the end is a date (Monday 00:00 UTC), never a countdown. Free toggle for an owner, a quiet locked state otherwise.
   const swName = sw ? rwPetName(sw.petId) : '';
   const swEnd = sw && Number.isFinite(sw.end) ? new Date(sw.end - 1).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
-  const swOwned = !!featuredOwned;
+  const swOwned = !!featuredOwned, swHave = !!(sw && sw.owned), swPrice = sw && Number(sw.price) > 0 ? Number(sw.price) : 0;
+  const swNeed = swPrice ? Math.max(0, swPrice - (Number(s.dinks) || 0)) : 0;
+  const swBtn = swHave ? '<button type="button" class="btn btn-soft rw-hero-lock" aria-disabled="true" tabindex="-1"><span aria-hidden="true">✦ </span>Yours</button>'
+    : !swOwned ? `<button type="button" class="btn btn-soft rw-hero-lock" aria-disabled="true">Get the ${esc(swName.toLowerCase())} first</button>`
+      : swPrice ? `<button type="button" class="btn btn-ink rw-hero-buy" data-rw-shiny-buy="${esc(sw.petId)}" aria-label="Buy Shiny ${esc(swName.toLowerCase())} for ${rwDinks(swPrice)}${swNeed ? `. You need ${swNeed} more` : ''}"${rwShortAttrs(swNeed)}${c.busy ? ' disabled' : ''}>${swNeed ? `${swNeed} more` : rwDinks(swPrice)}</button>` : '';
   const head = sw
-    ? `<div class="rw-hero">${rwPetBadgeHTML(headPetId, { stage: headStage, shiny: true, decorative: true, size: 44 })}<div class="rw-hero-txt"><span class="rw-badge" data-rarity="shiny"><span aria-hidden="true">✦ </span>Shiny this week</span><b>Shiny ${esc(swName.toLowerCase())}</b><p>A rare colour version for anyone who owns the ${esc(swName)}. It keeps its level.${swEnd ? ` Free until ${esc(swEnd)}.` : ''} Next week, another pet.</p>${swOwned ? '' : `<button type="button" class="btn btn-soft rw-hero-lock" aria-disabled="true">Get the ${esc(swName.toLowerCase())} first</button>`}</div></div><p class="note">${esc(rwPetRotationCopy(sw))}</p>`
+    ? `<div class="rw-hero">${rwPetBadgeHTML(headPetId, { stage: headStage, shiny: true, decorative: true, size: 44 })}<div class="rw-hero-txt"><span class="rw-badge" data-rarity="shiny"><span aria-hidden="true">✦ </span>Shiny this week</span><b>Shiny ${esc(swName.toLowerCase())}</b><p>A rare colour version for anyone who owns the ${esc(swName)}. It keeps its level.${swEnd ? ` ${swHave ? 'On sale' : 'For sale'} until ${esc(swEnd)}${swPrice ? ` · ${esc(rwDinks(swPrice))}` : ''}.` : ''} Next week, another pet.</p>${swBtn}</div></div><p class="note">${esc(rwPetRotationCopy(sw))}</p>`
     : `<div class="rw-pets-head">${rwPetBadgeHTML(headPetId, { stage: headStage, shiny: false, decorative: true, size: 44 })}<span><b>Court companions</b><small>${esc(rwPetRotationCopy(null))}</small></span></div>`;
 
   let picker = '';
@@ -170,23 +174,18 @@ function rwPetsSectionHTML(c, s) {
     const petBtns = owned.map(p => {
       const active = wornPet === p.id;
       const badge = rwPetBadgeHTML(p.id, { stage: p.stage, shiny: !!p.shiny, decorative: true, size: 36 });
-      const sub = rwPetStageLine(p) + (p.shiny ? ' · Shiny coat on' : p.featuredShiny ? ' · Shiny coat available this week' : '');
+      const sub = rwPetStageLine(p) + (p.shiny ? ' · Shiny coat on' : p.shinyOwned ? ' · Shiny coat owned' : p.featuredShiny ? ' · Shiny coat on sale this week' : '');
       return `<button type="button" class="rw-pet-opt" data-rw-wear="pet:${esc(p.id)}" aria-pressed="${active}" ${c.busy ? 'disabled' : ''}>${badge}<span class="rw-pet-meta"><b>${esc(p.name)}</b><small>${esc(sub)}</small></span></button>`;
     }).join('');
     picker = `<fieldset class="rw-pick rw-pet-pick"><legend>Your companion</legend>${noneBtn}${petBtns}</fieldset>`;
   }
 
-  let shinyToggle = '';
-  if (featuredOwned) {
-    const on = !!featuredOwned.shiny;
-    const wornIt = wornPet === featuredOwned.id;
-    const note = on
-      ? `Active this week — switches back to classic next Monday (UTC).`
-      : wornIt
-        ? `Free this week while ${featuredOwned.name} is featured.`
-        : `Free this week — tapping puts ${featuredOwned.name} on in its shiny coat.`;
-    shinyToggle = `<button type="button" class="rw-share rw-pet-shiny" data-rw-shiny="${esc(featuredOwned.id)}:${on ? '0' : '1'}" aria-pressed="${on}" ${c.busy ? 'disabled' : ''}><span><b>Shiny coat for ${esc(featuredOwned.name)} (this week)</b><small>${esc(note)}</small></span><span class="rw-pill" aria-hidden="true">${on ? 'On' : 'Off'}</span></button>`;
-  }
+  // One switch per bought shiny coat, any week: it is the owner's for good.
+  const shinyToggle = owned.filter(p => p.shinyOwned).map(p => {
+    const on = !!p.shiny;
+    const note = on ? `On. ${p.name} keeps its level; tap for the classic coat.` : `Yours. Tap to put ${p.name} on in its shiny coat.`;
+    return `<button type="button" class="rw-share rw-pet-shiny" data-rw-shiny="${esc(p.id)}:${on ? '0' : '1'}" aria-pressed="${on}" ${c.busy ? 'disabled' : ''}><span><b>Shiny coat for ${esc(p.name)}</b><small>${esc(note)}</small></span><span class="rw-pill" aria-hidden="true">${on ? 'On' : 'Off'}</span></button>`;
+  }).join('');
 
   const adoptRows = unowned.length && typeof rwShelf === 'function' ? rwShelf(c, s, unowned) : '';
   const adopt = adoptRows

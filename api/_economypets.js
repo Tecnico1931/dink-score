@@ -5,9 +5,9 @@
 // Growth: derived strictly from distinct verified play days in `reward_ledger` (kind = 'earn', valid YYYY-MM-DD
 // day >= adoptedDay UTC). Play days come from attendance only; wins, losses and scores never matter.
 //
-// Weekly shiny coat (Variant A): deterministic spotlight rotation (4 pets until week index SHINY_FIVE_FROM, then 5, then every pet from SHINY_ALL_FROM) using Monday 00:00 UTC ISO weeks.
-// Active only during that pet's featured week via a one-tap owner toggle on reward_items.shiny; nothing random,
-// nothing permanent to miss.
+// Weekly shiny coat: deterministic spotlight rotation (4 pets until week index SHINY_FIVE_FROM, then 5, then every pet from SHINY_ALL_FROM) using Monday 00:00 UTC ISO weeks.
+// During that pet's featured week its owner can buy the shiny coat once (reward_items.shiny_owned, ledger id buy:shiny-<pet>); it is theirs for good and keeps the pet's
+// level, and reward_items.shiny says whether it is worn. Nothing random.
 
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
@@ -115,8 +115,14 @@ export function shinyWeekFor(ts) {
 
 export const isShinyFeatured = (petId, ts) => isPetId(petId) && shinyWeekFor(ts).petId === petId;
 
+// The shiny coat is sold as `shiny-<pet id>` (ledger and Manage shop key). Default price by the pet's own price: 300 for the early cheap pets, 600 mid, 1400 later ones.
+export const shinyItemId = petId => 'shiny-' + petId;
+export const shinyPetOf = itemId => { const p = typeof itemId === 'string' && itemId.startsWith('shiny-') ? petById(itemId.slice(6)) : null; return p && p.rarity !== 'mythic' ? p : null; };
+export const shinyPriceFor = pet => pet.price <= 250 ? 300 : pet.price <= 500 ? 600 : 1400;
+export const shinyPriceOf = (pet, prices) => (prices && prices[shinyItemId(pet.id)]) || shinyPriceFor(pet);
+
 // Full owner-private view of an owned pet row at timestamp `now`.
-// Variant A: shiny coat is active only while the owner toggled it on AND the pet is this week's featured shiny.
+// `shiny` = the owned coat is worn (the flag only becomes true for an owner), whatever the week; `featuredShiny` = it is on sale this week.
 export function petStateFor(row, ledger, now) {
   const pet = row && petById(row.id || row.item);
   if (!pet) return null;
@@ -129,7 +135,8 @@ export function petStateFor(row, ledger, now) {
     stageLabel: st.label,
     playDays: st.playDays,
     nextStageDays: st.nextDays,
-    shiny: !!(row.shiny && featuredShiny),
+    shiny: !!row.shiny,
+    shinyOwned: !!(row.shinyOwned || row.shiny),
     featuredShiny
   };
 }
@@ -143,6 +150,6 @@ export function cleanPetLook(row, now) {
   const rawDays = row.play_days !== undefined ? row.play_days : row.playDays;
   const days = Number(rawDays);
   const stage = petStageFor(Number.isFinite(days) ? days : 0).stage;
-  const petShiny = !!(row.shiny && isShinyFeatured(pet.id, now));
+  const petShiny = !!row.shiny;
   return { pet: pet.id, petStage: stage, petShiny };
 }

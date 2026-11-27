@@ -301,7 +301,9 @@ export function ensureSchema() {
         at timestamptz NOT NULL DEFAULT now(),
         PRIMARY KEY (club, name_key, item)
       )`;
-      await q`ALTER TABLE reward_items ADD COLUMN IF NOT EXISTS shiny boolean NOT NULL DEFAULT false`; // weekly shiny coat toggle for an owned pet (active only during that pet's featured week)
+      await q`ALTER TABLE reward_items ADD COLUMN IF NOT EXISTS shiny boolean NOT NULL DEFAULT false`; // the pet is worn in its shiny coat (only ever true when shiny_owned)
+      await q`ALTER TABLE reward_items ADD COLUMN IF NOT EXISTS shiny_owned boolean NOT NULL DEFAULT false`; // the owner bought this pet's weekly shiny coat (kept for good, keeps the pet's level)
+      await q`UPDATE reward_items SET shiny_owned = true WHERE shiny AND NOT shiny_owned`; // the old free toggle: a coat already switched on stays owned
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS rewards boolean NOT NULL DEFAULT false`; // true: the club shows the daily play streak and free points (off until an organizer turns it on)
       await q`ALTER TABLE clubs ADD COLUMN IF NOT EXISTS mystery_box boolean NOT NULL DEFAULT false`; // true: the club enables the mystery box (off by default, requires rewards too)
       // Manage shop (_economyprices.js): a club's own price for a shop item or the mystery box (item 'box'); no row = the catalogue price. No names stored; cascades with the club.
