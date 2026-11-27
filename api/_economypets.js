@@ -2,12 +2,14 @@
 // Pure pet catalogue, growth stages and deterministic weekly shiny rotation. Zero DB access, zero randomness,
 // and nothing here reads or changes a game result, rating, rank or pairing.
 //
-// Growth: derived strictly from distinct verified play days in `reward_ledger` (kind = 'earn', valid YYYY-MM-DD
-// day >= adoptedDay UTC). Play days come from attendance only; wins, losses and scores never matter.
+// Growth (M13): pet XP, 1 per verified game and 2 per win, levels and stages in _economypetxp.js (the old verified play-day stages are the starting
+// point there, so no pet loses progress).
 //
 // Weekly shiny coat: deterministic spotlight rotation (4 pets until week index SHINY_FIVE_FROM, then 5, then every pet from SHINY_ALL_FROM) using Monday 00:00 UTC ISO weeks.
 // During that pet's featured week its owner can buy the shiny coat once (reward_items.shiny_owned, ledger id buy:shiny-<pet>); it is theirs for good and keeps the pet's
 // level, and reward_items.shiny says whether it is worn. Nothing random.
+
+import { petLevelFor, petStageForLevel, petXpOf, legacyPlayDays, legacyFloorXp } from './_economypetxp.js';
 
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
@@ -33,13 +35,6 @@ export const PETS = Object.freeze([
   Object.freeze({ id: 'pet-supernova', slot: 'pet', name: 'Supernova dragon', price: 4800, rarity: 'mythic' })
 ]);
 
-// Three growth stages fed purely by distinct verified play days since adoption.
-export const PET_STAGES = Object.freeze([
-  Object.freeze({ stage: 1, label: 'Rookie', minDays: 0 }),
-  Object.freeze({ stage: 2, label: 'Club', minDays: 5 }),
-  Object.freeze({ stage: 3, label: 'Veteran', minDays: 15 })
-]);
-
 export const petById = id => PETS.find(p => p.id === id) || null;
 export const isPetId = id => !!petById(id);
 
@@ -50,33 +45,6 @@ export function utcDayKey(value) {
   if (!Number.isFinite(ms)) return '';
   return new Date(ms).toISOString().slice(0, 10);
 }
-
-// Count distinct verified earn play days on or after adoption day (UTC).
-// Ignores spends, null-day bonus/pass/refund rows, days before adoption, and duplicate rows from player merges.
-export function countPlayDaysSince(ledger, adoptedAt) {
-  const since = utcDayKey(adoptedAt);
-  if (!since || !Array.isArray(ledger)) return 0;
-  const days = new Set();
-  for (const e of ledger) {
-    if (!e || e.kind !== 'earn' || typeof e.day !== 'string' || !DAY_RE.test(e.day)) continue;
-    if (e.day >= since) days.add(e.day);
-  }
-  return days.size;
-}
-
-// Map verified play days since adoption to its growth stage: Rookie 0-4, Club 5-14, Veteran 15+.
-export function petStageFor(playDays) {
-  const days = Number.isFinite(playDays) ? Math.max(0, Math.floor(playDays)) : 0;
-  let idx = 0;
-  for (let i = 0; i < PET_STAGES.length; i++) {
-    if (days >= PET_STAGES[i].minDays) idx = i;
-  }
-  const cur = PET_STAGES[idx];
-  const next = PET_STAGES[idx + 1] || null;
-  return { stage: cur.stage, label: cur.label, playDays: days, nextDays: next ? next.minDays : null };
-}
-
-export const petStageFromLedger = (ledger, adoptedAt) => petStageFor(countPlayDaysSince(ledger, adoptedAt));
 
 // Monday 00:00 UTC ISO week for a given finite timestamp (matches _progress.js weekOf, plus monotonic week index).
 // Pure: always takes an explicit timestamp; never reads the system clock.
@@ -123,18 +91,22 @@ export const shinyPriceOf = (pet, prices) => (prices && prices[shinyItemId(pet.i
 
 // Full owner-private view of an owned pet row at timestamp `now`.
 // `shiny` = the owned coat is worn (the flag only becomes true for an owner), whatever the week; `featuredShiny` = it is on sale this week.
-export function petStateFor(row, ledger, now) {
+// `plays` are the owner's verified games ({ r, xp }, see playsByKeys); the starting point comes from the ledger's pre-switch play days.
+export function petStateFor(row, ledger, now, plays = []) {
   const pet = row && petById(row.id || row.item);
   if (!pet) return null;
-  const st = petStageFromLedger(ledger, row.at);
+  const lv = petLevelFor(petXpOf(plays, new Date(row.at).getTime(), legacyPlayDays(ledger, utcDayKey(row.at))));
+  const st = petStageForLevel(lv.level);
   const featuredShiny = isShinyFeatured(pet.id, now);
   return {
     id: pet.id,
     name: pet.name,
     stage: st.stage,
     stageLabel: st.label,
-    playDays: st.playDays,
-    nextStageDays: st.nextDays,
+    level: lv.level,
+    xp: lv.xp,
+    levelXp: lv.levelXp,
+    nextXp: lv.nextXp,
     shiny: !!row.shiny,
     shinyOwned: !!(row.shinyOwned || row.shiny),
     featuredShiny
@@ -142,14 +114,15 @@ export function petStateFor(row, ledger, now) {
 }
 
 // Strict club-visible allow-list for a worn pet row (used by clubLooksFrom in _economyshop.js).
-// Emits ONLY { pet, petStage, petShiny }; never playDays, adoption time, balance or history.
+// Emits ONLY { pet, petStage, petShiny }; never XP, level, play days, adoption time, balance or history.
+// `play_days` (pre-switch verified days) and `pet_xp` (XP from games since) are the row's private inputs.
 export function cleanPetLook(row, now) {
   if (!row || row.slot !== 'pet') return null;
   const pet = petById(row.item);
   if (!pet) return null;
-  const rawDays = row.play_days !== undefined ? row.play_days : row.playDays;
-  const days = Number(rawDays);
-  const stage = petStageFor(Number.isFinite(days) ? days : 0).stage;
+  const days = Number(row.play_days !== undefined ? row.play_days : row.playDays), gained = Number(row.pet_xp);
+  const xp = legacyFloorXp(days) + (Number.isFinite(gained) && gained > 0 ? gained : 0);
+  const stage = petStageForLevel(petLevelFor(xp).level).stage;
   const petShiny = !!row.shiny;
   return { pet: pet.id, petStage: stage, petShiny };
 }

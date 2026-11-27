@@ -55,9 +55,9 @@ const rwCleanPet = (p, wornPet) => {
   const id = rwSlotId('pet', p.id);
   if (!id || (wornPet && id !== wornPet)) return null;
   const stage = p.stage === 2 || p.stage === 3 ? p.stage : 1;
-  const days = Number.isFinite(p.playDays) && p.playDays > 0 ? Math.min(Math.floor(p.playDays), 1e5) : 0;
-  const next = p.nextStageDays === 5 || p.nextStageDays === 15 ? p.nextStageDays : null;
-  return { id, stage, playDays: days, nextStageDays: next, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
+  const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0);
+  const level = Math.min(Math.max(n(p.level), 1), 10), next = n(p.nextXp);
+  return { id, stage, level, xp: n(p.xp), levelXp: n(p.levelXp), nextXp: next > n(p.xp) ? next : null, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
 };
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
   const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet), ...Object.fromEntries(['title', 'style', ...RW_OWN_SLOTS].map(k => [k, rwId(w[k])]).filter(e => e[1])) };
@@ -237,6 +237,17 @@ const Rewards = {
     const next = l.level >= l.max ? 'You are at the top level.' : `${l.toNext} XP to level ${l.level + 1}.`;
     return `<section class="rw-level" aria-label="Your level"><span class="rw-lv" aria-hidden="true">${l.level}</span><div><b>Level ${l.level} of ${l.max}</b><small>${l.xp} XP all time</small></div><p>${next} Games sent from a club player's phone give ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} a day.</p></section>`;
   },
+  // Your worn pet on your own Stats tab (M13): Level N and an XP bar. After its stage changes, a quiet note stays until you tap Got it (no overlay, no motion).
+  petCardHTML(name) {
+    if (!rwShown() || !isMe(name) || !myName() || !myToken() || typeof rwPetCardHTML !== 'function') return '';
+    const pet = rwCur().pet;
+    if (!pet) return '';
+    const seen = store.get('pb.petSeen', {}), k = club.code + ':' + pet.id;
+    let evolved = '';
+    if (!Number.isInteger(seen[k]) || pet.stage < seen[k]) { seen[k] = pet.stage; store.set('pb.petSeen', seen); } // first sight (or a lower stage): note it, say nothing
+    else if (pet.stage > seen[k]) evolved = rwPetStageLabel(pet.stage);
+    return rwPetCardHTML(pet, evolved);
+  },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
     const l = Rewards.lookOf(name);
@@ -352,6 +363,7 @@ document.addEventListener('click', e => {
   const a = b.dataset.rw;
   if (a === 'shopnav') { Rewards.openShop(); return; }
   if (a === 'spin') { Rewards.openStore({ spin: true }); return; }
+  if (a === 'petseen') { const pet = rwCur().pet; if (pet && club) { const seen = store.get('pb.petSeen', {}); seen[club.code + ':' + pet.id] = pet.stage; store.set('pb.petSeen', seen); if (typeof renderProfile === 'function') renderProfile(); announce('Pet note dismissed.'); } return; }
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
   if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }

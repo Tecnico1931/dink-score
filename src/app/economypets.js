@@ -1,7 +1,8 @@
 /* ---------- rewards pets: vendored inline SVGs, growth progress and Shop/Play UI (L16 phase 2, #107; rules in DESIGN.md "Rewards", guard in test/economyguard.test.js) ---------- */
 // Clean-room geometric inline SVGs on a unified 64x64 viewBox using CSS custom properties only (--pet-1, --pet-2, --pet-3, --pet-eye, --pet-bg; the Yorkie adds --pet-steel, --pet-black, --pet-tan, --pet-gold),
 // so every pet follows the app's court-green/lime light, dark and outdoor tokens automatically with zero raster files, zero remote URLs,
-// and zero motion or sound. Growth stages (Rookie 0-4, Club 5-14, Veteran 15+) and weekly shiny rotation come solely from the server.
+// and zero motion or sound. Pet XP, levels, growth stages (Rookie, Grown from level 4, Champion from level 8) and weekly shiny rotation come solely from the server.
+// Stage art keys stay 1, 2, 3 (the old Rookie, Club, Veteran art), so every pet id and every drawing is unchanged.
 const RW_PET_ORDER = ['pet-frog', 'pet-duck', 'pet-cat', 'pet-owl', 'pet-yorkie', 'pet-pup', 'pet-blob', 'pet-bat', 'pet-turtle', 'pet-fox', 'pet-netdragon', 'pet-supernova'];
 const RW_PET_NO_SHINY = ['pet-supernova']; // the Mythic pet has no weekly shiny coat
 const RW_PET_NAMES = {
@@ -18,7 +19,9 @@ const RW_PET_NAMES = {
   'pet-netdragon': 'Net dragon',
   'pet-supernova': 'Supernova dragon'
 };
-const RW_PET_STAGE_LABELS = { 1: 'Rookie', 2: 'Club', 3: 'Veteran' };
+const RW_PET_STAGE_LABELS = { 1: 'Rookie', 2: 'Grown', 3: 'Champion' };
+const RW_PET_LV = [0, 3, 6, 10, 15, 21, 28, 36, 45, 55]; // XP at which level 1..10 starts (mirrors PET_LV in api/_economypetxp.js)
+const RW_PET_XP = { game: 1, win: 2 };
 const RW_PET_STAR_SVG = '<g data-pet-star="1"><circle cx="54" cy="10" r="7.5" fill="var(--pet-1)"/><polygon points="54,4.5 55.6,8.4 59.5,10 55.6,11.6 54,15.5 52.4,11.6 48.5,10 52.4,8.4" fill="var(--pet-2)"/></g>';
 
 // Pets x 3 growth stages (Rookie, Club, Veteran). Distinct silhouettes at 20 px; tokens only, safe SVG primitives only.
@@ -119,19 +122,32 @@ function rwPetBadgeHTML(id, { stage = 1, shiny = false, decorative = false, size
   return `<span class="rw-pet${cls}" data-pet="${esc(key)}" data-pet-stage="${rwPetNormStage(stage)}" data-pet-shiny="${shiny ? 'true' : 'false'}">${rwPetSvg(key, { stage, shiny, decorative, size })}</span>`;
 }
 
-// Plain-words growth stage line showing current stage and verified play days to the next stage.
+// The numbers behind a pet's level, read defensively from the server's answer: { level, xp, left (XP to the next level, 0 at the top), pct (0-100 of this level) }.
+function rwPetProgress(pet) {
+  const n = v => (Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
+  const level = Math.min(Math.max(n(pet && pet.level), 1), RW_PET_LV.length), xp = n(pet && pet.xp);
+  const from = RW_PET_LV[level - 1], to = level < RW_PET_LV.length ? RW_PET_LV[level] : null;
+  const left = to === null ? 0 : Math.max(0, to - xp);
+  return { level, xp, from, to, left, pct: to === null ? 100 : Math.max(0, Math.min(100, Math.round(100 * (xp - from) / (to - from)))) };
+}
+
+// Plain-words growth line: level, stage and the XP to the next level.
 function rwPetStageLine(pet) {
   if (!pet) return '';
-  const st = rwPetNormStage(pet.stage);
-  const label = pet.stageLabel && RW_PET_STAGE_LABELS[st] === pet.stageLabel ? pet.stageLabel : rwPetStageLabel(st);
-  const days = Number.isFinite(pet.playDays) ? Math.max(0, Math.floor(pet.playDays)) : 0;
-  const nextDays = Number.isFinite(pet.nextStageDays) && pet.nextStageDays > days ? Math.floor(pet.nextStageDays) : null;
-  if (nextDays !== null && st < 3) {
-    const left = nextDays - days;
-    const nextLabel = rwPetStageLabel(st + 1);
-    return `${label} · ${left} more ${left === 1 ? 'play day' : 'play days'} to ${nextLabel} (${days}/${nextDays})`;
-  }
-  return days > 0 ? `${label} · ${days} ${days === 1 ? 'play day' : 'play days'}` : label;
+  const st = rwPetNormStage(pet.stage), label = rwPetStageLabel(st), p = rwPetProgress(pet);
+  return `Level ${p.level} · ${label} · ${p.to === null ? 'top level' : `${p.left} XP to level ${p.level + 1}`}`;
+}
+
+// The pet card on your own Stats tab: Level N, an XP bar and, once after a stage change, a quiet note (no animation). `evolved` is the stage label just reached or ''.
+function rwPetCardHTML(pet, evolved) {
+  const id = pet && rwPetNormId(pet.id);
+  if (!id) return '';
+  const p = rwPetProgress(pet), st = rwPetNormStage(pet.stage);
+  const barMax = p.to === null ? p.from : p.to, valueText = p.to === null ? `${p.xp} XP, top level` : `${p.xp} of ${p.to} XP`;
+  const bar = `<div class="rw-petbar" role="progressbar" aria-label="${esc(rwPetName(id))} XP" aria-valuemin="${p.from}" aria-valuemax="${barMax}" aria-valuenow="${p.to === null ? p.from : p.xp}" aria-valuetext="${esc(valueText)}"><span style="width:${p.pct}%"></span></div>`;
+  const next = p.to === null ? 'Top level reached.' : `${p.left} XP to level ${p.level + 1}.`;
+  const note = evolved ? `<p class="rw-evolve" role="status"><b>${esc(rwPetName(id))} is now ${esc(evolved)}.</b> <button type="button" class="link" data-rw="petseen">Got it</button></p>` : '';
+  return `<section class="rw-petcard" aria-label="Your pet">${rwPetBadgeHTML(id, { stage: st, shiny: !!pet.shiny, decorative: true, size: 44 })}<div class="rw-petcard-t"><b>${esc(rwPetName(id))}</b><small>Level ${p.level} · ${esc(rwPetStageLabel(st))}</small></div>${bar}<p class="rw-petcard-n">${next} ${RW_PET_XP.game} XP for each game sent from a club player's phone, ${RW_PET_XP.win} for a win.</p>${note}</section>`;
 }
 
 // Plain-words shiny rotation explanation, one pet a week in turn over every pet (zero FOMO, deterministic Monday 00:00 UTC cadence).
@@ -140,7 +156,7 @@ function rwPetRotationCopy(shinyWeek) {
   const cur = shinyWeek && rwPetName(shinyWeek.petId);
   return cur
     ? `Each pet gets a shiny coat for sale in turn, rotating every Monday (UTC): ${order}. Its owner can buy it that week and keeps it.`
-    : `Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+). A shiny coat goes on sale for one pet's owners each Monday (UTC), in turn: ${order}.`;
+    : `Pets earn XP from verified games and grow: Rookie, Grown at level 4, Champion at level 8. A shiny coat goes on sale for one pet's owners each Monday (UTC), in turn: ${order}.`;
 }
 
 // Dedicated "Court pets" section for the Shop sheet: court-green spotlight header, owned pet picker with growth progress,
@@ -189,7 +205,7 @@ function rwPetsSectionHTML(c, s) {
 
   const adoptRows = unowned.length && typeof rwShelf === 'function' ? rwShelf(c, s, unowned) : '';
   const adopt = adoptRows
-    ? `<div><p class="note">Fixed prices, bought once. Pets grow through verified play days: Rookie (0–4), Club (5–14), Veteran (15+).</p>${adoptRows}</div>`
+    ? `<div><p class="note">Fixed prices, bought once. Pets earn XP from verified games and grow: Rookie, Grown at level 4, Champion at level 8.</p>${adoptRows}</div>`
     : '<p class="note">You have adopted every court pet.</p>';
 
   const more = `<button type="button" class="btn btn-soft rw-pets-more" data-rw="pets"${c.busy ? ' disabled' : ''}>Pet collection: see how every pet grows</button>`;
@@ -197,16 +213,16 @@ function rwPetsSectionHTML(c, s) {
 }
 
 // "Pet collection" sheet: every pet at its three growth stages, drawn with the same renderer as everywhere else. Reads the shop answer already on the phone.
-const RW_PET_STAGE_DAYS = { 1: 'from day 1', 2: 'after 5 play days', 3: 'after 15 play days' };
+const RW_PET_STAGE_AT = { 1: 'from level 1', 2: `at level 4 (${RW_PET_LV[3]} XP)`, 3: `at level 8 (${RW_PET_LV[7]} XP)` };
 function rwPetCollectionHTML(c) {
   const done = '<div class="btns"><button type="button" class="btn btn-soft" data-rw="store">Back to the shop</button></div>';
   const head = '<h2 id="club-h" tabindex="-1">Pet collection</h2>';
   if (!rwShown()) return `${head}<p class="note">Rewards are hidden on this phone.</p>${done}`;
   const items = (c.store && c.store.items || []).filter(i => i.slot === 'pet');
   const rows = RW_PET_ORDER.map(id => {
-    const it = items.find(i => i.id === id), stages = [1, 2, 3].map(n => `<li><span class="rw-stage-art">${rwPetBadgeHTML(id, { stage: n, decorative: true, size: 44 })}</span><b>${rwPetStageLabel(n)}</b><small>${RW_PET_STAGE_DAYS[n]}</small></li>`).join('');
-    const mine = it && it.owned ? `<small class="rw-stage-own">Yours: ${esc(it.stageLabel || rwPetStageLabel(it.stage || 1))}</small>` : '';
+    const it = items.find(i => i.id === id), stages = [1, 2, 3].map(n => `<li><span class="rw-stage-art">${rwPetBadgeHTML(id, { stage: n, decorative: true, size: 44 })}</span><b>${rwPetStageLabel(n)}</b><small>${RW_PET_STAGE_AT[n]}</small></li>`).join('');
+    const mine = it && it.owned ? `<small class="rw-stage-own">Yours: level ${rwPetProgress(it).level}, ${esc(rwPetStageLabel(it.stage || 1))}</small>` : '';
     return `<li class="rw-stage-pet"><div class="rw-stage-top"><b>${esc(rwPetName(id))}</b>${mine}</div><ol class="rw-stages">${stages}</ol></li>`;
   }).join('');
-  return `${head}<p class="note">Every pet grows with the days you play, not with scores or wins: Rookie, then Club after 5 play days, then Veteran after 15. A pet keeps its level in its shiny coat.</p><ul class="rw-stage-list">${rows}</ul>${done}`;
+  return `${head}<p class="note">Every pet earns ${RW_PET_XP.game} XP for each game sent from a club player's phone and ${RW_PET_XP.win} for a win, up to level ${RW_PET_LV.length}. It is Rookie, then Grown at level 4, then Champion at level 8. A pet keeps its level in its shiny coat.</p><ul class="rw-stage-list">${rows}</ul>${done}`;
 }

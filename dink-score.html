@@ -380,6 +380,10 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-level .rw-lv { grid-row: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--bg); font-weight: 700; font-size: 18px; }
 .rw-level div { display: flex; flex-direction: column; min-width: 0; }
 .rw-level small { font-size: 14px; color: var(--muted); }
+.rw-petcard { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; margin: 0 0 12px; padding: 14px 16px; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); }
+.rw-petcard-t { display: flex; flex-direction: column; min-width: 0; } .rw-petcard-t small, .rw-petcard-n { font-size: 14px; color: var(--muted); }
+.rw-petbar { grid-column: 1 / -1; height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; } .rw-petbar > span { display: block; height: 100%; border-radius: 999px; background: var(--ink); }
+.rw-petcard-n, .rw-evolve { grid-column: 1 / -1; margin: 0; } .rw-evolve { font-size: 14px; padding: 8px 12px; border-radius: 12px; background: var(--surface-2); } .rw-evolve .link { min-height: 44px; min-width: 44px; }
 .rw-level p { grid-column: 1 / -1; margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 :root[data-outdoor] .rw-nm { text-shadow: none; }
 .rw-badges { min-height: 22px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
@@ -6627,6 +6631,7 @@ function renderProfile() {
   const tabs = hasTabs ? `<div class="seg" role="tablist" aria-label="Profile sections">${[['stats', 'Stats'], ['paddles', 'Paddles']].map(([v, l]) => `<button type="button" role="tab" id="pf-tab-${v}" data-ptab="${v}" aria-selected="${v === tab}" aria-controls="pf-panel" tabindex="${v === tab ? 0 : -1}">${l}</button>`).join('')}</div>` : '';
   const panel = tab === 'paddles' ? paddlesProfileHTML(pr.name, rated)
     : `${typeof Rewards !== 'undefined' ? Rewards.levelCardHTML(pr.name) : ''}
+    ${typeof Rewards !== 'undefined' ? Rewards.petCardHTML(pr.name) : ''}
     ${selfDuprHTML(pr.name)}
     ${dssoProfileHTML(pr.name)}
     ${seg('data-pmode', [['doubles', 'Doubles'], ['singles', 'Singles']], profile.mode, 'sm')}
