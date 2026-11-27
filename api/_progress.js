@@ -31,6 +31,23 @@ export const ACHIEVEMENTS = [
   { id: 'rating-45', name: 'Elite', desc: 'Reach a 3.00 Dink Rating' }
 ];
 
+// Bonus Dinks per achievement, paid once (5 to 50 by difficulty). Kept apart from ACHIEVEMENTS, which is sent to phones and carries no currency.
+export const ACHIEVEMENT_PAY = Object.freeze({ 'first-win': 5, 'games-10': 5, 'games-50': 15, 'games-100': 30, 'streak-5': 15, 'streak-10': 30, shutout: 10, marathon: 10,
+  'giant-killer': 15, 'partners-5': 15, 'rating-4': 25, 'rating-45': 50 });
+// Dinks for the top 3 of a finished season (5+ games, per format), on top of the trophy; index = place - 1.
+export const SEASON_PRIZE = Object.freeze([100, 60, 40]);
+// Ledger ids carry no name; a rename/merge may have moved a row under `m:<key>:`, so "already paid" matches the id or that suffix.
+const paid = (ledger, id) => ledger.some(e => e.id === id || e.id.endsWith(':' + id));
+// One row per achievement the player has, paid once (a later edit or delete never takes it back). `me` is computeProgress's entry for the player.
+export function planAchievementRows({ ledger = [], me }) {
+  const out = [];
+  for (const a of (me && me.achievements) || []) {
+    const id = `ach:${a.id}`, amount = ACHIEVEMENT_PAY[a.id];
+    if (amount && !paid(ledger, id)) out.push({ id, kind: 'earn', amount, reason: `ach:${a.id}`, day: null, streak: null });
+  }
+  return out;
+}
+
 // Weekly challenges: three per week, the same for everyone, picked from this pool by the week id.
 export const CHALLENGES = [
   { id: 'win-3', name: 'Win 3 games', goal: 3 },
@@ -179,4 +196,14 @@ export function computeProgress(games, now = Date.now(), cuts = []) {
   // reconstruct a streak from a differently filtered game list.
   for (const p of people.values()) { p.streak = p._s.streak; delete p._s; }
   return people;
+}
+
+// One row per finished season and format the player placed in (trophies are exactly those), paid once. `me` is computeProgress's entry.
+export function planPrizeRows({ ledger = [], me }) {
+  const out = [];
+  for (const t of (me && me.trophies) || []) {
+    const id = `sprz:${t.season}:${t.mode}`, amount = SEASON_PRIZE[t.place - 1];
+    if (amount && !paid(ledger, id)) out.push({ id, kind: 'earn', amount, reason: `sprz:${t.place}`, day: null, streak: null });
+  }
+  return out;
 }
