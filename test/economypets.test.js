@@ -7,10 +7,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  PETS, PET_STAGES, petById, isPetId, utcDayKey,
-  countPlayDaysSince, petStageFor, petStageFromLedger,
+  PETS, petById, isPetId, utcDayKey,
   weekOf, shinyWeekFor, isShinyFeatured, petStateFor, cleanPetLook, SHINY_FIVE_FROM, SHINY_ALL_FROM
 } from '../api/_economypets.js';
+import {
+  PET_LV, PET_STAGES, PETXP_FROM, PETXP_FROM_DAY, petLevelFor, petStageForLevel, legacyFloorXp, legacyPlayDays, playsByKeys, petXpOf
+} from '../api/_economypetxp.js';
 import { CATALOGUE, SLOTS, itemById, buyId, planBuy, wornFrom, clubLooksFrom } from '../api/_economyshop.js';
 import { boxTiers } from '../api/_economybox.js';
 import { weekOf as progressWeekOf } from '../api/_progress.js';
@@ -64,74 +66,100 @@ test('pet catalogue: 12 fixed-price pets in CATALOGUE under slot pet, valid buy 
   assert.throws(() => planBuy([earnDay('2026-01-01')], [], 'pet-frog'), e => e.status === 409 && /costs 200 and you have 1/.test(e.message));
 });
 
-test('growth stages at exact boundaries: Rookie 0-4, Club 5-14, Veteran 15+, clamping bad inputs', () => {
-  assert.deepEqual(PET_STAGES.map(s => [s.stage, s.label, s.minDays]), [
-    [1, 'Rookie', 0],
-    [2, 'Club', 5],
-    [3, 'Veteran', 15]
-  ]);
-  for (const d of [0, 1, 2, 3, 4]) {
-    assert.deepEqual(petStageFor(d), { stage: 1, label: 'Rookie', playDays: d, nextDays: 5 });
-  }
-  for (const d of [5, 6, 10, 14]) {
-    assert.deepEqual(petStageFor(d), { stage: 2, label: 'Club', playDays: d, nextDays: 15 });
-  }
-  for (const d of [15, 16, 30, 365]) {
-    assert.deepEqual(petStageFor(d), { stage: 3, label: 'Veteran', playDays: d, nextDays: null });
-  }
-  // Negative, fractional, NaN or non-numeric values stay safely clamped at Rookie (0 days).
-  for (const bad of [-5, -1, NaN, Infinity, null, undefined, 'x']) {
-    assert.deepEqual(petStageFor(bad), { stage: 1, label: 'Rookie', playDays: 0, nextDays: 5 });
-  }
-  assert.deepEqual(petStageFor(4.9), { stage: 1, label: 'Rookie', playDays: 4, nextDays: 5 });
-  assert.deepEqual(petStageFor(5.1), { stage: 2, label: 'Club', playDays: 5, nextDays: 15 });
+test('pet levels: PET_LV thresholds, stages Grown at level 4 and Champion at level 8, clamping bad inputs', () => {
+  assert.deepEqual([...PET_LV], [0, 3, 6, 10, 15, 21, 28, 36, 45, 55]);
+  assert.deepEqual(PET_STAGES.map(s => [s.stage, s.label, s.minLevel]), [[1, 'Rookie', 1], [2, 'Grown', 4], [3, 'Champion', 8]]);
+  // Every threshold starts its level, one XP less is still the level before.
+  PET_LV.forEach((xp, i) => {
+    assert.equal(petLevelFor(xp).level, i + 1);
+    if (i) assert.equal(petLevelFor(xp - 1).level, i);
+  });
+  assert.deepEqual(petLevelFor(4), { xp: 4, level: 2, max: 10, levelXp: 3, nextXp: 6 });
+  assert.deepEqual(petLevelFor(55), { xp: 55, level: 10, max: 10, levelXp: 55, nextXp: null });
+  assert.equal(petLevelFor(9999).level, 10);
+  for (const bad of [-5, NaN, Infinity, null, undefined, 'x']) assert.deepEqual(petLevelFor(bad), { xp: 0, level: 1, max: 10, levelXp: 0, nextXp: 3 });
+  assert.equal(petStageForLevel(3).label, 'Rookie');
+  assert.equal(petStageForLevel(4).label, 'Grown');
+  assert.equal(petStageForLevel(7).label, 'Grown');
+  assert.equal(petStageForLevel(8).label, 'Champion');
+  assert.equal(petStageForLevel(10).stage, 3);
+  assert.equal(petLevelFor(PET_LV[3] - 1).level, 3);
+  assert.equal(petStageForLevel(petLevelFor(PET_LV[3] - 1).level).stage, 1);
+  assert.equal(petStageForLevel(petLevelFor(PET_LV[3]).level).stage, 2);
+  assert.equal(petStageForLevel(petLevelFor(PET_LV[7] - 1).level).stage, 2);
+  assert.equal(petStageForLevel(petLevelFor(PET_LV[7]).level).stage, 3);
 });
 
-test('play days are derived solely from distinct verified earn days in reward_ledger since adoption', () => {
+test('pet XP: 1 per verified game, 2 per win, from adoption and from the switch day on; unverified, earlier and other players\' games give none', () => {
+  const T0 = PETXP_FROM + 3600e3;
+  const game = (over = {}) => ({ id: 'g' + Math.random(), teams: [['Ana', 'Ben'], ['Cy', 'Di']], winner: 0, scoredBy: 'ana', receivedAt: T0, ...over });
+  const mine = k => playsByKeys([
+    game(),                                        // ana wins (2)
+    game({ winner: 1 }),                           // ana loses (1)
+    game({ scoredBy: '', scoredByPlayer: undefined }), // not from a club player's phone: none
+    game({ scoredBy: 'organizer' }),               // organizer phone: none
+    game({ scoredBy: undefined, scoredByPlayer: 'ben' }), // the creating phone's own player: counts (2)
+    game({ receivedAt: PETXP_FROM - 1 }),          // before the switch: none
+    game({ teams: [['Zed', 'Yan'], ['Cy', 'Di']] }), // ana not in it
+    game({ winner: '' })                           // no winner recorded: a game, not a win (1)
+  ], [k]).get(k);
+  assert.deepEqual(mine('ana').map(p => p.xp), [2, 1, 2, 1]);
+  assert.deepEqual(mine('cy').map(p => p.xp), [1, 2, 1, 1, 1]);
+  assert.equal(petXpOf(mine('ana'), 0, 0), 6);
+  // Adopted after two of those games: only later ones count.
+  assert.equal(petXpOf([{ r: T0, xp: 2 }, { r: T0 + 10, xp: 1 }, { r: T0 + 20, xp: 2 }], T0 + 10, 0), 3);
+  assert.equal(petXpOf([], 0, 0), 0);
+  assert.equal(petXpOf(undefined, NaN, 0), 0);
+});
+
+test('nobody loses progress: the old play-day stage is the starting point (Club = level 4, Veteran = level 8) and new XP adds on top', () => {
   const adoptedAt = '2026-02-10T18:30:00.000Z';
   assert.equal(utcDayKey(adoptedAt), '2026-02-10');
   assert.equal(utcDayKey(Date.UTC(2026, 1, 10, 23, 59, 59)), '2026-02-10');
   assert.equal(utcDayKey('2026-02-10'), '2026-02-10');
   assert.equal(utcDayKey('not-a-date'), '');
+  const days = ledger => legacyPlayDays(ledger, utcDayKey(adoptedAt));
 
-  const ledger = [
-    // Before adoption: ignored.
-    earnDay('2026-02-08'),
-    earnDay('2026-02-09'),
-    // Adoption day itself + duplicate row from a player merge: counts ONCE.
-    earnDay('2026-02-10'),
-    earnDay('2026-02-10', 'm:old:day:2026-02-10'),
-    // Non-play-day entries (spends, season pass claims, box spends/refunds): ignored.
-    spendRow('buy:pet-frog', 12, null),
-    spendRow('box:abc12345', 7, '2026-02-11'),
-    nullDayEarn('boxref:abc12345', 4),
-    nullDayEarn('pass:2026-Q1:1', 2),
+  const base = [
+    earnDay('2026-02-08'), earnDay('2026-02-09'),               // before adoption: ignored
+    earnDay('2026-02-10'), earnDay('2026-02-10', 'm:old:day:2026-02-10'), // adoption day + a merge duplicate: once
+    spendRow('buy:pet-frog', 12, null), spendRow('box:abc12345', 7, '2026-02-11'), nullDayEarn('boxref:abc12345', 4), nullDayEarn('pass:2026-Q1:1', 2),
     { id: 'bad:row', kind: 'earn', amount: 1, reason: 'bad', day: '2026/02/12', streak: null },
-    // 3 more distinct play days after adoption -> total 4 (still Rookie).
-    earnDay('2026-02-11'),
-    earnDay('2026-02-12'),
-    earnDay('2026-02-15')
+    earnDay('2026-02-11'), earnDay('2026-02-12'), earnDay('2026-02-15'),
+    earnDay(PETXP_FROM_DAY), earnDay('2030-01-01')              // the switch day and later are XP now, not play days
   ];
-  assert.equal(countPlayDaysSince(ledger, adoptedAt), 4);
-  assert.equal(petStageFromLedger(ledger, adoptedAt).label, 'Rookie');
+  assert.equal(days(base), 4);
+  assert.equal(legacyFloorXp(4), 0);
+  assert.equal(legacyFloorXp(5), PET_LV[3]);
+  assert.equal(legacyFloorXp(14), PET_LV[3]);
+  assert.equal(legacyFloorXp(15), PET_LV[7]);
+  for (const bad of [-1, NaN, null, undefined]) assert.equal(legacyFloorXp(bad), 0);
 
-  // 5th verified play day crosses into Club.
-  const fiveDays = [...ledger, earnDay('2026-02-16')];
-  assert.equal(countPlayDaysSince(fiveDays, adoptedAt), 5);
-  assert.equal(petStageFromLedger(fiveDays, adoptedAt).stage, 2);
-  assert.equal(petStageFromLedger(fiveDays, adoptedAt).label, 'Club');
+  const row = { id: 'pet-frog', item: 'pet-frog', slot: 'pet', worn: true, at: adoptedAt };
+  const at = ledger => petStateFor(row, ledger, Date.UTC(2026, 1, 20));
+  assert.deepEqual([at(base).stage, at(base).stageLabel, at(base).level, at(base).xp], [1, 'Rookie', 1, 0]);
 
-  // Add 9 more (14 total -> still Club), then 1 more (15 total -> Veteran).
-  const fourteen = [...fiveDays];
-  for (let d = 17; d <= 25; d++) fourteen.push(earnDay(`2026-02-${String(d).padStart(2, '0')}`));
-  assert.equal(countPlayDaysSince(fourteen, adoptedAt), 14);
-  assert.equal(petStageFromLedger(fourteen, adoptedAt).label, 'Club');
+  const five = [...base, earnDay('2026-02-16')];
+  assert.equal(days(five), 5);
+  assert.deepEqual([at(five).stage, at(five).stageLabel, at(five).level, at(five).xp, at(five).levelXp, at(five).nextXp], [2, 'Grown', 4, 10, 10, 15]);
 
+  const fourteen = [...five]; for (let d = 17; d <= 25; d++) fourteen.push(earnDay(`2026-02-${d}`));
+  assert.equal(days(fourteen), 14);
+  assert.equal(at(fourteen).stageLabel, 'Grown');
   const fifteen = [...fourteen, earnDay('2026-02-26')];
-  assert.equal(countPlayDaysSince(fifteen, adoptedAt), 15);
-  assert.equal(petStageFromLedger(fifteen, adoptedAt).stage, 3);
-  assert.equal(petStageFromLedger(fifteen, adoptedAt).label, 'Veteran');
-  assert.equal(petStageFromLedger(fifteen, adoptedAt).nextDays, null);
+  assert.equal(days(fifteen), 15);
+  assert.deepEqual([at(fifteen).stage, at(fifteen).stageLabel, at(fifteen).level, at(fifteen).xp, at(fifteen).nextXp], [3, 'Champion', 8, 36, 45]);
+
+  // New XP adds on top of the starting point; a Rookie with no old days climbs from zero.
+  const plays = [{ r: PETXP_FROM + 1, xp: 2 }, { r: PETXP_FROM + 2, xp: 1 }];
+  assert.deepEqual([petStateFor(row, five, 0, plays).xp, petStateFor(row, five, 0, plays).level], [13, 4]);
+  assert.deepEqual([petStateFor(row, fifteen, 0, plays).xp, petStateFor(row, fifteen, 0, plays).level], [39, 8]);
+  assert.equal(petStateFor(row, base, 0, plays).xp, 3);
+  const top = petStateFor(row, fifteen, 0, Array.from({ length: 30 }, (_, i) => ({ r: PETXP_FROM + i, xp: 2 })));
+  assert.deepEqual([top.level, top.nextXp, top.stageLabel], [10, null, 'Champion']);
+  // A pet adopted after the switch has no old days at all.
+  assert.equal(petStateFor({ ...row, at: new Date(PETXP_FROM + 5e3).toISOString() }, fifteen, 0, []).xp, 0);
+  assert.equal(petStateFor({ id: 'pet-nope' }, [], 0), null);
 });
 
 test('weekOf and shinyWeekFor: deterministic 4-week rotation across Monday, 52-week/53-week year and DST boundaries', () => {
@@ -273,9 +301,9 @@ test('shiny state and clubLooksFrom allow-list: a worn coat shows in any week, z
 
   const during = petStateFor(row, ledger, wk0);
   assert.equal(during.stage, 2);
-  assert.equal(during.stageLabel, 'Club');
-  assert.equal(during.playDays, 5);
-  assert.equal(during.nextStageDays, 15);
+  assert.equal(during.stageLabel, 'Grown');
+  assert.deepEqual([during.level, during.xp, during.levelXp, during.nextXp], [4, 10, 10, 15]);
+  assert.ok(!('playDays' in during) && !('nextStageDays' in during));
   assert.equal(during.featuredShiny, true);
   assert.equal(during.shiny, true, 'a worn coat shows');
 
@@ -283,7 +311,10 @@ test('shiny state and clubLooksFrom allow-list: a worn coat shows in any week, z
   assert.equal(after.featuredShiny, false);
   assert.equal(after.shiny, true, 'the coat does not turn off when the featured week ends');
 
-  // clubLooksFrom allow-lists ONLY pet, petStage, petShiny (plus frame/paddle), never playDays/dinks/streak/at/price.
+  // clubLooksFrom allow-lists ONLY pet, petStage, petShiny (plus frame/paddle), never XP, level, playDays, dinks, streak, at or price.
+  assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'pet', item: featured, shiny: false, play_days: 0, pet_xp: 36 }], wk0), { ana: { pet: featured, petStage: 3, petShiny: false } });
+  assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'pet', item: featured, shiny: false, play_days: 5, pet_xp: 5 }], wk0), { ana: { pet: featured, petStage: 2, petShiny: false } }, 'the old stage plus new XP');
+  assert.deepEqual(clubLooksFrom([{ name_key: 'ana', slot: 'pet', item: featured, shiny: false, play_days: 0, pet_xp: 9 }], wk0), { ana: { pet: featured, petStage: 1, petShiny: false } });
   const looksDuring = clubLooksFrom([
     { name_key: 'ana', slot: 'frame', item: 'frame-court' },
     { name_key: 'ana', slot: 'pet', item: featured, shiny: true, play_days: 15, dinks: 99, streak: 7, at: '2026-05-01', price: 12 },
@@ -317,6 +348,51 @@ test('guard: pet module never reads scores, ratings, ranks, winners, randomness 
   for (const f of ['pb-engine.js', 'rating-engine.js', 'api/_pb.js', 'api/_rating.js', 'api/_rating_store.js', 'api/_gamesave.js', 'api/games.js', 'api/club.js']) {
     assert.ok(!/economypets|petStage|petShiny/.test(read(f)), f + ' must not touch pets');
   }
+});
+
+test('profile pet card: Level N, an XP bar, and a quiet evolution note that stays until dismissed (no overlay, no motion)', () => {
+  const petsMod = new Function('esc', module('economypets') + ';return { rwPetCardHTML, rwPetProgress };')(String);
+  const pet = { id: 'pet-frog', stage: 2, level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: false };
+  const card = petsMod.rwPetCardHTML(pet, '');
+  assert.match(card, /<b>Court Frog<\/b><small>Level 4 · Grown<\/small>/);
+  assert.match(card, /role="progressbar" aria-label="Court Frog XP" aria-valuemin="10" aria-valuemax="15" aria-valuenow="12" aria-valuetext="12 of 15 XP"><span style="width:40%">/);
+  assert.match(card, /3 XP to level 5\. 1 XP for each game sent from a club player's phone, 2 for a win\./);
+  assert.ok(!/rw-evolve|petseen/.test(card), 'no note until the stage changes');
+  const evolved = petsMod.rwPetCardHTML(pet, 'Grown');
+  assert.match(evolved, /<p class="rw-evolve" role="status"><b>Court Frog is now Grown\.<\/b> <button type="button" class="link" data-rw="petseen">Got it<\/button><\/p>/);
+  assert.ok(!/animation|confetti|overlay|modal/i.test(evolved), 'calm copy only');
+  const top = petsMod.rwPetCardHTML({ id: 'pet-frog', stage: 3, level: 10, xp: 80, levelXp: 55, nextXp: null }, '');
+  assert.match(top, /Level 10 · Champion/); assert.match(top, /Top level reached\./); assert.match(top, /aria-valuetext="80 XP, top level"><span style="width:100%"/);
+  assert.equal(petsMod.rwPetCardHTML({ id: 'frame-court', level: 3 }, ''), '');
+  assert.equal(petsMod.rwPetCardHTML(null, ''), '');
+  assert.deepEqual(petsMod.rwPetProgress({ level: 99, xp: -4 }), { level: 10, xp: 0, from: 55, to: null, left: 0, pct: 100 });
+});
+
+test('Rewards.petCardHTML: own worn pet only; first sight is silent, a higher stage shows the note once, Got it dismisses it', () => {
+  const kv = { 'pb.rewardsHide': false, 'pb.rewards': { 'club-a': { dinks: 20, streak: 0, best: 0, last: '', worn: { frame: '', paddle: '', pet: 'pet-frog' }, pet: { id: 'pet-frog', stage: 2, level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: false, featuredShiny: false } } } };
+  const listeners = [], said = [], redraws = [];
+  const code = module('economy') + ';' + module('economypets') + ';' + module('economyshop') + ';return { Rewards };';
+  const x = new Function('store', 'club', 'esc', 'announce', 'document', 'myName', 'myToken', 'playerCall', 'render', 'renderClub', 'initials', 'iconSvg', 'skel', 'avatarInner', 'teamLabel', 'isMe', 'renderProfile',
+    'let clubSheet = null;' + code)(
+    { get: (k, f) => (k in kv ? kv[k] : f), set: (k, v) => { kv[k] = v; } },
+    { code: 'club-a', rewards: true },
+    String, m => said.push(m), { documentElement: { setAttribute() {}, removeAttribute() {} }, addEventListener: (t, f) => listeners.push(f), querySelector: () => null },
+    () => 'Ana', () => 'tok', async () => ({}), () => {}, () => {}, s => s.slice(0, 2), () => '<svg></svg>', () => '<div></div>', n => n.slice(0, 2), ps => ps.join(' & '),
+    n => n === 'Ana', () => redraws.push(1)
+  );
+  assert.equal(x.Rewards.petCardHTML('Ben'), '', "never another player's pet card");
+  const first = x.Rewards.petCardHTML('Ana');
+  assert.match(first, /Level 4 · Grown/); assert.ok(!/rw-evolve/.test(first), 'first sight is silent');
+  assert.equal(kv['pb.petSeen']['club-a:pet-frog'], 2);
+  kv['pb.petSeen'] = { 'club-a:pet-frog': 1 }; // last seen as a Rookie
+  assert.match(x.Rewards.petCardHTML('Ana'), /Court Frog is now Grown\./);
+  assert.match(x.Rewards.petCardHTML('Ana'), /Court Frog is now Grown\./, 'stays until dismissed');
+  listeners.forEach(f => f({ target: { closest: () => ({ dataset: { rw: 'petseen' } }) } }));
+  assert.equal(kv['pb.petSeen']['club-a:pet-frog'], 2);
+  assert.equal(redraws.length, 1);
+  assert.ok(!/rw-evolve/.test(x.Rewards.petCardHTML('Ana')), 'gone after Got it');
+  kv['pb.rewardsHide'] = true;
+  assert.equal(x.Rewards.petCardHTML('Ana'), '', 'hidden with the rest of the rewards');
 });
 
 test('client looks: opted-in pet id/stage/shiny pass through Rewards.lookOf for leaderboard/roster/profile, never on game cards', async () => {
@@ -355,7 +431,7 @@ test('client looks: opted-in pet id/stage/shiny pass through Rewards.lookOf for 
   const badge = x.Rewards.petBadgeHTML('Ana');
   assert.match(badge, /rw-pet sm rw-pet-club/);
   assert.match(badge, /data-pet="pet-frog"[^>]*data-pet-stage="2"[^>]*data-pet-shiny="true"/);
-  assert.match(badge, /role="img" aria-label="Court Frog, Club, shiny coat"/);
+  assert.match(badge, /role="img" aria-label="Court Frog, Grown, shiny coat"/);
   assert.match(badge, /width="20" height="20"/);
   assert.ok(!/animate|transition|<style|href=|http/i.test(badge), 'no motion or remote refs');
   assert.equal(x.Rewards.petBadgeHTML('Cy'), '', 'unshared player shows no pet');
@@ -377,7 +453,7 @@ test('SVG art module: all pets x 3 stages + shiny return valid, safe, tokenised,
     assert.equal(petsMod.RW_PET_NAMES[pet.id], pet.name);
     const stages = new Set();
     for (const stage of [1, 2, 3]) {
-      const stageLabel = PET_STAGES[stage - 1].label;
+      const stageLabel = PET_STAGES[stage - 1].label; // Rookie, Grown, Champion
       for (const shiny of [false, true]) {
         const svg = petsMod.rwPetSvg(pet.id, { stage, shiny });
         assert.ok(svg.startsWith('<svg viewBox="0 0 64 64"') && svg.endsWith('</svg>'), `${pet.id} stage ${stage} valid svg wrapper`);
@@ -431,11 +507,11 @@ test('SVG art module: all pets x 3 stages + shiny return valid, safe, tokenised,
   assert.equal(petsMod.rwPetSvg('"><script>'), '');
   assert.equal(petsMod.rwPetBadgeHTML('frame-court'), '');
 
-  // Growth stage lines state current stage and days remaining clearly.
-  assert.equal(petsMod.rwPetStageLine({ stage: 1, stageLabel: 'Rookie', playDays: 3, nextStageDays: 5 }), 'Rookie · 2 more play days to Club (3/5)');
-  assert.equal(petsMod.rwPetStageLine({ stage: 1, stageLabel: 'Rookie', playDays: 4, nextStageDays: 5 }), 'Rookie · 1 more play day to Club (4/5)');
-  assert.equal(petsMod.rwPetStageLine({ stage: 2, stageLabel: 'Club', playDays: 10, nextStageDays: 15 }), 'Club · 5 more play days to Veteran (10/15)');
-  assert.equal(petsMod.rwPetStageLine({ stage: 3, stageLabel: 'Veteran', playDays: 18, nextStageDays: null }), 'Veteran · 18 play days');
+  // Growth lines state level, stage and the XP left.
+  assert.equal(petsMod.rwPetStageLine({ stage: 1, level: 1, xp: 2, levelXp: 0, nextXp: 3 }), 'Level 1 · Rookie · 1 XP to level 2');
+  assert.equal(petsMod.rwPetStageLine({ stage: 2, level: 4, xp: 10, levelXp: 10, nextXp: 15 }), 'Level 4 · Grown · 5 XP to level 5');
+  assert.equal(petsMod.rwPetStageLine({ stage: 3, level: 10, xp: 80, levelXp: 55, nextXp: null }), 'Level 10 · Champion · top level');
+  assert.equal(petsMod.rwPetStageLine({ stage: 1 }), 'Level 1 · Rookie · 3 XP to level 2');
 
   // Calm & isolation guard on src/app/economypets.js.
   const src = read('src/app/economypets.js').replace(/^\s*\/\/.*$/gm, '').replace(/ \/\/ .*$/gm, '');
@@ -467,7 +543,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   const mkStore = ({ dinks = 250, wornPet = 'pet-frog', frogShiny = false, frogCoat = false, shinyWeek: wk = shinyFrogWeek, owned = ['pet-frog'] } = {}) => ({
     dinks,
     worn: { frame: '', paddle: '', pet: wornPet },
-    pet: wornPet === 'pet-frog' ? { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: frogShiny, shinyOwned: frogCoat || frogShiny, featuredShiny: wk.petId === 'pet-frog' } : null,
+    pet: wornPet === 'pet-frog' ? { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Grown', level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: frogShiny, shinyOwned: frogCoat || frogShiny, featuredShiny: wk.petId === 'pet-frog' } : null,
     shinyWeek: { ...wk, price: wk.petId === 'pet-frog' ? 300 : 600, owned: wk.petId === 'pet-frog' && (frogCoat || frogShiny) },
     share: false,
     items: CATALOGUE.map(i => {
@@ -475,7 +551,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
       const isOwned = owned.includes(i.id);
       const featuredShiny = wk.petId === i.id;
       if (!isOwned) return { ...i, owned: false, featuredShiny };
-      return { ...i, owned: true, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: i.id === 'pet-frog' && frogShiny, shinyOwned: i.id === 'pet-frog' && (frogCoat || frogShiny) };
+      return { ...i, owned: true, featuredShiny, stage: 2, stageLabel: 'Grown', level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: i.id === 'pet-frog' && frogShiny, shinyOwned: i.id === 'pet-frog' && (frogCoat || frogShiny) };
     })
   });
 
@@ -511,7 +587,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(html, /data-rarity="legendary">Legendary</);
   assert.match(html, /data-rw-wear="pet:pet-frog"[^>]*aria-pressed="true"/);
   assert.match(html, /data-rw-wear="pet:"/);
-  assert.match(html, /Club · 8 more play days to Veteran \(7\/15\)/);
+  assert.match(html, /Level 4 · Grown · 3 XP to level 5/);
   assert.match(html, /data-rw-buy="pet-duck"/);
   assert.match(html, /Dink duck<\/b><small class="rw-cost">200 Dinks/);
   assert.match(html, /data-rw-buy="pet-cat"[^>]*aria-label="Adopt Kitchen cat for 500 Dinks\. You need 250 more"[^>]*>250 more</, 'shortfall stated before tapping');
@@ -533,7 +609,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(ownHtml, /rw-hero-lock" aria-disabled="true" tabindex="-1"><span aria-hidden="true">✦ <\/span>Yours</, 'the hero says Yours once bought');
   assert.ok(!/data-rw-shiny-buy/.test(ownHtml), 'no second buy');
   assert.match(ownHtml, /data-rw-shiny="pet-frog:1"[^>]*aria-pressed="false"/, 'the owner gets the coat switch');
-  assert.match(ownHtml, /Club · 8 more play days to Veteran \(7\/15\) · Shiny coat owned/, 'the pet keeps its level');
+  assert.match(ownHtml, /Level 4 · Grown · 3 XP to level 5 · Shiny coat owned/, 'the pet keeps its level');
 
   // Clicking the shiny switch sends rewards-wear with shiny: true, announces.
   click({ rwShiny: 'pet-frog:1' });
@@ -563,8 +639,9 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.equal((coll.match(/data-pet-stage="1"/g) || []).length, PETS.length);
   assert.equal((coll.match(/data-pet-stage="2"/g) || []).length, PETS.length);
   assert.equal((coll.match(/data-pet-stage="3"/g) || []).length, PETS.length);
-  assert.match(coll, /after 5 play days/); assert.match(coll, /after 15 play days/);
-  assert.match(coll, /Yours: Club/);
+  assert.match(coll, /at level 4 \(10 XP\)/); assert.match(coll, /at level 8 \(36 XP\)/);
+  assert.match(coll, /Yours: level 4, Grown/);
+  assert.ok(!/play days?/.test(coll), 'growth is XP now, not play days');
   assert.match(coll, /data-rw="store">Back to the shop</);
   assert.ok(!/animation|odds|random/i.test(coll.replace(/data-pet-shiny/g, '')), 'calm copy only');
   assert.ok(!/data-rw-shiny/.test(offWeekHtml), 'no switch for a coat that was never bought');
@@ -572,7 +649,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   // Club rewards off or player hid rewards: nothing shows on the Your Dinks tile or Shop sheet.
   for (const opts of [{ rewards: false, hide: false }, { rewards: true, hide: true }]) {
     const h = mkPhone(opts);
-    h.kv['pb.rewards'] = { 'club-a': { dinks: 20, streak: 3, best: 3, last: '', worn: { frame: '', paddle: '', pet: 'pet-frog' }, pet: { id: 'pet-frog', stage: 2, playDays: 7, nextStageDays: 15, shiny: true, featuredShiny: true } } };
+    h.kv['pb.rewards'] = { 'club-a': { dinks: 20, streak: 3, best: 3, last: '', worn: { frame: '', paddle: '', pet: 'pet-frog' }, pet: { id: 'pet-frog', stage: 2, level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: true, featuredShiny: true } } };
     assert.equal(h.x.Rewards.tileHTML(), '');
     assert.ok(!/rw-pets|data-rw-shiny|data-rw-buy/.test(h.x.Rewards.storeHTML({ store: mkStore(), msg: '', error: '', busy: false })));
   }

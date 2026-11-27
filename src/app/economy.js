@@ -10,7 +10,7 @@ const RW_EARN = { play: 2, win: 10, beat: 3, hot: 5, hotFrom: 3, cap: 300 }, RW_
 // Achievement bonuses and season prizes (pinned to ACHIEVEMENT_PAY / SEASON_PRIZE in api/_progress.js by test/economyprizes.test.js). Names are the badges' own.
 const RW_ACH_PAY = [[5, 'First win and Regular'], [10, 'Shutout and Marathon'], [15, 'Court rat, Heater, Giant killer and Social butterfly'], [25, 'Two point five'], [30, 'Centurion and Unstoppable'], [50, 'Elite']], RW_PRIZE = [100, 60, 40];
 const RW_BOX = { cost: 300, refund: 4, limit: 3 }, RW_SPIN = { min: 3, max: 50 }, RW_PASS_TIERS = 8, RW_XP = { game: 10, win: 15, cap: 300, tier: 125 };
-const RW_PET_DAYS = [5, 15];
+const RW_PET_LEVELS = [4, 8];
 const rwDinks = n => `${n} ${n === 1 ? 'Dink' : 'Dinks'}`; // "1 Dink", "2 Dinks": the one place a count and its word are joined
 const rwDayKey = d => { const x = d instanceof Date ? d : new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
 const rwDayNum = k => { const [y, m, d] = k.split('-').map(Number); return Date.UTC(y, m - 1, d) / 86400000; }; // calendar days, so a clock change never adds or drops one
@@ -55,9 +55,9 @@ const rwCleanPet = (p, wornPet) => {
   const id = rwSlotId('pet', p.id);
   if (!id || (wornPet && id !== wornPet)) return null;
   const stage = p.stage === 2 || p.stage === 3 ? p.stage : 1;
-  const days = Number.isFinite(p.playDays) && p.playDays > 0 ? Math.min(Math.floor(p.playDays), 1e5) : 0;
-  const next = p.nextStageDays === 5 || p.nextStageDays === 15 ? p.nextStageDays : null;
-  return { id, stage, playDays: days, nextStageDays: next, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
+  const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0);
+  const level = Math.min(Math.max(n(p.level), 1), 10), next = n(p.nextXp);
+  return { id, stage, level, xp: n(p.xp), levelXp: n(p.levelXp), nextXp: next > n(p.xp) ? next : null, shiny: !!p.shiny, featuredShiny: !!p.featuredShiny };
 };
 const rwClean = s => { const n = v => (Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 1e6) : 0); s = s && typeof s === 'object' ? s : {}; const w = s.worn && typeof s.worn === 'object' ? s.worn : {};
   const worn = { frame: rwId(w.frame), paddle: rwId(w.paddle), pet: rwId(w.pet), ...Object.fromEntries(['title', 'style', ...RW_OWN_SLOTS].map(k => [k, rwId(w[k])]).filter(e => e[1])) };
@@ -237,6 +237,17 @@ const Rewards = {
     const next = l.level >= l.max ? 'You are at the top level.' : `${l.toNext} XP to level ${l.level + 1}.`;
     return `<section class="rw-level" aria-label="Your level"><span class="rw-lv" aria-hidden="true">${l.level}</span><div><b>Level ${l.level} of ${l.max}</b><small>${l.xp} XP all time</small></div><p>${next} Games sent from a club player's phone give ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} a day.</p></section>`;
   },
+  // Your worn pet on your own Stats tab (M13): Level N and an XP bar. After its stage changes, a quiet note stays until you tap Got it (no overlay, no motion).
+  petCardHTML(name) {
+    if (!rwShown() || !isMe(name) || !myName() || !myToken() || typeof rwPetCardHTML !== 'function') return '';
+    const pet = rwCur().pet;
+    if (!pet) return '';
+    const seen = store.get('pb.petSeen', {}), k = club.code + ':' + pet.id;
+    let evolved = '';
+    if (!Number.isInteger(seen[k]) || pet.stage < seen[k]) { seen[k] = pet.stage; store.set('pb.petSeen', seen); } // first sight (or a lower stage): note it, say nothing
+    else if (pet.stage > seen[k]) evolved = rwPetStageLabel(pet.stage);
+    return rwPetCardHTML(pet, evolved);
+  },
   frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
     const l = Rewards.lookOf(name);
@@ -313,7 +324,7 @@ const Rewards = {
     const lad = RW_LADDER.map(n => `+${n}`).join(', '), top = RW_LADDER[RW_LADDER.length - 1], miles = RW_MILES.map(([d, b]) => `+${b} more on day ${d}`).join(' and '), E = RW_EARN;
     const spin = rwBoxOn() ? `<li><b>Daily spin:</b> one free spin a day (UTC) wins ${RW_SPIN.min} to ${RW_SPIN.max} Dinks. It is drawn on the server and the chances are shown on the card. It never depends on a score.</li>` : '';
     const box = rwBoxOn() ? `<li><b>Mystery box:</b> opens a random item you don't own yet for ${rwDinks(RW_BOX.cost)}, up to ${RW_BOX.limit} a day. If you already own it, ${rwDinks(RW_BOX.refund)} come back. The odds are shown before you open one.</li>` : '';
-    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${E.play}</b> for every game you play, <b>+${E.win}</b> for a win, <b>+${E.beat}</b> when you beat the forecast (even in a loss) and <b>+${E.hot}</b> for each win once you have won ${E.hotFrom} in a row. A logged result counts the same as one scored live.</li><li>Only games sent from a club player's own phone earn more than the +${E.play}.</li><li>Games pay at most ${E.cap} Dinks a day. If a game is edited or deleted, the Dinks it paid are adjusted the next time your phone syncs.</li><li><b>Weekly challenges:</b> finish the week's three challenges for +${RW_CHAL[0]}, +${RW_CHAL[1]} and +${RW_CHAL[2]}.</li><li><b>Achievements:</b> each badge on your profile pays Dinks once: ${RW_ACH_PAY.map(([n, names]) => `${names} +${n}`).join(', ')}.</li><li><b>Season prizes:</b> the top 3 of a finished season with 5 or more games get +${RW_PRIZE[0]}, +${RW_PRIZE[1]} and +${RW_PRIZE[2]} on top of the trophy, once for each format.</li><li><b>Daily streak:</b> play on days in a row for ${lad} on days 1 to 7, then +${top} a day, ${miles}. Miss a day and the streak starts again.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li><b>Pets:</b> adopt one in the shop. It grows from Rookie to Club after ${RW_PET_DAYS[0]} days you have played since adopting it, then to Veteran after ${RW_PET_DAYS[1]}. A free shiny coat rotates every Monday (UTC).</li><li><b>Shop shelves:</b> rings, pets, titles, name styles, court themes, win celebrations and victory sounds, plus Mythic and Legendary shelves and limited-time shelves such as Christmas. Once you own an item you keep it.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
+    return `<div class="rule" id="rules-earning"><h3>Earning Dinks</h3><p>Where your club has rewards on, playing earns free Dinks to spend in the shop. They are play money with no cash value, and they can't be bought.</p><ul><li><b>+${E.play}</b> for every game you play, <b>+${E.win}</b> for a win, <b>+${E.beat}</b> when you beat the forecast (even in a loss) and <b>+${E.hot}</b> for each win once you have won ${E.hotFrom} in a row. A logged result counts the same as one scored live.</li><li>Only games sent from a club player's own phone earn more than the +${E.play}.</li><li>Games pay at most ${E.cap} Dinks a day. If a game is edited or deleted, the Dinks it paid are adjusted the next time your phone syncs.</li><li><b>Weekly challenges:</b> finish the week's three challenges for +${RW_CHAL[0]}, +${RW_CHAL[1]} and +${RW_CHAL[2]}.</li><li><b>Achievements:</b> each badge on your profile pays Dinks once: ${RW_ACH_PAY.map(([n, names]) => `${names} +${n}`).join(', ')}.</li><li><b>Season prizes:</b> the top 3 of a finished season with 5 or more games get +${RW_PRIZE[0]}, +${RW_PRIZE[1]} and +${RW_PRIZE[2]} on top of the trophy, once for each format.</li><li><b>Daily streak:</b> play on days in a row for ${lad} on days 1 to 7, then +${top} a day, ${miles}. Miss a day and the streak starts again.</li><li><b>XP and levels:</b> each game saved from your phone gives ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} XP a day. XP fills your level, 1 to 25, and never changes a rating.</li>${spin}${box}<li><b>Season pass:</b> a free track of ${RW_PASS_TIERS} tiers, one every ${RW_XP.tier} season XP (the same XP as your level). Each tier pays ${rwDinks(25)} and some also give an item that can't be bought.</li><li><b>Pets:</b> adopt one in the shop. It earns 1 XP for each verified game and 2 for a win, and grows from Rookie to Grown at level ${RW_PET_LEVELS[0]}, then to Champion at level ${RW_PET_LEVELS[1]}. A free shiny coat rotates every Monday (UTC).</li><li><b>Shop shelves:</b> rings, pets, titles, name styles, court themes, win celebrations and victory sounds, plus Mythic and Legendary shelves and limited-time shelves such as Christmas. Once you own an item you keep it.</li><li>Shop items are looks only, so nothing you get changes a rating. Hide it all any time under <b>You</b>.</li></ul></div>`;
   },
   // What's new: this release's rewards items, written from the same constants as the rules card. Nothing where rewards are off or hidden.
   newsItems() {
@@ -324,7 +335,7 @@ const Rewards = {
       ['⭐', 'XP, levels and season pass', `Games give XP that fills your level, 1 to 25, and a free ${RW_PASS_TIERS}-tier season pass that pays 25 Dinks a tier. The Rules tab has the numbers.`],
       ['🛍️', 'The Shop tab', 'Spend Dinks on rings, pets, titles, name styles, court themes, win celebrations and victory sounds. Mythic and Legendary shelves hold the rarest looks.'],
       box,
-      ['🐾', 'Pets', `Adopt a pet. It grows to Club after ${RW_PET_DAYS[0]} days you play and to Veteran after ${RW_PET_DAYS[1]}. A free shiny coat rotates every Monday.`],
+      ['🐾', 'Pets', `Adopt a pet. It earns XP from games you play (2 for a win) and grows to Grown at level ${RW_PET_LEVELS[0]} and Champion at level ${RW_PET_LEVELS[1]}. A free shiny coat rotates every Monday.`],
       ['🎄', 'Christmas shelf', 'Candy cane and Twinkle lights rings are in the shop until 25 December (UTC). Once you own one, it is yours to keep.']
     ].filter(Boolean);
   },
@@ -352,6 +363,7 @@ document.addEventListener('click', e => {
   const a = b.dataset.rw;
   if (a === 'shopnav') { Rewards.openShop(); return; }
   if (a === 'spin') { Rewards.openStore({ spin: true }); return; }
+  if (a === 'petseen') { const pet = rwCur().pet; if (pet && club) { const seen = store.get('pb.petSeen', {}); seen[club.code + ':' + pet.id] = pet.stage; store.set('pb.petSeen', seen); if (typeof renderProfile === 'function') renderProfile(); announce('Pet note dismissed.'); } return; }
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
   if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }

@@ -1989,7 +1989,8 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   assert.equal(w.worn.pet, '');
   assert.equal(w.pet, null);
 
-  // Stage growth from verified reward_ledger play days since adoption (pin adoption to a fixed UTC day in DB so boundaries are exact).
+  // Starting point from verified reward_ledger play days between adoption and the pet XP switch day (pin adoption to a fixed UTC day in DB so boundaries are exact):
+  // 5 days = Grown (level 4, 10 XP), 15 days = Champion (level 8, 36 XP). Nobody loses progress.
   await pg.query(`UPDATE reward_items SET at = '2026-03-10T12:00:00Z' WHERE club = $1 AND name_key = 'rory' AND item = $2`, [pcode, featuredPet.id]);
   ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id }));
   // Days BEFORE adoption (2026-03-01..09), spends, pass claims (day=null) do NOT count toward growth.
@@ -1997,23 +1998,33 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   await grant('Rory', 'day:2026-03-09', 1, '2026-03-09');
   await grant('Rory', 'pass:2026-Q1:1', 2, null);
   let st = ok(await post('Rory', { action: 'rewards-get' })).pet;
-  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [1, 'Rookie', 0, 5]);
+  assert.deepEqual([st.stage, st.stageLabel, st.level, st.xp, st.nextXp], [1, 'Rookie', 1, 0, 3]);
+  assert.ok(!('playDays' in st) && !('nextStageDays' in st), 'the answer carries XP and level, not play days');
   // Add 4 earn days on/after 2026-03-10 -> still Rookie (stage 1).
   for (let d = 10; d <= 13; d++) await grant('Rory', `day:2026-03-${d}`, 1, `2026-03-${d}`);
   st = ok(await post('Rory', { action: 'rewards-get' })).pet;
-  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [1, 'Rookie', 4, 5]);
-  // 5th earn day -> Club (stage 2).
+  assert.deepEqual([st.stage, st.stageLabel, st.level, st.xp], [1, 'Rookie', 1, 0]);
+  // 5th earn day -> Grown (stage 2, level 4).
   await grant('Rory', 'day:2026-03-14', 1, '2026-03-14');
   st = ok(await post('Rory', { action: 'rewards-get' })).pet;
-  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [2, 'Club', 5, 15]);
-  // Up to 14 earn days -> still Club (stage 2).
+  assert.deepEqual([st.stage, st.stageLabel, st.level, st.xp, st.levelXp, st.nextXp], [2, 'Grown', 4, 10, 10, 15]);
+  // Up to 14 earn days -> still Grown (stage 2).
   for (let d = 15; d <= 23; d++) await grant('Rory', `day:2026-03-${d}`, 1, `2026-03-${d}`);
   st = ok(await post('Rory', { action: 'rewards-get' })).pet;
-  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [2, 'Club', 14, 15]);
-  // 15th earn day -> Veteran (stage 3).
+  assert.deepEqual([st.stage, st.stageLabel, st.level, st.xp], [2, 'Grown', 4, 10]);
+  // 15th earn day -> Champion (stage 3, level 8).
   await grant('Rory', 'day:2026-03-24', 1, '2026-03-24');
   st = ok(await post('Rory', { action: 'rewards-get' })).pet;
-  assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [3, 'Veteran', 15, null]);
+  assert.deepEqual([st.stage, st.stageLabel, st.level, st.xp, st.nextXp], [3, 'Champion', 8, 36, 45]);
+  // Pet XP from games: +1 for each verified game and +2 for a win, on top of that starting point. Games not sent from a club player's phone, games from before
+  // the switch day, and games the player is not in add nothing.
+  const xpAt = Date.parse('2026-12-01T12:00:00Z');
+  const petGame = (id, over = {}) => pg.query(`INSERT INTO games (club, id, data, ended_at) VALUES ($1, $2, $3::jsonb, $4)`, [pcode, id, JSON.stringify({ id, mode: 'doubles', teams: [['Rory', 'Ollie'], ['Ana', 'Ben']], score: [11, 3], winner: 0, endedAt: xpAt, receivedAt: xpAt, scoredBy: 'rory', ...over }), xpAt]);
+  await petGame('pxp-win'); await petGame('pxp-loss', { winner: 1, score: [3, 11] });
+  await petGame('pxp-org', { scoredBy: 'organizer' }); await petGame('pxp-old', { receivedAt: Date.parse('2026-11-27T12:00:00Z') }); await petGame('pxp-else', { teams: [['Ollie', 'Cy'], ['Ana', 'Ben']] });
+  st = ok(await post('Rory', { action: 'rewards-get' })).pet;
+  assert.deepEqual([st.stage, st.level, st.xp, st.levelXp, st.nextXp], [3, 8, 39, 36, 45], 'win +2 and loss +1 on top of the Champion start');
+  await pg.query(`DELETE FROM games WHERE club = $1 AND id LIKE 'pxp-%'`, [pcode]);
 
   // Weekly shiny coat: sold, not free. Wearing it is refused until it is bought; refused on non-pet slot or bad type.
   assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: otherPet.id, shiny: true })).status, 403, 'a coat not bought is refused');
@@ -2046,7 +2057,7 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   ok(await post('Rory', { action: 'rewards-share', share: true }));
   const pub = ok(await looks());
   assert.deepEqual(pub, { looks: { rory: { pet: featuredPet.id, petStage: 3, petShiny: true } } });
-  assert.ok(!/playDays|play_days|dinks|streak|price|2026-03-10/.test(JSON.stringify(pub)), 'no private pet or ledger fields leak');
+  assert.ok(!/playDays|play_days|petXp|pet_xp|xp|level|dinks|streak|price|2026-03-10/i.test(JSON.stringify(pub)), 'no private pet or ledger fields leak');
   assert.ok(!JSON.stringify(pub).includes(otherPet.id), 'unworn pet never leaks');
   assert.ok(!/pet-frog|pet-duck|pet-cat|pet-owl|petStage|petShiny/.test(JSON.stringify(ok(await pGet()))), 'GET /api/club stays free of pet data');
 
@@ -2085,15 +2096,25 @@ await step('rewards Yorkie: bought once, one pet worn, stage growth by play days
   await wearItem(sql, code, key, 'pet', 'pet-frog', { now: yorkieWeek });
   await wearItem(sql, code, key, 'pet', 'pet-yorkie', { now: yorkieWeek });
   assert.deepEqual(await worn(), ['pet-yorkie'], 'only one pet worn at a time');
-  // Growth: only distinct play days on or after adoption count (adoption pinned to a fixed UTC day).
+  // Growth after the switch: play days no longer grow a pet, only XP from verified games on or after adoption (adoption pinned to a fixed UTC day).
   await pg.query(`UPDATE reward_items SET at = '2027-01-10T12:00:00Z' WHERE club = $1 AND name_key = $2 AND item = 'pet-yorkie'`, [code, key]);
-  for (const d of ['2027-01-09', '2027-01-10', '2027-01-11', '2027-01-12', '2027-01-13']) await earn('day:' + d, 1, d);
+  for (let d = 9; d <= 24; d++) await earn('day:2027-01-' + String(d).padStart(2, '0'), 1, '2027-01-' + String(d).padStart(2, '0'));
   let p = (await shopView(sql, code, key, yorkieWeek)).pet;
-  assert.equal(p.id, 'pet-yorkie'); assert.equal(p.stage, 1); assert.equal(p.playDays, 4);
-  await earn('day:2027-01-14', 1, '2027-01-14');
-  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.equal(p.stage, 2); assert.equal(p.stageLabel, 'Club');
-  for (let d = 15; d <= 24; d++) await earn('day:2027-01-' + d, 1, '2027-01-' + d);
-  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.equal(p.stage, 3); assert.equal(p.stageLabel, 'Veteran');
+  assert.equal(p.id, 'pet-yorkie'); assert.deepEqual([p.stage, p.level, p.xp], [1, 1, 0], '16 play days after the switch give no XP');
+  const yGame = (id, at, over = {}) => pg.query(`INSERT INTO games (club, id, data, ended_at) VALUES ($1, $2, $3::jsonb, $4)`, [code, id, JSON.stringify({ id, mode: 'doubles', teams: [['Yori', 'Cy'], ['Ana', 'Ben']], score: [11, 4], winner: 0, endedAt: at, receivedAt: at, scoredBy: 'yori', ...over }), at]);
+  const t = Date.parse('2027-01-11T12:00:00Z');
+  await yGame('yxp-before', Date.parse('2027-01-09T12:00:00Z')); // before adoption: none
+  for (let i = 0; i < 4; i++) await yGame('yxp-w' + i, t + i); // 4 wins = 8 XP
+  await yGame('yxp-l', t + 9, { winner: 1 }); // a loss = 1 XP
+  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.deepEqual([p.stage, p.stageLabel, p.level, p.xp, p.levelXp, p.nextXp], [1, 'Rookie', 3, 9, 6, 10]);
+  await yGame('yxp-w4', t + 10); // 11 XP: level 4
+  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.deepEqual([p.stage, p.stageLabel, p.level, p.xp], [2, 'Grown', 4, 11]);
+  for (let i = 5; i < 17; i++) await yGame('yxp-w' + i, t + 10 + i); // 12 more wins = 35 XP in all
+  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.deepEqual([p.stage, p.level, p.xp], [2, 7, 35]);
+  await yGame('yxp-w17', t + 40); // 37 XP
+  p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.deepEqual([p.stage, p.stageLabel, p.level, p.xp, p.nextXp], [3, 'Champion', 8, 37, 45]);
+  assert.equal((await shopView(sql, code, key, yorkieWeek)).items.find(i => i.id === 'pet-yorkie').level, 8, 'the shop list carries the level too');
+  assert.equal((await shopView(sql, code, key, yorkieWeek)).items.find(i => i.id === 'pet-frog').xp, 39, 'every owned pet earns from its own adoption: the Frog (adopted earlier) also got the 2 XP of the game before the Yorkie arrived');
   // Shiny coat: sold to the pet's owner in its own week (Yorkie 400 -> tier price 600, or the club's own price), kept for good, never free.
   await assert.rejects(wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: yorkieWeek }), e => e.status === 403, 'not bought yet: no coat');
   await assert.rejects(buyItem(sql, code, key, 'shiny-pet-yorkie', yorkieWeek), e => e.status === 409 && /Not enough Dinks yet: Shiny yorkie costs 600/.test(e.message));
@@ -2115,6 +2136,7 @@ await step('rewards Yorkie: bought once, one pet worn, stage growth by play days
   // The old free toggle: a coat already switched on becomes owned (the schema backfill), one not switched on stays unowned.
   await pg.query(`UPDATE reward_items SET shiny_owned = false, shiny = true WHERE club = $1 AND name_key = $2 AND item = 'pet-yorkie'`, [code, key]);
   assert.equal((await shopView(sql, code, key, frogWeek)).items.find(i => i.id === 'pet-yorkie').shinyOwned, true, 'a toggled shiny stays owned');
+  await pg.query(`DELETE FROM games WHERE club = $1 AND id LIKE 'yxp-%'`, [code]); // later steps look for duplicate games in this club
 });
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';

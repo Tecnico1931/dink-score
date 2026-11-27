@@ -10,6 +10,7 @@
 import { loadLedger } from './_economysync.js';
 import { ledgerBalance, spendEntry, paceFrom, totals } from './_economy.js';
 import { PETS, shinyWeekFor, petById, petStateFor, cleanPetLook, shinyItemId, shinyPetOf, shinyPriceOf } from './_economypets.js';
+import { loadPlays, loadClubPlays, petXpOf, PETXP_FROM_DAY } from './_economypetxp.js';
 import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
 import { TITLES, STYLES, TOP_FRAMES, TOP_SOUNDS, TOP_THEMES, TOP_CELEBRATIONS, TOP_RARITIES } from './_economyitems.js';
 import { PASS_ITEMS } from './_economyxp.js';
@@ -135,13 +136,13 @@ export async function wornSummaryOf(sql, code, key, now = Date.now()) {
   const items = await loadItems(sql, code, key);
   const worn = wornFrom(items);
   const petRow = items.find(i => i.slot === 'pet' && i.worn);
-  const pet = petRow ? petStateFor(petRow, await loadLedger(sql, code, key), now) : null;
+  const pet = petRow ? petStateFor(petRow, await loadLedger(sql, code, key), now, await loadPlays(sql, code, key)) : null;
   return { worn, pet };
 }
 
 // Allow-listed worn item ids per player, for other members of a club whose rewards switch is on.
 // Pure: accepts rows { name_key, slot, item, shiny?, play_days? }, copies ONLY known catalogue item ids in their matching slot
-// (plus petStage and petShiny for a worn pet), never balance, streak, play-day count or history.
+// (plus petStage and petShiny for a worn pet), never balance, streak, pet XP or level, or history.
 export function clubLooksFrom(rows, now = Date.now()) {
   const out = Object.create(null);
   for (const r of Array.isArray(rows) ? rows : []) {
@@ -162,18 +163,21 @@ export function clubLooksFrom(rows, now = Date.now()) {
 }
 
 export async function clubLooks(sql, code, now = Date.now()) {
-  const rows = await sql`SELECT ri.name_key, ri.slot, ri.item, ri.shiny,
+  const rows = await sql`SELECT ri.name_key, ri.slot, ri.item, ri.shiny, ri.at,
     CASE WHEN ri.slot = 'pet' THEN (
       SELECT count(DISTINCT rl.day)::int
       FROM reward_ledger rl
       WHERE rl.club = ri.club AND rl.name_key = ri.name_key
         AND rl.kind = 'earn' AND rl.day IS NOT NULL
         AND rl.day ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-        AND rl.day >= to_char(ri.at AT TIME ZONE 'UTC', 'YYYY-MM-DD')
+        AND rl.day >= to_char(ri.at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AND rl.day < ${PETXP_FROM_DAY}
     ) ELSE NULL END AS play_days
     FROM reward_items ri
     JOIN roster r ON r.club = ri.club AND r.name_key = ri.name_key
     WHERE ri.club = ${code} AND ri.worn = true AND r.rewards_public = true AND r.blocked_at IS NULL`;
+  const pets = rows.filter(r => r.slot === 'pet');
+  const plays = await loadClubPlays(sql, code, [...new Set(pets.map(r => r.name_key))]);
+  for (const r of pets) r.pet_xp = petXpOf(plays.get(r.name_key), new Date(r.at).getTime(), 0);
   return clubLooksFrom(rows, now);
 }
 
@@ -190,7 +194,7 @@ export async function setShare(sql, code, key, on, now = Date.now()) {
 
 // The shop as the phone shows it: the catalogue with the owned flag, the balance, what is worn, pet stage/weekly shiny state, and whether the club sees it. Prices come from the catalogue only.
 export async function shopView(sql, code, key, now = Date.now()) {
-  const [items, ledger, share, prices, owners] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key), loadPrices(sql, code), loadOwnerCounts(sql, code)]);
+  const [items, ledger, share, prices, owners, plays] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key), loadPrices(sql, code), loadOwnerCounts(sql, code), loadPlays(sql, code, key)]);
   const ownedById = new Map(items.map(i => [i.id, i]));
   const shinyWeek = shinyWeekFor(now);
   const season = seasonFor(now);
@@ -205,11 +209,11 @@ export async function shopView(sql, code, key, now = Date.now()) {
     if (i.slot !== 'pet') return { ...i, owned: !!row };
     const featuredShiny = shinyWeek.petId === i.id;
     if (!row) return { ...i, owned: false, featuredShiny };
-    const ps = petStateFor(row, ledger, now);
-    return { ...i, owned: true, featuredShiny, stage: ps.stage, stageLabel: ps.stageLabel, playDays: ps.playDays, nextStageDays: ps.nextStageDays, shiny: ps.shiny, shinyOwned: ps.shinyOwned };
+    const ps = petStateFor(row, ledger, now, plays);
+    return { ...i, owned: true, featuredShiny, stage: ps.stage, stageLabel: ps.stageLabel, level: ps.level, xp: ps.xp, levelXp: ps.levelXp, nextXp: ps.nextXp, shiny: ps.shiny, shinyOwned: ps.shinyOwned };
   });
   const wornPetRow = items.find(i => i.slot === 'pet' && i.worn);
-  const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now) : null;
+  const pet = wornPetRow ? petStateFor(wornPetRow, ledger, now, plays) : null;
   const { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn } = season;
   // The week's shiny coat: its price for this club, and whether this player already owns it (bought once, by the pet's owner).
   const shinyOffer = { ...shinyWeek, price: shinyPriceOf(petById(shinyWeek.petId), prices), owned: !!(ownedById.get(shinyWeek.petId) || {}).shinyOwned };

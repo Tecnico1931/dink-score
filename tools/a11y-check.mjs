@@ -133,15 +133,15 @@ for (const [mode, opt] of states) {
         { id: 'rare', label: 'Rare', chance: 15, items: ['frame-double', 'paddle-stripe'].map(k => byId[k]) }
       ] };
       const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog', price: 300, owned: true };
-      const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, shinyOwned: true, featuredShiny: true };
+      const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Grown', level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: true, shinyOwned: true, featuredShiny: true };
       const shop = { dinks: 12, earned: 40, spent: 28, pace: 1.5, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
         const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck', 'pet-yorkie'].includes(id);
         if (slot !== 'pet') return { id, slot, name, price, owned };
         const featuredShiny = id === 'pet-frog';
         if (!owned) return { id, slot, name, price, owned, featuredShiny };
-        if (id === 'pet-yorkie') return { id, slot, name, price, owned, featuredShiny, stage: 3, stageLabel: 'Veteran', playDays: 16, nextStageDays: null, shiny: false };
-        return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: true, shinyOwned: true }
-          : { id, slot, name, price, owned, featuredShiny, stage: 1, stageLabel: 'Rookie', playDays: 2, nextStageDays: 5, shiny: false };
+        if (id === 'pet-yorkie') return { id, slot, name, price, owned, featuredShiny, stage: 3, stageLabel: 'Champion', level: 8, xp: 40, levelXp: 36, nextXp: 45, shiny: false };
+        return id === 'pet-frog' ? { id, slot, name, price, owned, featuredShiny, stage: 2, stageLabel: 'Grown', level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: true, shinyOwned: true }
+          : { id, slot, name, price, owned, featuredShiny, stage: 1, stageLabel: 'Rookie', level: 1, xp: 2, levelXp: 0, nextXp: 3, shiny: false };
       }) };
       // Seasonal: this season's item for sale, one more from another season already owned (stays wearable), as the server lists them.
       shop.season = { id: 'autumn', name: 'Autumn Clay', dates: '1 September to 30 November (UTC)', returns: 'Autumn Clay returns every September. Anything you already have stays yours.', startsOn: '2026-09-01', endsOn: '2026-11-30' };
@@ -259,6 +259,10 @@ for (const [mode, opt] of states) {
       s = await st();
       if (s.tabs[0] !== 'stats:true:0' || s.focus !== 'stats') bad.push('Home should select Stats: ' + JSON.stringify(s));
       await audit(page, `Own profile, Stats tab (${colorScheme})`, report, '#sheet4 [role="tablist"]');
+      // The pet card (Level N, XP bar) and its quiet evolution note: last seen as a Rookie, now Grown.
+      await page.evaluate(() => { rwSave(rwClean(Object.assign({}, rwCur(), { worn: Object.assign({}, rwCur().worn, { pet: 'pet-frog' }), pet: { id: 'pet-frog', stage: 2, level: 4, xp: 12, levelXp: 10, nextXp: 15 } }))); store.set('pb.petSeen', { [club.code + ':pet-frog']: 1 }); renderProfile(); }); await sleep(250);
+      if (!(await page.$('#sheet4 .rw-petcard .rw-petbar[role="progressbar"]')) || !(await page.$('#sheet4 .rw-evolve [data-rw="petseen"]'))) bad.push('own Stats tab should show the pet card with the evolution note');
+      await audit(page, `Own profile, pet card with the evolution note (${colorScheme})`, report, '#sheet4 .rw-petcard');
       await page.evaluate(() => { profile = { name: 'Ben', mode: 'doubles' }; renderProfile(); }); await sleep(150);
       s = await st();
       if (s.tabs.length || s.chip) bad.push("another player's profile must have no tabs and no Dinks chip: " + JSON.stringify(s));
