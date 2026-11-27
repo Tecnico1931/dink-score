@@ -4,6 +4,7 @@
 // is dropped again when set back to the default. Play money only, no names stored, every save is written to club_audit.
 import { CATALOGUE, BOX_ITEM, loadPrices } from './_economyshop.js';
 import { SEASONAL, EVENT_ITEMS } from './_economyseason.js';
+import { PETS, shinyItemId, shinyPriceFor } from './_economypets.js';
 import { BOX_PRICE } from './_economybox.js';
 import { audit } from './_members.js';
 import { fail } from './_db.js';
@@ -16,6 +17,7 @@ const GROUPS = { frame: 'Rings', paddle: 'Paddle colours', pet: 'Pets', title: '
 const priceable = () => [
   { id: BOX_ITEM, name: 'Mystery box', group: 'Random item', price: BOX_PRICE },
   ...CATALOGUE.map(i => ({ id: i.id, name: i.name, group: GROUPS[i.slot] || i.slot, price: i.price })),
+  ...PETS.filter(p => p.rarity !== 'mythic').map(p => ({ id: shinyItemId(p.id), name: 'Shiny ' + p.name.toLowerCase(), group: 'Weekly shiny coats', price: shinyPriceFor(p) })),
   ...SEASONAL.map(i => ({ id: i.id, name: i.name, group: 'Seasonal', price: i.price })),
   ...EVENT_ITEMS.map(i => ({ id: i.id, name: i.name, group: 'Events', price: i.price }))
 ];

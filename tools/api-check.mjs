@@ -2015,11 +2015,24 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   st = ok(await post('Rory', { action: 'rewards-get' })).pet;
   assert.deepEqual([st.stage, st.stageLabel, st.playDays, st.nextStageDays], [3, 'Veteran', 15, null]);
 
-  // Weekly shiny toggle (Variant A): refused outside featured week, refused on non-pet slot or bad type, allowed on featured pet.
-  assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: otherPet.id, shiny: true })).status, 409, 'non-featured pet shiny refused');
+  // Weekly shiny coat: sold, not free. Wearing it is refused until it is bought; refused on non-pet slot or bad type.
+  assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: otherPet.id, shiny: true })).status, 403, 'a coat not bought is refused');
+  assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id, shiny: true })).status, 403, 'the free toggle is gone: the featured pet needs the coat bought first');
   assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: '', shiny: true })).status, 400, 'shiny on empty pet refused');
   assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'frame', item: '', shiny: true })).status, 400, 'shiny on non-pet slot refused');
   assert.equal((await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id, shiny: 'yes' })).status, 400, 'non-boolean shiny refused');
+  // Buy it: the owner only, in the pet's week, the default price for its tier (or the club's), charged once through the ledger.
+  const sid = 'shiny-' + featuredPet.id, tier = featuredPet.price <= 250 ? 300 : featuredPet.price <= 500 ? 600 : 1400;
+  assert.equal(ok(await post('Rory', { action: 'rewards-catalog' })).shinyWeek.price, tier, 'the week\'s coat is priced by tier');
+  assert.equal((await post('Rory', { action: 'rewards-buy', item: 'shiny-' + otherPet.id })).status >= 400, true, 'a coat that is not this week\'s is refused');
+  assert.equal((await post('Rory', { action: 'rewards-buy', item: 'shiny-pet-supernova' })).status, 400, 'the Mythic pet has no coat');
+  await grant('Rory', 'seed:shiny', 5000);
+  const balNow = ok(await post('Rory', { action: 'rewards-catalog' })).dinks;
+  const sb = ok(await post('Rory', { action: 'rewards-buy', item: sid, price: 1 }));
+  assert.equal(sb.bought, true); assert.equal(sb.dinks, balNow - tier); assert.equal(sb.shinyWeek.owned, true);
+  assert.equal(sb.items.find(i => i.id === featuredPet.id).shinyOwned, true);
+  assert.equal(ok(await post('Rory', { action: 'rewards-buy', item: sid })).bought, false, 'a second buy charges nothing');
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'rory' AND id = $2`, [pcode, 'buy:' + sid])).rows[0].n, 1);
   w = ok(await post('Rory', { action: 'rewards-wear', slot: 'pet', item: featuredPet.id, shiny: true }));
   assert.equal(w.pet.shiny, true);
   assert.equal(w.items.find(i => i.id === featuredPet.id).shiny, true);
@@ -2081,11 +2094,27 @@ await step('rewards Yorkie: bought once, one pet worn, stage growth by play days
   p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.equal(p.stage, 2); assert.equal(p.stageLabel, 'Club');
   for (let d = 15; d <= 24; d++) await earn('day:2027-01-' + d, 1, '2027-01-' + d);
   p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.equal(p.stage, 3); assert.equal(p.stageLabel, 'Veteran');
-  // Shiny: only in the Yorkie's own week; the next week the flag stays stored but is off, and a new request is refused.
-  assert.equal((await wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: yorkieWeek })).pet.shiny, true);
-  assert.equal((await shopView(sql, code, key, frogWeek)).pet.shiny, false, 'back to the classic coat next Monday');
-  await assert.rejects(wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: frogWeek }), e => e.status === 409 && /Court Frog/.test(e.message));
-  assert.equal((await wearItem(sql, code, key, 'pet', 'pet-frog', { shiny: true, now: frogWeek })).pet.shiny, true, 'the Frog has its week');
+  // Shiny coat: sold to the pet's owner in its own week (Yorkie 400 -> tier price 600, or the club's own price), kept for good, never free.
+  await assert.rejects(wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: yorkieWeek }), e => e.status === 403, 'not bought yet: no coat');
+  await assert.rejects(buyItem(sql, code, key, 'shiny-pet-yorkie', yorkieWeek), e => e.status === 409 && /Not enough Dinks yet: Shiny yorkie costs 600/.test(e.message));
+  await assert.rejects(buyItem(sql, code, key, 'shiny-pet-frog', yorkieWeek), e => e.status === 409 && /isn't on sale this week/.test(e.message), 'owns the frog, but it is not its week');
+  await assert.rejects(buyItem(sql, code, key, 'shiny-pet-duck', yorkieWeek), e => e.status === 403, 'not the duck\'s owner');
+  await assert.rejects(buyItem(sql, code, key, 'shiny-pet-supernova', yorkieWeek), e => e.status === 400);
+  await earn('shiny-seed', 2000);
+  await pg.query(`INSERT INTO club_shop_prices (club, item, price) VALUES ($1, 'shiny-pet-yorkie', 500) ON CONFLICT (club, item) DO UPDATE SET price = 500`, [code]);
+  const before = (await shopView(sql, code, key, yorkieWeek)).dinks, sold = await buyItem(sql, code, key, 'shiny-pet-yorkie', yorkieWeek);
+  assert.equal(sold.bought, true); assert.equal(sold.dinks, before - 500, 'charged the club price'); assert.equal(sold.shinyWeek.owned, true);
+  assert.equal((await buyItem(sql, code, key, 'shiny-pet-yorkie', yorkieWeek)).bought, false, 'a second buy charges nothing');
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = $2 AND id = 'buy:shiny-pet-yorkie'`, [code, key])).rows[0].n, 1);
+  await pg.query(`DELETE FROM club_shop_prices WHERE club = $1 AND item = 'shiny-pet-yorkie'`, [code]);
+  const on = await wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: yorkieWeek });
+  assert.equal(on.pet.shiny, true); assert.equal(on.pet.stage, 3, 'it keeps its level');
+  assert.equal((await shopView(sql, code, key, frogWeek)).pet.shiny, true, 'still on the Monday after: the coat is owned for good');
+  await assert.rejects(wearItem(sql, code, key, 'pet', 'pet-frog', { shiny: true, now: frogWeek }), e => e.status === 403, 'the Frog coat was not bought');
+  assert.equal((await wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: false, now: frogWeek })).pet.shiny, false);
+  // The old free toggle: a coat already switched on becomes owned (the schema backfill), one not switched on stays unowned.
+  await pg.query(`UPDATE reward_items SET shiny_owned = false, shiny = true WHERE club = $1 AND name_key = $2 AND item = 'pet-yorkie'`, [code, key]);
+  assert.equal((await shopView(sql, code, key, frogWeek)).items.find(i => i.id === 'pet-yorkie').shinyOwned, true, 'a toggled shiny stays owned');
 });
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';

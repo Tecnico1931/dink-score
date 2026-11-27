@@ -251,15 +251,17 @@ test('shiny rotation: the 4-pet cycle is untouched before the cutover week, the 
     assert.notEqual(w.petId, next.petId);
     assert.equal(w.end - w.start, WEEK_MS);
   }
-  // Yorkie shiny state: on only in its week, off the Monday after, even with the toggle stored.
+  // Yorkie shiny state: a bought coat stays on in any week (it is the owner's for good), and its worn flag is what the club sees.
   const row = { id: 'pet-yorkie', item: 'pet-yorkie', slot: 'pet', worn: true, shiny: true, at: '2027-01-10T10:00:00Z' };
   assert.equal(petStateFor(row, [], Date.UTC(2027, 0, 20)).shiny, true);
-  assert.equal(petStateFor(row, [], Date.UTC(2027, 0, 27)).shiny, false);
+  assert.equal(petStateFor(row, [], Date.UTC(2027, 0, 27)).shiny, true, 'still on the Monday after');
+  assert.equal(petStateFor({ ...row, shiny: false, shinyOwned: true }, [], Date.UTC(2027, 0, 27)).shinyOwned, true);
+  assert.equal(petStateFor({ ...row, shiny: false }, [], Date.UTC(2027, 0, 27)).shinyOwned, false);
   assert.deepEqual(cleanPetLook({ slot: 'pet', item: 'pet-yorkie', shiny: true, play_days: 15 }, Date.UTC(2027, 0, 20)), { pet: 'pet-yorkie', petStage: 3, petShiny: true });
-  assert.deepEqual(clubLooksFrom([{ name_key: 'yo', slot: 'pet', item: 'pet-yorkie', shiny: true, play_days: 5, dinks: 20 }], Date.UTC(2027, 0, 27)), { yo: { pet: 'pet-yorkie', petStage: 2, petShiny: false } });
+  assert.deepEqual(clubLooksFrom([{ name_key: 'yo', slot: 'pet', item: 'pet-yorkie', shiny: true, play_days: 5, dinks: 20 }], Date.UTC(2027, 0, 27)), { yo: { pet: 'pet-yorkie', petStage: 2, petShiny: true } });
 });
 
-test('Variant A shiny state and clubLooksFrom allow-list: active only in featured week, zero extra fields leaked', () => {
+test('shiny state and clubLooksFrom allow-list: a worn coat shows in any week, zero extra fields leaked', () => {
   const wk0 = Date.UTC(2026, 4, 4, 12, 0, 0); // fixed Monday week
   const featured = shinyWeekFor(wk0).petId;
   const nextWk = wk0 + WEEK_MS;
@@ -275,11 +277,11 @@ test('Variant A shiny state and clubLooksFrom allow-list: active only in feature
   assert.equal(during.playDays, 5);
   assert.equal(during.nextStageDays, 15);
   assert.equal(during.featuredShiny, true);
-  assert.equal(during.shiny, true, 'shiny is active during its featured week');
+  assert.equal(during.shiny, true, 'a worn coat shows');
 
   const after = petStateFor(row, ledger, nextWk);
   assert.equal(after.featuredShiny, false);
-  assert.equal(after.shiny, false, 'Variant A: shiny automatically turns off once the featured week ends');
+  assert.equal(after.shiny, true, 'the coat does not turn off when the featured week ends');
 
   // clubLooksFrom allow-lists ONLY pet, petStage, petShiny (plus frame/paddle), never playDays/dinks/streak/at/price.
   const looksDuring = clubLooksFrom([
@@ -293,12 +295,12 @@ test('Variant A shiny state and clubLooksFrom allow-list: active only in feature
   });
   assert.ok(!/play_days|playDays|dinks|streak|dragon|price|2026-05-01/.test(JSON.stringify(looksDuring)));
 
-  // Same stored shiny=true row in the following week emits petShiny: false!
+  // Same stored shiny=true row in the following week still emits petShiny: true.
   const looksNext = clubLooksFrom([
     { name_key: 'ana', slot: 'pet', item: featured, shiny: true, play_days: 15 }
   ], nextWk);
   assert.deepEqual(looksNext, {
-    ana: { pet: featured, petStage: 3, petShiny: false }
+    ana: { pet: featured, petStage: 3, petShiny: true }
   });
 
   // cleanPetLook rejects non-pet rows.
@@ -462,18 +464,18 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
 
   const shinyFrogWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog' };
   const shinyOwlWeek = { weekId: '2026-W23', start: 0, end: 1, petId: 'pet-owl', petName: 'Lob owl' };
-  const mkStore = ({ dinks = 250, wornPet = 'pet-frog', frogShiny = false, shinyWeek = shinyFrogWeek, owned = ['pet-frog'] } = {}) => ({
+  const mkStore = ({ dinks = 250, wornPet = 'pet-frog', frogShiny = false, frogCoat = false, shinyWeek: wk = shinyFrogWeek, owned = ['pet-frog'] } = {}) => ({
     dinks,
     worn: { frame: '', paddle: '', pet: wornPet },
-    pet: wornPet === 'pet-frog' ? { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: frogShiny && shinyWeek.petId === 'pet-frog', featuredShiny: shinyWeek.petId === 'pet-frog' } : null,
-    shinyWeek,
+    pet: wornPet === 'pet-frog' ? { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: frogShiny, shinyOwned: frogCoat || frogShiny, featuredShiny: wk.petId === 'pet-frog' } : null,
+    shinyWeek: { ...wk, price: wk.petId === 'pet-frog' ? 300 : 600, owned: wk.petId === 'pet-frog' && (frogCoat || frogShiny) },
     share: false,
     items: CATALOGUE.map(i => {
       if (i.slot !== 'pet') return { ...i, owned: false };
       const isOwned = owned.includes(i.id);
-      const featuredShiny = shinyWeek.petId === i.id;
+      const featuredShiny = wk.petId === i.id;
       if (!isOwned) return { ...i, owned: false, featuredShiny };
-      return { ...i, owned: true, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: i.id === 'pet-frog' && frogShiny && featuredShiny };
+      return { ...i, owned: true, featuredShiny, stage: 2, stageLabel: 'Club', playDays: 7, nextStageDays: 15, shiny: i.id === 'pet-frog' && frogShiny, shinyOwned: i.id === 'pet-frog' && (frogCoat || frogShiny) };
     })
   });
 
@@ -482,7 +484,8 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
     replyFn: async b => {
       if (b.action === 'rewards-catalog') return mkStore();
       if (b.action === 'rewards-wear' && b.shiny === true) return mkStore({ frogShiny: true });
-      if (b.action === 'rewards-wear' && b.shiny === false) return mkStore({ frogShiny: false });
+      if (b.action === 'rewards-wear' && b.shiny === false) return mkStore({ frogCoat: true });
+      if (b.action === 'rewards-buy' && b.item === 'shiny-pet-frog') return mkStore({ dinks: 100, frogCoat: true });
       if (b.action === 'rewards-buy') return mkStore({ dinks: 50, owned: ['pet-frog', 'pet-duck'] });
       return mkStore({ wornPet: '' });
     }
@@ -491,13 +494,16 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   const html = p.x.Rewards.storeHTML(p.x.sheet);
   assert.match(html, /Court pets/);
   assert.match(html, /Shiny this week<\/span><b>Shiny court frog<\/b>/);
-  assert.match(html, /A rare colour version for anyone who owns the Court Frog\. It keeps its level\. Free until \w+, \w+ \d+\. Next week, another pet\./, 'the end is a date, not a countdown');
+  assert.match(html, /A rare colour version for anyone who owns the Court Frog\. It keeps its level\. For sale until \w+, \w+ \d+ · 300 Dinks\. Next week, another pet\./, 'the end is a date, not a countdown; the price is shown');
   assert.ok(!/days? left/i.test(html), 'no countdown');
-  assert.ok(!/rw-hero-lock/.test(html), 'an owner sees the toggle, not the locked state');
+  assert.ok(!/rw-hero-lock/.test(html), 'an owner sees the buy button, not the locked state');
+  assert.match(html, /data-rw-shiny-buy="pet-frog" aria-label="Buy Shiny court frog for 300 Dinks\. You need 50 more"[^>]*>50 more</, 'the owner buys the coat; the shortfall is stated');
+  assert.ok(!/data-rw-shiny="/.test(html), 'no coat owned yet: no switch');
+  assert.ok(!/Free|free shiny/.test(html), 'the coat is sold, not free');
   assert.match(html, /data-rw="pets"[^>]*>Pet collection: see how every pet grows</);
   assert.ok(html.includes(PETS.filter(p => p.rarity !== 'mythic').map(p => p.name).join(' → ')), 'the rotation lists every pet, in order');
   assert.match(html, /Lob owl → Yorkie → Pickle pup/);
-  assert.match(html, /in turn, rotating every Monday/);
+  assert.match(html, /for sale in turn, rotating every Monday/);
   assert.match(html, /data-rw-buy="pet-yorkie"[^>]*>150 more</);
   assert.match(html, /Yorkie<\/b><small class="rw-cost">400 Dinks<\/small>/, 'Yorkie is listed at its fixed price');
   assert.match(html, /aria-label="Adopt Yorkie for 400 Dinks\. You need 150 more"/);
@@ -506,19 +512,34 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(html, /data-rw-wear="pet:pet-frog"[^>]*aria-pressed="true"/);
   assert.match(html, /data-rw-wear="pet:"/);
   assert.match(html, /Club · 8 more play days to Veteran \(7\/15\)/);
-  assert.match(html, /data-rw-shiny="pet-frog:1"[^>]*aria-pressed="false"/, 'one-tap shiny toggle appears during featured week');
   assert.match(html, /data-rw-buy="pet-duck"/);
   assert.match(html, /Dink duck<\/b><small class="rw-cost">200 Dinks/);
   assert.match(html, /data-rw-buy="pet-cat"[^>]*aria-label="Adopt Kitchen cat for 500 Dinks\. You need 250 more"[^>]*>250 more</, 'shortfall stated before tapping');
   assert.ok(!/data-rw-buy="pet-frog"/.test(html), 'owned pet is not offered to adopt again');
   assert.ok(!/animation|odds|random/i.test(html), 'calm copy only'); // the Confetti celebration card (WI-16) is a name, not an effect
 
-  // Clicking the one-tap shiny toggle sends rewards-wear with shiny: true, announces.
+  // Buying the coat: a short balance only says so (no call); with enough Dinks it sends rewards-buy for the shiny id, never a price.
   const click = ds => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: ds }) } }));
+  const before = p.calls.length;
+  click({ rwShinyBuy: 'pet-frog' });
+  assert.equal(p.calls.length, before, 'too few Dinks: no request');
+  assert.equal(p.announced.at(-1), 'Not enough Dinks yet: Shiny court frog costs 300 and you have 250.');
+  p.x.sheet.store = mkStore({ dinks: 400 });
+  click({ rwShinyBuy: 'pet-frog' });
+  await new Promise(r => setTimeout(r, 10));
+  assert.deepEqual(p.calls.at(-1), { name: 'Ana', playerToken: 'tok', action: 'rewards-buy', item: 'shiny-pet-frog' });
+  assert.match(p.announced.at(-1), /Shiny court frog is yours for 300 Dinks/);
+  const ownHtml = p.x.Rewards.storeHTML(p.x.sheet);
+  assert.match(ownHtml, /rw-hero-lock" aria-disabled="true" tabindex="-1"><span aria-hidden="true">✦ <\/span>Yours</, 'the hero says Yours once bought');
+  assert.ok(!/data-rw-shiny-buy/.test(ownHtml), 'no second buy');
+  assert.match(ownHtml, /data-rw-shiny="pet-frog:1"[^>]*aria-pressed="false"/, 'the owner gets the coat switch');
+  assert.match(ownHtml, /Club · 8 more play days to Veteran \(7\/15\) · Shiny coat owned/, 'the pet keeps its level');
+
+  // Clicking the shiny switch sends rewards-wear with shiny: true, announces.
   click({ rwShiny: 'pet-frog:1' });
   await new Promise(r => setTimeout(r, 10));
   assert.deepEqual(p.calls.at(-1), { name: 'Ana', playerToken: 'tok', action: 'rewards-wear', slot: 'pet', item: 'pet-frog', shiny: true });
-  assert.equal(p.announced.at(-1), 'Shiny coat on for Court Frog this week.');
+  assert.equal(p.announced.at(-1), 'Shiny coat on for Court Frog.');
   assert.equal(p.focused.at(-1), '[data-rw-shiny]');
 
   // Clicking Adopt for an affordable pet sends rewards-buy (never a price) and announces.
@@ -528,7 +549,8 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.equal('price' in p.calls.at(-1), false);
   assert.match(p.announced.at(-1), /Dink duck is yours for 200 Dinks/);
 
-  // Outside the owned pet's featured week: NO shiny toggle is rendered, while the rotation spotlight still names this week's pet.
+  // Another pet's week: no switch for a coat not bought, but a bought coat keeps its switch in any week.
+  assert.match(p.x.Rewards.storeHTML({ store: mkStore({ shinyWeek: shinyOwlWeek, frogCoat: true }), msg: '', error: '', busy: false }), /data-rw-shiny="pet-frog:1"/);
   const offWeekHtml = p.x.Rewards.storeHTML({ store: mkStore({ shinyWeek: shinyOwlWeek }), msg: '', error: '', busy: false });
   assert.match(offWeekHtml, /Shiny this week<\/span><b>Shiny lob owl<\/b>/);
   assert.match(offWeekHtml, /rw-hero-lock" aria-disabled="true">Get the lob owl first</, 'not owned: quiet locked state, no price');
@@ -545,7 +567,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(coll, /Yours: Club/);
   assert.match(coll, /data-rw="store">Back to the shop</);
   assert.ok(!/animation|odds|random/i.test(coll.replace(/data-pet-shiny/g, '')), 'calm copy only');
-  assert.ok(!/data-rw-shiny/.test(offWeekHtml), 'shiny toggle must not appear outside an owned pet featured week');
+  assert.ok(!/data-rw-shiny/.test(offWeekHtml), 'no switch for a coat that was never bought');
 
   // Club rewards off or player hid rewards: nothing shows on the Your Dinks tile or Shop sheet.
   for (const opts of [{ rewards: false, hide: false }, { rewards: true, hide: true }]) {
