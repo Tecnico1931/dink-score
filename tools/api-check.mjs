@@ -2115,7 +2115,6 @@ await step('rewards Yorkie: bought once, one pet worn, stage growth by play days
   p = (await shopView(sql, code, key, yorkieWeek)).pet; assert.deepEqual([p.stage, p.stageLabel, p.level, p.xp, p.nextXp], [3, 'Champion', 8, 37, 45]);
   assert.equal((await shopView(sql, code, key, yorkieWeek)).items.find(i => i.id === 'pet-yorkie').level, 8, 'the shop list carries the level too');
   assert.equal((await shopView(sql, code, key, yorkieWeek)).items.find(i => i.id === 'pet-frog').xp, 39, 'every owned pet earns from its own adoption: the Frog (adopted earlier) also got the 2 XP of the game before the Yorkie arrived');
-  await pg.query(`DELETE FROM games WHERE club = $1 AND id LIKE 'yxp-%'`, [code]); // later steps look for duplicate games in this club
   // Shiny coat: sold to the pet's owner in its own week (Yorkie 400 -> tier price 600, or the club's own price), kept for good, never free.
   await assert.rejects(wearItem(sql, code, key, 'pet', 'pet-yorkie', { shiny: true, now: yorkieWeek }), e => e.status === 403, 'not bought yet: no coat');
   await assert.rejects(buyItem(sql, code, key, 'shiny-pet-yorkie', yorkieWeek), e => e.status === 409 && /Not enough Dinks yet: Shiny yorkie costs 600/.test(e.message));
@@ -2137,6 +2136,7 @@ await step('rewards Yorkie: bought once, one pet worn, stage growth by play days
   // The old free toggle: a coat already switched on becomes owned (the schema backfill), one not switched on stays unowned.
   await pg.query(`UPDATE reward_items SET shiny_owned = false, shiny = true WHERE club = $1 AND name_key = $2 AND item = 'pet-yorkie'`, [code, key]);
   assert.equal((await shopView(sql, code, key, frogWeek)).items.find(i => i.id === 'pet-yorkie').shinyOwned, true, 'a toggled shiny stays owned');
+  await pg.query(`DELETE FROM games WHERE club = $1 AND id LIKE 'yxp-%'`, [code]); // later steps look for duplicate games in this club
 });
 await step('pay link and pinned note: organizer only, validated, members read them, both can be cleared', async () => {
   const link = 'https://pay.example.com/dues';

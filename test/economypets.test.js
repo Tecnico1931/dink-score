@@ -609,7 +609,7 @@ test('Shop Pets UI and Your Dink companion: adopt, picker, growth progress, feat
   assert.match(ownHtml, /rw-hero-lock" aria-disabled="true" tabindex="-1"><span aria-hidden="true">✦ <\/span>Yours</, 'the hero says Yours once bought');
   assert.ok(!/data-rw-shiny-buy/.test(ownHtml), 'no second buy');
   assert.match(ownHtml, /data-rw-shiny="pet-frog:1"[^>]*aria-pressed="false"/, 'the owner gets the coat switch');
-  assert.match(ownHtml, /Club · 8 more play days to Veteran \(7\/15\) · Shiny coat owned/, 'the pet keeps its level');
+  assert.match(ownHtml, /Level 4 · Grown · 3 XP to level 5 · Shiny coat owned/, 'the pet keeps its level');
 
   // Clicking the shiny switch sends rewards-wear with shiny: true, announces.
   click({ rwShiny: 'pet-frog:1' });
