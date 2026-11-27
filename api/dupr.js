@@ -1,5 +1,5 @@
 // DUPR: link a saved player to their DUPR account, show their DUPR ratings, and send event match scores to DUPR.
-// Everything here is switched off (and answers {enabled:false}) unless DUPR_CLIENT_KEY and DUPR_CLIENT_SECRET are set.
+// Everything here is switched off (and answers {enabled:false}) unless DUPR_CONNECT_ENABLED=true and DUPR_CLIENT_KEY and DUPR_CLIENT_SECRET are set (other actions answer 403 'not enabled').
 // GET  /api/dupr?code=ABC123            -> {enabled, env, loginUrl, loginOrigin, paused, players:{nameKey:{rating, provisional, at, needsRelink}}}
 // POST /api/dupr {code, action, ...}
 //   link    {playerName, playerToken|pin|ownerToken, userToken}  -> the phone that claimed the name (or an organizer) links it to
@@ -210,7 +210,7 @@ export default handler(async (req, res) => {
   const cfg = config();
   if (!cfg) { // switched off: no database use, nothing to see
     if (req.method === 'GET') return send(res, 200, { enabled: false });
-    throw fail(404, 'Not found.');
+    throw fail(403, 'DUPR connect is not enabled.');
   }
   const sql = db();
   await ensureDuprSchema();

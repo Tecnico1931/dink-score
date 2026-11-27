@@ -34,7 +34,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 neon.neonConfig.fetchEndpoint = () => `http://127.0.0.1:${server.address().port}/sql`;
 process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
-delete process.env.DUPR_CLIENT_KEY; delete process.env.DUPR_CLIENT_SECRET; delete process.env.DUPR_ENV;
+delete process.env.DUPR_CLIENT_KEY; delete process.env.DUPR_CLIENT_SECRET; delete process.env.DUPR_ENV; delete process.env.DUPR_CONNECT_ENABLED;
 
 const load = async name => (await import(pathToFileURL(path.join(root, 'api', name + '.js')).href)).default;
 const [club, games, events, playersApi, dupr] = await Promise.all(['club', 'games', 'events', 'players', 'dupr'].map(load));
@@ -61,7 +61,8 @@ const gamesBefore = async () => ok(await call(club, 'GET', { query: '?code=' + c
 // ---------- switched off ----------
 await step('without keys everything is inert: {enabled:false}, no tables, no other API changes', async () => {
   assert.deepEqual(ok(await call(dupr, 'GET', { query: '?code=' + code })), { enabled: false });
-  assert.equal((await call(dupr, 'POST', { body: { code, action: 'link' } })).status, 404);
+  const refused = await call(dupr, 'POST', { body: { code, action: 'link' } });
+  assert.equal(refused.status, 403); assert.match(refused.json.error, /not enabled/);
   assert.equal(await tableExists('dupr_matches'), false);
   assert.equal(await tableExists('dupr_state'), false);
   const cols = (await dbRows("SELECT column_name FROM information_schema.columns WHERE table_name = 'roster'")).map(r => r.column_name);
@@ -70,9 +71,22 @@ await step('without keys everything is inert: {enabled:false}, no tables, no oth
   assert.ok(!JSON.stringify(c).includes('loginUrl'));
 });
 
+await step('keys set but DUPR_CONNECT_ENABLED unset: still inert, actions refused, self-reported rating untouched', async () => {
+  process.env.DUPR_CLIENT_KEY = KEY; process.env.DUPR_CLIENT_SECRET = SECRET; process.env.DUPR_ENV = 'uat';
+  assert.deepEqual(ok(await call(dupr, 'GET', { query: '?code=' + code })), { enabled: false });
+  for (const action of ['link', 'unlink', 'refresh', 'review', 'send']) {
+    const r = await call(dupr, 'POST', { body: { code, action, id: 'x', playerName: 'Ana' } });
+    assert.equal(r.status, 403, action); assert.match(r.json.error, /not enabled/);
+  }
+  assert.equal(await tableExists('dupr_matches'), false);
+  process.env.DUPR_CONNECT_ENABLED = 'false'; assert.deepEqual(ok(await call(dupr, 'GET', { query: '?code=' + code })), { enabled: false });
+  const { cleanDupr } = await import(pathToFileURL(path.join(root, 'api', '_dupr.js')).href);
+  assert.equal(cleanDupr('3.52'), 3.52);
+});
+
 // ---------- switched on, against the mock ----------
 const mock = await startMock();
-process.env.DUPR_CLIENT_KEY = KEY; process.env.DUPR_CLIENT_SECRET = SECRET; process.env.DUPR_ENV = 'uat';
+process.env.DUPR_CONNECT_ENABLED = 'true'; process.env.DUPR_CLIENT_KEY = KEY; process.env.DUPR_CLIENT_SECRET = SECRET; process.env.DUPR_ENV = 'uat';
 __test.set({ hosts: mock.hosts, sleep: async () => {} });
 const st = mock.state;
 names.forEach((n, i) => st.addUser(`sso-token-${n.toLowerCase()}-0000000`, `${n.toUpperCase()}00${i + 1}`, { doubles: (3 + i / 10).toFixed(3), singles: '3.610' }));

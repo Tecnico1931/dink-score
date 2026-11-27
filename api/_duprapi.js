@@ -1,5 +1,5 @@
 // DUPR partner client: configuration, the cached partner token, and the few calls the app makes. Files starting with
-// "_" are not routes. Everything is off unless DUPR_CLIENT_KEY and DUPR_CLIENT_SECRET are set (DUPR_ENV=prod by default; uat or test selects DUPR's test site).
+// "_" are not routes. Everything is off unless DUPR_CONNECT_ENABLED=true and DUPR_CLIENT_KEY and DUPR_CLIENT_SECRET are set (DUPR_ENV=prod by default; uat or test selects DUPR's test site).
 // Secrets come only from the environment, are never logged, and never leave this server: the browser gets the
 // base64 client key (what DUPR's login iframe needs), nothing else.
 // Built from DUPR's published OpenAPI specs and docs; real behaviour was only checked against a local mock.
@@ -19,6 +19,7 @@ export const __test = {
 
 export function config() {
   const key = String(process.env.DUPR_CLIENT_KEY || '').trim(), secret = String(process.env.DUPR_CLIENT_SECRET || '').trim();
+  if (!/^(1|true|yes|on)$/i.test(String(process.env.DUPR_CONNECT_ENABLED || '').trim())) return null; // feature flag, off by default until DUPR approves access
   if (!key || !secret) return null;
   const env = /^(uat|test)$/i.test(String(process.env.DUPR_ENV || '').trim()) ? 'uat' : 'prod';
   return { key, secret, env, hosts: hooks.hosts || HOSTS[env] };
