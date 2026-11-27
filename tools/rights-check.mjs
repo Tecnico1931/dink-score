@@ -83,6 +83,8 @@ await pg.query(`INSERT INTO reward_items (club, name_key, item, slot, worn) SELE
 await pg.query(`INSERT INTO reward_items (club, name_key, item, slot, worn, shiny) SELECT code, k, 'pet-frog', 'pet', true, true FROM clubs, (VALUES ('ana'), ('ben')) AS v(k)`); // bought court pet with weekly shiny toggle, private unless opted in
 await pg.query(`INSERT INTO accounts (id, display_name) VALUES ('acct1', 'x')`);
 await pg.query(`INSERT INTO account_identities (account_id, club, kind, name_key, proof) SELECT 'acct1', code, 'player', 'ana', 'p' FROM clubs`);
+await pg.query(`INSERT INTO account_emails (email, account_id) VALUES ('ana@example.test', 'acct1')`); // email sign-in: belongs to the account, not to any club
+await pg.query(`INSERT INTO email_links (token_hash, email, account_id, expires_at) VALUES ('h1', 'ana@example.test', 'acct1', now() + interval '15 minutes')`);
 // A linked watch with a live game sent to it: club deletion must take both, and no export may carry its hashes.
 const { pairHash, pollHash, shortCode, shortHash } = await import(pathToFileURL(path.join(root, 'api', '_watchrules.js')).href);
 const W = (body, headers = {}) => call(live, 'POST', { body, headers });
@@ -282,6 +284,12 @@ await step('delete club: once the window has passed everything is removed, and t
   }
   assert.equal((await call(games, 'POST', { body: { code, games: [gm('late-one', [['A', 'B'], ['C', 'D']], [11, 1], 1)] } })).status, 404);
   assert.equal((await call(club, 'GET', { query: '?code=' + other.club.code })).json.games.length, 1); // other clubs are untouched
+});
+
+await step('account email: anonymise and club deletion leave the account alone; deleting the account removes the address and pending links', async () => {
+  assert.equal((await pg.query(`SELECT 1 FROM account_emails WHERE email = 'ana@example.test'`)).rows.length, 1); // not a club's data
+  await pg.query(`DELETE FROM accounts WHERE id = 'acct1'`); // what delete-account does (tools/account-check.mjs runs the route)
+  for (const t of ['account_emails', 'email_links']) assert.equal((await pg.query(`SELECT 1 FROM ${t}`)).rows.length, 0, t);
 });
 
 console.log(`\n${passed} checks passed`);

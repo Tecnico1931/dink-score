@@ -14,20 +14,24 @@
 //   claim {items: [{code, ownerToken?, playerName?, playerToken?}]}
 //                                            -> (signed in) links club identities this phone can already prove it holds
 //   restore {items: [{code, kind, name?}]}   -> (signed in) hands a new phone fresh tokens for identities linked earlier
-//   delete-account                           -> removes the account, its passkeys, sessions and links (clubs are untouched)
+//   email-start {email, name?}               -> emails a one-time sign-in link (15 minutes). Same answer whether or not the address is known
+//   email-finish {token}                     -> trades the link's token for a session: the account holding that address, else (when asked
+//                                               from a signed-in session) that account gains the address, else a new account is made
+//   email-remove {email} / export            -> (signed in) drop an address (never the last way in) / the account's data as JSON
+//   delete-account                           -> removes the account, its passkeys, emails, sessions and links (clubs are untouched)
 //
-// Sign-in is a passkey only: no passwords. The RP ID and origin come from the request's Origin header, which must
+// Sign-in is a passkey or an emailed link: no passwords. Email needs RESEND_API_KEY and MAIL_FROM (api/_mail.js); without them
+// the action answers 404 and `config.email` is false, so the page shows nothing. The RP ID and origin come from the request's Origin header, which must
 // be in WEBAUTHN_ORIGINS (comma-separated; RP ID = its hostname). Unset, one legacy pair: WEBAUTHN_RP_ID, WEBAUTHN_ORIGIN.
 // A passkey belongs to the RP ID it was created under (passkeys.rp_id; null = the legacy RP ID) and only works on that address.
-// Hook for email magic links (not built: needs a custom domain and a mail provider): add an `email-start` / `email-finish`
-// pair that ends in startSession(res, accountId), exactly as `login` does below, and a verified `email` column on accounts.
 import { createHash, randomBytes } from 'node:crypto';
 import { db, handler, send, readBody, fail, cleanCode, requireClub, clientIp, cleanName, nameKey, hashToken, newOwnerToken, tokenMatches } from './_db.js';
 import { b64u, newChallenge, creationOptions, requestOptions, verifyRegistration, verifyAssertion, resolveRp } from './_webauthn.js';
+import { mailEnabled, cleanEmail, sendLoginMail } from './_mail.js';
 
 const COOKIE = '__Host-dink_session'; // __Host-: Secure, Path=/, no Domain, so no sibling host can set or read it
 const SESSION_DAYS = 30;
-const MAX_IDENTITIES = 100, MAX_CLAIMS_PER_CALL = 30, MAX_PASSKEYS = 10;
+const MAX_IDENTITIES = 100, MAX_CLAIMS_PER_CALL = 30, MAX_PASSKEYS = 10, MAX_EMAILS = 5;
 
 export function config(req) {
   const rp = resolveRp(process.env, (req.headers || {}).origin);
@@ -40,8 +44,8 @@ const cleanLabel = raw => cleanName(raw).slice(0, 40);
 
 // Per-address limits share the lookup_fails table with the club-code and PIN limits. Record first, then count, so
 // simultaneous requests see each other. `forgive` removes the mark when the attempt turned out fine.
-async function throttle(sql, req, kind, max, window) {
-  const key = `acct-${kind}:${clientIp(req)}`;
+async function throttle(sql, req, kind, max, window, who = clientIp(req)) {
+  const key = `acct-${kind}:${who}`;
   const [{ id }] = await sql`INSERT INTO lookup_fails (ip) VALUES (${key}) RETURNING id`;
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM lookup_fails WHERE ip = ${key} AND at > now() - ${window}::interval`;
   if (n > max) throw fail(429, 'Too many attempts. Wait a few minutes and try again.');
@@ -101,9 +105,10 @@ const fresh = row => row.proof === (row.kind === 'organizer' ? row.owner_hash : 
 async function view(sql, account, cfg) {
   const rows = await identityRows(sql, account.id);
   const [{ n, here }] = await sql`SELECT count(*)::int AS n, count(*) FILTER (WHERE coalesce(rp_id, ${cfg.legacyRpId}) = ${cfg.rpId})::int AS here FROM passkeys WHERE account_id = ${account.id}`;
+  const emails = (await sql`SELECT email FROM account_emails WHERE account_id = ${account.id} ORDER BY created_at, email`).map(r => r.email);
   return {
     // `passkeysHere`: passkeys that work on the address this request came from (a passkey works only where it was made).
-    account: { name: account.display_name, passkeys: n, passkeysHere: here, host: cfg.rpId, createdAt: account.created_at },
+    account: { name: account.display_name, passkeys: n, passkeysHere: here, emails, host: cfg.rpId, createdAt: account.created_at },
     // `stale` = the organizer released the name or the club's creating phone changed since it was linked: it can't be restored.
     identities: rows.map(r => ({ code: r.code, club: r.club_name, kind: r.kind, name: r.kind === 'player' ? r.player_name : null, stale: !fresh(r) }))
   };
@@ -114,13 +119,13 @@ export default handler(async (req, res) => {
   if (req.method === 'GET') {
     // A GET carries no Origin header: use the page's own host, else the legacy pair (nothing is verified on a GET).
     const cfg = resolveRp(process.env, 'https://' + String((req.headers || {}).host || '').toLowerCase()) || legacyConfig();
-    const publicConfig = { rpId: cfg.rpId, origin: cfg.origin };
+    const publicConfig = { rpId: cfg.rpId, origin: cfg.origin, email: mailEnabled() };
     const account = await sessionAccount(sql, req);
     return send(res, 200, account ? { config: publicConfig, ...(await view(sql, account, cfg)) } : { config: publicConfig, account: null, identities: [] });
   }
   if (req.method !== 'POST') throw fail(405, 'Method not allowed.');
   const cfg = sameOrigin(req);
-  const publicConfig = { rpId: cfg.rpId, origin: cfg.origin };
+  const publicConfig = { rpId: cfg.rpId, origin: cfg.origin, email: mailEnabled() };
   const body = await readBody(req);
   const action = String(body.action || '');
 
@@ -197,6 +202,54 @@ export default handler(async (req, res) => {
     await startSession(sql, res, account.id);
     return send(res, 200, { config: publicConfig, ...(await view(sql, account, cfg)) });
   }
+  // Email link. The link opens the page (the token rides in the address fragment, so it never reaches a server log or Referer), and the
+  // page trades it here: a mail scanner that only fetches the link can't use it up. Existing and new addresses get the same answer.
+  if (action === 'email-start') {
+    if (!mailEnabled()) throw fail(404, 'Email sign-in is not switched on.');
+    const email = cleanEmail(body.email);
+    if (!email) throw fail(400, 'Enter a valid email address.');
+    await throttle(sql, req, 'email', 8, '1 hour');
+    const sent = { ok: true, message: 'If that address can sign in, a link is on its way. It works once, for 15 minutes.' };
+    try { await throttle(sql, req, 'emailto', 3, '30 minutes', sha(email)); } // per address, so nobody can flood one inbox; no 429, so it can't tell addresses apart
+    catch (err) { if (err.status === 429) return send(res, 200, sent); throw err; }
+    const mine = await sessionAccount(sql, req);
+    if (mine) {
+      const [{ n }] = await sql`SELECT count(*)::int AS n FROM account_emails WHERE account_id = ${mine.id}`;
+      if (n >= MAX_EMAILS) throw fail(400, 'An account can have up to 5 email addresses.');
+    }
+    await sql`DELETE FROM email_links WHERE expires_at < now()`;
+    const token = b64u(randomBytes(32));
+    await sql`INSERT INTO email_links (token_hash, email, account_id, name, expires_at) VALUES (${sha(token)}, ${email}, ${mine ? mine.id : null}, ${cleanLabel(body.name)}, now() + interval '15 minutes')`;
+    try { await sendLoginMail(email, `${cfg.origin}/#signin=${token}`); }
+    catch (err) {
+      await sql`DELETE FROM email_links WHERE token_hash = ${sha(token)}`;
+      console.error('email sign-in: send failed,', err.message); // never the key, the address or the link
+      throw fail(502, 'The email could not be sent right now. Try again in a few minutes.');
+    }
+    return send(res, 200, sent);
+  }
+  if (action === 'email-finish') {
+    const forgive = await throttle(sql, req, 'fail', 10, '15 minutes'); // only wrong or used-up links keep their mark
+    const tok = typeof body.token === 'string' && body.token.length <= 100 ? body.token : '';
+    const [link] = tok ? await sql`DELETE FROM email_links WHERE token_hash = ${sha(tok)} AND expires_at > now() RETURNING email, account_id, name` : [];
+    if (!link) throw fail(400, 'That sign-in link is wrong, expired or already used. Ask for a new one.');
+    await forgive();
+    const held = async () => ((await sql`UPDATE account_emails SET last_used_at = now() WHERE email = ${link.email} RETURNING account_id`)[0] || {}).account_id;
+    let accountId = await held(), created = false;
+    if (!accountId && link.account_id) { // asked from a signed-in session: the address joins that account
+      const rows = await sql`INSERT INTO account_emails (email, account_id) SELECT ${link.email}, id FROM accounts WHERE id = ${link.account_id} ON CONFLICT DO NOTHING RETURNING account_id`;
+      accountId = rows.length ? link.account_id : await held();
+    }
+    if (!accountId) {
+      const id = b64u(randomBytes(16));
+      // One statement, so an account never exists without its address (a clash on the address fails the whole statement).
+      try { await sql`WITH a AS (INSERT INTO accounts (id, display_name) VALUES (${id}, ${link.name || 'Dink Score player'}) RETURNING id) INSERT INTO account_emails (email, account_id) SELECT ${link.email}, a.id FROM a`; accountId = id; created = true; }
+      catch (err) { if (err.code !== '23505' || !(accountId = await held())) throw err; } // another link for the same new address won the race
+    }
+    const [account] = await sql`SELECT id, display_name, created_at FROM accounts WHERE id = ${accountId}`;
+    await startSession(sql, res, account.id);
+    return send(res, created ? 201 : 200, { config: publicConfig, ...(await view(sql, account, cfg)) });
+  }
   if (action === 'logout') {
     const token = cookieOf(req);
     if (token && token.length <= 100) await sql`DELETE FROM sessions WHERE id_hash = ${sha(token)}`;
@@ -232,8 +285,30 @@ export default handler(async (req, res) => {
     if (!rows.length) throw fail(409, 'That passkey is already used by an account.');
     return send(res, 200, await view(sql, account, cfg));
   }
+  if (action === 'email-remove') {
+    const email = cleanEmail(body.email);
+    const [{ pk, em, has }] = await sql`SELECT (SELECT count(*) FROM passkeys WHERE account_id = ${account.id})::int AS pk, (SELECT count(*) FROM account_emails WHERE account_id = ${account.id})::int AS em, (SELECT count(*) FROM account_emails WHERE account_id = ${account.id} AND email = ${email})::int AS has`;
+    if (!has) throw fail(404, 'That address is not on your account.');
+    if (!pk && em < 2) throw fail(400, 'That is the only way to sign in to this account. Add a passkey or another email first.');
+    await sql`DELETE FROM account_emails WHERE account_id = ${account.id} AND email = ${email}`;
+    return send(res, 200, await view(sql, account, cfg));
+  }
+  if (action === 'export') { // the account's own data; no keys, hashes or session ids
+    const [pks, ems, ids] = await Promise.all([
+      sql`SELECT rp_id, created_at, last_used_at FROM passkeys WHERE account_id = ${account.id} ORDER BY created_at`,
+      sql`SELECT email, created_at, last_used_at FROM account_emails WHERE account_id = ${account.id} ORDER BY created_at, email`,
+      identityRows(sql, account.id)
+    ]);
+    return send(res, 200, {
+      format: 'dink-score-account-export', version: 1, exportedAt: new Date().toISOString(),
+      account: { name: account.display_name, createdAt: account.created_at },
+      emails: ems.map(r => ({ email: r.email, addedAt: r.created_at, lastUsedAt: r.last_used_at })),
+      passkeys: pks.map(r => ({ address: r.rp_id || cfg.legacyRpId, addedAt: r.created_at, lastUsedAt: r.last_used_at })),
+      clubs: ids.map(r => ({ club: r.club_name, kind: r.kind, name: r.kind === 'player' ? r.player_name : null }))
+    });
+  }
   if (action === 'delete-account') {
-    await sql`DELETE FROM accounts WHERE id = ${account.id}`; // sessions, passkeys and links go with it
+    await sql`DELETE FROM accounts WHERE id = ${account.id}`; // sessions, passkeys, emails, pending links and club links go with it
     setCookie(res, '', 0);
     return send(res, 200, { ok: true });
   }
