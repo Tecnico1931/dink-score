@@ -130,12 +130,16 @@ test('DUPR response shapes: ratings, entitlements, config', () => {
   assert.deepEqual(parseUserDetail({ result: { doublesRating: 3.8, singlesRating: 4.25, doublesProvisional: true } }).rating, { doubles: 3.8, singles: 4.25 });
   assert.deepEqual(parseEntitlements({ subscriptions: [{ entitlements: { tournaments: ['BASIC_L1', 'PREMIUM_L1'] } }] }), ['BASIC_L1', 'PREMIUM_L1']);
   assert.equal(parseEntitlements({}), null);
-  const keep = { k: process.env.DUPR_CLIENT_KEY, s: process.env.DUPR_CLIENT_SECRET, e: process.env.DUPR_ENV };
+  const keep = { k: process.env.DUPR_CLIENT_KEY, s: process.env.DUPR_CLIENT_SECRET, e: process.env.DUPR_ENV, f: process.env.DUPR_CONNECT_ENABLED };
   try {
-    delete process.env.DUPR_CLIENT_KEY; delete process.env.DUPR_CLIENT_SECRET; delete process.env.DUPR_ENV;
+    delete process.env.DUPR_CLIENT_KEY; delete process.env.DUPR_CLIENT_SECRET; delete process.env.DUPR_ENV; delete process.env.DUPR_CONNECT_ENABLED;
     assert.equal(config(), null);
+    process.env.DUPR_CONNECT_ENABLED = 'true'; assert.equal(config(), null);
     process.env.DUPR_CLIENT_KEY = 'k-key'; assert.equal(config(), null);
     process.env.DUPR_CLIENT_SECRET = 'a-secret'; assert.equal(config().env, 'prod');
+    for (const off of ['', 'false', '0', 'no']) { process.env.DUPR_CONNECT_ENABLED = off; assert.equal(config(), null, 'flag ' + off); }
+    delete process.env.DUPR_CONNECT_ENABLED; assert.equal(config(), null);
+    process.env.DUPR_CONNECT_ENABLED = 'TRUE';
     assert.equal(publicConfig(config()).loginOrigin, 'https://dashboard.dupr.com');
     process.env.DUPR_ENV = 'uat'; assert.equal(config().env, 'uat');
     const pub = publicConfig(config());
@@ -144,5 +148,5 @@ test('DUPR response shapes: ratings, entitlements, config', () => {
     process.env.DUPR_ENV = 'prod'; assert.equal(publicConfig(config()).loginOrigin, 'https://dashboard.dupr.com');
     process.env.DUPR_ENV = 'test'; assert.equal(config().env, 'uat');
     process.env.DUPR_ENV = 'weird'; assert.equal(config().env, 'prod');
-  } finally { for (const [n, v] of [['DUPR_CLIENT_KEY', keep.k], ['DUPR_CLIENT_SECRET', keep.s], ['DUPR_ENV', keep.e]]) { if (v === undefined) delete process.env[n]; else process.env[n] = v; } }
+  } finally { for (const [n, v] of [['DUPR_CLIENT_KEY', keep.k], ['DUPR_CLIENT_SECRET', keep.s], ['DUPR_ENV', keep.e], ['DUPR_CONNECT_ENABLED', keep.f]]) { if (v === undefined) delete process.env[n]; else process.env[n] = v; } }
 });

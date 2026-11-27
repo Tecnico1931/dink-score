@@ -24,7 +24,7 @@ process.env.DATABASE_URL = 'postgres://local:local@localhost/throwaway';
 
 const mock = await startMock();
 if (!off) {
-  process.env.DUPR_CLIENT_KEY = KEY; process.env.DUPR_CLIENT_SECRET = SECRET; process.env.DUPR_ENV = 'uat';
+  process.env.DUPR_CONNECT_ENABLED = 'true'; process.env.DUPR_CLIENT_KEY = KEY; process.env.DUPR_CLIENT_SECRET = SECRET; process.env.DUPR_ENV = 'uat';
   (await import(pathToFileURL(path.join(root, 'api', '_duprapi.js')).href)).__test.set({ hosts: mock.hosts, sleep: async () => {} });
 }
 const names = ['Ana', 'Ben', 'Cy', 'Di', 'Ed', 'Flo', 'Gus', 'Hal'];
