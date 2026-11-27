@@ -14,6 +14,7 @@ import { loadPlays, loadClubPlays, petXpOf, PETXP_FROM_DAY } from './_economypet
 import { SEASONAL, EVENT_ITEMS, seasonFor, eventFor, isAvailable, closedMessage } from './_economyseason.js';
 import { TITLES, STYLES, TOP_FRAMES, TOP_SOUNDS, TOP_THEMES, TOP_CELEBRATIONS, TOP_RARITIES } from './_economyitems.js';
 import { PASS_ITEMS } from './_economyxp.js';
+import { loadBoosts, boostState } from './_economyboost.js';
 
 // One place that says which slots exist. `club`: a worn item in the slot may be shown to the club (opt-in look); a sound is only ever heard on the
 // player's own phone. Order = the order the shop lists them. Adding a slot here (plus its items) is all the server needs: wear, buy and the club
@@ -194,7 +195,7 @@ export async function setShare(sql, code, key, on, now = Date.now()) {
 
 // The shop as the phone shows it: the catalogue with the owned flag, the balance, what is worn, pet stage/weekly shiny state, and whether the club sees it. Prices come from the catalogue only.
 export async function shopView(sql, code, key, now = Date.now()) {
-  const [items, ledger, share, prices, owners, plays] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key), loadPrices(sql, code), loadOwnerCounts(sql, code), loadPlays(sql, code, key)]);
+  const [items, ledger, share, prices, owners, plays, boosts] = await Promise.all([loadItems(sql, code, key), loadLedger(sql, code, key), shareOf(sql, code, key), loadPrices(sql, code), loadOwnerCounts(sql, code), loadPlays(sql, code, key), loadBoosts(sql, code)]);
   const ownedById = new Map(items.map(i => [i.id, i]));
   const shinyWeek = shinyWeekFor(now);
   const season = seasonFor(now);
@@ -217,7 +218,7 @@ export async function shopView(sql, code, key, now = Date.now()) {
   const { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn } = season;
   // The week's shiny coat: its price for this club, and whether this player already owns it (bought once, by the pet's owner).
   const shinyOffer = { ...shinyWeek, price: shinyPriceOf(petById(shinyWeek.petId), prices), owned: !!(ownedById.get(shinyWeek.petId) || {}).shinyOwned };
-  return { dinks: ledgerBalance(ledger), ...totals(ledger), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek: shinyOffer, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, event: event && { id: event.id, name: event.name, dates: event.dates, note: event.note, startsOn: event.startsOn, endsOn: event.endsOn }, items: viewItems.concat(seasonal, eventItems, PASS_ITEMS.filter(i => ownedById.has(i.id)).map(i => ({ ...i, owned: true }))) };
+  return { dinks: ledgerBalance(ledger), ...totals(ledger), boost: boostState(boosts, now), pace: paceFrom(ledger, now), worn: wornFrom(items), pet, shinyWeek: shinyOffer, share, season: { id: seasonId, name: seasonName, dates, returns, startsOn, endsOn }, event: event && { id: event.id, name: event.name, dates: event.dates, note: event.note, startsOn: event.startsOn, endsOn: event.endsOn }, items: viewItems.concat(seasonal, eventItems, PASS_ITEMS.filter(i => ownedById.has(i.id)).map(i => ({ ...i, owned: true }))) };
 }
 
 // Buy one item. One transaction under a per-player lock: the spend row is inserted only if the balance still covers it, then the item.

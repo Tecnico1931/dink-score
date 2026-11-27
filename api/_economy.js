@@ -51,7 +51,7 @@ export function deriveEarnings({ ledger = [], receivedAt = [], tz = 0, now }) {
 
 // What the Shop header shows beside the balance: all Dinks ever earned and all spent (balance = earned - spent, before the 1e6 cap).
 // A 'game-adj' row takes back Dinks a game paid before it was edited or deleted, so it lowers what was earned rather than counting as spent.
-export const totals = ledger => ledger.reduce((t, e) => { const n = Number.isFinite(e.amount) ? e.amount : 0; if (n > 0 || e.reason === 'game-adj') t.earned += n; else t.spent -= n; return t; }, { earned: 0, spent: 0 });
+export const totals = ledger => ledger.reduce((t, e) => { const n = Number.isFinite(e.amount) ? e.amount : 0; if (n > 0 || e.reason === 'game-adj' || String(e.reason).startsWith('orgtake:')) t.earned += n; else t.spent -= n; return t; }, { earned: 0, spent: 0 });
 
 export const ledgerBalance = ledger => Math.min(MAX_BALANCE, ledger.reduce((n, e) => n + (Number.isFinite(e.amount) ? e.amount : 0), 0));
 

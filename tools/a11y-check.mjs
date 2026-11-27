@@ -134,7 +134,7 @@ for (const [mode, opt] of states) {
       ] };
       const shinyWeek = { weekId: '2026-W20', start: 0, end: 1, petId: 'pet-frog', petName: 'Court Frog', price: 300, owned: true };
       const wornPet = { id: 'pet-frog', name: 'Court Frog', stage: 2, stageLabel: 'Grown', level: 4, xp: 12, levelXp: 10, nextXp: 15, shiny: true, shinyOwned: true, featuredShiny: true };
-      const shop = { dinks: 12, earned: 40, spent: 28, pace: 1.5, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
+      const shop = { dinks: 12, earned: 40, spent: 28, pace: 1.5, boost: { active: { id: 1, from: Date.now() - 1000, until: Date.now() + 864e5, dinks: 2, xp: 2 }, upcoming: null }, worn: { frame: 'frame-double', paddle: 'paddle-stripe', pet: 'pet-frog' }, pet: wornPet, shinyWeek, share: true, box, items: cat.map(([id, name, price]) => {
         const slot = id.split('-')[0], owned = ['frame-double', 'paddle-stripe', 'frame-ink', 'pet-frog', 'pet-duck', 'pet-yorkie'].includes(id);
         if (slot !== 'pet') return { id, slot, name, price, owned };
         const featuredShiny = id === 'pet-frog';
@@ -209,6 +209,25 @@ for (const [mode, opt] of states) {
         await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
         const over = await page.evaluate(() => [...document.querySelectorAll('.sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
         if (over.length) report.push({ label: `Manage shop sheet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
+      }
+      await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
+    }
+    // Boost events and gifts (organizer, M11): selects, number and text fields, boost buttons, then the same with a boost running.
+    await page.evaluate(() => {
+      const prev = playerCall;
+      playerCall = async b => b && b.action === 'rewards-boost' ? { active: null, upcoming: null }
+        : b && b.action === 'rewards-prices' ? { rewards: true, mysteryBox: true, min: 1, max: 99999, items: [{ id: 'box', name: 'Mystery box', group: 'Random item', default: 7, price: 9 }, { id: 'frame-court', name: 'Court green ring', group: 'Rings', default: 6, price: 6 }, { id: 'pet-owl', name: 'Net Owl', group: 'Pets', default: 24, price: 24 }] }
+        : b && b.action === 'members' ? { members: [{ name: 'Ben', claimed: true, role: 'player' }, { name: 'Cy', claimed: true, role: 'player' }], audit: [], requests: [] } : prev(b);
+      Rewards.openTools();
+    }); await sleep(500);
+    await audit(page, `Boost events and gifts sheet (${colorScheme})`, report, '.sheet');
+    await page.evaluate(() => { clubSheet.data.boost = { active: { id: 1, from: Date.now() - 1000, until: Date.now() + 864e5, dinks: 2, xp: 2 }, upcoming: null }; clubSheet.msg = 'The boost is on.'; renderClub(); }); await sleep(150);
+    await audit(page, `Boost events and gifts sheet, boost running (${colorScheme})`, report, '.sheet');
+    if (colorScheme === 'light') {
+      for (const w of [320, 195]) {
+        await page.setViewport({ width: w, height: 700, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(200);
+        const over = await page.evaluate(() => [...document.querySelectorAll('.sheet *')].filter(e => { const r = e.getBoundingClientRect(); return r.width && r.right > innerWidth + 1; }).map(e => e.tagName + '.' + e.className).slice(0, 3));
+        if (over.length) report.push({ label: `Boost events and gifts sheet: reflow at ${w}px`, axe: [], extra: over.map(n => ({ kind: 'text', name: 'overflows sideways: ' + n, px: 0 })) });
       }
       await page.setViewport({ width: 390, height: 780, deviceScaleFactor: 2, isMobile: true, hasTouch: true }); await sleep(150);
     }

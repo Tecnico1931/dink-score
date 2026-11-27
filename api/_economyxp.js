@@ -4,6 +4,7 @@
 // Parity with the upstream app (the captain's call): 10 XP a game, 15 for a win, at most 300 XP a (UTC) day, 25 levels. XP only fills a level card and
 // the season pass; it changes no rating, score or rule. Pure; _economypass.js and players.js call it.
 import { nameKey } from './_names.js';
+import { boostedAt } from './_economyboost.js';
 
 export const XP_GAME = 10, XP_WIN = 15, XP_DAY_CAP = 300, LEVEL_MAX = 25;
 // XP to go from level n to n+1 (n = 1..24): 40, 50, 60 ... 270. Level 25 needs 3720 XP in all.
@@ -21,9 +22,10 @@ export function levelFor(total) {
 
 const DAY = 864e5;
 // Pure: XP from saved games for one player, optionally only those received in [from, to). Each UTC day is capped at XP_DAY_CAP.
-export function xpFromGames(games, key, { from = -Infinity, to = Infinity } = {}) {
+// `boosts` (_economyboost.js, XP ticked): a game received in a boost window gives double, and its day's cap doubles.
+export function xpFromGames(games, key, { from = -Infinity, to = Infinity, boosts = [] } = {}) {
   if (!key) return 0;
-  const perDay = new Map();
+  const perDay = new Map(), boosted = new Set();
   for (const g of Array.isArray(games) ? games : []) {
     if (!g) continue;
     const by = g.scoredBy ?? g.scored_by, byPlayer = g.scoredByPlayer ?? g.scored_by_player;
@@ -35,10 +37,12 @@ export function xpFromGames(games, key, { from = -Infinity, to = Infinity } = {}
     if (side < 0) continue;
     const w = g.winner == null || g.winner === '' ? NaN : Number(g.winner);
     const day = Math.floor(r / DAY);
-    perDay.set(day, (perDay.get(day) || 0) + XP_GAME + (w === side ? XP_WIN - XP_GAME : 0));
+    const up = boostedAt(boosts, r, 'xp');
+    if (up) boosted.add(day);
+    perDay.set(day, (perDay.get(day) || 0) + (XP_GAME + (w === side ? XP_WIN - XP_GAME : 0)) * (up ? 2 : 1));
   }
   let total = 0;
-  for (const v of perDay.values()) total += Math.min(XP_DAY_CAP, v);
+  for (const [day, v] of perDay) total += Math.min(XP_DAY_CAP * (boosted.has(day) ? 2 : 1), v);
   return total;
 }
 

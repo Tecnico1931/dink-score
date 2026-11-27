@@ -15,6 +15,7 @@ import { compute } from './_rating.js';
 import { computeProgress, weekOf } from './_progress.js';
 import { loadCuts } from './_seasons.js';
 import { dayNum, dayKey, ledgerBalance, gameRowDay, LOOKBACK_DAYS } from './_economy.js';
+import { boostedAt, loadBoosts } from './_economyboost.js';
 
 export const EARN = Object.freeze({ play: 2, win: 10, beat: 3, hot: 5, hotFrom: 3, cap: 300 });
 export const CHALLENGE_PAY = Object.freeze([10, 10, 15]); // the week's challenges in the order the app lists them
@@ -26,7 +27,8 @@ const utcDay = ms => new Date(ms).toISOString().slice(0, 10);
 
 // What each UTC day's games are worth to `key`, before the daily cap: Map(day -> Dinks). `changes` is compute(games).changes of the rating engine.
 // The win run is counted over all of the player's games in the order the server received them, so backdating a game cannot move it.
-export function gameDays(games, key, changes = {}) {
+// `boosts` (_economyboost.js): a game received inside a boost window pays double, and its day (listed in the returned map's `.boosted` set) gets a doubled cap.
+export function gameDays(games, key, changes = {}, boosts = []) {
   const mine = [];
   for (const g of Array.isArray(games) ? games : []) {
     if (!g || !Array.isArray(g.teams)) continue;
@@ -35,6 +37,7 @@ export function gameDays(games, key, changes = {}) {
   }
   mine.sort((a, b) => a.r - b.r || (a.g.id < b.g.id ? -1 : a.g.id > b.g.id ? 1 : 0));
   const days = new Map();
+  days.boosted = new Set();
   let run = 0;
   for (const { g, side, r } of mine) {
     const w = g.winner == null || g.winner === '' ? NaN : Number(g.winner), won = w === side;
@@ -47,6 +50,7 @@ export function gameDays(games, key, changes = {}) {
       if (won && run >= EARN.hotFrom) n += EARN.hot;
     }
     const d = utcDay(r);
+    if (boostedAt(boosts, r)) { n *= 2; days.boosted.add(d); }
     days.set(d, (days.get(d) || 0) + n);
   }
   return days;
@@ -63,7 +67,7 @@ export function planGameRows({ ledger = [], days, now }) {
   let bal = ledgerBalance(ledger);
   const out = [];
   for (const d of recent) {
-    const delta = Math.min(EARN.cap, days.get(d) || 0) - (paid.get(d) || 0);
+    const delta = Math.min(EARN.cap * (days.boosted && days.boosted.has(d) ? 2 : 1), days.get(d) || 0) - (paid.get(d) || 0);
     if (!delta) continue;
     const n = rows.get(d) || 0, id = n ? `play:${d}:${n}` : `play:${d}`;
     if (delta > 0) { out.push({ id, kind: 'earn', amount: delta, reason: 'game', day: null, streak: null }); bal += delta; continue; }
@@ -100,5 +104,5 @@ export async function gameEarnState(sql, club, key, { ledger, now }) {
   // Achievements and season prizes pay only for games that earn more than the +2 (sent from a club player's own phone), so they are
   // worked out again over those games alone; the badge a phone shows may rest on others.
   const paid = me && (me.achievements.length || me.trophies.length) ? computeProgress(all.filter(verifiedGame), now, await loadCuts(sql, code)).get(key) : null;
-  return { days: gameDays(mine, key, changes), weeks, me: paid || null };
+  return { days: gameDays(mine, key, changes, await loadBoosts(sql, code)), weeks, me: paid || null };
 }

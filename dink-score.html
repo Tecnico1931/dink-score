@@ -321,6 +321,9 @@ html[data-rw-skin] .pd-thumb { background: var(--rw-pad-bg); color: var(--rw-pad
 .rw-mg-row label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .rw-mg-row small { font-size: 13px; color: var(--muted); }
 .rw-mg-in { width: 104px; min-height: 44px; padding: 0 12px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 16px; text-align: right; }
 .rw-mg-save { position: sticky; bottom: 0; z-index: 1; display: grid; gap: 8px; margin: 12px 0; padding: 12px 0; background: var(--surface); }
+.rw-tools-f { display: grid; gap: 10px; margin: 8px 0 16px; } .rw-tools-f .rw-mg-in { width: 100%; text-align: left; }
+.rw-boost-btns { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 8px 0; }
+.rw-boost-chip { margin: 8px 0; } .badge.rw-boost { background: var(--ball); color: var(--ball-ink); white-space: normal; }
 .rw-mg-names { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .rw-mg-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 4px 14px; border-radius: 12px; background: var(--surface-2); }
 .rw-mg-name .link { min-height: 44px; padding: 0 4px; }
@@ -2915,6 +2918,8 @@ function renderClub() {
     body = Rewards.passHTML(c);
   } else if (c.view === 'rwmanage' && club) {
     body = Rewards.manageHTML(c);
+  } else if (c.view === 'rwtools' && club) {
+    body = Rewards.toolsHTML(c);
   } else if (c.view === 'rwpets' && club && myName()) {
     body = Rewards.petsHTML(c);
   } else if (c.view === 'rwactivity' && club && myName()) {
@@ -5629,7 +5634,7 @@ function otItems(s) {
     { id: 'approve', title: 'Approve games', n: h, go: null, hint: h ? `${plural(h, 'game is', 'games are')} held out of ratings until approved` : s.requireConfirmation ? 'No games are waiting' : 'Every game counts now' },
     { id: 'dupes', title: 'Possible duplicates', n: d, go: null, hint: d ? `${plural(d, 'game looks', 'games look')} like it was recorded twice` : 'No games look recorded twice' },
     { id: 'members', title: 'Members and roles', go: 'data-act="members-open"', hint: `${plural(pl, 'player', 'players')}, who is an organizer, removals` },
-    { id: 'undo', title: 'Undo a change', go: 'data-act="members-open"', hint: u ? `${plural(u, 'change', 'changes')} you can undo` : 'Role changes and renames, for 7 days' },
+    { id: 'undo', title: 'Undo a change', go: 'data-act="members-open"', hint: u ? `${plural(u, 'change', 'changes')} you can undo` : 'Role changes, renames and reward changes, for 7 days' },
     { id: 'history', title: 'Game history', go: 'data-act="audit-open"', hint: 'Who changed or deleted what' },
     { id: 'nights', title: 'Game nights', go: 'data-gn="open" data-gn-from="club"', hint: nn ? `${nn} upcoming` : 'Schedule one and see who is coming' },
     { id: 'events', title: 'Events and leagues', go: 'data-act="ot-events"', hint: ev ? `${plural(ev, 'event is', 'events are')} live` : 'Tournaments, round robins and leagues' },
@@ -5637,6 +5642,7 @@ function otItems(s) {
     { id: 'code', title: 'Change club code', go: 'data-act="code-rotate-open"', hint: 'The old code keeps working for a while' },
     { id: 'rewards', title: 'Rewards', go: 'data-rw="club"', hint: s.rewards ? 'On. Players see a daily play streak and can hide it. Tap to turn off' : 'Off. Tap to add a daily play streak with free points' },
     ...(s.rewards ? [{ id: 'mysteryBox', title: 'Mystery box and daily spin', go: 'data-rw="box"', hint: s.mysteryBox ? 'On. Players can open a random look box and take a free daily spin, with stated chances. Tap to turn off' : 'Off. Tap to add a mystery box and a free daily spin with stated chances' }] : []),
+    ...(s.rewards ? [{ id: 'rewardTools', title: 'Boost events and gifts', go: 'data-rw="tools"', hint: 'Double what games pay for a while, give or take rewards by hand, gift an item, let someone spin again' }] : []),
     ...(s.rewards ? [{ id: 'costs', title: 'Item costs', go: 'data-rw="manage"', hint: 'Set what each look and the mystery box cost here, and release linked names' }] : []),
     { id: 'links', title: 'Public result links', go: 'data-act="links-open"', hint: 'Share results without sharing the club' },
     { id: 'note', title: 'Pinned note and how to pay', go: 'data-act="info-open"', hint: 'Court times, rules, a payment link' },
@@ -6282,6 +6288,8 @@ async function loadMembers() {
 function auditText(a) {
   const who = a.actor === 'owner' ? 'The club creator' : a.actor === 'pin' ? 'Someone with the organizer PIN' : a.actor === 'organizer' ? `${a.actorName} (organizer)` : (a.actorName || 'A member');
   const t = a.target || 'a member';
+  const rw = typeof Rewards !== 'undefined' && Rewards.auditText ? Rewards.auditText(a, t) : ''; // rewards changes by hand and boosts are worded in economymanage.js
+  if (rw) return `${who} ${rw}`;
   const did = { promote: `made ${t} an organizer`, demote: `made ${t} a regular member`, remove: `removed ${t}${a.detail && a.detail.block ? ' and blocked the name' : ''}`, unblock: `unblocked ${t}`, release: `released ${t}`, 'cost-change': a.detail && a.detail.reset ? 'put every item cost back to usual' : 'changed item costs', leave: 'left the member list', rename: `renamed ${a.detail && a.detail.from ? a.detail.from + ' to ' : ''}${t}`, merge: `merged ${a.detail && a.detail.from ? a.detail.from : 'a player'} into ${t}`, undo: `undid ${a.detail && a.detail.undid === 'rename' ? `the rename of ${a.detail.from} (back to ${t})` : a.detail && a.detail.undid === 'promote' ? `making ${t} an organizer` : a.detail && a.detail.undid === 'demote' ? `making ${t} a regular member` : 'a change'}`, 'device-unlock': a.target ? `unlocked a phone linked to ${a.target}` : 'unlocked a phone', 'device-remove': a.target ? `removed the phone linked to ${a.target}` : 'removed an unlocked phone', 'device-lock': a.target ? `locked the phone linked to ${a.target}` : 'locked a phone', 'pin-change': `changed the organizer PIN${a.detail && a.detail.phonesRemoved ? ` (${a.detail.phonesRemoved} unlocked phone${a.detail.phonesRemoved === 1 ? '' : 's'} had to unlock again)` : ''}`, 'approve-claim': `approved ${t} on a new phone`, 'deny-claim': `said no to the request for ${t}` }[a.action] || a.action;
   return `${who} ${did}`;
 }
