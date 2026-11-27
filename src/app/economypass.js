@@ -56,7 +56,7 @@ Object.assign(Rewards, {
     if (!rwShown() || !myName() || !myToken()) return;
     const c = clubSheet = { view: 'rwpass', pass: null, msg: '', error: '', busy: false };
     renderClub();
-    try { const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.pass = d; rwSetLevel(d.level); rwSetReady(d.claimable); rwStoreSynced(d); }
+    try { const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() }); if (clubSheet !== c) return; c.pass = d; rwSetLevel(d.level, undefined, d.prestige); rwSetReady(d.claimable); rwStoreSynced(d); }
     catch (err) { if (clubSheet !== c) return; c.error = err.message || "The season pass couldn't load."; }
     renderClub();
   }
@@ -70,7 +70,7 @@ async function rwPassClaim(tier) {
   try {
     const d = await playerCall({ action: 'rewards-pass-claim', name: myName(), playerToken: myToken(), tier, seasonId: c.pass.season.id });
     if (clubSheet !== c) return;
-    c.pass = d; rwSetLevel(d.level); rwSetReady(d.claimable);
+    c.pass = d; rwSetLevel(d.level, undefined, d.prestige); rwSetReady(d.claimable);
     if (!d.claimed) c.msg = `Tier ${tier} was already claimed.`;
     else if (d.granted) c.msg = `Tier ${tier} claimed: ${d.granted.name} and +${rwDinks(d.gained)}. Wear it in the Shop.`;
     else if (itemBefore && itemBefore.item && itemBefore.item.owned) c.msg = `Tier ${tier} claimed: +${rwDinks(d.gained)} (you already own ${itemBefore.item.name}).`;

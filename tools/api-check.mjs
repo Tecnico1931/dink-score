@@ -1518,7 +1518,7 @@ await step('rewards shop: server-side prices, spends through the ledger, never b
 });
 await step('rewards club looks: off means 403, opt-in default false hides it, sharing exposes only allow-listed worn ids to members, rename/merge/leave/anonymise keep it safe', async () => {
   const post = (name, a) => cfPost(playersApi, { name, playerToken: cfTok[name], ...a });
-  const looks = () => cfPost(playersApi, { action: 'rewards-looks' }); // any club member (no playerToken needed)
+  const looks = async () => { const r = await cfPost(playersApi, { action: 'rewards-looks' }); if (r.json) delete r.json.levels; return r; }; // any club member (no playerToken needed); levels are checked in the prestige step
   const grant = (name, n) => pg.query(`INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason) VALUES ($1, $2, 'test:looks', 'earn', $3, 'test') ON CONFLICT DO NOTHING`, [cf.code, name.toLowerCase(), n]);
   const join = async name => { cfTok[name] = ok(await cfPost(playersApi, { action: 'claim', name, ownerToken: cf.owner })).playerToken; };
   await join('Leo'); await join('Mia');
@@ -2000,6 +2000,43 @@ await step('rewards season pass and XP: server-derived from verified games in cl
   ok(await pPost(club, { action: 'set-rewards', on: false, ownerToken: powner }));
   assert.equal((await post('Ollie', { action: 'rewards-pass' })).status, 403, 'off again: refused');
 });
+await step('rewards prestige: refused below level 25, one paid restart per run, +250 once under a race, star in the shared looks, ledger-only state', async () => {
+  const pc = ok(await call(club, 'POST', { body: { name: 'Prestige club', pin: '135790' } }), 201);
+  const pcode = pc.club.code, powner = pc.ownerToken;
+  const pPost = (h, b) => call(h, 'POST', { body: { code: pcode, ...b } });
+  const ptok = {};
+  for (const name of ['Pru', 'Quin']) ptok[name] = ok(await pPost(playersApi, { action: 'claim', name, ownerToken: powner })).playerToken;
+  const post = (name, a) => pPost(playersApi, { name, playerToken: ptok[name], ...a });
+  ok(await pPost(club, { action: 'set-rewards', on: true, ownerToken: powner }));
+  assert.equal((await post('Pru', { action: 'rewards-restart' })).status, 409, 'level 1: refused');
+  // 13 UTC days of 20 verified wins (15 XP each, 300 XP a day cap) = 3900 XP, more than the 3720 of level 25.
+  const day0 = Date.now() - 20 * 864e5;
+  for (let d = 0; d < 13; d++) for (let i = 0; i < 20; i++) {
+    const at = day0 + d * 864e5 + 3600e3 + i * 6e4, id = `pr-${d}-${i}`;
+    await pg.query(`INSERT INTO games (club, id, data, ended_at) VALUES ($1, $2, $3::jsonb, $4)`, [pcode, id, JSON.stringify({ id, mode: 'doubles', teams: [['Pru', 'Quin'], ['Ana', 'Ben']], score: [11, 4], winner: 0, endedAt: at, receivedAt: at, scoredBy: 'pru' }), at]);
+  }
+  const v = ok(await post('Pru', { action: 'rewards-pass' }));
+  assert.deepEqual([v.level.level, v.prestige], [25, { count: 0, dinks: 250, ready: true }]);
+  const race = await Promise.all([post('Pru', { action: 'rewards-restart', dinks: 9999 }), post('Pru', { action: 'rewards-restart' })]);
+  assert.ok(race.some(r => r.status === 200), 'one wins');
+  assert.ok(race.every(r => [200, 409].includes(r.status)), 'the other is refused or a no-op');
+  const rows = (await pg.query(`SELECT id, amount FROM reward_ledger WHERE club = $1 AND name_key = 'pru' AND id LIKE 'prestige:%'`, [pcode])).rows;
+  assert.deepEqual(rows, [{ id: 'prestige:1', amount: 250 }], 'paid once');
+  const after = ok(await post('Pru', { action: 'rewards-pass' }));
+  assert.deepEqual([after.level.level, after.prestige.count, after.prestige.ready], [4, 1, false]);
+  assert.ok(after.level.xp >= 3720, 'all-time XP kept for the label');
+  assert.equal((await post('Pru', { action: 'rewards-restart' })).status, 409, 'a new run at level 4 (180 XP carried over): refused');
+  assert.equal(ok(await post('Pru', { action: 'rewards-get' })).dinks >= 250, true);
+  assert.match(JSON.stringify(ok(await post('Pru', { action: 'rewards-activity' })).entries), /Prestige/);
+  // The star and level reach the club only for members who share their look.
+  assert.deepEqual(ok(await post('Quin', { action: 'rewards-looks' })).levels, {}, 'nobody shares: nothing');
+  ok(await post('Pru', { action: 'rewards-share', share: true }));
+  assert.deepEqual(ok(await post('Quin', { action: 'rewards-looks' })).levels, { pru: { level: 4, prestige: 1 } });
+  assert.ok(!/prestige:|"prestige"/.test(JSON.stringify(ok(await call(club, 'GET', { query: '?code=' + pcode })))), 'GET /api/club stays free of prestige data');
+  // Anonymise deletes the ledger rows with the rest, so the star goes with the player.
+  ok(await pPost(playersApi, { action: 'anonymise', name: 'Pru', ownerToken: powner }));
+  assert.equal((await pg.query(`SELECT count(*)::int AS n FROM reward_ledger WHERE club = $1 AND name_key = 'pru'`, [pcode])).rows[0].n, 0);
+});
 await step('rewards pets: buy, double buy, insufficient balance, only one worn, play-day stage growth, featured-week shiny toggle, looks allow-list, rename/merge/anonymise', async () => {
   const pc = ok(await call(club, 'POST', { body: { name: 'Pets check club', pin: '468024' } }), 201);
   const pcode = pc.club.code, powner = pc.ownerToken, ppin = '468024';
@@ -2008,7 +2045,7 @@ await step('rewards pets: buy, double buy, insufficient balance, only one worn, 
   const ptok = {};
   const join = async name => { ptok[name] = ok(await pPost(playersApi, { action: 'claim', name, ownerToken: powner })).playerToken; };
   const post = (name, a) => pPost(playersApi, { name, playerToken: ptok[name], ...a });
-  const looks = () => pPost(playersApi, { action: 'rewards-looks' });
+  const looks = async () => { const r = await pPost(playersApi, { action: 'rewards-looks' }); if (r.json) delete r.json.levels; return r; };
   const grant = (name, id, n, day = null) => pg.query(
     `INSERT INTO reward_ledger (club, name_key, id, kind, amount, reason, day, streak) VALUES ($1, $2, $3, 'earn', $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
     [pcode, name.toLowerCase(), id, n, day ? 'day' : 'test', day, day ? 1 : null]

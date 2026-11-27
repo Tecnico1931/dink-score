@@ -24,6 +24,7 @@
 //   rewards-spin {name, playerToken}                  -> the free daily spin (one per UTC day, server draw, idempotent; same gate as the box). See _economyspin.js.
 //   rewards-pass|rewards-pass-claim {name, playerToken, tier?, seasonId?} -> free season pass track per club season (derived from games saved
 //                                                       by this phone, idempotent ledger claims; see _economypass.js). Only while rewards are on.
+//   rewards-restart {name, playerToken}               -> top-level restart: back to level 1 with a star, paid once (idempotent ledger id; see _economyprestige.js).
 //   dupr     {name, rating, playerToken|pin|ownerToken} -> sets or clears (empty rating) a self-reported DUPR number: that
 //                                                       name's phone or an organizer only. Display only.
 //   export   {name, playerToken}                      -> your own data as JSON: your player, your games, the events, leagues and ladders you are in
@@ -49,7 +50,8 @@ import { shopView, buyItem, wearItem, wornSummaryOf, loadItems, clubLooks, share
 import { boxOdds, boxStatus, openBox } from './_economybox.js';
 import { spinStatus, doSpin } from './_economyspin.js';
 import { pricesView, savePrices } from './_economyprices.js';
-import { passView, claimPassTier } from './_economypass.js';
+import { passView, claimPassTier, restartRun } from './_economypass.js';
+import { clubLevels } from './_economyprestige.js';
 import { activityFrom } from './_economyactivity.js';
 import { adjustBalance, giftItem, resetSpin, startBoost, endBoost, undoOrganizerChange } from './_economyorg.js';
 import { boostView } from './_economyboost.js';
@@ -181,7 +183,7 @@ export default handler(async (req, res) => {
   if (body.action === 'rewards-looks') {
     // Allow-listed worn item ids for members who opted in; off means 403 and no reward data at all.
     if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
-    return send(res, 200, { looks: await clubLooks(sql, code) });
+    return send(res, 200, { looks: await clubLooks(sql, code), levels: await clubLevels(sql, code) });
   }
 
   if (body.action === 'rewards-get' || body.action === 'rewards-sync') {
@@ -238,11 +240,12 @@ export default handler(async (req, res) => {
     } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
   }
 
-  if (body.action === 'rewards-pass' || body.action === 'rewards-pass-claim') {
+  if (body.action === 'rewards-pass' || body.action === 'rewards-pass-claim' || body.action === 'rewards-restart') {
     const player = await requirePlayer(sql, code, body.name, body.playerToken);
     if (!club.rewards) throw fail(403, 'Rewards are off for this club.');
     try {
       if (body.action === 'rewards-pass') return send(res, 200, await passView(sql, code, player.name_key));
+      if (body.action === 'rewards-restart') return send(res, 200, await restartRun(sql, code, player.name_key));
       return send(res, 200, await claimPassTier(sql, code, player.name_key, body.tier, { seasonId: body.seasonId }));
     } catch (e) { throw e.status ? fail(e.status, e.message) : e; }
   }

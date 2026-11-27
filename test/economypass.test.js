@@ -165,7 +165,7 @@ test('guard: pass code has no randomness, paid tier or motion; XP code reads onl
 });
 
 // Phone UI tests for src/app/economypass.js.
-const phone = ({ hide = false, on = true, name = 'Ana', passReply, claimReply } = {}) => {
+const phone = ({ hide = false, on = true, name = 'Ana', passReply, claimReply, restartReply } = {}) => {
   const calls = [], kv = { 'pb.rewardsHide': hide }, listeners = [], rootEl = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } };
   const env = { renders: 0, announced: [], focused: null };
   const code = module('economy') + ';' + module('economyshop') + ';' + module('economypass')
@@ -180,6 +180,7 @@ const phone = ({ hide = false, on = true, name = 'Ana', passReply, claimReply } 
       calls.push(b);
       if (b.action === 'rewards-pass') return passReply;
       if (b.action === 'rewards-pass-claim') return typeof claimReply === 'function' ? claimReply(b) : claimReply;
+      if (b.action === 'rewards-restart') return restartReply;
       return { dinks: 0, worn: { frame: '', paddle: '' }, share: false, items: CATALOGUE.map(i => ({ ...i, owned: false })) };
     },
     () => env.renders++, () => {}, s => s.slice(0, 2), () => '<svg></svg>', () => '<div class="skel-wrap"></div>', n => n.slice(0, 2), ps => ps.join(' & '), n => n === name);
@@ -244,6 +245,31 @@ test('phone UI: the level card shows on your own profile only, from the pass ans
   const top = phone({ passReply: buildPassView({ season: Q4, xp: 0, allXp: 99999, ledger: [], items: [], share: false }) });
   await top.x.Rewards.syncReady(true);
   assert.match(top.x.Rewards.levelCardHTML('Ana'), /Level 25 of 25[\s\S]*You are at the top level/);
+});
+
+test('phone UI: at level 25 a two-tap Prestige button restarts at level 1 and puts a star on the level chip and avatar', async () => {
+  const none = [];
+  const topPass = buildPassView({ season: Q4, xp: 0, allXp: 3720, ledger: none, items: none, share: false });
+  const done = { ...buildPassView({ season: Q4, xp: 0, allXp: 3720, ledger: [{ id: 'prestige:1', kind: 'earn', amount: 250, reason: 'prestige', day: null, streak: null }], items: none, share: false }), restarted: true, gained: 250 };
+  const p = phone({ passReply: topPass, restartReply: done });
+  await p.x.Rewards.syncReady(true);
+  assert.match(p.x.Rewards.levelCardHTML('Ana'), /Level 25 of 25[\s\S]*data-rw="restart"[^>]*>Prestige</);
+  assert.match(p.x.Rewards.levelChipHTML('Ana'), /Lv 25/);
+  assert.doesNotMatch(p.x.Rewards.frameAttr('Ana'), /data-rw-star/, 'no star before a prestige');
+  const click = () => p.listeners.forEach(f => f({ target: { closest: () => ({ dataset: { rw: 'restart' } }) } }));
+  click();
+  assert.match(p.x.Rewards.levelCardHTML('Ana'), /Tap again to prestige/, 'first tap only arms it');
+  assert.ok(!p.calls.some(c => c.action === 'rewards-restart'), 'nothing sent on the first tap');
+  click();
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(p.calls.filter(c => c.action === 'rewards-restart').length, 1, 'second tap sends one request');
+  const card = p.x.Rewards.levelCardHTML('Ana');
+  assert.match(card, /Level 1 of 25/);
+  assert.match(card, /Prestige 1/);
+  assert.doesNotMatch(card, /data-rw="restart"/, 'back at level 1: no button');
+  assert.match(p.x.Rewards.levelChipHTML('Ana'), /rw-stars[^>]*>★<[\s\S]*Lv 1/);
+  assert.match(p.x.Rewards.frameAttr('Ana'), /data-rw-star="1"/);
+  assert.equal(p.x.Rewards.levelChipHTML('Ben'), '', 'another member only when they share');
 });
 
 test('UX-10: ready tag on the You sheet, learned from the pass, cleared by a claim', async () => {

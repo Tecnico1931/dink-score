@@ -26,7 +26,8 @@ test('the progress rules no longer pay or count Dinks', async () => {
 });
 
 test('no runtime API code reads or writes the legacy DB leftovers (except rename/anonymise data-rights handling on purchases)', () => {
-  const forbidden = /\b(purchases_club_name|total_count|equipped|prestige)\b|clubs\.shop\b/;
+  // The old roster.prestige column stays unused; the ledger-based prestige (api/_economyprestige.js) never touches it.
+  const forbidden = /\b(purchases_club_name|total_count|equipped)\b|roster\.prestige|\bprestige jsonb|\b(SELECT|SET) prestige\b|clubs\.shop\b/;
   for (const name of fs.readdirSync(path.join(root, 'api')).filter(f => f.endsWith('.js'))) {
     let src = read('api/' + name);
     if (name === '_db.js') {

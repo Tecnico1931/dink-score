@@ -137,11 +137,49 @@ function rwSetReady(n, code = club && club.code) {
 // Your level (XP over all games your phone saved), learned from the pass answer for the profile level card. Yours only: the server never sends it
 // for anyone else, and it is held in memory only.
 const rwLevel = { code: null, v: null };
-function rwSetLevel(l, code = club && club.code) {
-  const v = l && Number.isInteger(l.level) && Number.isInteger(l.xp) && Number.isInteger(l.toNext) && Number.isInteger(l.max) ? { level: l.level, xp: l.xp, toNext: l.toNext, max: l.max } : null;
+function rwSetLevel(l, code = club && club.code, pr) {
+  const v = l && Number.isInteger(l.level) && Number.isInteger(l.xp) && Number.isInteger(l.toNext) && Number.isInteger(l.max) ? { level: l.level, xp: l.xp, toNext: l.toNext, max: l.max, prestige: pr && Number.isInteger(pr.count) && pr.count > 0 ? Math.min(pr.count, 99) : 0 } : null;
   const changed = rwLevel.code !== code || JSON.stringify(rwLevel.v) !== JSON.stringify(v);
   rwLevel.code = code; rwLevel.v = v;
   if (changed && club && club.code === code && rwShown() && typeof renderProfile === 'function') renderProfile();
+}
+// Level and star count of club members who share their look, from the same answer as the looks (rewards-looks); never anyone's XP.
+const rwLevelsByClub = Object.create(null);
+const rwCleanLevels = raw => {
+  const out = Object.create(null);
+  if (raw && typeof raw === 'object') for (const [k, v] of Object.entries(raw)) {
+    const key = rwKey(k);
+    if (key && v && Number.isInteger(v.level) && v.level >= 1 && v.level <= 25) out[key] = { level: v.level, prestige: Number.isInteger(v.prestige) && v.prestige > 0 ? Math.min(v.prestige, 99) : 0 };
+  }
+  return out;
+};
+const rwStars = n => (n > 3 ? '★×' + n : '★'.repeat(n));
+// Your own level is known from the pass answer; others' only when they share their look.
+function rwLvOf(name) {
+  if (!rwShown() || !name || !club) return null;
+  if (typeof isMe === 'function' && isMe(name) && rwLevel.code === club.code && rwLevel.v) return rwLevel.v;
+  const m = rwLevelsByClub[club.code];
+  return (m && m[rwKey(name)]) || null;
+}
+let rwRestartArmed = false, rwRestartBusy = false;
+const rwRedrawProfile = () => { if (typeof renderProfile === 'function') renderProfile(); };
+const rwToast = (msg) => { if (typeof showToast === 'function') showToast(msg, false); };
+async function rwRestart() {
+  if (rwRestartBusy) return;
+  if (!rwRestartArmed) {
+    rwRestartArmed = true; rwRedrawProfile();
+    setTimeout(() => { if (rwRestartArmed && !rwRestartBusy) { rwRestartArmed = false; rwRedrawProfile(); } }, 4000).unref?.();
+    return;
+  }
+  rwRestartBusy = true; rwRedrawProfile();
+  try {
+    const d = await playerCall({ action: 'rewards-restart', name: myName(), playerToken: myToken() });
+    rwSetLevel(d.level, club && club.code, d.prestige);
+    if (typeof rwStoreSynced === 'function') rwStoreSynced(d);
+    rwToast(d.restarted ? `★ Prestige ${d.prestige.count}! Back to level ${d.level.level}, plus ${d.gained} Dinks` : 'Already done: your run was restarted.');
+  } catch (err) { rwToast(err.message || "Couldn't prestige right now."); }
+  rwRestartBusy = false; rwRestartArmed = false;
+  rwRedrawProfile();
 }
 let rwBusy = false, rwAt = 0, rwLooksBusy = false, rwLooksAt = 0, rwLooksCode = null;
 const rwLooksByClub = Object.create(null);
@@ -194,7 +232,7 @@ const Rewards = {
     rwReady.busy = true;
     try {
       const d = await playerCall({ action: 'rewards-pass', name: myName(), playerToken: myToken() });
-      if (club && club.code === code && d && Array.isArray(d.tiers)) { rwSetLevel(d.level, code); rwSetReady(d.tiers.filter(t => t.unlocked && !t.claimed).length, code); }
+      if (club && club.code === code && d && Array.isArray(d.tiers)) { rwSetLevel(d.level, code, d.prestige); rwSetReady(d.tiers.filter(t => t.unlocked && !t.claimed).length, code); }
     } catch { /* offline or off: keep the last value */ } finally { rwReady.busy = false; }
   },
   // Fetch the club's opt-in worn looks (allow-listed item ids only; never balance, streak or history). Skipped when rewards are off or hidden.
@@ -206,7 +244,8 @@ const Rewards = {
       const d = await playerCall({ action: 'rewards-looks' });
       if (!club || club.code !== code || !d || !d.looks) return;
       const next = rwCleanLooks(d.looks), prev = rwLooksByClub[code] || {};
-      if (JSON.stringify(next) !== JSON.stringify(prev)) { rwLooksByClub[code] = next; if (rwShown()) rwRedrawClub(); }
+      const nextLv = rwCleanLevels(d.levels), prevLv = rwLevelsByClub[code] || {};
+      if (JSON.stringify(next) !== JSON.stringify(prev) || JSON.stringify(nextLv) !== JSON.stringify(prevLv)) { rwLooksByClub[code] = next; rwLevelsByClub[code] = nextLv; if (rwShown()) rwRedrawClub(); }
     } catch { /* offline or off: keep the last value */ } finally { rwLooksBusy = false; }
   },
   // One member's shared worn look ({frame, paddle, pet?, petStage?, petShiny?} with prefix stripped), or null when rewards are off, hidden, or unshared.
@@ -234,8 +273,19 @@ const Rewards = {
     if (!rwShown() || !isMe(name)) return '';
     const l = club && rwLevel.code === club.code ? rwLevel.v : null;
     if (!l) { Rewards.syncReady(); return ''; }
-    const next = l.level >= l.max ? 'You are at the top level.' : `${l.toNext} XP to level ${l.level + 1}.`;
-    return `<section class="rw-level" aria-label="Your level"><span class="rw-lv" aria-hidden="true">${l.level}</span><div><b>Level ${l.level} of ${l.max}</b><small>${l.xp} XP all time</small></div><p>${next} Games sent from a club player's phone give ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} a day.</p></section>`;
+    const top = l.level >= l.max, st = l.prestige ? `<span class="rw-stars" aria-hidden="true">${rwStars(l.prestige)}</span> ` : '';
+    const next = top ? "You are at the top level. Prestige to start again from level 1, keep a star by your level for good and get 250 Dinks." : `${l.toNext} XP to level ${l.level + 1}.`;
+    const btn = top ? `<button type="button" class="btn ${rwRestartArmed ? 'btn-blue' : 'btn-ink'} rw-restart" data-rw="restart"${rwRestartBusy ? ' disabled' : ''}>${rwRestartBusy ? 'Prestiging…' : rwRestartArmed ? 'Tap again to prestige' : 'Prestige'}</button>` : '';
+    return `<section class="rw-level" aria-label="Your level"><span class="rw-lv" aria-hidden="true">${l.level}</span><div><b>Level ${l.level} of ${l.max}</b><small>${st}${l.prestige ? `Prestige ${l.prestige} · ` : ''}${l.xp} XP all time</small></div><p>${next} Games sent from a club player's phone give ${RW_XP.game} XP, ${RW_XP.win} for a win, up to ${RW_XP.cap} a day.</p>${btn}</section>`;
+  },
+  // The "Lv N" chip (with stars after a prestige) beside a name on the Leaderboard and Profile: yours always, a member's only when they share their look.
+  levelChipHTML(name) {
+    const l = rwLvOf(name);
+    return l ? `<span class="badge rw-lvchip" aria-label="Level ${l.level}${l.prestige ? `, prestige ${l.prestige}` : ''}">${l.prestige ? `<span class="rw-stars" aria-hidden="true">${rwStars(l.prestige)}</span>` : ''}Lv ${l.level}</span>` : '';
+  },
+  frameAttr(name) {
+    const l = Rewards.lookOf(name), lv = rwLvOf(name);
+    return (l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : '') + (lv && lv.prestige ? ` data-rw-star="${lv.prestige}"` : '');
   },
   // Your worn pet on your own Stats tab (M13): Level N and an XP bar. After its stage changes, a quiet note stays until you tap Got it (no overlay, no motion).
   petCardHTML(name) {
@@ -248,7 +298,6 @@ const Rewards = {
     else if (pet.stage > seen[k]) evolved = rwPetStageLabel(pet.stage);
     return rwPetCardHTML(pet, evolved);
   },
-  frameAttr(name) { const l = Rewards.lookOf(name); return l && l.frame ? ` data-rw-frame="${esc(l.frame)}"` : ''; },
   paddleBadgeHTML(name) {
     const l = Rewards.lookOf(name);
     return l && l.paddle ? `<span class="rw-pad" data-rw-skin="${esc(l.paddle)}" aria-hidden="true">${rwPaddleSvg()}</span>` : '';
@@ -364,6 +413,7 @@ document.addEventListener('click', e => {
   if (a === 'shopnav') { Rewards.openShop(); return; }
   if (a === 'spin') { Rewards.openStore({ spin: true }); return; }
   if (a === 'petseen') { const pet = rwCur().pet; if (pet && club) { const seen = store.get('pb.petSeen', {}); seen[club.code + ':' + pet.id] = pet.stage; store.set('pb.petSeen', seen); if (typeof renderProfile === 'function') renderProfile(); announce('Pet note dismissed.'); } return; }
+  if (a === 'restart') { rwRestart(); return; }
   if (a === 'club') { rwSetClub(!rwClubOn()); return; }
   if (a === 'box') { rwSetBox(!(club && club.mysteryBox)); return; }
   if (a === 'hide' || a === 'show') { store.set('pb.rewardsHide', a === 'hide'); rwApplyLook(); rwRedrawClub(); if (typeof clubSheet !== 'undefined' && clubSheet && clubSheet.view !== 'members' && typeof renderClub === 'function') renderClub(); if (a === 'show') Rewards.syncLooks(true); announce(a === 'hide' ? 'Daily streak hidden on this phone.' : 'Daily streak shown.'); }

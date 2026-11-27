@@ -23,6 +23,7 @@ export function describe(e) {
     if (r === 'challenge') return 'Weekly challenge reward';
     if (r.startsWith('ach:')) return `Achievement: ${(ACHIEVEMENTS.find(a => a.id === r.slice(4)) || {}).name || 'unlocked'}`;
     if (/^sprz:[1-3]$/.test(r)) return `Season prize: ${['1st', '2nd', '3rd'][r.slice(5) - 1]} place`;
+    if (r === 'prestige') return 'Prestige: back to level 1 with a star';
     if (r.startsWith('boxref:')) return `Mystery box refund: you already had ${nameOf(r.slice(7))}`;
     if (r.startsWith('pass:owned:')) return `Season pass tier reward: you already had ${nameOf(r.slice(11))}`;
     if (tierOf(r)) return `Season pass tier ${tierOf(r)}`;
