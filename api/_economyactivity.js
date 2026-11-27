@@ -3,6 +3,7 @@
 // only (rules in DESIGN.md "Rewards", guard in test/economyguard.test.js): it never reads or changes a score, a rating, a rank or a pairing,
 // and a row leaves here without its id, name key or any other player's data.
 import { itemById } from './_economyshop.js';
+import { ACHIEVEMENTS } from './_progress.js';
 
 export const ACTIVITY_CAP = 100;   // rows sent to the phone
 
@@ -18,6 +19,8 @@ export function describe(e) {
     if (r === 'spin') return 'Daily spin';
     if (r === 'game') return 'Earned from games';
     if (r === 'challenge') return 'Weekly challenge reward';
+    if (r.startsWith('ach:')) return `Achievement: ${(ACHIEVEMENTS.find(a => a.id === r.slice(4)) || {}).name || 'unlocked'}`;
+    if (/^sprz:[1-3]$/.test(r)) return `Season prize: ${['1st', '2nd', '3rd'][r.slice(5) - 1]} place`;
     if (r.startsWith('boxref:')) return `Mystery box refund: you already had ${nameOf(r.slice(7))}`;
     if (r.startsWith('pass:owned:')) return `Season pass tier reward: you already had ${nameOf(r.slice(11))}`;
     if (tierOf(r)) return `Season pass tier ${tierOf(r)}`;

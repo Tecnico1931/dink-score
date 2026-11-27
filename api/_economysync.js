@@ -5,6 +5,7 @@ import { nameKey } from './_names.js';
 import { likeFor } from './_privacy.js';
 import { deriveEarnings, summary, validEntry, cleanTz, LOOKBACK_DAYS, RECENT } from './_economy.js';
 import { gameEarnState, planGameRows, planChallengeRows } from './_economygame.js';
+import { planAchievementRows, planPrizeRows } from './_progress.js';
 
 export async function loadLedger(sql, code, key) {
   return (await sql`SELECT id, kind, amount, reason, day, streak, at FROM reward_ledger WHERE club = ${code} AND name_key = ${key} ORDER BY at ASC, id ASC`)
@@ -39,7 +40,8 @@ export async function rewardsFor(sql, code, name, { tz, sync, now = Date.now(), 
   if (gained) ledger = await loadLedger(sql, code, key);
   if (club) {
     const st = await gameEarnState(sql, club, key, { ledger, now });
-    const n = await append(sql, code, key, [...planGameRows({ ledger, days: st.days, now }), ...planChallengeRows({ ledger, weeks: st.weeks })]);
+    const n = await append(sql, code, key, [...planGameRows({ ledger, days: st.days, now }), ...planChallengeRows({ ledger, weeks: st.weeks }),
+      ...planAchievementRows({ ledger, me: st.me }), ...planPrizeRows({ ledger, me: st.me })]);
     gained += n;
     ledger = await loadLedger(sql, code, key);
   }

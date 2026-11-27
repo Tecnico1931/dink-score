@@ -87,15 +87,18 @@ export function planChallengeRows({ ledger = [], weeks = {} }) {
 // replays the club's counted games once (as a club answer does) for the forecast and the challenge progress.
 export async function gameEarnState(sql, club, key, { ledger, now }) {
   const code = club.code, required = !!club.require_confirmation;
-  const since = now - LOOKBACK_DAYS * 864e5;
   const rows = await sql`SELECT data, confirmed_by FROM games WHERE club = ${code} AND deleted_at IS NULL AND lower(data->>'teams') LIKE ${likeFor(key)} ORDER BY ended_at DESC LIMIT 3000`;
   const mine = rows.map(r => ({ ...r.data, ...(r.confirmed_by ? { confirmed: true } : {}) })).filter(g => counts(g, required));
   const floor = dayNum(dayKey(now, 0)) - LOOKBACK_DAYS;
-  if (!mine.some(g => Number(g.receivedAt) >= since) && !ledger.some(e => { const d = gameRowDay(e.id); return d && dayNum(d) >= floor; })) return { days: new Map(), weeks: {} };
+  // Any game at all: achievements and season prizes can come due with no recent game (a season ending).
+  if (!mine.length && !ledger.some(e => { const d = gameRowDay(e.id); return d && dayNum(d) >= floor; })) return { days: new Map(), weeks: {}, me: null };
   const all = (await sql`SELECT data, confirmed_by FROM games WHERE club = ${code} AND deleted_at IS NULL ORDER BY ended_at, id`)
     .map(r => ({ ...r.data, ...(r.confirmed_by ? { confirmed: true } : {}) })).filter(g => counts(g, required));
   const { changes } = compute(all);
   const me = computeProgress(all, now, await loadCuts(sql, code)).get(key), weeks = {};
   for (const id of [weekOf(now).id, weekOf(now - 7 * 864e5).id]) if (me && me.weeks[id]) weeks[id] = me.weeks[id];
-  return { days: gameDays(mine, key, changes), weeks };
+  // Achievements and season prizes pay only for games that earn more than the +2 (sent from a club player's own phone), so they are
+  // worked out again over those games alone; the badge a phone shows may rest on others.
+  const paid = me && (me.achievements.length || me.trophies.length) ? computeProgress(all.filter(verifiedGame), now, await loadCuts(sql, code)).get(key) : null;
+  return { days: gameDays(mine, key, changes), weeks, me: paid || null };
 }
