@@ -18,6 +18,7 @@ import { loadLedger } from './_economysync.js';
 import { itemById, loadItems, wornFrom, shareOf } from './_economyshop.js';
 import { xpFromGames, levelFor } from './_economyxp.js';
 import { loadBoosts } from './_economyboost.js';
+import { PRESTIGE_DINKS, prestigeCount, runLevel, planPrestige, applyPrestige } from './_economyprestige.js';
 
 export const PASS_XP_TIER = 125, PASS_DINKS = 25;
 // 8 tiers. Every `item` id comes from PASS_ITEMS in _economyxp.js (null = Dinks only).
@@ -30,6 +31,7 @@ export const passClaimId = (seasonId, tier) => `xpass:${seasonId}:${tier}`;
 
 // Pure: build the Season Pass view sent to the player's phone. `xp` is this season's XP, `allXp` the player's XP over all games (the level card).
 export function buildPassView({ season, xp, allXp = 0, ledger, items, share = false }) {
+  const count = prestigeCount(ledger), level = runLevel(allXp, count);
   const claimedIds = new Set((ledger || []).map(e => e.id));
   const ownedIds = new Set((items || []).map(i => i.id));
   const earned = Math.max(0, Math.trunc(Number(xp) || 0));
@@ -51,7 +53,8 @@ export function buildPassView({ season, xp, allXp = 0, ledger, items, share = fa
     xp: earned,
     maxXp: PASS_MAX_XP,
     tierXp: PASS_XP_TIER,
-    level: levelFor(allXp),
+    level,
+    prestige: { count, dinks: PRESTIGE_DINKS, ready: level.level >= level.max },
     dinks: ledgerBalance(ledger || []),
     worn: wornFrom(items || []),
     share: !!share,
@@ -104,6 +107,14 @@ async function loadSeasonState(sql, code, key, now) {
 export async function passView(sql, code, key, now = Date.now()) {
   const st = await loadSeasonState(sql, code, key, now);
   return buildPassView(st);
+}
+
+// Prestige (see _economyprestige.js): at the top level, start again from level 1 for a star and PRESTIGE_DINKS. A replay or double tap pays once.
+export async function restartRun(sql, code, key, { now = Date.now() } = {}) {
+  const st = await loadSeasonState(sql, code, key, now);
+  const plan = planPrestige({ ledger: st.ledger, allXp: st.allXp });
+  const applied = await applyPrestige(sql, code, key, plan.entry);
+  return { ...(await passView(sql, code, key, now)), restarted: applied, gained: applied ? PRESTIGE_DINKS : 0 };
 }
 
 // Claim one unlocked tier in the current club season. Atomic under a per-player advisory lock: a replay or race adds nothing twice.
